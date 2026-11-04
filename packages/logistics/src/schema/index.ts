@@ -458,6 +458,70 @@ export const tripVisits = logisticsSchema.table(
   ],
 );
 
+/**
+ * Cara bayar di toko saat Terkirim (spec LT1 §13.2, §13.5): satu per kunjungan, dicatat awak bersama Terkirim. Uang
+ * disimpan rupiah bulat. Tidak diubah atau dihapus; koreksi lewat pemeriksaan uang (Tahap 4).
+ */
+export const visitPayments = logisticsSchema.table(
+  'visit_payments',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => tripVisits.id),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    customerId: integer('customer_id').notNull(),
+    /** NONE (tidak ada tagihan, lunas di kasir), CASH, TRANSFER, PARTIAL (bayar sebagian / titip cash), TEMPO. */
+    method: text('method').notNull(),
+    /** Sisa piutang kasir nota-nota kunjungan saat Terkirim. */
+    billAmount: integer('bill_amount').notNull(),
+    receivedAmount: integer('received_amount').notNull(),
+    proofPhotoFileId: uuid('proof_photo_file_id'),
+    recordedByEmployeeId: integer('recorded_by_employee_id').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('visit_payments_visit_unique').on(t.visitId),
+    index('visit_payments_trip_idx').on(t.tripId),
+    check('visit_payments_method', sql`${t.method} in ('NONE', 'CASH', 'TRANSFER', 'PARTIAL', 'TEMPO')`),
+    check('visit_payments_amounts', sql`${t.billAmount} >= 0 and ${t.receivedAmount} >= 0 and (
+      (${t.method} = 'NONE' and ${t.billAmount} = 0 and ${t.receivedAmount} = 0)
+      or (${t.method} in ('CASH', 'TRANSFER') and ${t.billAmount} > 0 and ${t.receivedAmount} = ${t.billAmount})
+      or (${t.method} = 'PARTIAL' and ${t.receivedAmount} > 0 and ${t.receivedAmount} < ${t.billAmount})
+      or (${t.method} = 'TEMPO' and ${t.billAmount} > 0 and ${t.receivedAmount} = 0))`),
+    check('visit_payments_proof', sql`(${t.method} = 'TRANSFER') = (${t.proofPhotoFileId} is not null)`),
+  ],
+);
+
+/**
+ * Laporan kunjungan sesudah Terkirim (spec LT1 §13.2, §13.5): pilihan baku + foto + catatan. Kantor memutuskan potong
+ * nota di Back Office lalu menutupnya dengan catatan. Retur dibawa pulang driver. Tidak dihapus.
+ */
+export const visitReports = logisticsSchema.table(
+  'visit_reports',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => tripVisits.id),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    customerId: integer('customer_id').notNull(),
+    /** WRONG_ITEM, SHORT, DAMAGED, RETURN, OTHER. */
+    kind: text('kind').notNull(),
+    note: text('note'),
+    photoFileId: uuid('photo_file_id').notNull(),
+    carriedBack: boolean('carried_back').notNull().default(false),
+    reportedByEmployeeId: integer('reported_by_employee_id').notNull(),
+    reportedAt: timestamp('reported_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByAccountId: integer('closed_by_account_id'),
+    closeNote: text('close_note'),
+  },
+  (t) => [
+    index('visit_reports_visit_idx').on(t.visitId),
+    index('visit_reports_open_idx').on(t.closedAt),
+    check('visit_reports_kind', sql`${t.kind} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'RETURN', 'OTHER') and (${t.kind} <> 'OTHER' or ${t.note} is not null)`),
+    check('visit_reports_carried', sql`${t.carriedBack} = (${t.kind} = 'RETURN')`),
+    check('visit_reports_closed', sql`(${t.closedAt} is null) = (${t.closeNote} is null) and (${t.closedAt} is null) = (${t.closedByAccountId} is null)`),
+  ],
+);
+
 /** Kunjungan ↔ surat jalan. Satu surat jalan hanya di satu kunjungan terbuka (`active`). */
 export const tripVisitNotes = logisticsSchema.table(
   'trip_visit_notes',

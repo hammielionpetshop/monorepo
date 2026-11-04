@@ -15,6 +15,7 @@ import { ageDays } from '../rules/delivery-notes';
 import type { NoteKey } from '../rules/trip-notes';
 import { PHASE_LABELS, PHASE_TONES, tripPhase, type TripPhase } from '../rules/driver-trip';
 import { endReportOf, endReportPhotoIds, pendingEndReports } from './driver-trip';
+import { paymentProofIds } from './store-payments';
 
 export type NoteOption = {
   key: NoteKey; kind: 'SALE' | 'TRANSFER'; number: string; on: string; age: number; origin: string; originId: number; destination: string;
@@ -323,7 +324,9 @@ export async function openTripPhoto(actor: Actor | null, tripId: number, fileId:
   ].filter(Boolean);
   if (!known.includes(fileId)) return null;
   const allowed = loaded.crew.some((c) => c.employeeId === actor.personId) || can(actor, 'logistics.trip.view')
-    || (fileId === t.crewPhotoFileId && can(actor, 'attendance.trip.photo'));
+    || (fileId === t.crewPhotoFileId && can(actor, 'attendance.trip.photo'))
+    // Finance membuka bukti transfer dari layar Uang dari Toko (spec LT1 §13.5 butir 6).
+    || (can(actor, 'logistics.store_payment.view') && (await paymentProofIds(tripId)).includes(fileId));
   if (!allowed) return null;
   const [purged] = await db.select().from(photoPurges).where(eq(photoPurges.fileId, fileId)).limit(1);
   if (purged) return null;

@@ -9,6 +9,8 @@ import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import { CONDITION_LABELS, VISIT_REASONS, type Condition, type VisitOutcome } from '../rules/driver-trip';
+import { rupiah } from '../rules/rates';
+import { CHOSEN_METHODS, PAYMENT_HINTS, PAYMENT_LABELS, REPORT_KINDS, cleanPayment, leftToCollect, type ChosenMethod, type ReportKind } from '../rules/store-payments';
 import type { EndReportPending } from '../server/driver-trip';
 import type { TripCard } from '../server/screens';
 import type { TripPickupView, TripVisitView } from '../server/trip-notes';
@@ -21,9 +23,11 @@ type Step =
   | { kind: 'shop'; tripId: number; shoppingId: number; name: string }
   | { kind: 'pickup'; tripId: number; pickupId: number; name: string }
   | { kind: 'visit'; tripId: number; visit: TripVisitView; outcome: 'DELIVERED' | VisitOutcome }
-  | { kind: 'home'; tripId: number; early: boolean; left: string[]; back: TripVisitView[] }
+  | { kind: 'home'; tripId: number; early: boolean; left: string[]; back: TripVisitView[]; returns: string[] }
   | { kind: 'arrive'; tripId: number }
   | { kind: 'point'; tripId: number; visit: TripVisitView; pointKind: PointAction }
+  | { kind: 'deliver'; tripId: number; visit: TripVisitView }
+  | { kind: 'report'; tripId: number; visit: TripVisitView }
   | null;
 
 const OUTCOME_TITLES = { DELIVERED: 'Terkirim', TOMORROW: 'Kirim Besok', FAILED: 'Gagal' } as const;
@@ -46,6 +50,11 @@ function leftovers(card: TripCard, delivery: Delivery | undefined): string[] {
 function goingBack(delivery: Delivery | undefined): TripVisitView[] {
   const open = new Set(delivery?.visits.filter((v) => v.status === 'OPEN').map((v) => v.customerId ?? v.destination) ?? []);
   return delivery?.visits.filter((v) => (v.status === 'TOMORROW' || v.status === 'FAILED') && !open.has(v.customerId ?? v.destination)) ?? [];
+}
+
+/** Retur yang dibawa pulang dari laporan kunjungan (spec LT1 §13.5 butir 4). */
+function returnsOf(delivery: Delivery | undefined): string[] {
+  return delivery?.visits.flatMap((v) => v.reports.filter((r) => r.carriedBack).map((r) => `${v.destination}: retur${r.note ? ` (${r.note})` : ''}`)) ?? [];
 }
 
 /**
@@ -76,6 +85,9 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
 
   function onVisit(tripId: number, visit: TripVisitView, action: VisitAction) {
     if (action === 'RETRY') return void retry(tripId, visit);
+    if (action === 'REPORT') return begin({ kind: 'report', tripId, visit });
+    // Terkirim ke toko: foto barang → cara bayar → ringkasan (spec LT1 §13.5 butir 2).
+    if (action === 'DELIVERED' && visit.customerId != null) return begin({ kind: 'deliver', tripId, visit });
     begin({ kind: 'visit', tripId, visit, outcome: action });
   }
 
@@ -90,7 +102,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
 
   async function sendPhoto() {
-    if (!step || !photo || step.kind === 'point') return;
+    if (!step || !photo || step.kind === 'point' || step.kind === 'deliver' || step.kind === 'report') return;
     setBusy(true);
     setError(null);
     const needsPoint = step.kind === 'depart' || step.kind === 'visit' || step.kind === 'arrive';
@@ -134,6 +146,8 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   if (step?.kind === 'point') {
     return <PointFlow step={step} limitM={pointAccuracyM} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
   }
+  if (step?.kind === 'deliver') return <DeliverFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
+  if (step?.kind === 'report') return <ReportFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
 
   if (step) {
     const reasons = step.kind === 'visit' && step.outcome !== 'DELIVERED' ? VISIT_REASONS[step.outcome] : null;
@@ -170,10 +184,13 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
             {step.left.join(', ')}. Sisa kunjungan menjadi Kirim Besok (surat jalan kembali ke antrean), ambil barang menjadi Belum siap, belanja tidak jadi.
           </Alert>
         )}
-        {step.kind === 'home' && step.back.length > 0 && (
+        {step.kind === 'home' && (step.back.length > 0 || step.returns.length > 0) && (
           <div className="text-sm">
             <p className="font-medium">Barang yang ikut pulang:</p>
-            <ul className="pl-2">{step.back.map((v) => <li key={v.id}>{v.destination} ({v.statusLabel.toLowerCase()}): {v.notes.map((n) => n.number).join(', ')}</li>)}</ul>
+            <ul className="pl-2">
+              {step.back.map((v) => <li key={v.id}>{v.destination} ({v.statusLabel.toLowerCase()}): {v.notes.map((n) => n.number).join(', ')}</li>)}
+              {step.returns.map((r) => <li key={r}>{r}</li>)}
+            </ul>
           </div>
         )}
         {reasons && (
@@ -265,13 +282,13 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
             {t.phase === 'RUNNING' && (left.length ? (
               <div className="space-y-2">
                 <p className="text-xs text-ink-muted">Sebelum pulang: {left.join(', ')}.</p>
-                <Button block variant="secondary" className="min-h-12" disabled={busy} onClick={() => begin({ kind: 'home', tripId: t.id, early: true, left, back: goingBack(d) })}>
+                <Button block variant="secondary" className="min-h-12" disabled={busy} onClick={() => begin({ kind: 'home', tripId: t.id, early: true, left, back: goingBack(d), returns: returnsOf(d) })}>
                   Selesai lebih awal
                 </Button>
               </div>
             ) : (
               <>
-                <Button block className="min-h-12" disabled={busy} onClick={() => begin({ kind: 'home', tripId: t.id, early: false, left: [], back: goingBack(d) })}>
+                <Button block className="min-h-12" disabled={busy} onClick={() => begin({ kind: 'home', tripId: t.id, early: false, left: [], back: goingBack(d), returns: returnsOf(d) })}>
                   Foto bak kosong
                 </Button>
                 <p className="flex items-center gap-1 text-xs text-ink-muted">Semua sudah beres. Foto bak lalu jalan pulang ke garasi. <NewBadge feature="fitur/trip-hp-driver" /></p>
@@ -287,6 +304,168 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Terkirim ke toko (spec LT1 §13.5 butir 2): foto barang diterima → cara bayar (tagihan = sisa piutang kasir) → ringkasan
+ * → Simpan. Lunas transfer wajib foto bukti transfer. Catatan uang tidak bisa diubah awak, jadi ringkasan ditampilkan dulu.
+ */
+function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }>; onDone: (saved: boolean) => void }) {
+  const toast = useToast();
+  const bill = step.visit.bill ?? 0;
+  const [page, setPage] = useState<'PHOTO' | 'PAY' | 'PROOF' | 'SUMMARY'>('PHOTO');
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [proof, setProof] = useState<Blob | null>(null);
+  const [method, setMethod] = useState<ChosenMethod | null>(null);
+  const [partial, setPartial] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const clean = cleanPayment(bill, method, partial ? Number(partial) : null);
+
+  async function send() {
+    if (!photo || !clean.ok) return;
+    setBusy(true);
+    setError(null);
+    const point = await readLocation();
+    const form = photoForm({
+      action: 'deliver_visit', tripId: step.tripId, visitId: step.visit.id, payMethod: clean.method === 'NONE' ? null : clean.method,
+      partialAmount: clean.method === 'PARTIAL' ? clean.received : null, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy,
+    }, photo);
+    if (clean.method === 'TRANSFER' && proof) form.append('proof', proof, 'bukti.jpg');
+    const result = await postJson('/api/logistics/upload', form);
+    setBusy(false);
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
+    toast(`${step.visit.destination}: Terkirim tercatat.`, 'ok');
+    onDone(true);
+  }
+
+  const afterPhoto = () => setPage(bill > 0 ? 'PAY' : 'SUMMARY');
+  return (
+    <Card className="mx-auto max-w-md space-y-3">
+      <div>
+        <p className="text-sm text-ink-muted">Terkirim · {step.visit.destination}</p>
+        <h2 className="font-semibold">
+          {page === 'PHOTO' ? '1. Foto barang diterima toko' : page === 'PAY' ? '2. Cara bayar toko' : page === 'PROOF' ? '3. Foto bukti transfer' : 'Periksa lalu simpan'}
+        </h2>
+      </div>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <ul className="text-sm">{step.visit.notes.map((n) => <li key={n.key} className="tabular-nums">{n.number} <span className="text-ink-muted">dari {n.origin}</span></li>)}</ul>
+      <p className="text-sm">Tagihan: <b className="tabular-nums">{bill > 0 ? rupiah(bill) : 'tidak ada (lunas di kasir)'}</b></p>
+      {page === 'PHOTO' && (photo ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={URL.createObjectURL(photo)} alt="Foto barang diterima" className="w-full rounded-lg" />
+          <div className="flex gap-2">
+            <Button block className="min-h-12" onClick={afterPhoto}>Lanjut</Button>
+            <Button variant="secondary" className="min-h-12" onClick={() => setPhoto(null)}>Ulangi</Button>
+          </div>
+        </>
+      ) : <LiveCamera onPhoto={setPhoto} onError={setError} />)}
+      {page === 'PAY' && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {CHOSEN_METHODS.map((m) => (
+              <Button key={m} className="min-h-12" variant={method === m ? 'primary' : 'secondary'} onClick={() => { setMethod(m); setError(null); }}>{PAYMENT_LABELS[m]}</Button>
+            ))}
+          </div>
+          {method && <p className="text-sm text-ink-muted">{PAYMENT_HINTS[method]}</p>}
+          {method === 'PARTIAL' && (
+            <Field id="partial-amount" label="Uang cash yang diterima (Rp)" hint={`Kurang dari tagihan ${rupiah(bill)}.`}>
+              <Input id="partial-amount" inputMode="numeric" value={partial} onChange={(e) => setPartial(e.target.value.replace(/\D/g, '').slice(0, 12))} />
+            </Field>
+          )}
+          {method && !clean.ok && method === 'PARTIAL' && partial && <p className="text-xs text-danger-fg">{clean.error}</p>}
+          <div className="flex gap-2">
+            <Button variant="secondary" className="min-h-12" onClick={() => setPage('PHOTO')}>Kembali</Button>
+            <Button block className="min-h-12" disabled={!clean.ok} onClick={() => setPage(method === 'TRANSFER' ? 'PROOF' : 'SUMMARY')}>Lanjut</Button>
+          </div>
+        </>
+      )}
+      {page === 'PROOF' && (proof ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={URL.createObjectURL(proof)} alt="Foto bukti transfer" className="w-full rounded-lg" />
+          <div className="flex gap-2">
+            <Button block className="min-h-12" onClick={() => setPage('SUMMARY')}>Lanjut</Button>
+            <Button variant="secondary" className="min-h-12" onClick={() => setProof(null)}>Ulangi</Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-ink-muted">Foto layar HP toko atau struk transfer, nominal dan tanggal terbaca.</p>
+          <LiveCamera onPhoto={setProof} onError={setError} label="Foto bukti transfer" />
+          <Button variant="secondary" block onClick={() => setPage('PAY')}>Kembali</Button>
+        </>
+      ))}
+      {page === 'SUMMARY' && clean.ok && (
+        <>
+          <dl className="space-y-1 rounded-lg border border-line p-2 text-sm">
+            <div className="flex justify-between gap-2"><dt>Cara bayar</dt><dd className="font-medium">{PAYMENT_LABELS[clean.method]}</dd></div>
+            <div className="flex justify-between gap-2"><dt>Uang diterima</dt><dd className="font-medium tabular-nums">{rupiah(clean.received)}{clean.method === 'TRANSFER' ? ' (transfer)' : clean.received ? ' (cash)' : ''}</dd></div>
+            {leftToCollect(clean.method, bill, clean.received) > 0 && (
+              <div className="flex justify-between gap-2"><dt>Sisa ditagih kantor</dt><dd className="font-medium tabular-nums">{rupiah(leftToCollect(clean.method, bill, clean.received))}</dd></div>
+            )}
+          </dl>
+          <p className="text-xs text-ink-muted">Sesudah disimpan, cara bayar tidak bisa diubah dari HP. Bila ada barang salah, kurang, rusak, atau retur, tekan Lapor masalah di kartu toko.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" className="min-h-12" disabled={busy} onClick={() => setPage(bill > 0 ? (method === 'TRANSFER' ? 'PROOF' : 'PAY') : 'PHOTO')}>Kembali</Button>
+            <Button block className="min-h-12" loading={busy} onClick={send}>Simpan Terkirim</Button>
+          </div>
+        </>
+      )}
+      <Button variant="ghost" block disabled={busy} onClick={() => onDone(false)}>Batal</Button>
+    </Card>
+  );
+}
+
+/** Lapor masalah sesudah Terkirim (spec LT1 §13.5 butir 4): pilihan baku + foto + catatan; retur dibawa pulang. */
+function ReportFlow({ step, onDone }: { step: Extract<Step, { kind: 'report' }>; onDone: (saved: boolean) => void }) {
+  const toast = useToast();
+  const [kind, setKind] = useState<ReportKind | null>(null);
+  const [note, setNote] = useState('');
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = !!kind && (kind !== 'OTHER' || note.trim().length >= 5);
+
+  async function send() {
+    if (!kind || !photo) return;
+    setBusy(true);
+    setError(null);
+    const result = await postJson('/api/logistics/upload', photoForm({ action: 'visit_report', tripId: step.tripId, visitId: step.visit.id, kind, note }, photo));
+    setBusy(false);
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
+    toast(`Laporan ${step.visit.destination} terkirim ke kantor.`, 'ok');
+    onDone(true);
+  }
+
+  return (
+    <Card className="mx-auto max-w-md space-y-3">
+      <h2 className="font-semibold">Lapor masalah: {step.visit.destination}</h2>
+      <p className="text-sm text-ink-muted">Kantor yang memutuskan potong nota. Retur boleh langsung dibawa pulang.</p>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="grid grid-cols-2 gap-2">
+        {REPORT_KINDS.map((k) => (
+          <Button key={k.code} className="min-h-11" variant={kind === k.code ? 'primary' : 'secondary'} onClick={() => setKind(k.code)}>{k.label}</Button>
+        ))}
+      </div>
+      <Field id="report-note" label={kind === 'OTHER' ? 'Ceritakan kendalanya (wajib)' : 'Catatan (barang apa, berapa)'}>
+        <Textarea id="report-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Contoh: 2 sak Royal 10 kg sobek" />
+      </Field>
+      {photo ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={URL.createObjectURL(photo)} alt="Foto masalah" className="w-full rounded-lg" />
+          <div className="flex gap-2">
+            <Button block className="min-h-12" loading={busy} disabled={!ready} onClick={send}>Kirim laporan</Button>
+            <Button variant="secondary" className="min-h-12" disabled={busy} onClick={() => setPhoto(null)}>Ulangi</Button>
+          </div>
+          {!ready && <p className="text-xs text-ink-muted">Pilih jenis laporan dulu (Kendala lain wajib cerita).</p>}
+        </>
+      ) : <LiveCamera onPhoto={setPhoto} onError={setError} label="Foto barangnya" />}
+      <Button variant="ghost" block disabled={busy} onClick={() => onDone(false)}>Batal</Button>
+    </Card>
   );
 }
 

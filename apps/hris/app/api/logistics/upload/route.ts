@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
-import { arriveTrip, closeByOffice, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, sendEndReport } from '@/modules/logistics';
+import {
+  addVisitReport, arriveTrip, closeByOffice, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, sendEndReport,
+} from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +19,7 @@ const OUTCOMES = { deliver_visit: 'DELIVERED', tomorrow_visit: 'TOMORROW', fail_
 // Aksi trip berfoto (spec L6 §3.3, 3.4, 3.6; LT1 §3.5, §13.3): Berangkat (foto awak), Belanja selesai (foto nota), Ambil barang di cabang
 // asal (foto barang diterima driver), kunjungan Terkirim / Kirim Besok / Gagal, Menuju Garasi (foto bak kosong), Sampai Garasi
 // (foto amper bensin), Laporan Pulang trip (foto mobil boleh), Tutup atas nama driver (foto bukti), titik toko dari kunjungan
-// (foto depan toko, LT1 §13.4).
+// (foto depan toko, LT1 §13.4), cara bayar + foto bukti transfer saat Terkirim dan laporan kunjungan (LT1 §13.5).
 // Jam = jam server saat permintaan ini diterima.
 export async function POST(req: Request) {
   const rejected = await checkMutation(req);
@@ -37,15 +39,22 @@ export async function POST(req: Request) {
     if (typeof action === 'string' && action in OUTCOMES) {
       const visitId = positive(form.get('visitId'));
       if (!visitId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      const proofValue = form.get('proof');
       return processVisit(actor, tripId, visitId, {
         outcome: OUTCOMES[action as keyof typeof OUTCOMES], reasonCode: text(form.get('reasonCode'), 40), note: text(form.get('note'), 300), point,
-      }, photo);
+        payment: { method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')) },
+      }, photo, proofValue instanceof File ? proofValue : null);
     }
     if (action === 'store_point') {
       const visitId = positive(form.get('visitId'));
       const kind = form.get('kind');
       if (!visitId || (kind !== 'NEW' && kind !== 'CORRECTION')) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
       return proposeFromVisit(actor, tripId, visitId, { kind, reason: text(form.get('reason'), 400), point }, photo);
+    }
+    if (action === 'visit_report') {
+      const visitId = positive(form.get('visitId'));
+      if (!visitId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      return addVisitReport(actor, tripId, visitId, { kind: text(form.get('kind'), 20), note: text(form.get('note'), 400) }, photo);
     }
     if (action === 'head_home') return headHome(actor, tripId, photo, text(form.get('earlyReason'), 500));
     if (action === 'arrive') return arriveTrip(actor, tripId, point, photo);

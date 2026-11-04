@@ -11,9 +11,11 @@ import {
 } from '../rules/driver-trip';
 import { contentProblem, reasonProblem, validPoint, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { rupiah } from '../rules/rates';
+import { cleanPayment } from '../rules/store-payments';
 import { FORBIDDEN, accountsOf, fail, loadTrip, managerAccounts, peopleNames, type LoadedTrip } from './data';
 import { rateProblem } from './rates';
 import { distanceFromPoint } from './store-points';
+import { openVisitBills, recordPayment, type PaymentInput } from './store-payments';
 import { activeKeys, endLinks, reshapeTrip, settleOnClose, tripNotesView } from './trip-notes';
 
 // Alur trip di HP driver (spec LT1 §13.3, LT1b-2a). Semua langkah lewat pintu server ini (LOG-24).
@@ -92,13 +94,24 @@ async function alreadyProcessed(visitId: number): Promise<string> {
   return `Sudah diproses${name ? ` ${name}` : ''}${visit.processedAt ? ` pukul ${wibClock(visit.processedAt)}` : ''}.`;
 }
 
-export type VisitInput = { outcome: 'DELIVERED' | VisitOutcome; reasonCode?: string | null; note?: string | null; point?: Point | null };
+export type VisitInput = {
+  outcome: 'DELIVERED' | VisitOutcome; reasonCode?: string | null; note?: string | null; point?: Point | null;
+  /** Cara bayar toko saat Terkirim (spec LT1 §13.5); wajib untuk kunjungan ke toko yang punya tagihan. */
+  payment?: PaymentInput | null;
+};
+
+/** Dilempar di dalam transaksi kunjungan supaya seluruh perubahan dibatalkan; pesannya diteruskan ke layar. */
+class VisitRollback extends Error {
+  constructor(readonly status: 400 | 409, message: string) { super(message); }
+}
 
 /**
  * Kunjungan Terkirim / Kirim Besok / Gagal (§13.3 butir 2): awak trip, foto wajib (kamera langsung), lokasi dicatat.
  * Terkirim → surat jalan Terkirim; Kirim Besok → kembali Menunggu, tertunda +1; Gagal → Perlu keputusan.
  */
-export async function processVisit(actor: Actor | null, tripId: number, visitId: number, input: VisitInput, photo: File | null): Promise<ServiceResult> {
+export async function processVisit(
+  actor: Actor | null, tripId: number, visitId: number, input: VisitInput, photo: File | null, proof: File | null = null,
+): Promise<ServiceResult> {
   const reason = input.outcome === 'DELIVERED' ? null : visitReason(input.outcome, input.reasonCode ?? '', input.note);
   if (reason && !reason.ok) return fail(400, reason.error);
   const running = await runningForCrew(actor, tripId);
@@ -114,11 +127,25 @@ export async function processVisit(actor: Actor | null, tripId: number, visitId:
     });
     if (problem) return fail(409, problem);
   }
+  // Cara bayar toko (§13.5 butir 2): diperiksa dulu dengan tagihan sekarang, dihitung ulang di dalam transaksi.
+  const paying = input.outcome === 'DELIVERED' && visit.customerId != null;
+  let proofId: string | null = null;
+  if (paying) {
+    const bill = (await openVisitBills([visitId])).get(visitId) ?? 0;
+    const clean = cleanPayment(bill, input.payment?.method, input.payment?.partialAmount);
+    if (!clean.ok) return fail(400, clean.error);
+    if (clean.method === 'TRANSFER') {
+      const proofUpload = await saveUpload(actor, proof);
+      if (!proofUpload.ok) return fail(400, proofUpload.status === 400 ? `Bukti transfer: ${proofUpload.error}` : proofUpload.error);
+      proofId = proofUpload.data.id;
+    }
+  }
   const upload = await saveUpload(actor, photo);
   if (!upload.ok) return upload;
   const where = cleanPoint(input.point);
   const me = actor!;
-  return db.transaction(async (tx) => {
+  try {
+    return await db.transaction(async (tx) => {
     const now = new Date();
     // Jarak dari titik toko Disetujui hanya dicatat untuk Terkirim (spec LT1 §13.4 butir 5).
     const distanceM = input.outcome === 'DELIVERED' ? await distanceFromPoint(tx, visit.customerId, where) : null;
@@ -129,7 +156,11 @@ export async function processVisit(actor: Actor | null, tripId: number, visitId:
     }).where(and(eq(tripVisits.id, visitId), eq(tripVisits.status, 'OPEN'))).returning({ id: tripVisits.id });
     if (!done) return fail(409, await alreadyProcessed(visitId));
     const [trip] = await tx.select({ status: trips.status, heading: trips.headingHomeAt, number: trips.number }).from(trips).where(eq(trips.id, tripId)).for('update');
-    if (trip.status !== 'RUNNING' || trip.heading) return fail(409, 'Trip ini sudah Menuju Garasi atau ditutup.');
+    if (trip.status !== 'RUNNING' || trip.heading) throw new VisitRollback(409, 'Trip ini sudah Menuju Garasi atau ditutup.');
+    if (paying) {
+      const paid = await recordPayment(tx, { id: visitId, tripId, customerId: visit.customerId! }, input.payment ?? {}, proofId, me.personId, now);
+      if (!paid.ok) throw new VisitRollback(paid.status, paid.error);
+    }
     const links = (await activeKeys(tx, tripId)).filter((k) => k.visitId === visitId);
     await endLinks(tx, links, {
       tripId, kind: input.outcome, reason: reason?.ok ? reason.text : null, accountId: me.accountId, employeeId: me.personId, now,
@@ -146,7 +177,11 @@ export async function processVisit(actor: Actor | null, tripId: number, visitId:
       }, me.accountId);
     }
     return { ok: true as const, data: undefined };
-  });
+    });
+  } catch (error) {
+    if (error instanceof VisitRollback) return fail(error.status, error.message);
+    throw error;
+  }
 }
 
 /** Coba lagi kunjungan Kirim Besok selama trip masih Berjalan (LOG-121): surat jalan yang masih Menunggu dibawa kembali. */

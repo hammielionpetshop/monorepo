@@ -48,3 +48,8 @@ CREATE TABLE IF NOT EXISTS petshop.inter_branch_transfers (
   id serial PRIMARY KEY, ibt_number varchar(50) NOT NULL, source_branch_id integer NOT NULL, destination_branch_id integer NOT NULL,
   status varchar(20) NOT NULL DEFAULT 'DRAFT', delivery_method varchar(20), created_at timestamp NOT NULL DEFAULT now()
 );
+-- LT1b-3 (migrasi logistics 0007): sisa piutang per nota untuk view logistics.pos_customer_debts.
+CREATE TABLE IF NOT EXISTS petshop.customer_debts (
+  id serial PRIMARY KEY, customer_id integer NOT NULL, transaction_id integer, total_amount integer NOT NULL, paid_amount integer NOT NULL DEFAULT 0,
+  remaining_amount integer NOT NULL, status varchar(20) NOT NULL DEFAULT 'UNPAID'
+);
