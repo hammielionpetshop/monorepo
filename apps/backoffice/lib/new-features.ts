@@ -32,6 +32,7 @@ export const NEW_FEATURES: Record<string, string> = {
   // POS
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
+  '/pos/ongkir': '2026-11-04', // menu Ongkir: riwayat ongkir & pengantar cabang (samakan dengan tanggal rilis saat merge)
   '/pos/produk/retur': '2026-10-11',
   // Kotak di dalam halaman
   'retur-supplier-luar': '2026-10-11',

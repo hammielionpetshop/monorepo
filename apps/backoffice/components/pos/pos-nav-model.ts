@@ -5,6 +5,7 @@ export type PosNavIcon =
   | 'incomingTransfer'
   | 'products'
   | 'history'
+  | 'ongkir'
   | 'shift'
 
 export type PosNavItem = {
@@ -54,6 +55,13 @@ export const POS_NAV_ITEMS: readonly PosNavItem[] = [
     label: 'Riwayat',
     mobileLabel: 'Riwayat',
     icon: 'history',
+  },
+  // Riwayat ongkos kirim & pengantar cabang ini (tanpa bonus pengantar).
+  {
+    href: '/pos/ongkir',
+    label: 'Ongkir',
+    mobileLabel: 'Ongkir',
+    icon: 'ongkir',
   },
   {
     href: '/pos/shift',
