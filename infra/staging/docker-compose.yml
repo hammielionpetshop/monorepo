@@ -59,6 +59,8 @@ services:
       AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-}
       # Akses kasir dari HRIS (L2d): pintu internal backoffice lewat jaringan compose.
       HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
+      # Kunci uji banding L9b: 1 = hanya Pemilik/GM yang bisa masuk HRIS staging (spec L9 §4).
+      HRIS_STAGING_RESTRICT: ${STAGING_HRIS_RESTRICT:-0}
       BACKOFFICE_INTERNAL_URL: http://bo-staging:3000
     volumes:
       - hris_photos:/data/uploads
