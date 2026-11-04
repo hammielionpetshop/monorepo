@@ -47,8 +47,14 @@ const ANSWER_KEY = {
     'unloading.view': 'ALL', 'unloading.pay': 'ALL',
     // L9a (spec L9 §6)
     'advance.legacy_enter': 'ALL',
+    // LT1a (spec LT1 §12)
+    'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL',
   },
-  Marketing: EVERY_EMPLOYEE,
+  Marketing: {
+    ...EVERY_EMPLOYEE,
+    // LT1a (spec LT1 §12)
+    'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL', 'logistics.store.manage': 'ALL',
+  },
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
     'attendance.schedule.view': 'DEPARTMENT', 'attendance.schedule.update': 'DEPARTMENT', 'attendance.closure.view': 'DEPARTMENT',
@@ -57,6 +63,8 @@ const ANSWER_KEY = {
     'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
     'wage.rate.view': 'ALL',
     'unloading.view': 'ALL', 'unloading.create': 'ALL',
+    // LT1a (spec LT1 §12)
+    'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL', 'logistics.store.manage': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,

@@ -1,0 +1,307 @@
+# Spec Logistik Tahap 1 (LT1) — Cara Kirim di Kasir, Surat Jalan, Toko, dan Kunjungan di Trip
+
+Tanggal: 2026-11-04 · Status: **v4 — LT1-K tayang produksi (1.107.108–110, lolos uji owner); LT1a disetujui owner 2026-11-04 (rincian §12); LT1b menunggu keputusan §9 butir 7–12**
+Cakupan: tahap pertama **Logistik penuh**, di atas L6 Logistik Minimal ([spec L6](2026-11-03-hris-l6-logistik-design.md)). Menyentuh **tiga aplikasi**: kasir POS (`apps/pos-desktop`), backoffice (`apps/backoffice`), HRIS (`apps/hris` + `packages/logistics`).
+Keputusan owner 2026-11-04:
+- Urutan 5 tahap Logistik penuh (1 surat jalan + toko + kunjungan; 2 uang, tertunda, retur, potong nota; 3 laporan muat cabang + antar sendiri; 4 pemeriksaan uang + Catat di Kasir + tagih; 5 dashboard, laporan, bensin). Dikerjakan bersamaan dengan L9.
+- **Toko dan surat jalan dibaca langsung dari kasir** (satu proyek), bukan diketik ulang di HRIS.
+- Kiriman truk berasal dari **Gudang dan Toko Pusat**. Toko Pusat **tidak memakai Bulk Sale**. Fitur antar/ongkir kasir yang ada sekarang **bukan** kiriman orang logistik.
+- **Wajib pilih cara kirim saat bayar**, hanya untuk nota berpelanggan (nota Umum tidak ditanya). Salah tandai harus punya jalan keluar.
+- Truk **mampir ke Toko Pusat** mengambil barang. Grosir Gudang mayoritas dikirim, sebagian diambil. **PO Internal** Gudang → cabang dan Toko Pusat → cabang kadang dibawa truk, kadang dikirim sendiri.
+
+Sumber v3: `04-logistik` LOG-01, 05 s.d. 10, 12, 13, 16, 19, 20, 22 s.d. 27, 41, 55, 56, 93, 95, 96, 99, 103; spec v3 `2026-10-13-logistik-spec.md` §3.1 (4F-1) dan §3.2 (4F-2, bagian kunjungan). Penyimpangan dari v3 dicatat di §11.
+Dasar kode: L6 (`packages/logistics` migrasi 0001), L7a (tarif, logistics 0002), pola view baca kasir (`hris.pos_deliveries`, `hris.pos_suppliers`), kasir: `PaymentDialog` (POS), Bulk Sale (`/api/bo/bulk-sales`), PO Internal (`/api/bo/internal-transfers/[id]/status`, aksi `ship` → `IN_TRANSIT`), antar + ongkir (`petshop.service_deliveries`).
+Aliran migrasi: **`petshop`** (kolom cara kirim + riwayat), **`logistics` 0003** (tabel + view), **`hris`** (hak, pengaturan, jenis pemberitahuan).
+
+## 0. Pembaruan 2026-11-04 (sesudah LT1-K tayang) — mengalahkan isi di bawah bila bertentangan
+
+| Hal | Keputusan owner | Status |
+|---|---|---|
+| LT1-K Cara kirim | Tayang produksi **1.107.108** (PR #70): pilihan di layar bayar (nota berpelanggan), Bulk Sale, Kirim PO Internal, Ubah cara kirim + riwayat, saklar Pengaturan Cabang, migrasi petshop `0050` | Tayang produksi |
+| Langkah **Pengiriman** (mengganti §3.1 di layar bayar kasir) | Proses Bayar → jendela Pengiriman dulu (1 Ambil sendiri / 2 Kurir cabang / 3 Truk Gudang) → baru layar bayar (Opsi A, dua langkah; alasan: total final sebelum uang diketik). **Setiap nota kasir**, termasuk nota Umum | Tayang produksi 1.107.109, lolos uji |
+| Kurir cabang | Wajib pilih pengantar + ongkir (8/10/15 rb atau ketik, kelipatan Rp 1.000) atau **Gratis ongkir**; baris ongkir dibuat otomatis lewat mesin ongkir. Produk Ongkos Kirim disembunyikan dari pencarian kasir. Tidak ada di Bulk Sale; tidak bisa lewat Ubah cara kirim; server menolak kurir tanpa ongkir | Tayang produksi 1.107.109, lolos uji |
+| Truk Gudang | **Selalu gratis ongkir** — penanda antrean surat jalan HRIS; hanya nota berpelanggan | Tayang produksi 1.107.109, lolos uji |
+| Grooming / PO Internal | Tab Grooming (antar-jemput kucing) tidak berubah dan melewati langkah Pengiriman (server: grooming tanpa antar = Ambil sendiri). PO Internal: cara kirim saat Kirim | Tayang produksi |
+| Saklar Pengaturan Cabang | Mati = Truk Gudang disembunyikan + Bulk Sale/PO Internal tidak ditanya + kolom/saringan disembunyikan; langkah Pengiriman (ambil/kurir) tetap karena ongkir diisi di sana | Tayang produksi |
+| Menu **Ongkir** kasir POS + laporan BO **Riwayat Ongkir** | Riwayat ongkir + pengantar cabang sendiri, semua kasir; **tanpa bonus** (bonus hanya di laporan BO) | Tayang produksi 1.107.109–110, lolos uji |
+| Ojol / kurir luar | **Ambil sendiri** (keputusan owner) | Diputuskan |
+| Belum dibuat | Cara kirim tercetak di struk (§3.1 butir 4) | Menyusul |
+| **LT1a** | Disetujui owner 2026-11-04: §9 butir 3, 5, 6 sesuai saran; **salah tandai tetap diubah di Back Office** (HRIS hanya menautkan, tanpa pintu tulis ke kasir); Data Toko hanya toko yang pernah dikirimi truk / sudah diisi data pengiriman, lainnya lewat pencarian. Rincian §12 | Dikerjakan |
+
+## 1. Batas
+
+**Pokoknya:** saat bayar, kasir **wajib memilih cara kirim** untuk setiap nota berpelanggan: **Ambil sendiri**, **Diantar kurir cabang**, atau **Dikirim truk Gudang**. Nota "truk Gudang" (dari cabang mana pun, termasuk Toko Pusat) dan PO Internal bertanda "truk Gudang" otomatis muncul di HRIS sebagai **surat jalan** yang menunggu dikirim. Kepala Gudang memasukkannya ke **trip**. Driver mampir mengambil barang di cabang asal bila bukan Gudang, lalu menyelesaikan tiap kunjungan dengan **Terkirim**, **Kirim Besok**, atau **Gagal**.
+
+**Upah driver tidak berubah:** ritase dan belanja tetap lahir seperti L6/L7 (LOG-33). Uji Banding gaji driver tidak terpengaruh.
+
+**Tiga bagian, tayang berurutan (§10):**
+
+| Bagian | Aplikasi | Isi |
+|---|---|---|
+| **LT1-K** Cara kirim di kasir | POS, backoffice | Pilihan wajib saat bayar (POS + Bulk Sale), pilihan wajib saat Kirim PO Internal, ubah cara kirim (jalan keluar salah tandai) + riwayatnya, kolom & saringan "Cara kirim" di Riwayat Transaksi |
+| **LT1a** Surat Jalan + Data Toko | HRIS | Antrean surat jalan dari kasir, Diambil toko / Masukkan ke antrean, Perlu keputusan, Data Toko (rute bawaan, catatan, titik) |
+| **LT1b** Surat jalan di trip | HRIS | Pilih surat jalan di trip, ambil barang di cabang asal, kunjungan Terkirim / Kirim Besok / Gagal di HP, Selesai lebih awal, titik toko, baris "Lewat trip" di Rekap Kehadiran (sisa L6) |
+
+**Tidak dikerjakan di LT1:**
+
+| Hal | Tahap | Akibat sementara |
+|---|---|---|
+| Uang di toko (cash/transfer/deposit/tempo), potong nota, barang kejadian | 2 | Terkirim tanpa angka uang; penagihan tetap seperti sekarang di kasir |
+| Catatan tertunda terpisah, merah > 3 hari, retur | 2 | Surat jalan yang pernah Kirim Besok bertanda "pernah tertunda ×n", tampil paling atas |
+| Antar kurir cabang di HRIS (3 foto, PJ), laporan muat, paket | 3 | Pilihan "Diantar kurir cabang" tetap memakai alur antar + ongkir kasir yang ada |
+| Pemeriksaan uang, Catat di Kasir, daftar tagih | 4 | Batal di HRIS menampilkan pengingat "batalkan juga di kasir" |
+| Dashboard, laporan, bensin, tinjau kirim di luar titik | 5 | Jarak dari titik toko **dicatat** saat Terkirim |
+| Status Siap Kirim, Menuju Garasi, foto bak kosong, Laporan Pulang | — (§9 butir 9) | Trip tetap Draft → Berjalan → Selesai seperti L6 |
+| Gabung toko dobel | — (§9 butir 6) | Pelanggan dobel dirapikan di kasir |
+
+Branch backoffice/POS membawa fragment changelog kasir + tanda Baru backoffice (`apps/backoffice/lib/new-features.ts`); branch HRIS membawa fragment `apps/hris/changelog.d` + tanda Baru HRIS.
+
+## 2. Data
+
+### 2.1 Kasir (schema `petshop`, migrasi petshop)
+
+| Perubahan | Isi |
+|---|---|
+| `transactions.delivery_method` | `PICKUP` (ambil sendiri) / `BRANCH_COURIER` (kurir cabang) / `TRUCK` (truk Gudang); **kosong** = nota Umum atau nota sebelum fitur ini. Wajib terisi bila nota punya pelanggan (diperiksa server, juga untuk transaksi offline yang masuk belakangan) |
+| `inter_branch_transfers.delivery_method` | `TRUCK` / `SELF` (kirim sendiri); wajib saat aksi **Kirim** (`ship`) |
+| `delivery_method_changes` (baru) | riwayat ubah cara kirim: jenis dokumen (nota/PO Internal), id, lama → baru, alasan, oleh (user kasir/backoffice atau akun HRIS), sumber (kasir/backoffice/HRIS), kapan. Tanpa hapus |
+
+Nota hasil konversi PO Internal (Bulk Sale ke pelanggan cabang internal, `source_ibt_id` terisi) **tidak** ditanya cara kirim: pilihannya ada di PO Internal-nya, supaya tidak dobel.
+
+### 2.2 Dibaca HRIS dari kasir (view di schema `logistics`, tanpa salin)
+
+Pola `hris.pos_*`: peran app HRIS tidak membaca `petshop` langsung. Kolomnya kontrak, dengan stub tes.
+
+| View | Isi |
+|---|---|
+| `logistics.pos_customers` | id, kode, nama, HP, alamat, aktif, `is_internal_branch`, cabang tertaut |
+| `logistics.pos_truck_sales` | nota `delivery_method = 'TRUCK'`: id transaksi, cabang kasir asal, nomor struk, tanggal (WIB), pelanggan, nominal (`payable_amount`), status (`COMPLETED`/`VOIDED`/`PENDING_VOID`), revisi |
+| `logistics.pos_truck_transfers` | PO Internal `delivery_method = 'TRUCK'`: id, nomor, cabang asal, cabang tujuan, status, tanggal kirim |
+| `logistics.pos_sales_lookup` | pencarian nota berpelanggan per nomor (untuk "Masukkan ke antrean" dari HRIS) |
+
+**Nomor surat jalan = nomor struk kasir / nomor PO Internal** (sudah unik). Nominal, toko, dan status batal **dibaca hidup**: koreksi atau batal nota di kasir langsung terlihat.
+
+Hanya nota dan PO Internal bertanggal ≥ `logistics.delivery_from` yang masuk antrean (§9 butir 3).
+
+### 2.3 Milik Logistik (tabel baru, migrasi logistics 0003)
+
+Tanpa foreign key ke `petshop`/`hris` (angka biasa, dijaga pintu server + tes). Tanpa hapus (PRI-02), jejak oleh + kapan.
+
+| Tabel | Isi |
+|---|---|
+| `stores` (data pengiriman toko) | id pelanggan kasir (unik), rute bawaan (rute kirim, boleh kosong), catatan pengiriman. Baris dibuat saat pertama diisi |
+| `store_points` (titik toko) | pelanggan, lintang/bujur, akurasi, foto depan toko, pemasang, sumber (kunjungan/kantor), status `PENDING` / `APPROVED` / `REJECTED` / `REPLACED`, pemutus + alasan tolak, laporan "titik salah". Satu `APPROVED` per toko |
+| `delivery_notes` (surat jalan) | jenis `SALE` (nota) / `TRANSFER` (PO Internal), id dokumen kasir (unik per jenis), nomor, cabang asal, tujuan (pelanggan **atau** cabang), status `WAITING` / `ON_TRIP` / `DELIVERED` / `NEEDS_DECISION` / `CANCELLED`, hitungan Kirim Besok, nominal saat masuk trip (pembanding perubahan kasir). Baris dibuat saat pertama disentuh; sebelumnya "Menunggu" langsung dari view |
+| `trip_pickups` (ambil di cabang asal) | trip, cabang asal (bukan Gudang), status `OPEN` / `DONE`, foto barang dimuat, oleh + kapan |
+| `trip_visits` (kunjungan) | trip, tujuan (pelanggan atau cabang), status `OPEN` / `DELIVERED` / `TOMORROW` / `FAILED` / `RELEASED`, diproses oleh + kapan, alasan, foto, lokasi + akurasi + jarak dari titik toko, dilepas oleh + alasan |
+| `trip_visit_notes` | kunjungan ↔ surat jalan (satu surat jalan hanya di satu kunjungan terbuka) |
+| `delivery_note_events` | riwayat surat jalan: masuk trip, dilepas, barang dimuat, terkirim, Kirim Besok, Gagal, keputusan, batal, "berubah di kasir sesudah masuk trip" |
+
+## 3. Aturan
+
+### 3.1 Pilihan cara kirim saat bayar (LT1-K)
+
+- Muncul di **layar Bayar POS** dan **Bulk Sale backoffice**, **hanya bila nota punya pelanggan**. Nota Umum / Guest tidak ditanya.
+- Tiga tombol besar: **Ambil sendiri**, **Diantar kurir cabang**, **Dikirim truk Gudang**. **Tidak ada yang tercentang dari awal**; tombol Bayar baru aktif sesudah memilih. Urutan tombol: cabang dengan pengaturan "truk sering" (bawaan **Gudang**) menaruh **Dikirim truk Gudang** paling depan.
+- **Diantar kurir cabang** memakai alur antar + ongkir yang sudah ada. Bila nota sudah berisi baris ongkir/antar, pilihan otomatis Diantar kurir cabang dan pilihan lain dikunci (ubah lewat batal antar di kasir).
+- Pilihan tercetak di struk/surat jalan ("Dikirim truk Gudang").
+- **Offline:** pilihan ikut tersimpan di antrean offline. Server menolak nota berpelanggan tanpa pilihan; versi POS lama yang belum diperbarui diterima dengan cara kirim kosong dan bertanda "belum dipilih", tampil di Riwayat Transaksi untuk dilengkapi.
+- **PO Internal:** saat aksi **Kirim**, wajib pilih **Truk Gudang** atau **Kirim sendiri**. Berlaku untuk semua cabang asal (Gudang → cabang, Toko Pusat → cabang).
+
+### 3.2 Jalan keluar salah tandai
+
+Semua perubahan tercatat di `delivery_method_changes` (lama, baru, alasan wajib, siapa, kapan); tidak ada yang dihapus.
+
+| Salahnya | Kapan | Jalan keluar | Oleh |
+|---|---|---|---|
+| Ditandai **truk**, ternyata diambil sendiri / kirim sendiri | Belum masuk trip, atau trip masih Draft | **Ubah cara kirim** (detail transaksi / PO Internal di backoffice, atau **Tandai diambil sendiri** di HRIS). Bila di trip Draft, otomatis keluar dari trip | Kasir & Kepala Toko cabang asal (detail transaksi), Kepala Gudang, Marketing, Pemilik/GM |
+| Sama | Sesudah truk berangkat | Kepala Gudang **lepas kunjungan** (alasan), lalu ubah cara kirim | Kepala Gudang, Pemilik/GM |
+| Ditandai **ambil sendiri / kirim sendiri**, ternyata perlu truk | ≤ 7 hari sejak nota (`logistics.reopen_days`) | **Ubah cara kirim** di backoffice, atau **Masukkan ke antrean** dari HRIS (cari nomor nota/PO) | Kasir & Kepala Toko cabang asal, Kepala Gudang, Pemilik/GM |
+| Ditandai **kurir cabang**, ternyata truk (atau sebaliknya) | Kapan saja sebelum Terkirim | Ubah di backoffice; antar + ongkir **dibatalkan dulu** di kasir (ongkir dan bonus kurir milik kasir) | Kepala Toko cabang asal, Pemilik/GM |
+| Nota Umum yang ternyata perlu dikirim | ≤ 7 hari | Isi pelanggan lewat koreksi nota yang sudah ada, lalu pilih cara kirim | Sesuai aturan koreksi nota |
+| Apa pun sesudah **Terkirim** | — | Terkunci; **Buka lagi** hanya Pemilik/GM dengan alasan | Pemilik/GM |
+| Lewat 7 hari | — | Hanya Pemilik/GM | Pemilik/GM |
+
+### 3.3 Surat jalan (LOG-08 s.d. 10, 12, 95, 96)
+
+| Status | Masuk lewat | Keluar ke |
+|---|---|---|
+| **Menunggu dikirim** | Nota / PO Internal bertanda truk; Kirim Besok; Kirim ulang; dilepas dari trip; trip Draft dibatalkan | Dalam perjalanan; keluar antrean bila cara kirim diubah (§3.2); Batal |
+| **Dalam perjalanan** | Masuk trip | Terkirim; Menunggu (Kirim Besok / dilepas); Perlu keputusan |
+| **Terkirim** | Kunjungan Terkirim | akhir (Buka lagi: Pemilik/GM) |
+| **Perlu keputusan** | Kunjungan Gagal | Menunggu (Kirim ulang); Batal |
+| **Batal** | Dari Perlu keputusan (alasan); otomatis bila nota/PO dibatalkan di kasir selagi Menunggu | akhir (buka lagi Pemilik/GM ≤ 7 hari) |
+
+- "Diambil toko" v3 diganti **ubah cara kirim** (§3.2): satu tempat kebenaran, yaitu tanda di kasir.
+- **Nota dikoreksi/dibatalkan di kasir sesudah masuk trip**: surat jalan bertanda **"berubah di kasir"** (nominal lama → baru, atau "dibatalkan di kasir") di rincian trip dan Trip Saya; Kepala Gudang diberi tahu dan memutuskan lepas atau tetap antar.
+- **Batal di HRIS** tidak membatalkan nota kasir; layar menulis "Batalkan juga nota [nomor] di kasir" (daftar Catat di Kasir: Tahap 4).
+- Urutan antrean: **pernah tertunda** paling atas (paling lama dulu, LOG-20), lalu toko di rute bawaan yang dipilih (LOG-06), lalu tanggal. Tanda cabang asal ("dari Toko Pusat") di tiap baris.
+- Satu tujuan boleh banyak surat jalan; di satu trip semuanya **satu kunjungan** (LOG-10). PO Internal ke cabang = kunjungan ke **cabang**, tanpa urusan uang di tahap mana pun.
+
+### 3.4 Surat jalan di trip (LOG-15, 16, 19, 22, 23)
+
+- Saat **buat/ubah trip Draft**, Kepala Gudang mencentang surat jalan Menunggu. Trip berisi surat jalan wajib punya **rute kirim** (ritase tetap per trip).
+- Surat jalan dari cabang asal selain Gudang otomatis membuat langkah **Ambil barang di [cabang]** di trip (satu per cabang asal).
+- Masuk trip = **Dalam perjalanan**. Satu surat jalan hanya di satu trip yang belum selesai.
+- **Sesudah Berangkat:** surat jalan tidak bisa ditambah (masuk trip berikutnya, LOG-19); kantor masih bisa **melepas** kunjungan yang belum diproses (alasan) → kembali Menunggu. Kunjungan Terkirim/Gagal terkunci.
+- **Batal trip Draft:** semua surat jalannya kembali Menunggu.
+- Trip **tanpa surat jalan tetap boleh** (masa peralihan, §9 butir 8).
+
+### 3.5 Ambil barang di cabang asal (catatan owner: truk mampir ke Toko Pusat)
+
+- Di Trip Saya, langkah **Ambil barang di Toko Pusat** (daftar nota/PO dari cabang itu) diselesaikan driver/kenek dengan **satu foto barang dimuat**.
+- Selama belum selesai, kunjungan yang **semua** surat jalannya dari cabang itu belum bisa Terkirim; kunjungan campuran (Gudang + Toko Pusat) menunggu juga.
+- Barang cabang yang ternyata belum siap: kantor melepas surat jalannya dari trip (kembali Menunggu) atau driver menandai **Belum siap** (alasan) → surat jalan cabang itu kembali Menunggu, kunjungan yang tinggal isinya tetap jalan.
+
+### 3.6 Kunjungan di Trip Saya (LOG-24, 26, 27, 55, 56, 99)
+
+- Kartu kunjungan: nama toko/cabang besar, alamat, catatan pengiriman, **telepon**, **Buka peta** (titik disetujui) atau **Pasang titik**, daftar nomor surat jalan + nominal (PO Internal tanpa nominal), cabang asal, tanda "berubah di kasir".
+- Hanya selagi trip **Berjalan**, oleh driver atau kenek trip itu. Urutan bebas. Dua awak menekan bersamaan: yang kedua menerima "Sudah diproses [nama] pukul [jam]".
+- **Terkirim:** **foto barang diterima** (kamera langsung); lokasi dicatat, jarak dari titik toko **dicatat, tidak ditolak** (LOG-99).
+- **Kirim Besok** (toko tutup, tidak ada orang): alasan + foto → surat jalan kembali Menunggu, hitungan +1. Bisa **Coba lagi** selama trip masih Berjalan (LOG-121).
+- **Gagal** (ditolak, batal pesan): alasan + foto → Perlu keputusan. Tidak bisa dicoba lagi.
+- Kirim Besok dan Gagal berlaku untuk seluruh kunjungan (LOG-122).
+- Foto langsung tersimpan begitu diambil; tombol dikunci sekali tekan.
+
+### 3.7 Menutup trip (LOG-27, 29, 30, 103)
+
+- **Sampai Garasi ditolak** selama ada kunjungan atau ambil barang **terbuka**; pesan menyebut yang tersisa. Jalan keluarnya **Selesai lebih awal**: alasan + foto, sisa kunjungan menjadi Kirim Besok, sisa ambil barang menjadi Belum siap.
+- **Tutup atas nama driver** oleh kantor: sisa otomatis Kirim Besok / Belum siap.
+- Ritase, belanja, absen: **tidak berubah** dari L6/L7.
+
+### 3.8 Toko dan titik (LOG-01, 05 s.d. 07, 93)
+
+- **Toko = pelanggan kasir.** Nama, HP, alamat diubah **di kasir** (satu sumber). HRIS menambah **rute bawaan**, **catatan pengiriman**, **titik**.
+- Data Toko menampilkan pelanggan non-internal yang pernah punya surat jalan, ditambah yang sudah diberi data pengiriman; pelanggan lain bisa dicari.
+- **Titik:** dipasang driver/kenek dari kunjungan (GPS akurasi ≤ 50 m + foto depan toko, kamera langsung) → **Menunggu** → Kepala Gudang/Pemilik/GM **Setujui** atau **Tolak** (alasan). Pasangan mereka sendiri langsung Disetujui. Titik disetujui hanya diganti mereka; driver menekan **Laporkan titik salah**. Riwayat disimpan.
+- Driver/kenek hanya melihat toko di trip-nya (LOG-07).
+
+### 3.9 Perlu keputusan (LOG-56, 123)
+
+- Kepala Gudang / Pemilik / GM memilih **Kirim ulang** (kembali Menunggu, pernah tertunda) atau **Batal** (alasan, pengingat batalkan di kasir). Batal dibuka lagi Pemilik/GM ≤ 7 hari.
+
+### 3.10 Pengaturan
+
+| Kunci | Bawaan | Arti |
+|---|---|---|
+| `logistics.delivery_from` | tanggal tayang produksi LT1-K | Nota/PO sebelum tanggal ini tidak masuk antrean |
+| `logistics.reopen_days` | 7 | Batas ubah cara kirim oleh kasir/Kepala Gudang, buka lagi Batal |
+| `logistics.point_accuracy_m` | 50 | Akurasi GPS terburuk saat pasang titik |
+| `logistics.store_radius_m` | 100 | Batas "di luar titik toko" (dicatat saja) |
+| Kasir: "truk sering" per cabang | Gudang | Urutan tombol cara kirim (§3.1) |
+
+## 4. Layar
+
+| Layar | Aplikasi | Dipakai | Isi |
+|---|---|---|---|
+| **Bayar** (ubah) | POS, Bulk Sale backoffice | Kasir | Tiga tombol cara kirim, wajib bila ada pelanggan |
+| **PO Internal › Kirim** (ubah) | backoffice / POS | Pengirim PO | Pilih Truk Gudang / Kirim sendiri |
+| **Detail transaksi / PO Internal** (ubah) | backoffice | Kasir, Kepala Toko, Pemilik/GM | Cara kirim + **Ubah** (alasan) + riwayat; status kiriman dari HRIS (Menunggu / Dalam perjalanan / Terkirim) bila ada |
+| **Riwayat Transaksi** (ubah) | backoffice | sama | Kolom & saringan "Cara kirim", tanda "belum dipilih" |
+| **Surat Jalan** (baru) | HRIS `/logistik/surat-jalan` | Kepala Gudang, Marketing, Pemilik, GM; Finance lihat | Tab per status dengan angka. Baris: nomor, tanggal, asal, tujuan (+ belum ada titik), rute bawaan, nominal, umur, pernah tertunda ×n, berubah di kasir. Tombol **Masukkan ke antrean** (cari nomor), **Tandai diambil sendiri** |
+| Rincian surat jalan | HRIS | sama | Data dari kasir, status + riwayat, trip & kunjungan, foto; tombol menurut status |
+| **Data Toko** (baru) | HRIS `/logistik/toko` | Kepala Gudang, Marketing, Pemilik, GM; Finance lihat | Tab **Toko** dan **Titik menunggu**; rincian toko: data kasir (baca), data pengiriman (Ubah), titik + riwayat, surat jalan |
+| **Trip** (ubah) | HRIS | Kepala Gudang, Pemilik, GM | Langkah **Surat jalan** di form; rincian trip: ambil barang + kunjungan + **Lepas** |
+| **Trip Saya** (ubah) | HRIS HP | Driver, kenek | "Berjalan: 4 dari 9 selesai"; Ambil barang di Toko Pusat; kartu kunjungan; Selesai lebih awal |
+| **Rekap Kehadiran** (ubah) | HRIS | sama seperti sekarang | Baris "Lewat trip": Jalan / Tidak jalan (sisa L6) |
+
+**Beranda HRIS:** kartu "Surat jalan perlu keputusan", "Titik toko menunggu", "Nota berubah di kasir".
+
+## 5. Hak
+
+| Hak | Bawaan |
+|---|---|
+| Kasir: ubah cara kirim nota/PO cabang sendiri ≤ 7 hari | Kasir, Kepala Toko (izin backoffice yang ada untuk detail transaksi); lewat 7 hari: Pemilik/GM |
+| `logistics.delivery_note.view` | Kepala Gudang, Marketing, Finance, Pemilik, GM |
+| `logistics.delivery_note.manage` (masukkan ke antrean, tandai diambil sendiri) | Kepala Gudang, Marketing, Pemilik, GM |
+| `logistics.delivery_note.decide` (Perlu keputusan, lepas kunjungan) | Kepala Gudang, Pemilik, GM |
+| `logistics.store.view` / `.manage` | lihat: + Finance; ubah: Kepala Gudang, Marketing, Pemilik, GM |
+| `logistics.store_point.decide` | Kepala Gudang, Pemilik, GM |
+| Kunjungan, ambil barang, pasang titik | tanpa hak khusus: hanya awak trip itu, dicek server |
+
+HRIS mengubah cara kirim kasir **hanya lewat satu pintu tulis** yang terdaftar (fungsi DB milik `petshop` yang mencatat riwayat), bukan menulis tabel kasir langsung; dijaga tes batas.
+
+## 6. Mesin terjadwal
+
+Tidak ada mesin baru (dibaca hidup dari kasir). `logistics-daily` (L6) ikut membuang foto kunjungan sesuai umur foto absen; foto titik yang disetujui disimpan.
+
+## 7. Pemberitahuan (HRIS)
+
+| Kejadian | Ke |
+|---|---|
+| Kunjungan Gagal | Kepala Gudang, Pemilik, GM |
+| Nota berubah/dibatalkan di kasir sesudah masuk trip | Kepala Gudang |
+| Ambil barang di cabang: Belum siap | Kepala Gudang |
+| Titik diusulkan / dilaporkan salah; titik ditolak | Kepala Gudang; pemasang |
+
+## 8. Tes
+
+- **Kasir (unit + integrasi):** nota berpelanggan tanpa cara kirim ditolak server; nota Umum lolos; nota berongkir terkunci "kurir cabang"; nota hasil PO Internal tidak ditanya; offline dengan pilihan tersimpan; POS lama → "belum dipilih"; PO Internal Kirim tanpa pilihan ditolak; ubah cara kirim mencatat riwayat, ditolak lewat 7 hari untuk kasir.
+- **HRIS aturan (unit):** peralihan status §3.3 termasuk yang ditolak; satu surat jalan satu trip terbuka; kunjungan per tujuan; ambil barang menahan Terkirim; syarat Sampai Garasi; Selesai lebih awal; urutan antrean.
+- **HRIS integrasi (stub `petshop`):** nota truk → Menunggu → trip → ambil barang Toko Pusat → Terkirim → **ritase sama persis dengan L6** (tes pembanding upah); Kirim Besok; Gagal → Kirim ulang / Batal; nota dibatalkan di kasir selagi Menunggu → Batal, sesudah masuk trip → bertanda; ubah cara kirim dari HRIS lewat pintu tulis tercatat di riwayat kasir.
+- **Batas:** HRIS tidak membaca `petshop` selain view; tidak menulis `petshop` selain pintu tulis; `bo_app` tidak menulis `logistics`.
+
+## 9. Keputusan owner
+
+Butir 1, 2, 4, 13 selesai lewat LT1-K yang tayang. Butir 3, 5, 6 **disetujui 2026-11-04** (LT1a). Butir 7–12 untuk LT1b, ditanyakan saat LT1b dimulai.
+
+| # | Pertanyaan | Saran |
+|---|---|---|
+| 1 | Pilihan cara kirim **wajib** saat bayar, hanya nota berpelanggan, **tanpa pilihan tercentang**, tombol truk paling depan di Gudang | **Ya** (catatan owner) — tayang |
+| 2 | Tiga pilihan: Ambil sendiri / Diantar kurir cabang / Dikirim truk Gudang | **Ya**. Kurir cabang tetap alur ongkir yang ada — tayang |
+| 3 | Antrean mulai dari tanggal berapa? | **4 Nov 2026** (tayang LT1-K) — **disetujui** |
+| 4 | Batas ubah cara kirim oleh kasir/Kepala Gudang | **7 hari**, sesudahnya Pemilik/GM — tayang di Back Office |
+| 5 | Alamat & HP toko diubah di mana? | **Di kasir** (satu sumber) — **disetujui** |
+| 6 | Gabung toko dobel ikut? | **Tidak**; dirapikan di kasir — **disetujui** |
+| 7 | Terkirim wajib foto barang diterima? | **Ya** |
+| 8 | Trip tanpa surat jalan tetap boleh? | **Ya**, masa peralihan |
+| 9 | Siap Kirim / Menuju Garasi / foto bak kosong v3 ikut? | **Belum** |
+| 10 | Ambil barang di Toko Pusat: satu foto barang dimuat oleh driver/kenek, tanpa tanda terima staf Toko Pusat? | **Ya** (sederhana). Tanda terima staf cabang menyusul di Tahap 3 bila perlu |
+| 11 | Titik toko ikut LT1b? | **Ya** |
+| 12 | Baris "Lewat trip" di Rekap Kehadiran (sisa L6) ikut LT1b? | **Ya** |
+| 13 | Urutan tayang LT1-K → LT1a → LT1b (§10)? | **Ya** |
+
+## 10. Urutan kerja dan tayang
+
+| Urutan | Bagian | Kenapa di urutan ini | Tayang produksi |
+|---|---|---|---|
+| **1** | **LT1-K** Cara kirim di kasir | HRIS hanya membaca tanda ini; tanpa tanda, antrean kosong. Kasir perlu waktu membiasakan diri. Data asli langsung terkumpul untuk uji LT1a/b. Berguna sendiri: Riwayat Transaksi bisa disaring "truk Gudang" | **Bisa segera** sesudah lolos uji staging (kasir sudah di produksi) |
+| 2 | **LT1a** Surat Jalan + Data Toko | Kepala Gudang mulai melihat antrean dari data asli; tanpa mengubah trip driver | Ikut kepindahan HRIS ke produksi (target 26 Des) |
+| 3 | **LT1b** Surat jalan di trip + HP driver | Paling besar dan mengubah kebiasaan driver; diuji sesudah antrean terbukti benar | Ikut / sesudah kepindahan HRIS |
+
+Catatan: HRIS (termasuk L6 Trip) **belum di produksi**. LT1a dan LT1b diuji di staging dan baru dipakai sungguhan saat HRIS pindah. LT1-K tidak menunggu itu.
+
+## 11. Penyimpangan dari v3
+
+| Hal | v3 | LT1 | Alasan |
+|---|---|---|---|
+| Asal surat jalan | Tarik transaksi Gudang tiap menit; sebelum itu diketik | **Tanda cara kirim di kasir**, dibaca hidup | Satu proyek; catatan owner (Toko Pusat tanpa Bulk Sale) |
+| Diambil toko | Status di HRIS | **Ubah cara kirim** (satu sumber di kasir) | Jalan keluar salah tandai satu tempat |
+| Nota cabang ke truk | Laporan muat + paket (4F-3) | **Nota cabang bertanda truk** + langkah Ambil barang | Kebiasaan nyata: truk mampir ke Toko Pusat |
+| PO Internal | Tidak lewat Logistik | Ikut bila bertanda truk, kunjungan ke cabang | Catatan owner |
+| Toko diketik di HRIS | Ada (sebelum sambungan) | Tidak; toko = pelanggan kasir | Satu sumber |
+
+## 12. Rincian LT1a (disetujui owner 2026-11-04)
+
+LT1a **hanya membaca** kasir dan menyimpan data pengiriman toko. Tidak ada tabel surat jalan, trip, atau kunjungan (itu LT1b), dan tidak ada pintu tulis ke kasir.
+
+**Data.** Migrasi `logistics` 0003: view `pos_customers`, `pos_truck_sales`, `pos_truck_transfers` (§2.2; `pos_sales_lookup` tidak perlu karena salah tandai diubah di Back Office), semuanya ditolak bila ditulis; tabel `stores` (§2.3, tanpa titik). Migrasi `hris`: pengaturan `logistics.delivery_from` = 2026-11-04 dan hak bawaan.
+
+**Surat Jalan** (`/logistik/surat-jalan`), status dihitung dari kasir:
+
+| Tab | Nota truk | PO Internal truk |
+|---|---|---|
+| **Menunggu dikirim** | `COMPLETED` | `IN_TRANSIT` |
+| **Diterima cabang** | — | `PARTIALLY_RECEIVED` / `FULLY_RECEIVED` |
+| **Batal di kasir** | `VOIDED` / `PENDING_VOID` (tertulis "menunggu batal") | `CANCELLED` |
+
+- Hanya dokumen bertanggal ≥ `logistics.delivery_from`. Urutan: paling lama dulu. Baris: nomor, tanggal + umur (hari), cabang asal, tujuan (toko + rute bawaan, atau cabang), nominal (nota saja).
+- Saringan: cabang asal, rute bawaan, cari nomor / nama toko.
+- Tombol **Ubah di Back Office** membuka detail nota (`/transactions?trx=`) atau PO Internal (`/purchase-orders/internal/[id]`) di Back Office; alamat Back Office dari env `BACKOFFICE_PUBLIC_URL` (staging: `STAGING_BO_ORIGIN`). Bila kosong, tombol diganti teks "Ubah di Back Office › Transaksi".
+- Sampai LT1b, nota tetap di Menunggu dikirim (belum ada Terkirim); keluar bila cara kirimnya diubah di Back Office atau dibatalkan.
+
+**Data Toko** (`/logistik/toko`):
+- Daftar: pelanggan **bukan internal** yang pernah punya nota truk (≥ `delivery_from`) atau sudah punya data pengiriman. Kotak cari mencari **semua** pelanggan (nama, kode, HP).
+- Rincian: data kasir (nama, kode, HP, alamat — hanya baca, "ubah di kasir"), data pengiriman (**rute bawaan** = rute kirim aktif, **catatan pengiriman** ≤ 500 huruf) + tombol Ubah, nota truk terakhir.
+
+**Hak:** `logistics.delivery_note.view` (Kepala Gudang, Marketing, Finance), `logistics.store.view` (Kepala Gudang, Marketing, Finance), `logistics.store.manage` (Kepala Gudang, Marketing). Pemilik/GM semuanya. Hak `manage`/`decide` surat jalan menyusul di LT1b.

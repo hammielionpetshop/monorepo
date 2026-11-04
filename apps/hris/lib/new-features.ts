@@ -179,6 +179,9 @@ export const NEW_FEATURES: Record<string, string> = {
   // L9b Uji banding (tayang staging 2026-11-04)
   '/gaji/uji-banding': '2026-11-04',
   '/karyawan/kode-lama': '2026-11-04', // Kode lama, NIK, hubungan kontak darurat (L9c)
+  // LT1a Surat Jalan + Data Toko (tayang staging 2026-11-04)
+  '/logistik/surat-jalan': '2026-11-04',
+  '/logistik/toko': '2026-11-04',
 };
 
 function addDays(date: string, days: number): string {
