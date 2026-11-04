@@ -9,7 +9,7 @@ Aliran migrasi: **`logistics` 0003** (tabel, view baca kasir) dan **`hris` berik
 
 ## 1. Batas
 
-**Pokoknya:** setiap penjualan **grosir (Bulk Sale) di kasir Gudang** ke pelanggan toko otomatis muncul di HRIS sebagai **surat jalan** yang menunggu dikirim. Kepala Gudang memasukkan surat jalan ke **trip**; beberapa surat jalan satu toko menjadi **satu kunjungan**. Dari HP, driver/kenek menyelesaikan tiap kunjungan dengan **Terkirim**, **Kirim Besok**, atau **Gagal**. Toko = pelanggan kasir; HRIS hanya menambah **rute bawaan, catatan pengiriman, dan titik lokasi**.
+**Pokoknya:** setiap penjualan **grosir (Bulk Sale) di kasir cabang pengirim** (bawaan: **Gudang dan Toko Pusat**, catatan owner 2026-11-04) ke pelanggan toko otomatis muncul di HRIS sebagai **surat jalan** yang menunggu dikirim. Kepala Gudang memasukkan surat jalan ke **trip**; beberapa surat jalan satu toko menjadi **satu kunjungan**. Dari HP, driver/kenek menyelesaikan tiap kunjungan dengan **Terkirim**, **Kirim Besok**, atau **Gagal**. Toko = pelanggan kasir; HRIS hanya menambah **rute bawaan, catatan pengiriman, dan titik lokasi**.
 
 **Upah driver tidak berubah:** ritase dan belanja tetap lahir seperti L6/L7 (1 ritase per awak per trip berute kirim, LOG-33). Uji Banding gaji driver tidak terpengaruh.
 
@@ -31,7 +31,7 @@ Aliran migrasi: **`logistics` 0003** (tabel, view baca kasir) dan **`hris` berik
 |---|---|---|
 | Uang di toko (cash/transfer/deposit/tempo), potong nota, barang kejadian | 2 | Terkirim tanpa angka uang; penagihan tetap seperti sekarang di kasir |
 | Catatan tertunda terpisah, warna merah > 3 hari, retur | 2 | Surat jalan yang pernah Kirim Besok cukup bertanda "pernah tertunda" + hitungannya, tampil paling atas |
-| Laporan muat cabang, paket, antar sendiri, nota cabang | 3 | Hanya nota Gudang |
+| Laporan muat cabang, paket, antar sendiri, nota cabang | 3 | Hanya grosir Gudang + Toko Pusat |
 | Pemeriksaan uang, Catat di Kasir, daftar tagih | 4 | Batal di HRIS hanya mengingatkan "batalkan juga di kasir" |
 | Dashboard, laporan, bensin, kirim di luar titik ditinjau | 5 | Jarak dari titik toko **dicatat** saat Terkirim, belum ada layar tinjau |
 | Status Siap Kirim dan Menuju Garasi, foto bak kosong, Laporan Pulang | — (§9 butir 8) | Trip tetap Draft → Berjalan → Selesai seperti L6 |
@@ -48,9 +48,9 @@ Schema `logistics` mendapat view baca atas `petshop` (pola `hris.pos_*`; peran a
 | View | Isi |
 |---|---|
 | `logistics.pos_customers` | id pelanggan, kode, nama, HP, alamat, aktif, `is_internal_branch` |
-| `logistics.pos_wholesale_sales` | penjualan **BULK** di **cabang kasir Gudang**: id transaksi, nomor struk, tanggal (WIB), pelanggan, nominal (`payable_amount`), status (`COMPLETED`/`VOIDED`/`PENDING_VOID`), revisi, jam ubah terakhir |
+| `logistics.pos_wholesale_sales` | penjualan **BULK** di **cabang kasir pengirim**: id transaksi, cabang kasir, nomor struk, tanggal (WIB), pelanggan, nominal (`payable_amount`), status (`COMPLETED`/`VOIDED`/`PENDING_VOID`), revisi, jam ubah terakhir |
 
-**Penjualan yang menjadi surat jalan** (LOG-08, 95): `sale_type = 'BULK'`, cabang kasir = cabang kasir milik **titik garasi** (`logistics.config`, diatur di Mobil & Rute; Gudang dikenali dari pengaturan, bukan nama, LOG-13), ada pelanggan, pelanggan **bukan** cabang internal (penjualan ke cabang sendiri = PO Internal, bukan kiriman), dan tanggal ≥ pengaturan `logistics.delivery_from` (§9 butir 2).
+**Penjualan yang menjadi surat jalan** (LOG-08, 95): `sale_type = 'BULK'`, cabang kasir termasuk daftar **cabang pengirim** (pengaturan `logistics.delivery_branches`, bawaan Gudang + Toko Pusat; dikenali dari pengaturan, bukan nama, LOG-13), ada pelanggan, pelanggan **bukan** cabang internal (penjualan ke cabang sendiri = PO Internal, bukan kiriman), dan tanggal ≥ pengaturan `logistics.delivery_from` (§9 butir 2).
 
 **Nomor surat jalan = nomor struk kasir** (sudah unik di kasir, PRI-41 butir 3). Nominal, toko, dan status batal **selalu dibaca hidup dari kasir**: koreksi nota di kasir otomatis terlihat (F5).
 
@@ -72,7 +72,7 @@ Tanpa foreign key ke `petshop`/`hris` (angka biasa, dijaga pintu server + tes). 
 ### 3.1 Toko (LOG-01, 06, 07, 90)
 
 - **Toko = pelanggan kasir.** Toko baru dibuat di kasir (Master Pelanggan); muncul di HRIS seketika. Nama, HP, dan alamat **diubah di kasir** (satu sumber, §9 butir 3).
-- Data Toko menampilkan pelanggan **non-internal** yang pernah punya penjualan grosir Gudang, ditambah yang sudah diberi data pengiriman. Pelanggan lain bisa dicari lalu diisi.
+- Data Toko menampilkan pelanggan **non-internal** yang pernah punya penjualan grosir dari cabang pengirim, ditambah yang sudah diberi data pengiriman. Pelanggan lain bisa dicari lalu diisi.
 - Tambahan HRIS: **rute bawaan** (rute kirim aktif, boleh kosong), **catatan pengiriman** ("masuk gang samping masjid"), **titik**. Diubah oleh hak `logistics.store.manage`.
 - Pelanggan nonaktif di kasir tetap tampil bertanda "nonaktif di kasir"; surat jalan lamanya tetap.
 - Driver dan kenek hanya melihat toko yang ada di trip-nya (nama, alamat, HP, catatan, titik) (LOG-07).
@@ -88,7 +88,7 @@ Tanpa foreign key ke `petshop`/`hris` (angka biasa, dijaga pintu server + tes). 
 
 | Status | Masuk lewat | Keluar ke |
 |---|---|---|
-| **Menunggu dikirim** | Penjualan grosir Gudang di kasir; Kirim Besok; keputusan Kirim ulang; dilepas dari trip; trip Draft dibatalkan; Diambil toko dibuka lagi | Dalam perjalanan, Diambil toko, Batal |
+| **Menunggu dikirim** | Penjualan grosir cabang pengirim di kasir; Kirim Besok; keputusan Kirim ulang; dilepas dari trip; trip Draft dibatalkan; Diambil toko dibuka lagi | Dalam perjalanan, Diambil toko, Batal |
 | **Dalam perjalanan** | Masuk trip (Draft maupun Berjalan) | Terkirim, Menunggu (Kirim Besok / dilepas), Perlu keputusan |
 | **Terkirim** | Kunjungan Terkirim | akhir |
 | **Perlu keputusan** | Kunjungan Gagal | Menunggu (Kirim ulang), Batal |
@@ -138,7 +138,11 @@ Tanpa foreign key ke `petshop`/`hris` (angka biasa, dijaga pintu server + tes). 
 | `logistics.store_radius_m` | sama dengan radius absen cabang (100) | Batas "di luar titik toko" (dicatat saja di LT1) |
 | `logistics.pickup_reopen_days` | 7 | Batas buka lagi Diambil toko dan Batal |
 
-Cabang kasir Gudang diambil dari titik garasi di `logistics.config` (cabang HRIS → cabang kasirnya). Bila titik garasi belum bertaut ke cabang kasir, layar Surat Jalan menampilkan arahan mengisinya.
+| `logistics.delivery_branches` | Gudang, Toko Pusat | Cabang kasir yang penjualan grosirnya menjadi surat jalan truk (diubah Pemilik/GM) |
+
+Cabang dipilih dari cabang HRIS yang bertaut ke cabang kasir.
+
+**Bukan sumber:** fitur *delivery order* / antar di kasir (`petshop.delivery_orders`, `service_deliveries`). Catatan owner 2026-11-04: itu tidak dikirim orang logistik (antar sendiri cabang = Tahap 3).
 
 ## 4. Layar
 
@@ -182,7 +186,7 @@ Tidak ada mesin baru: surat jalan dibaca hidup dari kasir (tanpa tarik per menit
 
 ## 8. Tes
 
-- **Aturan (unit):** penjualan mana yang menjadi surat jalan (BULK, Gudang, pelanggan non-internal, tanggal); peralihan status (tabel §3.3) termasuk yang ditolak; satu surat jalan satu trip terbuka; kunjungan per toko; syarat Sampai Garasi; Selesai lebih awal; urutan daftar Menunggu; akurasi titik.
+- **Aturan (unit):** penjualan mana yang menjadi surat jalan (BULK, cabang pengirim Gudang/Toko Pusat, cabang lain ditolak, pelanggan non-internal, tanggal); peralihan status (tabel §3.3) termasuk yang ditolak; satu surat jalan satu trip terbuka; kunjungan per toko; syarat Sampai Garasi; Selesai lebih awal; urutan daftar Menunggu; akurasi titik.
 - **Integrasi (DB, stub `petshop`):** nota grosir → Menunggu → masuk trip → Berangkat → Terkirim → ritase **sama persis** dengan L6 (tes pembanding upah); Kirim Besok kembali Menunggu + hitungan; Gagal → Kirim ulang / Batal; nota dibatalkan di kasir selagi Menunggu → Batal otomatis, sesudah masuk trip → bertanda; batal trip Draft melepas semua; dua awak menekan kunjungan sama → sekali.
 - **Batas:** modul HRIS selain logistics tidak mengimpor tabel baru; `hris_app`/peran logistik tidak membaca `petshop` selain lewat view; `bo_app` tidak menulis `logistics`.
 
@@ -190,7 +194,7 @@ Tidak ada mesin baru: surat jalan dibaca hidup dari kasir (tanpa tarik per menit
 
 | # | Pertanyaan | Saran |
 |---|---|---|
-| 1 | Penjualan kasir mana yang menjadi surat jalan? | **Bulk Sale (grosir) di kasir Gudang ke pelanggan bukan-cabang.** Retail Gudang, PO Internal ke cabang sendiri, dan penjualan cabang toko tidak (cabang = Tahap 3) |
+| 1 | Penjualan kasir mana yang menjadi surat jalan? | **Bulk Sale (grosir) di kasir Gudang dan Toko Pusat ke pelanggan bukan-cabang** (catatan owner). Retail, PO Internal ke cabang sendiri, dan delivery order kasir tidak. Daftar cabang bisa diubah di pengaturan. Bulk Sale yang tidak diantar truk ditandai **Diambil toko** |
 | 2 | Mulai dari tanggal berapa? | **Tanggal tayang produksi LT1** (penjualan lama tidak membanjiri daftar). Di staging 7 hari ke belakang untuk uji |
 | 3 | Alamat & HP toko diubah di mana? | **Di kasir** (Master Pelanggan), satu sumber. HRIS hanya menambah rute bawaan, catatan pengiriman, titik |
 | 4 | Gabung toko dobel (v3 F6) ikut? | **Tidak**; pelanggan dobel dirapikan di kasir |
