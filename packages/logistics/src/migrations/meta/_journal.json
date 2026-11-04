@@ -22,6 +22,13 @@
       "when": 1793713484973,
       "tag": "0002_l7a_trip_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793778173844,
+      "tag": "0003_lt1a_stores",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,95 @@
+import Link from 'next/link';
+import { buttonClass } from '@/components/ui/button';
+import { DataList } from '@/components/ui/data-list';
+import { Alert, Badge } from '@/components/ui/surface';
+import type { QueueStatus } from '../rules/delivery-notes';
+import { rupiah } from '../rules/rates';
+import type { NoteRow, NotesFilter } from '../server/delivery-notes';
+
+type Option = { id: number; name: string };
+
+const selectClass = 'min-h-9 rounded-lg border border-line bg-surface px-3 text-sm';
+
+function href(filter: NotesFilter, tab: QueueStatus) {
+  const params = new URLSearchParams({ tab });
+  if (filter.originId) params.set('asal', String(filter.originId));
+  if (filter.routeId) params.set('rute', String(filter.routeId));
+  if (filter.q) params.set('cari', filter.q);
+  return `/logistik/surat-jalan?${params}`;
+}
+
+/** Surat Jalan (spec LT1 §12): nota dan PO Internal bertanda truk Gudang, dibaca langsung dari kasir. */
+export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBackoffice, origins, routes, filter, canStores }: {
+  tab: QueueStatus; tabs: { status: QueueStatus; label: string; count: number }[]; rows: NoteRow[]; truncated: boolean; from: string; today: string;
+  hasBackoffice: boolean; origins: Option[]; routes: Option[]; filter: NotesFilter; canStores: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <nav className="flex flex-wrap gap-1" aria-label="Tab surat jalan">
+        {tabs.map((t) => (
+          <Link key={t.status} href={href(filter, t.status)} className={buttonClass({ variant: t.status === tab ? 'primary' : 'secondary', size: 'sm' })}>
+            {t.label} <span className="ml-1 tabular-nums opacity-80">{t.count}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <form action="/logistik/surat-jalan" className="flex flex-wrap items-end gap-2">
+        <input type="hidden" name="tab" value={tab} />
+        <select name="asal" defaultValue={filter.originId ?? ''} className={selectClass} aria-label="Cabang asal">
+          <option value="">Semua cabang asal</option>
+          {origins.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <select name="rute" defaultValue={filter.routeId ?? ''} className={selectClass} aria-label="Rute bawaan">
+          <option value="">Semua rute</option>
+          {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <input name="cari" defaultValue={filter.q} placeholder="Nomor atau nama toko" className={`${selectClass} w-52`} />
+        <button type="submit" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Tampilkan</button>
+      </form>
+
+      {tab === 'WAITING' && (
+        <p className="text-sm text-ink-muted">
+          Nota yang dipilih <b>Dikirim truk Gudang</b> di kasir dan PO Internal yang dikirim <b>Truk Gudang</b>, sejak {from}, paling lama di atas.
+          Salah tandai? Ubah cara kirimnya di Back Office; nota langsung keluar dari daftar ini.
+        </p>
+      )}
+      {!hasBackoffice && <Alert tone="warn">Alamat Back Office belum diatur, jadi tombol Ubah tidak tampil. Buka Back Office › Transaksi lalu cari nomornya.</Alert>}
+      {truncated && <Alert tone="warn">Daftar terlalu panjang; hanya 300 terlama per jenis yang ditampilkan. Persempit dengan saringan.</Alert>}
+
+      <DataList
+        rows={rows}
+        rowKey={(r) => r.key}
+        empty={tab === 'WAITING' ? 'Tidak ada yang menunggu dikirim.' : tab === 'RECEIVED' ? 'Belum ada PO Internal yang diterima.' : 'Tidak ada yang batal.'}
+        columns={[
+          {
+            key: 'number', header: 'Nomor', primary: true,
+            render: (r) => (
+              <span className="inline-flex flex-wrap items-center gap-1">
+                <span className="font-medium">{r.number}</span>
+                <Badge tone={r.kind === 'SALE' ? 'info' : 'ok'}>{r.kind === 'SALE' ? 'Nota' : 'PO Internal'}</Badge>
+                {r.revised && <Badge tone="warn">Dikoreksi</Badge>}
+                {r.pendingVoid && <Badge tone="warn">Menunggu batal</Badge>}
+              </span>
+            ),
+          },
+          { key: 'on', header: 'Tanggal', render: (r) => <span>{r.on}{tab === 'WAITING' && <span className="text-ink-muted"> · {r.age === 0 ? 'hari ini' : `${r.age} hari`}</span>}</span> },
+          { key: 'origin', header: 'Dari', render: (r) => r.origin },
+          {
+            key: 'to', header: 'Tujuan',
+            render: (r) => (r.customerId && canStores
+              ? <Link href={`/logistik/toko/${r.customerId}`} className="underline">{r.destination}</Link>
+              : <span>{r.destination}{r.kind === 'TRANSFER' && <span className="text-ink-muted"> (cabang)</span>}</span>),
+          },
+          { key: 'route', header: 'Rute bawaan', render: (r) => (r.kind === 'TRANSFER' ? '—' : r.route ?? <span className="text-ink-muted">belum diisi</span>) },
+          { key: 'amount', header: 'Nominal', render: (r) => (r.amount == null ? '—' : <span className="tabular-nums">{rupiah(r.amount)}</span>) },
+          {
+            key: 'link', header: '',
+            render: (r) => (r.link
+              ? <a href={r.link} target="_blank" rel="noreferrer" className={buttonClass({ variant: 'ghost', size: 'sm' })}>Ubah di Back Office</a>
+              : null),
+          },
+        ]}
+      />
+    </div>
+  );
+}

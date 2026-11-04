@@ -33,3 +33,18 @@ CREATE TABLE IF NOT EXISTS petshop.products (
 );
 CREATE TABLE IF NOT EXISTS petshop.product_uom_conversions (id serial PRIMARY KEY, product_id integer NOT NULL, uom_id integer NOT NULL, ratio integer NOT NULL DEFAULT 1, weight_gram integer);
 CREATE TABLE IF NOT EXISTS petshop.suppliers (id serial PRIMARY KEY, name varchar(100) NOT NULL, is_active boolean NOT NULL DEFAULT true);
+-- LT1a (migrasi logistics 0003): pelanggan, cara kirim nota, dan PO Internal untuk view logistics.pos_customers,
+-- pos_truck_sales, pos_truck_transfers. Jam kasir `timestamp` UTC tanpa zona, seperti aslinya.
+CREATE TABLE IF NOT EXISTS petshop.customers (
+  id serial PRIMARY KEY, code varchar(20), name varchar(100) NOT NULL, phone varchar(20), address text, is_active boolean NOT NULL DEFAULT true,
+  is_internal_branch boolean NOT NULL DEFAULT false, linked_branch_id integer
+);
+ALTER TABLE petshop.transactions ADD COLUMN IF NOT EXISTS branch_id integer NOT NULL DEFAULT 1;
+ALTER TABLE petshop.transactions ADD COLUMN IF NOT EXISTS customer_id integer;
+ALTER TABLE petshop.transactions ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'COMPLETED';
+ALTER TABLE petshop.transactions ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 1;
+ALTER TABLE petshop.transactions ADD COLUMN IF NOT EXISTS delivery_method varchar(20);
+CREATE TABLE IF NOT EXISTS petshop.inter_branch_transfers (
+  id serial PRIMARY KEY, ibt_number varchar(50) NOT NULL, source_branch_id integer NOT NULL, destination_branch_id integer NOT NULL,
+  status varchar(20) NOT NULL DEFAULT 'DRAFT', delivery_method varchar(20), created_at timestamp NOT NULL DEFAULT now()
+);
