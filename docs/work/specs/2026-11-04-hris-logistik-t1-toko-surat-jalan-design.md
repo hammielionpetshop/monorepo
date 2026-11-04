@@ -1,6 +1,6 @@
 # Spec Logistik Tahap 1 (LT1) — Cara Kirim di Kasir, Surat Jalan, Toko, dan Kunjungan di Trip
 
-Tanggal: 2026-11-04 · Status: **DRAF v2 — menunggu keputusan owner §9**
+Tanggal: 2026-11-04 · Status: **DRAF v3 — LT1-K tayang; lihat §0 untuk keputusan 2026-11-04; LT1a/LT1b menunggu keputusan §9**
 Cakupan: tahap pertama **Logistik penuh**, di atas L6 Logistik Minimal ([spec L6](2026-11-03-hris-l6-logistik-design.md)). Menyentuh **tiga aplikasi**: kasir POS (`apps/pos-desktop`), backoffice (`apps/backoffice`), HRIS (`apps/hris` + `packages/logistics`).
 Keputusan owner 2026-11-04:
 - Urutan 5 tahap Logistik penuh (1 surat jalan + toko + kunjungan; 2 uang, tertunda, retur, potong nota; 3 laporan muat cabang + antar sendiri; 4 pemeriksaan uang + Catat di Kasir + tagih; 5 dashboard, laporan, bensin). Dikerjakan bersamaan dengan L9.
@@ -12,6 +12,19 @@ Keputusan owner 2026-11-04:
 Sumber v3: `04-logistik` LOG-01, 05 s.d. 10, 12, 13, 16, 19, 20, 22 s.d. 27, 41, 55, 56, 93, 95, 96, 99, 103; spec v3 `2026-10-13-logistik-spec.md` §3.1 (4F-1) dan §3.2 (4F-2, bagian kunjungan). Penyimpangan dari v3 dicatat di §11.
 Dasar kode: L6 (`packages/logistics` migrasi 0001), L7a (tarif, logistics 0002), pola view baca kasir (`hris.pos_deliveries`, `hris.pos_suppliers`), kasir: `PaymentDialog` (POS), Bulk Sale (`/api/bo/bulk-sales`), PO Internal (`/api/bo/internal-transfers/[id]/status`, aksi `ship` → `IN_TRANSIT`), antar + ongkir (`petshop.service_deliveries`).
 Aliran migrasi: **`petshop`** (kolom cara kirim + riwayat), **`logistics` 0003** (tabel + view), **`hris`** (hak, pengaturan, jenis pemberitahuan).
+
+## 0. Pembaruan 2026-11-04 (sesudah LT1-K tayang) — mengalahkan isi di bawah bila bertentangan
+
+| Hal | Keputusan owner | Status |
+|---|---|---|
+| LT1-K Cara kirim | Tayang produksi **1.107.108** (PR #70): pilihan di layar bayar (nota berpelanggan), Bulk Sale, Kirim PO Internal, Ubah cara kirim + riwayat, saklar Pengaturan Cabang, migrasi petshop `0050` | Tayang produksi |
+| Langkah **Pengiriman** (mengganti §3.1 di layar bayar kasir) | Proses Bayar → jendela Pengiriman dulu (1 Ambil sendiri / 2 Kurir cabang / 3 Truk Gudang) → baru layar bayar (Opsi A, dua langkah; alasan: total final sebelum uang diketik). **Setiap nota kasir**, termasuk nota Umum | Staging, menunggu uji |
+| Kurir cabang | Wajib pilih pengantar + ongkir (8/10/15 rb atau ketik, kelipatan Rp 1.000) atau **Gratis ongkir**; baris ongkir dibuat otomatis lewat mesin ongkir. Produk Ongkos Kirim disembunyikan dari pencarian kasir. Tidak ada di Bulk Sale; tidak bisa lewat Ubah cara kirim; server menolak kurir tanpa ongkir | Staging, menunggu uji |
+| Truk Gudang | **Selalu gratis ongkir** — penanda antrean surat jalan HRIS; hanya nota berpelanggan | Staging, menunggu uji |
+| Grooming / PO Internal | Tab Grooming (antar-jemput kucing) tidak berubah dan melewati langkah Pengiriman (server: grooming tanpa antar = Ambil sendiri). PO Internal: cara kirim saat Kirim | Staging, menunggu uji |
+| Saklar Pengaturan Cabang | Mati = Truk Gudang disembunyikan + Bulk Sale/PO Internal tidak ditanya + kolom/saringan disembunyikan; langkah Pengiriman (ambil/kurir) tetap karena ongkir diisi di sana | Staging, menunggu uji |
+| Menu **Ongkir** kasir POS | Riwayat ongkir + pengantar cabang sendiri, semua kasir; **tanpa bonus** (bonus hanya di laporan BO) | Staging, menunggu uji |
+| Terbuka | Kiriman ojol / kurir luar (glosarium: tidak memakai produk ongkir) belum punya pilihan di langkah Pengiriman | Menunggu owner |
 
 ## 1. Batas
 
