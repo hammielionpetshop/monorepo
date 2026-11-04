@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { NavCounts, NavGroup } from '@/lib/nav';
+import { BackButton } from './back-button';
 import { LogoutButton } from './logout-button';
 import { ThemeToggle } from './theme-toggle';
 import { BottomNav, HeaderBell, SideNav } from './nav-links';
@@ -19,8 +20,10 @@ export function AppShell({ groups, counts, children }: { groups: NavGroup[]; cou
         </aside>
         <div className="flex min-w-0 flex-col md:min-h-0">
           <header className="print:hidden flex min-h-14 items-center justify-between border-b border-line bg-surface px-4">
-            <span className="font-semibold text-brand-700 md:hidden">HRIS Hammielion</span>
-            <span className="hidden md:block" />
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="font-semibold text-brand-700 md:hidden">HRIS</span>
+              <BackButton />
+            </div>
             <div className="flex items-center gap-1">
               <HeaderBell count={counts?.notifications} />
               <ThemeToggle />
