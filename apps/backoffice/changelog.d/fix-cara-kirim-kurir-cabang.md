@@ -1,2 +1,0 @@
-### Changed
-- **"Diantar kurir cabang" kini selalu lewat Ongkos Kirim**, supaya pengantar (dan bonusnya) pasti tercatat. Di layar bayar kasir, tombol ini baru aktif setelah produk Ongkos Kirim ada di keranjang (lalu pilih pengantar); antar tanpa ongkos cukup centang **Gratis ongkir** (tercatat, tidak ditagih, pengantar tanpa bonus). Di Bulk Sale pilihan ini tidak muncul (Bulk Sale tidak memuat ongkir), dan tombol **Ubah cara kirim** tidak bisa mengubah nota menjadi kurir cabang. Server ikut menolak kurir cabang tanpa ongkir.

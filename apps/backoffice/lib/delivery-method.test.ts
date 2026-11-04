@@ -34,13 +34,30 @@ describe('resolveSaleDeliveryMethod', () => {
   })
 
   it('kurir cabang tanpa baris ongkir ditolak (juga saat saklar mati)', () => {
-    expect(() => resolveSaleDeliveryMethod({ ...base, requested: 'BRANCH_COURIER' })).toThrow(/Ongkos Kirim/)
-    expect(() => resolveSaleDeliveryMethod({ ...base, required: false, requested: 'BRANCH_COURIER' })).toThrow(/Ongkos Kirim/)
+    expect(() => resolveSaleDeliveryMethod({ ...base, requested: 'BRANCH_COURIER' })).toThrow(/ongkos kirim/i)
+    expect(() => resolveSaleDeliveryMethod({ ...base, required: false, requested: 'BRANCH_COURIER' })).toThrow(/ongkos kirim/i)
   })
 
   it('nota berongkir selalu kurir cabang, pilihan lain ditolak', () => {
     expect(resolveSaleDeliveryMethod({ ...base, hasCourierLine: true })).toBe('BRANCH_COURIER')
     expect(() => resolveSaleDeliveryMethod({ ...base, hasCourierLine: true, requested: 'TRUCK' })).toThrow(DeliveryMethodError)
+  })
+
+  it('kasir POS (everyNota): nota Umum juga ditanya', () => {
+    const umum = { ...base, customerId: null, everyNota: true }
+    expect(() => resolveSaleDeliveryMethod(umum)).toThrow(DeliveryMethodError)
+    expect(resolveSaleDeliveryMethod({ ...umum, requested: 'PICKUP' })).toBe('PICKUP')
+    expect(resolveSaleDeliveryMethod({ ...umum, hasCourierLine: true })).toBe('BRANCH_COURIER')
+  })
+
+  it('truk Gudang wajib berpelanggan', () => {
+    expect(() => resolveSaleDeliveryMethod({ ...base, customerId: null, everyNota: true, requested: 'TRUCK' })).toThrow(/berpelanggan/)
+  })
+
+  it('nota grooming tanpa antar otomatis ambil sendiri', () => {
+    expect(resolveSaleDeliveryMethod({ ...base, hasGrooming: true })).toBe('PICKUP')
+    expect(resolveSaleDeliveryMethod({ ...base, hasGrooming: true, hasCourierLine: true })).toBe('BRANCH_COURIER')
+    expect(resolveSaleDeliveryMethod({ ...base, hasGrooming: true, required: false })).toBeNull()
   })
 
   it('nilai asing ditolak', () => {
