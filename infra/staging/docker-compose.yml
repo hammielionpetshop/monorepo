@@ -57,6 +57,8 @@ services:
       AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       AUTH_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}
       AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-}
+      # Tombol "Ubah di Back Office" di Surat Jalan (spec LT1 §12): alamat publik Back Office staging.
+      BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
       # Akses kasir dari HRIS (L2d): pintu internal backoffice lewat jaringan compose.
       HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
       # Kunci uji banding L9b: 1 = hanya Pemilik/GM yang bisa masuk HRIS staging (spec L9 §4).

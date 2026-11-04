@@ -284,3 +284,27 @@ export const tripRates = logisticsSchema.table(
     check('trip_rates_ended', sql`(${t.status} = 'ACTIVE') = (${t.endedAt} is null)`),
   ],
 );
+
+/**
+ * Data pengiriman toko (spec LT1 §2.3, §12). Toko = pelanggan kasir (`petshop.customers.id`, angka biasa tanpa foreign key);
+ * nama, HP, alamat tetap di kasir. Baris dibuat saat pertama diisi; tidak dihapus (kosongkan isinya).
+ */
+export const stores = logisticsSchema.table(
+  'stores',
+  {
+    id: serial('id').primaryKey(),
+    customerId: integer('customer_id').notNull(),
+    /** Rute kirim bawaan (LOG-06); kosong = belum ditentukan. */
+    defaultRouteId: integer('default_route_id').references(() => routes.id),
+    /** Catatan pengiriman untuk driver (patokan, jam buka, dsb.). */
+    deliveryNote: text('delivery_note'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedByAccountId: integer('updated_by_account_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('stores_customer_unique').on(t.customerId),
+    check('stores_note_length', sql`${t.deliveryNote} is null or char_length(${t.deliveryNote}) <= 500`),
+  ],
+);

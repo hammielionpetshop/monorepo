@@ -1129,6 +1129,15 @@ export const SETTINGS = {
     affectsMoney: true, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.wage.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'logistics.delivery_from': {
+    label: 'Surat jalan mulai tanggal',
+    module: 'logistics',
+    explain: 'Nota dan PO Internal bertanda truk Gudang sejak tanggal ini masuk antrean Surat Jalan; yang lebih lama tidak (spec LT1 §9 butir 3).',
+    type: { kind: 'date' },
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.delivery_note.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'migration.cutover_on': {
     label: 'Hari pindah ke HRIS baru',
     module: 'migration',
