@@ -183,3 +183,7 @@ Keputusan owner 2026-11-04 sesudah memeriksa Excel Database Karyawan: simpan **N
 skenario tidak dirinci). Data staging: 5 cabang HRIS + 24 karyawan bawaan dimuat, dilengkapi 24 Kode lama, 16 NIK,
 15 hubungan kontak darurat; NIK EMP-038 dan EMP-017 di Excel hanya 15 angka → dikosongkan, owner lengkapi manual.
 Nama branch memakai "l9c", tetapi **L9c di spec ini tetap Latihan pindah (§5)**; pekerjaan Kode lama adalah tambahan L9.
+
+**Koreksi owner 2026-11-04:** Helper di Team Gudang = **Kenek** (`fix/hris-helper-kenek`; sebelumnya "Belum ditentukan").
+Semua Helper aktif di Excel adalah Team Gudang (4 orang). Data staging dikoreksi dengan penempatan jabatan bertanggal
+sama dengan tanggal masuk (catatan awal tidak bisa diubah).
