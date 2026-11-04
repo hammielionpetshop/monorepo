@@ -13,14 +13,17 @@ function ChangeBadge({ note }: { note: TripNoteView }) {
 }
 
 export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY';
+export type PointAction = 'NEW' | 'CORRECTION';
 
 /**
  * Surat jalan di trip (spec LT1 §3.4–3.6): langkah ambil barang di cabang asal dan kunjungan per tujuan. Dipakai rincian
  * trip (kantor, ada tombol Lepas) dan Trip Saya (awak: ambil barang, Terkirim / Kirim Besok / Gagal / Coba lagi, LT1b-2a).
  */
-export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, storeLinks, compact }: {
+export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, onPoint, storeLinks, compact }: {
   visits: TripVisitView[]; pickups: TripPickupView[];
   onRelease?: (visit: TripVisitView) => void; onPickup?: (pickup: TripPickupView) => void; onVisit?: (visit: TripVisitView, action: VisitAction) => void;
+  /** Titik toko dari kunjungan (spec LT1 §13.4): awak trip selama Berjalan. */
+  onPoint?: (visit: TripVisitView, action: PointAction) => void;
   storeLinks?: boolean; compact?: boolean;
 }) {
   const shown = visits.filter((v) => v.status !== 'RELEASED' || !compact);
@@ -80,6 +83,21 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                   {v.address && <p>{v.address}</p>}
                   {v.phone && <p>Telp <a href={`tel:${v.phone.replace(/[^\d+]/g, '')}`} className="underline">{v.phone}</a></p>}
                   {v.deliveryNote && <p className="text-ink">Catatan: {v.deliveryNote}</p>}
+                </div>
+              )}
+              {v.customerId != null && (v.point || v.pointPending || onPoint || v.distanceM != null) && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {v.point && <a href={v.point.mapUrl} target="_blank" rel="noreferrer" className="font-medium underline">Buka peta</a>}
+                  {v.pointPending && <Badge tone="warn">Titik menunggu persetujuan</Badge>}
+                  {!compact && v.distanceM != null && (
+                    <span className="inline-flex items-center gap-1 text-ink-muted">
+                      Terkirim ± {v.distanceM} m dari titik {v.outside && <Badge tone="warn">Di luar titik</Badge>}
+                    </span>
+                  )}
+                  {onPoint && !v.pointPending && (v.point
+                    ? <Button size="sm" variant="ghost" onClick={() => onPoint(v, 'CORRECTION')}>Laporkan titik salah</Button>
+                    : <Button size="sm" variant="secondary" onClick={() => onPoint(v, 'NEW')}>Pasang titik toko</Button>)}
+                  <NewBadge feature="fitur/titik-toko" />
                 </div>
               )}
               {v.waitsForPickup.length > 0 && <p className="text-xs text-ink-muted">Menunggu barang diambil di {v.waitsForPickup.join(', ')}.</p>}

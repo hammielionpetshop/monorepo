@@ -322,6 +322,49 @@ export const stores = logisticsSchema.table(
 );
 
 /**
+ * Titik toko (spec LT1 §3.8, §13.4): dipasang awak dari kunjungan (GPS + foto depan toko) atau ditempel kantor. Satu toko
+ * paling banyak satu titik Disetujui dan satu usulan Menunggu. Riwayat tidak dihapus; titik lama menjadi Diganti.
+ */
+export const storePoints = logisticsSchema.table(
+  'store_points',
+  {
+    id: serial('id').primaryKey(),
+    customerId: integer('customer_id').notNull(),
+    /** PENDING (Menunggu), APPROVED (Disetujui), REJECTED (Ditolak), REPLACED (Diganti titik yang lebih baru). */
+    status: text('status').notNull(),
+    /** VISIT = dari kunjungan trip; OFFICE = koordinat ditempel kantor. */
+    source: text('source').notNull(),
+    /** NEW = toko belum punya titik; CORRECTION = Laporkan titik salah (alasan wajib). */
+    kind: text('kind').notNull(),
+    reason: text('reason'),
+    latitude: doublePrecision('latitude').notNull(),
+    longitude: doublePrecision('longitude').notNull(),
+    accuracyM: integer('accuracy_m'),
+    photoFileId: uuid('photo_file_id'),
+    tripId: integer('trip_id').references(() => trips.id),
+    visitId: integer('visit_id').references(() => tripVisits.id),
+    proposedByEmployeeId: integer('proposed_by_employee_id'),
+    proposedByAccountId: integer('proposed_by_account_id').notNull(),
+    proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    rejectReason: text('reject_reason'),
+    replacedAt: timestamp('replaced_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('store_points_one_approved').on(t.customerId).where(sql`${t.status} = 'APPROVED'`),
+    uniqueIndex('store_points_one_pending').on(t.customerId).where(sql`${t.status} = 'PENDING'`),
+    index('store_points_customer_idx').on(t.customerId),
+    check('store_points_status', sql`${t.status} in ('PENDING', 'APPROVED', 'REJECTED', 'REPLACED')`),
+    check('store_points_source', sql`${t.source} in ('VISIT', 'OFFICE') and (${t.source} = 'VISIT') = (${t.photoFileId} is not null and ${t.tripId} is not null)`),
+    check('store_points_kind', sql`${t.kind} in ('NEW', 'CORRECTION') and (${t.kind} = 'NEW' or ${t.reason} is not null)`),
+    check('store_points_decided', sql`(${t.status} = 'PENDING') = (${t.decidedAt} is null) and (${t.status} = 'REJECTED') = (${t.rejectReason} is not null)`),
+    check('store_points_replaced', sql`(${t.status} = 'REPLACED') = (${t.replacedAt} is not null)`),
+    check('store_points_coordinates', sql`abs(${t.latitude}) <= 90 and abs(${t.longitude}) <= 180 and not (${t.latitude} = 0 and ${t.longitude} = 0)`),
+  ],
+);
+
+/**
  * Surat jalan (spec LT1 §2.3, §3.3): nota (`SALE`) atau PO Internal (`TRANSFER`) bertanda truk Gudang. Baris dibuat saat
  * pertama disentuh (masuk trip); sebelumnya "Menunggu" dibaca langsung dari view kasir. `docId` = id dokumen kasir.
  */
@@ -399,6 +442,8 @@ export const tripVisits = logisticsSchema.table(
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
     accuracyM: integer('accuracy_m'),
+    /** Jarak lokasi Terkirim dari titik toko Disetujui saat itu (spec LT1 §13.4 butir 5); hanya dicatat. */
+    distanceM: integer('distance_m'),
     releasedByAccountId: integer('released_by_account_id'),
     releasedAt: timestamp('released_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
