@@ -11,6 +11,8 @@ import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from
 import { LineDiscountError } from "@/lib/services/line-discount-service";
 import { PromoSaleError } from "@/lib/services/promo-sale-service";
 import { MANUAL_DISCOUNT_NOTE_MAX } from "@/lib/manual-discount";
+import { DeliveryMethodError, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
+import { getDeliverySettings } from "@/lib/delivery-method-server";
 
 const transactionSchema = z.object({
   branchId: z.number().int().positive(),
@@ -93,6 +95,9 @@ const transactionSchema = z.object({
   // saleType BULK & IBT-nya ditautkan/auto-approve oleh TransactionService (jalur sama
   // dengan Bulk Sale di backoffice).
   sourceIbtId: z.number().int().positive().nullable().optional(),
+  // Cara kirim nota berpelanggan (Ambil sendiri / Kurir cabang / Truk Gudang). Aturannya di
+  // resolveSaleDeliveryMethod; nota Umum & PO Internal diabaikan.
+  deliveryMethod: z.string().nullable().optional(),
   // Kunci idempotensi per percobaan checkout. Klien mengirim nilai yang sama saat mengulang
   // pembayaran, jadi request yang sebenarnya sudah tersimpan tidak tercatat dua kali.
   clientRequestId: z
@@ -307,12 +312,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const deliveryMethod = resolveSaleDeliveryMethod({
+      customerId: result.data.customerId,
+      sourceIbtId: result.data.sourceIbtId,
+      hasCourierLine: result.data.items.some((i) => i.delivery != null),
+      hasGrooming: result.data.items.some((i) => i.grooming != null),
+      // Kasir POS: semua nota menjawab langkah Pengiriman, termasuk nota Umum.
+      everyNota: true,
+      requested: result.data.deliveryMethod,
+      required: result.data.sourceIbtId == null && (await getDeliverySettings()).required,
+    });
+
     const transaction = await TransactionService.createTransaction({
       ...result.data,
       branchId: effectiveBranchId,
       cashierId: payload.userId,
       saleType: result.data.sourceIbtId ? "BULK" : "RETAIL",
       sourceIbtId: result.data.sourceIbtId ?? null,
+      deliveryMethod,
       clientRequestId: result.data.clientRequestId ?? null,
       // IBT berhenti di APPROVED (blok atas TransactionService) — ship ke IN_TRANSIT tidak
       // lagi otomatis, kasir mengonfirmasi manual lewat PATCH /api/pos/internal-po/[id]/ship
@@ -328,6 +345,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof DeliveryMethodError) return NextResponse.json({ error: error.message, code: "DELIVERY_METHOD" }, { status: error.status })
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof GroomingOrderError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof LineDiscountError) return NextResponse.json({ error: error.message }, { status: error.status })

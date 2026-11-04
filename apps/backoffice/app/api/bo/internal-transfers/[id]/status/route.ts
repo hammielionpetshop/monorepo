@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
 import { getAuth, hasPermission } from '@/lib/authz'
+import { DeliveryMethodError, resolveTransferDeliveryMethod } from '@/lib/delivery-method'
+import { getDeliverySettings } from '@/lib/delivery-method-server'
 import type { JWTPayload } from '@petshop/shared'
 import {
   db,
@@ -50,6 +52,8 @@ const statusSchema = z.object({
   // PIN Owner cabang pengirim — wajib hanya saat pengiriman dengan stok kurang (bypass)
   ownerPin: z.string().min(4).max(6).optional(),
   reason: z.string().trim().max(500).optional(),
+  // Cara kirim saat Kirim: TRUCK (truk Gudang) / SELF (kirim sendiri) — lib/delivery-method.
+  deliveryMethod: z.string().nullable().optional(),
 })
 
 type TransferStatus =
@@ -127,6 +131,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         { error: 'Data qty penerimaan per item wajib diisi untuk aksi penerimaan' },
         { status: 400 }
       )
+    }
+
+    let shipDeliveryMethod: string | null = null
+    if (action === 'ship') {
+      try {
+        shipDeliveryMethod = resolveTransferDeliveryMethod(parsed.data.deliveryMethod, (await getDeliverySettings()).required)
+      } catch (error) {
+        if (error instanceof DeliveryMethodError) return NextResponse.json({ error: error.message }, { status: error.status })
+        throw error
+      }
     }
 
     const reason = parsed.data.reason ?? ''
@@ -537,11 +551,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         approvedById?: number
         receivedById?: number
         receivedAt?: Date
+        deliveryMethod?: string | null
       } = {
         status: action === 'receive' ? finalReceiveStatus : transition.to,
         updatedAt: new Date(),
         ...(action === 'approve' ? { approvedById: payload.userId } : {}),
         ...(action === 'receive' ? { receivedById: payload.userId, receivedAt: new Date() } : {}),
+        ...(action === 'ship' ? { deliveryMethod: shipDeliveryMethod } : {}),
       }
 
       const [updated] = await tx

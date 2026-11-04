@@ -13,6 +13,8 @@ import { isUnfulfilled } from '@/lib/ibt-fulfillment'
 import { NewBadge } from '@/components/ui/new-badge'
 import type { TransferItem } from './types'
 import InternalTransferEditForm from './internal-transfer-edit-form'
+import { ChangeDeliveryDialog, TransferDeliveryPicker } from '@/components/delivery/delivery-method-picker'
+import { transferDeliveryLabel, type TransferDeliveryMethod } from '@/lib/delivery-method'
 
 const PRINT_STYLES = `
 @media print {
@@ -133,6 +135,8 @@ interface Props {
   permissions: string[]
   branchScope: 'ALL' | 'OWN'
   allBranches: BranchOption[]
+  /** Saklar "Wajib pilih cara kirim" (Pengaturan Cabang). */
+  deliveryRequired: boolean
 }
 
 const REQUESTER_EDITABLE_STATUSES = ['DRAFT', 'PENDING_APPROVAL']
@@ -145,8 +149,12 @@ export function InternalTransferDetailClient({
   permissions,
   branchScope,
   allBranches,
+  deliveryRequired,
 }: Props) {
   const router = useRouter()
+  // Cara kirim saat Kirim (Truk Gudang / Kirim sendiri) + Ubah cara kirim sesudahnya.
+  const [shipMethod, setShipMethod] = useState<TransferDeliveryMethod | null>(null)
+  const [changingDelivery, setChangingDelivery] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -320,6 +328,11 @@ export function InternalTransferDetailClient({
   const shortageNeedsAuth = hasShortage && !isConvertedToBulkSale
 
   function handleShipClick() {
+    if (deliveryRequired && !shipMethod) {
+      setErrorMsg('Pilih cara kirim dulu: Truk Gudang atau Kirim sendiri.')
+      setTimeout(() => setErrorMsg(null), 5000)
+      return
+    }
     // IBT terkonversi bulk sale: stok gudang sudah dipotong saat bulk sale, pengiriman
     // tidak memotong stok lagi → lewati tantangan PIN stok-kurang.
     if (hasShortage && !isConvertedToBulkSale) {
@@ -343,6 +356,7 @@ export function InternalTransferDetailClient({
           action: 'ship',
           items: transfer.items.map((i) => ({ itemId: i.id, qty: shipQty[i.id] ?? 0 })),
           ...(pin ? { ownerPin: pin } : {}),
+          deliveryMethod: deliveryRequired ? shipMethod : null,
         }),
       })
       const data = await res.json()
@@ -797,6 +811,40 @@ export function InternalTransferDetailClient({
           )}
         </div>
 
+        {transfer.deliveryMethod && (
+          <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                Cara kirim <NewBadge feature="fitur/cara-kirim" />
+              </p>
+              <p className="text-sm mt-0.5 font-medium">{transferDeliveryLabel(transfer.deliveryMethod)}</p>
+            </div>
+            {transfer.status !== 'CANCELLED' && (
+              <button
+                type="button"
+                onClick={() => setChangingDelivery(true)}
+                className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent print:hidden"
+              >
+                Ubah
+              </button>
+            )}
+          </div>
+        )}
+        {changingDelivery && (
+          <ChangeDeliveryDialog
+            kind="INTERNAL_TRANSFER"
+            documentKey={transfer.id}
+            current={transfer.deliveryMethod}
+            onClose={() => setChangingDelivery(false)}
+            onSaved={() => {
+              setChangingDelivery(false)
+              setSuccessMsg('Cara kirim diubah')
+              setTimeout(() => setSuccessMsg(null), 3000)
+              router.refresh()
+            }}
+          />
+        )}
+
         {transfer.notes && (
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground">Catatan</p>
@@ -1113,6 +1161,11 @@ export function InternalTransferDetailClient({
             <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               ⚠ Ada item dengan qty kirim melebihi stok sistem. Pengiriman tetap bisa dilanjutkan, namun butuh
               otorisasi <strong>PIN Owner</strong> dan stok cabang pengirim akan menjadi minus.
+            </div>
+          )}
+          {deliveryRequired && (
+            <div className="mb-3 max-w-md">
+              <TransferDeliveryPicker value={shipMethod} onChange={setShipMethod} />
             </div>
           )}
           <div className="flex gap-3">

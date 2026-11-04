@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId } from '@/lib/pos-branch'
+import { ONGKIR_KIND } from '@/lib/ongkir'
 import {
   db,
   products,
@@ -59,9 +60,13 @@ export async function GET(req: NextRequest) {
   // barang), tetapi jasa grooming tidak pernah tampil — hanya dijual lewat tab Grooming
   // (/api/pos/grooming/services), karena tiap barisnya wajib membawa data kucing & groomer.
   const stockOnly = searchParams.get('stockOnly') === '1'
+  // `excludeOngkir=1` dipakai tab Kasir: ongkos kirim kini diisi di langkah Pengiriman (pilih pengantar
+  // + nilai ongkir), bukan dari keranjang, supaya tidak ada dua jalan yang bisa membuat ongkir dobel/lupa.
+  const excludeOngkir = searchParams.get('excludeOngkir') === '1'
   const whereCondition = and(
     eq(products.isActive, true),
     stockOnly ? eq(products.productKind, 'BARANG') : ne(products.productKind, 'JASA_GROOMING'),
+    excludeOngkir ? ne(products.productKind, ONGKIR_KIND) : undefined,
     searchWhere,
   )
 

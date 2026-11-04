@@ -17,6 +17,9 @@ import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
 import { NewBadge } from '@/components/ui/new-badge'
+import { TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
+import { type TransferDeliveryMethod } from '@/lib/delivery-method'
+import type { DeliveryChoice } from './delivery-step-model'
 import { applyFreeShipping, isOngkirItem } from '@/lib/ongkir'
 
 interface CheckoutModalProps {
@@ -43,6 +46,11 @@ interface CheckoutModalProps {
   initialPaymentType?: string
   // Dipanggil sekali begitu nota tersimpan (tab Grooming memakainya untuk mencetak karcis).
   onSaved?: (saved: { transactionId: number; receiptNumber: string }) => void
+  // Jawaban langkah Pengiriman (tab Kasir). Kurir cabang: baris ongkir sudah ada di `items`; pengantar &
+  // Gratis ongkir dipasang dari sini. Kosong = tab Grooming / PO Internal (server menentukan sendiri).
+  deliveryChoice?: DeliveryChoice | null
+  // Kembali ke langkah Pengiriman (tombol "Ubah pengiriman").
+  onChangeDelivery?: () => void
   onClose: () => void
   onSuccess: () => void
 }
@@ -84,6 +92,8 @@ export default function CheckoutModal({
   clientRequestId,
   initialPaymentType,
   onSaved,
+  deliveryChoice = null,
+  onChangeDelivery,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -114,6 +124,10 @@ export default function CheckoutModal({
   // tab Menunggu Pengiriman (kanban #50). Tetap manual supaya masih ada jeda untuk batal.
   const [shipState, setShipState] = useState<'idle' | 'busy' | 'done'>('idle')
   const [shipError, setShipError] = useState('')
+  // Cara kirim PO Internal saat "Kirim Sekarang": Truk Gudang / Kirim sendiri.
+  const shipDeliveryRequired = usePosDeliveryRequired(sourceIbtId != null)
+  const [shipMethod, setShipMethod] = useState<TransferDeliveryMethod | null>(null)
+  const shipNeedsMethod = shipDeliveryRequired !== false
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
@@ -129,7 +143,8 @@ export default function CheckoutModal({
         ? 'Nota ini berisi grooming: ongkos kirimnya diatur dari tab Grooming (pilihan Delivery). Hapus baris ongkir ini dari keranjang.'
         : null
   const [couriers, setCouriers] = useState<{ id: number; name: string }[] | null>(null)
-  const [courierId, setCourierId] = useState('')
+  const presetCourier = deliveryChoice?.method === 'BRANCH_COURIER' ? deliveryChoice : null
+  const [courierId, setCourierId] = useState(presetCourier ? String(presetCourier.courierId) : '')
   // Nilai gratis ongkir (ongkir standar dari Pengaturan) — null = belum termuat / gagal.
   const [freeShippingValue, setFreeShippingValue] = useState<number | null>(null)
   useEffect(() => {
@@ -154,9 +169,11 @@ export default function CheckoutModal({
     }
   }, [needsCourier, couriers])
   const courierPicked = !needsCourier || (courierId !== '' && courierProblem === null)
+
   // Gratis ongkir (kasir yang menentukan): baris ongkir tetap tercatat nilainya tetapi dipotong
   // penuh — pelanggan tidak membayar, pengantar tidak dapat bonus. Tidak dicentang = tertagih.
-  const [freeShipping, setFreeShipping] = useState(false)
+  // Tab Kasir: diisi langkah Pengiriman.
+  const [freeShipping, setFreeShipping] = useState(presetCourier?.free === true)
   const ongkirLine = needsCourier && courierProblem === null ? plainOngkirLines[0] : null
   // Gratis ongkir lewat mesin ongkir: qty = nilai standar ÷ harga, dipotong penuh.
   let freeShippingError: string | null = null
@@ -465,6 +482,8 @@ export default function CheckoutModal({
       change: payloadChange,
       dueAt: payloadDueAt,
       sourceIbtId: sourceIbtId ?? null,
+      // Cara kirim dari langkah Pengiriman; tab Grooming / PO Internal: server yang menentukan.
+      deliveryMethod: deliveryChoice?.method ?? null,
       clientRequestId,
     }
 
@@ -542,11 +561,19 @@ export default function CheckoutModal({
   // struk di DOM) lalu cetak via dialog browser.
   async function handleKirimSekarang() {
     if (sourceIbtId == null) return
+    if (shipNeedsMethod && !shipMethod) {
+      setShipError('Pilih cara kirim dulu: Truk Gudang atau Kirim sendiri.')
+      return
+    }
     if (!confirm('Kirim PO Internal ini sekarang? Statusnya berubah menjadi "Dalam Pengiriman" dan tidak bisa dibatalkan dari kasir.')) return
     setShipState('busy')
     setShipError('')
     try {
-      const res = await fetch(`/api/pos/internal-po/${sourceIbtId}/ship`, { method: 'PATCH' })
+      const res = await fetch(`/api/pos/internal-po/${sourceIbtId}/ship`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryMethod: shipNeedsMethod ? shipMethod : null }),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setShipError((d as { error?: string }).error ?? 'Gagal mengirim PO Internal')
@@ -692,10 +719,15 @@ export default function CheckoutModal({
                   </p>
                 ) : (
                   <>
+                    {shipNeedsMethod && (
+                      <div className="mb-2">
+                        <TransferDeliveryPicker value={shipMethod} onChange={setShipMethod} />
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => { void handleKirimSekarang() }}
-                      disabled={shipState === 'busy'}
+                      disabled={shipState === 'busy' || (shipNeedsMethod && !shipMethod)}
                       className="w-full min-h-[48px] mb-1 rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                     >
                       {shipState === 'busy' ? 'Mengirim...' : '🚚 Kirim Sekarang'}
@@ -766,7 +798,40 @@ export default function CheckoutModal({
           </div>
         </div>
 
-        {needsCourier && (
+        {deliveryChoice && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2.5 text-sm">
+            <span>
+              <b>
+                {deliveryChoice.method === 'PICKUP'
+                  ? 'Ambil sendiri'
+                  : deliveryChoice.method === 'TRUCK'
+                    ? 'Dikirim truk Gudang (gratis ongkir)'
+                    : `Kurir: ${deliveryChoice.courierName}`}
+              </b>
+              {deliveryChoice.method === 'BRANCH_COURIER' && (
+                <span className="text-muted-foreground">
+                  {' '}· {deliveryChoice.free ? 'Gratis ongkir' : `Ongkir ${formatRupiah(String(deliveryChoice.amount))}`}
+                </span>
+              )}
+            </span>
+            {onChangeDelivery && !result && (
+              <button
+                type="button"
+                onClick={onChangeDelivery}
+                disabled={loading}
+                className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold hover:bg-accent disabled:opacity-50"
+              >
+                ← Ubah pengiriman
+              </button>
+            )}
+          </div>
+        )}
+
+        {presetCourier && (courierProblem || freeShippingError) && (
+          <p className="mb-3 text-xs font-medium text-destructive">{courierProblem ?? freeShippingError}</p>
+        )}
+
+        {needsCourier && !presetCourier && (
           <div className="mb-3 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2.5">
             <label htmlFor="checkout-courier" className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-sky-900 dark:text-sky-100">
               Ada ongkos kirim — siapa yang mengantar? * <NewBadge feature="fitur/antar-barang-pengantar" />

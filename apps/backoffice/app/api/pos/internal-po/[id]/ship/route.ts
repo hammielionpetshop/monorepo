@@ -5,6 +5,8 @@ import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
 import { db, interBranchTransfers, interBranchTransferItems, eq, and } from '@/lib/db'
 import { getPosBranchId } from '@/lib/pos-branch'
+import { DeliveryMethodError, resolveTransferDeliveryMethod } from '@/lib/delivery-method'
+import { getDeliverySettings } from '@/lib/delivery-method-server'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +23,7 @@ export const dynamic = 'force-dynamic'
  * `PATCH /api/bo/internal-transfers/[id]/status`. Tidak memotong stok gudang: sudah
  * dipotong FIFO oleh transaksi Bulk Sale itu sendiri (mitigasi dobel-potong R1/G5).
  */
-export async function PATCH(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('accessToken')?.value
@@ -40,6 +42,7 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
     }
 
     const branchId = getPosBranchId(payload, cookieStore)
+
 
     const [transfer] = await db
       .select({
@@ -71,6 +74,15 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
       )
     }
 
+    // Cara kirim wajib dipilih saat Kirim (Truk Gudang / Kirim sendiri) — lib/delivery-method.
+    const body = (await req.json().catch(() => ({}))) as { deliveryMethod?: string | null }
+    let deliveryMethod: string | null
+    try {
+      deliveryMethod = resolveTransferDeliveryMethod(body?.deliveryMethod ?? null, (await getDeliverySettings()).required)
+    } catch (error) {
+      if (error instanceof DeliveryMethodError) return NextResponse.json({ error: error.message }, { status: error.status })
+      throw error
+    }
     const updated = await db.transaction(async (tx) => {
       // Fail-fast: verifikasi status belum berubah sebelum mulai proses.
       const [locked] = await tx
@@ -101,7 +113,7 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
 
       const [result] = await tx
         .update(interBranchTransfers)
-        .set({ status: 'IN_TRANSIT', updatedAt: new Date() })
+        .set({ status: 'IN_TRANSIT', deliveryMethod, updatedAt: new Date() })
         .where(and(eq(interBranchTransfers.id, transferId), eq(interBranchTransfers.status, 'APPROVED')))
         .returning({ id: interBranchTransfers.id, status: interBranchTransfers.status })
 

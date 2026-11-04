@@ -27,6 +27,7 @@ const db = {
 };
 
 // Jasa grooming menempel ke nota lewat modul ini; tes ini memakai DB tiruan, jadi modulnya ditiru.
+vi.mock('@/lib/delivery-method-server', () => ({ getDeliverySettings: vi.fn(async () => ({ required: true, truckFirstBranchIds: [] })) }));
 vi.mock('@/lib/services/grooming-order-service', () => ({
   GROOMING_CONDITION_MAX: 500,
   DELIVERY_ADDRESS_MAX: 500,
@@ -93,6 +94,8 @@ function validPayload(overrides: Record<string, unknown> = {}) {
     shiftId: 10,
     cashierId: 7,
     customerId: null,
+    // Jawaban langkah Pengiriman (wajib untuk semua nota kasir).
+    deliveryMethod: "PICKUP",
     items: [
       {
         productId: 1,
@@ -177,8 +180,26 @@ describe("POST /api/pos/transactions", () => {
 
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ branchId: 2, cashierId: 7 }),
+      expect.objectContaining({ branchId: 2, cashierId: 7, deliveryMethod: "PICKUP" }),
     );
+  });
+
+  it("nota Umum tanpa jawaban Pengiriman ditolak 400 (ongkir tidak boleh terlewat)", async () => {
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ deliveryMethod: null })));
+
+    expect(res.status).toBe(400);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("nota Umum tidak bisa dikirim truk Gudang", async () => {
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ deliveryMethod: "TRUCK" })));
+
+    expect(res.status).toBe(400);
+    expect(createTransaction).not.toHaveBeenCalled();
   });
 
   // Regresi: baris hadiah "beli X gratis Y" membawa promo.gift = true. Tanpa field itu di skema

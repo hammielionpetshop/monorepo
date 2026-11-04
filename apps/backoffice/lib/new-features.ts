@@ -15,6 +15,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/piutang-filter-periode': '2026-10-31',
   'fitur/po-cari-produk': '2026-11-01', // kotak Cari Nama Produk di daftar Purchase Order
   'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
+  'fitur/langkah-pengiriman': '2026-11-04', // langkah Pengiriman sebelum layar bayar kasir: ambil sendiri / kurir + pengantar + ongkir / truk (samakan dengan tanggal rilis saat merge)
+  'fitur/cara-kirim': '2026-11-04', // pilihan wajib Cara kirim (bayar, Bulk Sale, Kirim PO Internal) + kolom/saringan Riwayat Transaksi + Ubah cara kirim (samakan dengan tanggal rilis saat merge)
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
@@ -30,6 +32,7 @@ export const NEW_FEATURES: Record<string, string> = {
   // POS
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
+  '/pos/ongkir': '2026-11-04', // menu Ongkir: riwayat ongkir & pengantar cabang (samakan dengan tanggal rilis saat merge)
   '/pos/produk/retur': '2026-10-11',
   // Kotak di dalam halaman
   'retur-supplier-luar': '2026-10-11',
@@ -45,6 +48,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/po-belum-ada-harga': '2026-10-10', // tab Belum Ada Harga di daftar PO
   'fitur/kucing-pelanggan': '2026-10-12', // daftar kucing di detail pelanggan
   'fitur/jenis-produk-jasa': '2026-10-12', // pilihan Jenis (Barang / Jasa Grooming) di form produk
+  '/reports/ongkir': '2026-11-04', // laporan Riwayat Ongkir (ongkir + pengantar + bonus) (samakan dengan tanggal rilis saat merge)
   '/reports/grooming': '2026-10-12', // Riwayat Grooming & Bonus (laporan jasa, bonus groomer & pengantar)
   'fitur/ganti-groomer': '2026-10-12', // tombol Ganti groomer di Riwayat Grooming
   'fitur/piutang-grooming': '2026-10-12', // tanda Grooming di Laporan Piutang

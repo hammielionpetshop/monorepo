@@ -107,7 +107,7 @@ async function receivedIbt(productId: number, qtyBox: number, source: number, de
   } as never)
   expect((await patch(ibt.id, { action: 'prepare' })).status).toBe(200)
   const rows = await db.select().from(interBranchTransferItems).where(eq(interBranchTransferItems.transferId, ibt.id))
-  expect((await patch(ibt.id, { action: 'ship', items: rows.map((i) => ({ itemId: i.id, qty: 0 })) })).status).toBe(200)
+  expect((await patch(ibt.id, { action: 'ship', deliveryMethod: 'TRUCK', items: rows.map((i) => ({ itemId: i.id, qty: 0 })) })).status).toBe(200)
   const shipped = await db.select().from(interBranchTransferItems).where(eq(interBranchTransferItems.transferId, ibt.id))
   expect((await patch(ibt.id, { action: 'receive', items: shipped.map((i) => ({ itemId: i.id, qty: i.qtyShipped })) })).status).toBe(200)
   const [payable] = await db.select().from(interBranchPayables).where(eq(interBranchPayables.transferId, ibt.id))

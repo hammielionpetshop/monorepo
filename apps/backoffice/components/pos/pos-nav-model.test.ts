@@ -21,6 +21,7 @@ describe('POS navigation model', () => {
       '/pos/incoming-transfers',
       '/pos/produk',
       '/pos/history',
+      '/pos/ongkir',
       '/pos/shift',
     ])
   })

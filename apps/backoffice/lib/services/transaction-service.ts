@@ -88,6 +88,8 @@ export class TransactionService {
         sourceIbtId: payload.sourceIbtId ?? null,
         sourceOrderId: payload.sourceOrderId ?? null,
         clientRequestId: payload.clientRequestId ?? null,
+        // Sudah diputuskan pemanggil lewat resolveSaleDeliveryMethod (lib/delivery-method).
+        deliveryMethod: payload.deliveryMethod ?? null,
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();

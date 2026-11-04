@@ -2,6 +2,33 @@
 
 # Changelog
 
+## [1.107.110] - 2026-11-04
+
+### Added
+- **Menu Laporan › Riwayat Ongkir** di Back Office (Pemilik, GM, Manager): semua ongkos kirim beserta pengantar dan **bonus pengantar** dalam satu menu sendiri — sebelumnya hanya ada di tab "Delivery & Antar Barang" di Riwayat Grooming & Bonus (tab itu tetap ada). Saringan tanggal (bawaan bulan berjalan), cabang, pengantar, dan ditagih/gratis; ringkasan jumlah antar, ongkir ditagih, gratis ongkir, total bonus, dan yang dibatalkan; tabel **bonus per pengantar** (termasuk yang notanya belum lunas); rincian per nota bisa diklik ke detail transaksi. Angkanya sama dengan laporan grooming karena memakai perhitungan yang sama.
+
+## [1.107.109] - 2026-11-04
+
+### Added
+- **Menu "Ongkir" di kasir POS**: semua ongkos kirim beserta **siapa pengantarnya** di cabang ini dalam satu tempat — waktu, nomor nota (diklik membuka Riwayat), jenis (antar barang / antar-jemput grooming), pelanggan, pengantar, ongkir (atau GRATIS), dan status. Saringan tanggal (bawaan hari ini), pengantar, dan ditagih/gratis; ringkasan jumlah antar, total ongkir ditagih, gratis ongkir yang ditanggung toko, dan yang dibatalkan. Semua kasir bisa melihat cabangnya sendiri; **bonus pengantar tidak ditampilkan di kasir** — tetap ada di Back Office › Laporan › Riwayat Grooming & Bonus.
+
+### Changed
+- **Ongkos kirim di kasir kini lewat langkah "Pengiriman" sebelum layar bayar**, supaya tidak ada lagi ongkir yang lupa diinput. Saat menekan Proses Bayar (F10), kasir wajib menjawab untuk **setiap nota** (termasuk nota Umum): **1 Ambil sendiri**, **2 Dikirim kurir cabang**, atau **3 Dikirim truk Gudang**. Tekan angka 1/2/3 untuk memilih cepat.
+  - **Kurir cabang:** wajib pilih **siapa yang mengantar** dan **ongkirnya** (tombol cepat Rp 8.000 / 10.000 / 15.000 atau ketik sendiri, kelipatan Rp 1.000), atau centang **Gratis ongkir** bila tidak ditagih. Baris ongkos kirim ditambahkan otomatis ke nota; bonus pengantar, struk, dan laporan Delivery & Antar Barang tetap seperti biasa.
+  - **Truk Gudang:** selalu gratis ongkir (penanda kiriman truk untuk HRIS); hanya untuk nota berpelanggan.
+  - Layar bayar menampilkan ringkasan pengiriman dengan tombol **← Ubah pengiriman**.
+- Produk **Ongkos Kirim tidak lagi muncul di pencarian barang kasir** (ongkir hanya diisi di langkah Pengiriman, supaya tidak dobel). Tab **Grooming** (antar-jemput kucing) tidak berubah dan langsung ke layar bayar; begitu juga keranjang PO Internal.
+- "Diantar kurir cabang" selalu bersama ongkos kirim: tidak muncul di Bulk Sale, tidak bisa dipilih lewat **Ubah cara kirim**, dan server menolak kurir tanpa ongkir.
+
+## [1.107.108] - 2026-11-04
+
+### Added
+- **Cara kirim wajib dipilih saat bayar nota berpelanggan** (kasir POS dan Bulk Sale): Ambil sendiri, Diantar kurir cabang, atau Dikirim truk Gudang. Tidak ada pilihan bawaan — tombol Bayar / Konfirmasi baru aktif sesudah memilih. Nota Umum tidak ditanya; nota berongkir otomatis "Diantar kurir cabang"; nota PO Internal memakai pilihan di PO Internal-nya. Di cabang Gudang tombol "Dikirim truk Gudang" paling depan.
+- **Kirim PO Internal wajib pilih Truk Gudang atau Kirim sendiri** — di kasir ("Kirim Sekarang" dan Konfirmasi Pengiriman) dan di backoffice (Tandai Sudah Dikirim).
+- **Ubah cara kirim** (jalan keluar salah tandai) di Detail Transaksi dan detail PO Internal: alasan wajib, tercatat siapa & kapan (riwayat tidak bisa dihapus). Cabang asal boleh mengubah sampai 7 hari; sesudahnya Pemilik/GM. Nota yang masih punya antar + ongkir harus dibatalkan antarnya dulu.
+- **Kolom & saringan "Cara Kirim" di Riwayat Transaksi**, termasuk "Belum dipilih" untuk nota berpelanggan yang belum punya cara kirim.
+- **Saklar di Pengaturan Cabang** (Pemilik/GM): wajib pilih cara kirim nyala/mati dan cabang yang tombol truknya paling depan. Dimatikan = pilihan, kolom, dan saringan disembunyikan; data yang sudah tercatat tetap tersimpan.
+
 ## [1.107.107] - 2026-11-02
 
 ### Added

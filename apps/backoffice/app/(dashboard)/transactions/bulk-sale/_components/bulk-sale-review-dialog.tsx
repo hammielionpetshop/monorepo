@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BulkSaleRow, BulkSaleTotals } from './types'
+import { SaleDeliveryPicker } from '@/components/delivery/delivery-method-picker'
+import { NewBadge } from '@/components/ui/new-badge'
+import type { SaleDeliveryMethod } from '@/lib/delivery-method'
 
 type BulkSaleReviewDialogProps = {
   branchName: string
@@ -17,7 +20,10 @@ type BulkSaleReviewDialogProps = {
   amountPaid: number
   stockShortageCount?: number
   isSubmitting: boolean
-  onConfirm: () => void
+  /** Tanyakan cara kirim (nota Bulk Sale biasa; nota PO Internal tidak). */
+  askDelivery: boolean
+  branchId: number
+  onConfirm: (deliveryMethod: SaleDeliveryMethod | null) => void
   onCancel: () => void
 }
 
@@ -45,10 +51,32 @@ export default function BulkSaleReviewDialog({
   amountPaid,
   stockShortageCount = 0,
   isSubmitting,
+  askDelivery,
+  branchId,
   onConfirm,
   onCancel,
 }: BulkSaleReviewDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null)
+  // Cara kirim wajib dipilih (tanpa pilihan bawaan) bila saklarnya menyala.
+  const [deliverySettings, setDeliverySettings] = useState<{ required: boolean; truckFirst: boolean } | null>(null)
+  const [deliveryMethod, setDeliveryMethod] = useState<SaleDeliveryMethod | null>(null)
+  useEffect(() => {
+    if (!askDelivery) return
+    let active = true
+    fetch(`/api/pos/delivery-method?branchId=${branchId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { required?: boolean; truckFirst?: boolean } | null) => {
+        if (active) setDeliverySettings({ required: data?.required !== false, truckFirst: data?.truckFirst === true })
+      })
+      .catch(() => {
+        if (active) setDeliverySettings({ required: true, truckFirst: false })
+      })
+    return () => {
+      active = false
+    }
+  }, [askDelivery, branchId])
+  const showDelivery = askDelivery && deliverySettings?.required !== false
+  const deliveryMissing = showDelivery && deliveryMethod == null
 
   useEffect(() => {
     confirmRef.current?.focus()
@@ -193,6 +221,18 @@ export default function BulkSaleReviewDialog({
           </div>
         </div>
 
+        {showDelivery && (
+          <div className="border-t border-border px-4 py-3">
+            <div className="mb-1 flex justify-end"><NewBadge feature="fitur/cara-kirim" /></div>
+            <SaleDeliveryPicker
+              value={deliveryMethod}
+              onChange={setDeliveryMethod}
+              truckFirst={deliverySettings?.truckFirst === true}
+              courier="hidden"
+            />
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
           <button
             type="button"
@@ -205,8 +245,8 @@ export default function BulkSaleReviewDialog({
           <button
             ref={confirmRef}
             type="button"
-            onClick={onConfirm}
-            disabled={isSubmitting}
+            onClick={() => onConfirm(showDelivery ? deliveryMethod : null)}
+            disabled={isSubmitting || deliveryMissing}
             className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {isSubmitting ? 'Menyimpan...' : 'Konfirmasi & Simpan'}

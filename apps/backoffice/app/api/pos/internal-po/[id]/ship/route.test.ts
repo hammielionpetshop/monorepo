@@ -51,6 +51,7 @@ const db = {
   transaction: vi.fn(),
 }
 
+vi.mock('@/lib/delivery-method-server', () => ({ getDeliverySettings: vi.fn(async () => ({ required: true, truckFirstBranchIds: [] })) }));
 vi.mock('next/headers', () => ({ cookies: vi.fn(async () => cookieStore) }))
 vi.mock('@/lib/auth', () => ({ verifyAccessToken }))
 vi.mock('@/lib/authz', () => ({ hasPermission }))
@@ -83,45 +84,55 @@ beforeEach(() => {
   db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx()))
 })
 
+const shipRequest = (body: unknown = { deliveryMethod: 'TRUCK' }) => ({ json: async () => body })
+
 describe('PATCH /api/pos/internal-po/[id]/ship', () => {
+  it('400 bila cara kirim belum dipilih', async () => {
+    outerSelectQueue.push([{ id: 5, sourceBranchId: 2, status: 'APPROVED', convertedTransactionId: 88 }])
+    const { PATCH } = await import('./route')
+    const res = await PATCH(shipRequest({}) as never, ctx('5'))
+    expect(res.status).toBe(400)
+    expect(db.transaction).not.toHaveBeenCalled()
+  })
+
   it('401 tanpa sesi', async () => {
     verifyAccessToken.mockResolvedValueOnce(null)
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(401)
   })
 
   it('403 tanpa permission', async () => {
     hasPermission.mockReturnValueOnce(false)
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(403)
   })
 
   it('400 id tidak valid', async () => {
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('abc'))
+    const res = await PATCH(shipRequest() as never, ctx('abc'))
     expect(res.status).toBe(400)
   })
 
   it('404 bila PO tidak ada', async () => {
     outerSelectQueue.push([])
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(404)
   })
 
   it('403 bila cabang pengirim bukan cabang sesi', async () => {
     outerSelectQueue.push([{ id: 5, sourceBranchId: 99, status: 'APPROVED', convertedTransactionId: 88 }])
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(403)
   })
 
   it('409 bila belum diproses jadi transaksi (convertedTransactionId kosong)', async () => {
     outerSelectQueue.push([{ id: 5, sourceBranchId: 2, status: 'APPROVED', convertedTransactionId: null }])
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(409)
     expect(db.transaction).not.toHaveBeenCalled()
   })
@@ -129,7 +140,7 @@ describe('PATCH /api/pos/internal-po/[id]/ship', () => {
   it('409 bila status bukan APPROVED', async () => {
     outerSelectQueue.push([{ id: 5, sourceBranchId: 2, status: 'IN_TRANSIT', convertedTransactionId: 88 }])
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(409)
     expect(db.transaction).not.toHaveBeenCalled()
   })
@@ -138,7 +149,7 @@ describe('PATCH /api/pos/internal-po/[id]/ship', () => {
     outerSelectQueue.push([{ id: 5, sourceBranchId: 2, status: 'APPROVED', convertedTransactionId: 88 }])
     txSelectQueue.push([]) // lock check kosong = status sudah berubah
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     expect(res.status).toBe(409)
   })
 
@@ -153,7 +164,7 @@ describe('PATCH /api/pos/internal-po/[id]/ship', () => {
     txUpdateReturningQueue.push([{ id: 5, status: 'IN_TRANSIT' }])
 
     const { PATCH } = await import('./route')
-    const res = await PATCH({} as never, ctx('5'))
+    const res = await PATCH(shipRequest() as never, ctx('5'))
     const json = await res.json()
 
     expect(res.status).toBe(200)

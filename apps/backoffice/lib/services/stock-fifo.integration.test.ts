@@ -280,7 +280,7 @@ describe('FIFO PostgreSQL lokal', () => {
     const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
     transferIds.push(transfer.id)
     const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 5, costPriceAtTransfer: 300 }).returning()
-    const request = (action: string, pin?: string) => new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ownerPin: pin, items: [{ itemId: item.id, qty: 5 }] }) })
+    const request = (action: string, pin?: string) => new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ownerPin: pin, deliveryMethod: 'TRUCK', items: [{ itemId: item.id, qty: 5 }] }) })
     expect((await transferStatus(request('ship', '1234'), { params: Promise.resolve({ id: String(transfer.id) }) })).status).toBe(200)
     await invariant(product.id, -3)
     const [deficit] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.sourceTransferItemId, item.id))
@@ -309,7 +309,7 @@ describe('FIFO PostgreSQL lokal', () => {
     const acquired = new Promise<void>(resolve => { signal = resolve })
     const blocker = db.transaction(async tx => { await tx.select().from(interBranchTransfers).where(eq(interBranchTransfers.id, transfer.id)).for('update'); signal(); await gate })
     await acquired
-    const ship = () => transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
+    const ship = () => transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', deliveryMethod: 'TRUCK', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
     const pending = Promise.all([ship(), ship()])
     try {
       let waiting = 0
@@ -333,7 +333,7 @@ describe('FIFO PostgreSQL lokal', () => {
     const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
     transferIds.push(transfer.id)
     const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 3, costPriceAtTransfer: 300 }).returning()
-    const response = await transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
+    const response = await transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', deliveryMethod: 'TRUCK', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
     expect(response.status).toBe(200)
     await invariant(product.id, 7)
   })

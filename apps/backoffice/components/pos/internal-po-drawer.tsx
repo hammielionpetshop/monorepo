@@ -6,6 +6,8 @@ import { formatRupiah } from './cart-store'
 import { buildInternalPoCartItems, internalPoQtyStrategies, type InternalPoItem } from './internal-po-cart-items'
 import { formatWIB } from '@petshop/shared'
 import { useShortcutLock } from './shortcut-lock'
+import { TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
+import type { TransferDeliveryMethod } from '@/lib/delivery-method'
 
 interface PoListRow {
   id: number
@@ -68,6 +70,10 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [shortConfirm, setShortConfirm] = useState(false)
+  // Cara kirim saat Konfirmasi Pengiriman: Truk Gudang / Kirim sendiri.
+  const shipDeliveryRequired = usePosDeliveryRequired(true)
+  const shipNeedsMethod = shipDeliveryRequired !== false
+  const [shipMethod, setShipMethod] = useState<TransferDeliveryMethod | null>(null)
 
   const fetchList = useCallback(async () => {
     setLoading(true)
@@ -185,6 +191,10 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
 
   async function handleConfirmShip() {
     if (!detail) return
+    if (shipNeedsMethod && !shipMethod) {
+      setError('Pilih cara kirim dulu: Truk Gudang atau Kirim sendiri.')
+      return
+    }
     if (
       !confirm(
         `Konfirmasi pengiriman PO Internal ${detail.ibtNumber}? Status akan berubah menjadi "Dalam Pengiriman".`,
@@ -195,13 +205,18 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
     setBusy(true)
     setError('')
     try {
-      const res = await fetch(`/api/pos/internal-po/${detail.id}/ship`, { method: 'PATCH' })
+      const res = await fetch(`/api/pos/internal-po/${detail.id}/ship`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryMethod: shipNeedsMethod ? shipMethod : null }),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setError((d as { error?: string }).error ?? 'Gagal mengonfirmasi pengiriman')
         return
       }
       onShipped()
+      setShipMethod(null)
       setView('list')
       setDetail(null)
       fetchList()
@@ -414,12 +429,18 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
             </div>
 
             {detail && !loading && (
+              <>
+              {detail.convertedTransactionId && shipNeedsMethod && (
+                <div className="border-t border-border px-4 pt-3">
+                  <TransferDeliveryPicker value={shipMethod} onChange={setShipMethod} />
+                </div>
+              )}
               <div className="border-t border-border p-4 flex gap-2">
                 {detail.convertedTransactionId ? (
                   <button
                     type="button"
                     onClick={handleConfirmShip}
-                    disabled={busy}
+                    disabled={busy || (shipNeedsMethod && !shipMethod)}
                     className="flex-1 min-h-[48px] rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-40 active:scale-[0.98] transition-all"
                   >
                     Konfirmasi Pengiriman
@@ -445,6 +466,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                   </>
                 )}
               </div>
+              </>
             )}
           </>
         )}

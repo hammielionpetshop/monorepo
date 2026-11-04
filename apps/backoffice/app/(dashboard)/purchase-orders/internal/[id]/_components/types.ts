@@ -40,6 +40,8 @@ export interface InternalTransferDetail {
   totalTransferValue: number
   convertedTransactionId: number | null
   convertedTransactionNumber: string | null
+  /** Cara kirim saat Kirim: TRUCK / SELF; null = belum dikirim / data lama. */
+  deliveryMethod: string | null
   notes: string | null
   createdAt: Date | string
   updatedAt: Date | string

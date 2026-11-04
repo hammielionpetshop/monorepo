@@ -11,6 +11,7 @@ import {
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { resolveUomWeightGram } from '@/lib/product-weight'
+import { getDeliverySettings, listDeliveryMethodChanges } from '@/lib/delivery-method-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,8 @@ export async function GET(
         changeAmount: transactions.changeAmount,
         status: transactions.status,
         saleType: transactions.saleType,
+        sourceIbtId: transactions.sourceIbtId,
+        deliveryMethod: transactions.deliveryMethod,
         createdAt: transactions.createdAt,
       })
       .from(transactions)
@@ -162,8 +165,18 @@ export async function GET(
       : []
     const returnedQty = new Map(returnedQtyRows.map((r) => [r.transactionItemId, Number(r.qty)]))
 
+    const [deliveryChanges, deliverySettings] = await Promise.all([
+      listDeliveryMethodChanges('TRANSACTION', trx.id),
+      getDeliverySettings(),
+    ])
+
     return NextResponse.json({
       ...trx,
+      deliveryRequired: deliverySettings.required,
+      deliveryChanges: deliveryChanges.map((c) => ({
+        ...c,
+        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
+      })),
       branchName: trx.branchName ?? '-',
       storeName: trx.storeName ?? null,
       storeAddress: trx.storeAddress ?? null,
