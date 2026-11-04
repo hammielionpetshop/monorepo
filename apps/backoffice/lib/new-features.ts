@@ -15,6 +15,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/piutang-filter-periode': '2026-10-31',
   'fitur/po-cari-produk': '2026-11-01', // kotak Cari Nama Produk di daftar Purchase Order
   'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
+  'fitur/cara-kirim': '2026-11-04', // pilihan wajib Cara kirim (bayar, Bulk Sale, Kirim PO Internal) + kolom/saringan Riwayat Transaksi + Ubah cara kirim (samakan dengan tanggal rilis saat merge)
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)

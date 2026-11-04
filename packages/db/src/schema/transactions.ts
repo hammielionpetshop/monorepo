@@ -25,6 +25,8 @@ export const transactions = petshop.table('transactions', {
   sourceIbtId: integer('source_ibt_id').references(() => interBranchTransfers.id), // Internal PO sumber (bulk sale hasil import IBT)
   sourceOrderId: integer('source_order_id'), // Cross-ref ke customer_orders.id (bulk sale hasil konversi order portal) — plain integer untuk hindari circular import
   clientRequestId: varchar('client_request_id', { length: 64 }), // Kunci idempotensi checkout POS — percobaan ulang mengembalikan transaksi yang sama
+  // Cara kirim (migrasi 0050): PICKUP / BRANCH_COURIER / TRUCK. NULL = nota Umum, nota lama, atau nota PO Internal.
+  deliveryMethod: varchar('delivery_method', { length: 20 }),
 
   createdOffline: boolean('created_offline').default(false).notNull(),
   offlineTimestamp: timestamp('offline_timestamp'),

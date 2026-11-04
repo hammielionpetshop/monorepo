@@ -20,6 +20,8 @@ export const interBranchTransfers = petshop.table('inter_branch_transfers', {
   // dipakai G5 untuk skip pemotongan stok gudang kedua saat ship. FK dibuat via migrasi
   // (kolom polos di schema untuk hindari import melingkar dengan transactions).
   convertedTransactionId: integer('converted_transaction_id'),
+  // Cara kirim saat Kirim (migrasi 0050): TRUCK (truk Gudang) / SELF (kirim sendiri). NULL = belum dikirim / data lama.
+  deliveryMethod: varchar('delivery_method', { length: 20 }),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

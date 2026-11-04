@@ -1,4 +1,5 @@
 // Jasa grooming menempel ke nota lewat modul ini; tes ini memakai DB tiruan, jadi modulnya ditiru.
+vi.mock('@/lib/delivery-method-server', () => ({ getDeliverySettings: vi.fn(async () => ({ required: true, truckFirstBranchIds: [] })) }));
 vi.mock('@/lib/services/grooming-order-service', () => ({
   GROOMING_CONDITION_MAX: 500,
   DELIVERY_ADDRESS_MAX: 500,
@@ -221,7 +222,7 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     const updatedTables = setupShip({ convertedTransactionId: 900 });
     const { PATCH } = await import("./route");
 
-    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }] }), { params });
+    const res = await PATCH(shipRequest({ action: "ship", deliveryMethod: "TRUCK", items: [{ itemId: 1, qty: 5 }] }), { params });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -238,7 +239,7 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     const updatedTables = setupShip({ convertedTransactionId: null });
     const { PATCH } = await import("./route");
 
-    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }] }), { params });
+    const res = await PATCH(shipRequest({ action: "ship", deliveryMethod: "TRUCK", items: [{ itemId: 1, qty: 5 }] }), { params });
 
     expect(res.status).toBe(200);
     expect(StockService.deductStock).toHaveBeenCalledWith(expect.anything(), 2, 10, 1, 5, false);
@@ -250,7 +251,7 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     setupShip({ convertedTransactionId: 900, soldItems: [] });
     const { PATCH } = await import("./route");
 
-    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }] }), { params });
+    const res = await PATCH(shipRequest({ action: "ship", deliveryMethod: "TRUCK", items: [{ itemId: 1, qty: 5 }] }), { params });
     const json = await res.json();
 
     // totalShipped berakhir 0 untuk semua item -> ditolak dengan SEMUA_QTY_NOL
@@ -269,7 +270,7 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     });
     const { PATCH } = await import("./route");
 
-    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 0 }] }), { params });
+    const res = await PATCH(shipRequest({ action: "ship", deliveryMethod: "TRUCK", items: [{ itemId: 1, qty: 0 }] }), { params });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -343,7 +344,7 @@ describe("PATCH internal-transfers ship — bypass stok kurang mencatat defisit"
 
     const { PATCH } = await import("./route");
     const res = await PATCH(
-      shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }], ownerPin: "123456" }),
+      shipRequest({ action: "ship", deliveryMethod: "TRUCK", items: [{ itemId: 1, qty: 5 }], ownerPin: "123456" }),
       { params },
     );
 
