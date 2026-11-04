@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
-import { db, transactions, transactionItems, branches, users, customers, transactionPayments, paymentMethods, returns, eq, and, ilike, gte, lte, desc, sql, count, isNull, inArray } from '@/lib/db'
+import { db, transactions, transactionItems, branches, users, customers, transactionPayments, paymentMethods, returns, eq, and, ilike, gte, lte, desc, sql, count, isNull, isNotNull, inArray } from '@/lib/db'
+import { isSaleDeliveryMethod } from '@/lib/delivery-method'
 import { transactionHasCustomer, transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import { orderTiers } from '@/lib/tier-initials'
 import type { SQL } from 'drizzle-orm'
@@ -23,6 +24,8 @@ export async function GET(req: Request) {
     const productQ = searchParams.get('productQ')?.trim() ?? ''
     const status = searchParams.get('status') ?? ''
     const saleType = searchParams.get('saleType') ?? ''
+    // Cara kirim: PICKUP / BRANCH_COURIER / TRUCK, atau UNSET = nota berpelanggan yang belum dipilih.
+    const deliveryMethod = searchParams.get('deliveryMethod') ?? ''
     const dateFrom = searchParams.get('dateFrom') ?? ''
     const dateTo = searchParams.get('dateTo') ?? ''
     const cashierIdParam = searchParams.get('cashierId') ?? ''
@@ -46,6 +49,9 @@ export async function GET(req: Request) {
     if (status && !['COMPLETED', 'VOIDED', 'PENDING_VOID'].includes(status)) {
       return NextResponse.json({ error: 'Status tidak valid' }, { status: 400 })
     }
+    if (deliveryMethod && deliveryMethod !== 'UNSET' && !isSaleDeliveryMethod(deliveryMethod)) {
+      return NextResponse.json({ error: 'Cara kirim tidak valid' }, { status: 400 })
+    }
     if (saleType && !['RETAIL', 'BULK'].includes(saleType)) {
       return NextResponse.json({ error: 'Jenis penjualan tidak valid' }, { status: 400 })
     }
@@ -54,6 +60,11 @@ export async function GET(req: Request) {
     if (q) conditions.push(ilike(transactions.trxNumber, `%${q}%`))
     if (status) conditions.push(eq(transactions.status, status))
     if (saleType) conditions.push(eq(transactions.saleType, saleType))
+    if (deliveryMethod === 'UNSET') {
+      conditions.push(isNotNull(transactions.customerId), isNull(transactions.sourceIbtId), isNull(transactions.deliveryMethod))
+    } else if (deliveryMethod) {
+      conditions.push(eq(transactions.deliveryMethod, deliveryMethod))
+    }
     if (effectiveBranchId) conditions.push(eq(transactions.branchId, effectiveBranchId))
     if (cashierIdParam) {
       const cid = parseInt(cashierIdParam, 10)
@@ -97,6 +108,9 @@ export async function GET(req: Request) {
           payableAmount: transactions.payableAmount,
           status: transactions.status,
           saleType: transactions.saleType,
+          deliveryMethod: transactions.deliveryMethod,
+          customerId: transactions.customerId,
+          sourceIbtId: transactions.sourceIbtId,
           createdAt: transactions.createdAt,
         })
         .from(transactions)
@@ -179,6 +193,9 @@ export async function GET(req: Request) {
       returnAmount: returnMap.get(r.id) ?? 0,
       status: r.status,
       saleType: r.saleType,
+      deliveryMethod: r.deliveryMethod ?? null,
+      // Nota berpelanggan (bukan PO Internal) tanpa cara kirim: dari POS lama / sebelum fitur.
+      deliveryUnset: r.deliveryMethod == null && r.customerId != null && r.sourceIbtId == null,
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       doubleInputTwins: twinMap.get(r.id) ?? [],
     }))

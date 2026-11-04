@@ -19,6 +19,7 @@ const db = {
   transaction: vi.fn(),
 };
 
+vi.mock('@/lib/delivery-method-server', () => ({ getDeliverySettings: vi.fn(async () => ({ required: true, truckFirstBranchIds: [] })) }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => cookieStore),
 }));
@@ -140,6 +141,7 @@ function validPayload(overrides: Record<string, unknown> = {}) {
   return {
     branchId: 2,
     customerId: 11,
+    deliveryMethod: "TRUCK",
     paymentMethodId: 1,
     amountPaid: 20000,
     items: [
@@ -470,6 +472,7 @@ describe("POST /api/bo/bulk-sales", () => {
       saleType: "BULK",
       sourceIbtId: null,
       sourceOrderId: null,
+      deliveryMethod: "TRUCK",
     });
   });
 

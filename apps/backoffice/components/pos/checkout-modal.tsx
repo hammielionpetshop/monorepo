@@ -17,6 +17,8 @@ import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
 import { NewBadge } from '@/components/ui/new-badge'
+import { SaleDeliveryPicker, TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
+import { needsDeliveryChoice, type SaleDeliveryMethod, type TransferDeliveryMethod } from '@/lib/delivery-method'
 import { applyFreeShipping, isOngkirItem } from '@/lib/ongkir'
 
 interface CheckoutModalProps {
@@ -114,6 +116,10 @@ export default function CheckoutModal({
   // tab Menunggu Pengiriman (kanban #50). Tetap manual supaya masih ada jeda untuk batal.
   const [shipState, setShipState] = useState<'idle' | 'busy' | 'done'>('idle')
   const [shipError, setShipError] = useState('')
+  // Cara kirim PO Internal saat "Kirim Sekarang": Truk Gudang / Kirim sendiri.
+  const shipDeliveryRequired = usePosDeliveryRequired(sourceIbtId != null)
+  const [shipMethod, setShipMethod] = useState<TransferDeliveryMethod | null>(null)
+  const shipNeedsMethod = shipDeliveryRequired !== false
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
@@ -154,6 +160,33 @@ export default function CheckoutModal({
     }
   }, [needsCourier, couriers])
   const courierPicked = !needsCourier || (courierId !== '' && courierProblem === null)
+
+  // Cara kirim (Logistik Tahap 1): wajib dipilih untuk nota berpelanggan, kecuali nota PO Internal.
+  // Nota berongkir (antar barang / delivery grooming) otomatis "Diantar kurir cabang".
+  const askDelivery = needsDeliveryChoice({ customerId, sourceIbtId })
+  const [deliverySettings, setDeliverySettings] = useState<{ required: boolean; truckFirst: boolean } | null>(null)
+  const [deliveryMethod, setDeliveryMethod] = useState<SaleDeliveryMethod | null>(null)
+  useEffect(() => {
+    if (!askDelivery || deliverySettings) return
+    let cancelled = false
+    fetch('/api/pos/delivery-method')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { required?: boolean; truckFirst?: boolean } | null) => {
+        // Gagal dibaca: anggap wajib (server tetap memeriksa).
+        if (!cancelled) setDeliverySettings({ required: data?.required !== false, truckFirst: data?.truckFirst === true })
+      })
+      .catch(() => {
+        if (!cancelled) setDeliverySettings({ required: true, truckFirst: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [askDelivery, deliverySettings])
+  const showDeliveryPicker = askDelivery && deliverySettings?.required !== false
+  const deliveryLockedTo: SaleDeliveryMethod | null =
+    needsCourier || cartItems.some((i) => i.delivery) ? 'BRANCH_COURIER' : null
+  const effectiveDelivery = showDeliveryPicker ? (deliveryLockedTo ?? deliveryMethod) : null
+  const deliveryReady = !showDeliveryPicker || effectiveDelivery != null
   // Gratis ongkir (kasir yang menentukan): baris ongkir tetap tercatat nilainya tetapi dipotong
   // penuh — pelanggan tidak membayar, pengantar tidak dapat bonus. Tidak dicentang = tertagih.
   const [freeShipping, setFreeShipping] = useState(false)
@@ -293,7 +326,7 @@ export default function CheckoutModal({
 
   const isAmountValid = amountPaidBig.gte(netTotalBig)
   const courierReady = courierPicked && freeShippingError === null
-  const canSubmit = loading || !isOnline || !courierReady
+  const canSubmit = loading || !isOnline || !courierReady || !deliveryReady
     ? false
     : splitMode
       ? splitValid
@@ -465,6 +498,7 @@ export default function CheckoutModal({
       change: payloadChange,
       dueAt: payloadDueAt,
       sourceIbtId: sourceIbtId ?? null,
+      deliveryMethod: effectiveDelivery,
       clientRequestId,
     }
 
@@ -542,11 +576,19 @@ export default function CheckoutModal({
   // struk di DOM) lalu cetak via dialog browser.
   async function handleKirimSekarang() {
     if (sourceIbtId == null) return
+    if (shipNeedsMethod && !shipMethod) {
+      setShipError('Pilih cara kirim dulu: Truk Gudang atau Kirim sendiri.')
+      return
+    }
     if (!confirm('Kirim PO Internal ini sekarang? Statusnya berubah menjadi "Dalam Pengiriman" dan tidak bisa dibatalkan dari kasir.')) return
     setShipState('busy')
     setShipError('')
     try {
-      const res = await fetch(`/api/pos/internal-po/${sourceIbtId}/ship`, { method: 'PATCH' })
+      const res = await fetch(`/api/pos/internal-po/${sourceIbtId}/ship`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryMethod: shipNeedsMethod ? shipMethod : null }),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setShipError((d as { error?: string }).error ?? 'Gagal mengirim PO Internal')
@@ -692,10 +734,15 @@ export default function CheckoutModal({
                   </p>
                 ) : (
                   <>
+                    {shipNeedsMethod && (
+                      <div className="mb-2">
+                        <TransferDeliveryPicker value={shipMethod} onChange={setShipMethod} />
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => { void handleKirimSekarang() }}
-                      disabled={shipState === 'busy'}
+                      disabled={shipState === 'busy' || (shipNeedsMethod && !shipMethod)}
                       className="w-full min-h-[48px] mb-1 rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                     >
                       {shipState === 'busy' ? 'Mengirim...' : '🚚 Kirim Sekarang'}
@@ -808,6 +855,18 @@ export default function CheckoutModal({
               </label>
             )}
             {freeShippingError && <p className="mt-1 text-xs font-medium text-destructive">{freeShippingError}</p>}
+          </div>
+        )}
+
+        {showDeliveryPicker && (
+          <div className="mb-3 rounded-xl border border-border px-3 py-2.5">
+            <div className="mb-1 flex justify-end"><NewBadge feature="fitur/cara-kirim" /></div>
+            <SaleDeliveryPicker
+              value={deliveryMethod}
+              onChange={setDeliveryMethod}
+              truckFirst={deliverySettings?.truckFirst === true}
+              lockedTo={deliveryLockedTo}
+            />
           </div>
         )}
 

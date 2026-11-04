@@ -1,0 +1,6 @@
+### Added
+- **Cara kirim wajib dipilih saat bayar nota berpelanggan** (kasir POS dan Bulk Sale): Ambil sendiri, Diantar kurir cabang, atau Dikirim truk Gudang. Tidak ada pilihan bawaan — tombol Bayar / Konfirmasi baru aktif sesudah memilih. Nota Umum tidak ditanya; nota berongkir otomatis "Diantar kurir cabang"; nota PO Internal memakai pilihan di PO Internal-nya. Di cabang Gudang tombol "Dikirim truk Gudang" paling depan.
+- **Kirim PO Internal wajib pilih Truk Gudang atau Kirim sendiri** — di kasir ("Kirim Sekarang" dan Konfirmasi Pengiriman) dan di backoffice (Tandai Sudah Dikirim).
+- **Ubah cara kirim** (jalan keluar salah tandai) di Detail Transaksi dan detail PO Internal: alasan wajib, tercatat siapa & kapan (riwayat tidak bisa dihapus). Cabang asal boleh mengubah sampai 7 hari; sesudahnya Pemilik/GM. Nota yang masih punya antar + ongkir harus dibatalkan antarnya dulu.
+- **Kolom & saringan "Cara Kirim" di Riwayat Transaksi**, termasuk "Belum dipilih" untuk nota berpelanggan yang belum punya cara kirim.
+- **Saklar di Pengaturan Cabang** (Pemilik/GM): wajib pilih cara kirim nyala/mati dan cabang yang tombol truknya paling depan. Dimatikan = pilihan, kolom, dan saringan disembunyikan; data yang sudah tercatat tetap tersimpan.
