@@ -10,7 +10,7 @@ import {
   MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, VISIT_TONES, kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits,
   type KasirChange, type NoteKey, type PickupStatus, type VisitStatus,
 } from '../rules/trip-notes';
-import { FORBIDDEN, fail, type Executor } from './data';
+import { FORBIDDEN, fail, peopleNames, type Executor } from './data';
 
 // Surat jalan di trip (spec LT1 §3.3–3.5, LT1b-1). Data kasir dibaca lewat view logistics.pos_* (migrasi logistics 0003);
 // status HRIS di logistics.delivery_notes (migrasi 0004).
@@ -98,24 +98,31 @@ export async function homeKasirBranchId(executor: Executor = db): Promise<number
 }
 
 /** Kunci surat jalan yang sedang aktif di trip ini. */
-async function activeKeys(tx: Executor, tripId: number) {
+export async function activeKeys(tx: Executor, tripId: number) {
   const rows = await tx.select({ linkId: tripVisitNotes.id, noteId: deliveryNotes.id, kind: deliveryNotes.kind, docId: deliveryNotes.docId, visitId: tripVisits.id })
     .from(tripVisitNotes).innerJoin(tripVisits, eq(tripVisits.id, tripVisitNotes.visitId)).innerJoin(deliveryNotes, eq(deliveryNotes.id, tripVisitNotes.noteId))
     .where(and(eq(tripVisits.tripId, tripId), eq(tripVisitNotes.active, true)));
   return rows.map((r) => ({ ...r, key: noteKey(r.kind as NoteKind, r.docId) }));
 }
 
-type EndOptions = { tripId: number; kind: 'RELEASED' | 'TRIP_CANCELLED' | 'TRIP_CLOSED'; reason: string; accountId: number | null; now: Date; tomorrow?: boolean };
+export type NoteEventKind = 'ON_TRIP' | 'RELEASED' | 'TRIP_CANCELLED' | 'TRIP_CLOSED' | 'LOADED' | 'NOT_READY' | 'DELIVERED' | 'TOMORROW' | 'FAILED'
+  | 'RETRY' | 'RESENT' | 'DROPPED' | 'REOPENED';
+type EndOptions = {
+  tripId: number; kind: NoteEventKind; reason: string | null; accountId: number | null; employeeId?: number | null; now: Date; tomorrow?: boolean;
+  /** Status surat jalan sesudahnya: kembali Menunggu (bawaan), Terkirim, atau Perlu keputusan (LT1b-2a). */
+  toStatus?: 'WAITING' | 'DELIVERED' | 'NEEDS_DECISION';
+};
 
-/** Lepas surat jalan dari kunjungannya: kembali Menunggu + riwayat. */
-async function endLinks(tx: Tx, links: { linkId: number; noteId: number }[], options: EndOptions) {
+/** Akhiri tautan surat jalan ke kunjungannya: kembali Menunggu (atau Terkirim / Perlu keputusan) + riwayat. */
+export async function endLinks(tx: Tx, links: { linkId: number; noteId: number }[], options: EndOptions) {
   if (!links.length) return;
   await tx.update(tripVisitNotes).set({ active: false, endedAt: options.now }).where(inArray(tripVisitNotes.id, links.map((l) => l.linkId)));
   await tx.update(deliveryNotes).set({
-    status: 'WAITING', updatedAt: options.now, ...(options.tomorrow ? { tomorrowCount: sql`${deliveryNotes.tomorrowCount} + 1` } : {}),
+    status: options.toStatus ?? 'WAITING', updatedAt: options.now, ...(options.tomorrow ? { tomorrowCount: sql`${deliveryNotes.tomorrowCount} + 1` } : {}),
   }).where(and(inArray(deliveryNotes.id, links.map((l) => l.noteId)), eq(deliveryNotes.status, 'ON_TRIP')));
   await tx.insert(deliveryNoteEvents).values(links.map((l) => ({
-    noteId: l.noteId, kind: options.kind, tripId: options.tripId, reason: options.reason, byAccountId: options.accountId, at: options.now,
+    noteId: l.noteId, kind: options.kind, tripId: options.tripId, reason: options.reason, byAccountId: options.accountId,
+    byEmployeeId: options.employeeId ?? null, at: options.now,
   })));
 }
 
@@ -123,7 +130,7 @@ async function endLinks(tx: Tx, links: { linkId: number; noteId: number }[], opt
  * Rapikan bentuk trip sesudah surat jalan berubah: kunjungan terbuka tanpa surat jalan dilepas; langkah ambil barang
  * dibuat untuk tiap cabang asal selain Gudang, yang tidak lagi dibutuhkan dan belum diambil menjadi "Tidak jadi".
  */
-async function reshapeTrip(tx: Tx, tripId: number, accountId: number | null, reason: string, now: Date) {
+export async function reshapeTrip(tx: Tx, tripId: number, accountId: number | null, reason: string, now: Date) {
   await tx.execute(sql`
     update logistics.trip_visits v set status = 'RELEASED', released_at = ${now.toISOString()}::timestamptz, released_by_account_id = ${accountId}, reason = ${reason}
     where v.trip_id = ${tripId} and v.status = 'OPEN'
@@ -224,18 +231,23 @@ export async function releaseAllOnCancel(tx: Tx, tripId: number, reason: string,
 }
 
 /**
- * Trip ditutup (Sampai Garasi / kantor): kunjungan yang belum diproses menjadi Kirim Besok dan surat jalannya kembali
- * Menunggu bertanda tertunda; ambil barang yang belum diambil menjadi Belum siap (spec LT1 §3.7).
+ * Sisa trip diselesaikan (ditutup kantor, atau Selesai lebih awal LT1b-2a): kunjungan yang belum diproses menjadi Kirim
+ * Besok dan surat jalannya kembali Menunggu bertanda tertunda; ambil barang yang belum diambil menjadi Belum siap (§3.7).
+ * Sampai Garasi sendiri tidak menyisakan apa pun karena didahului Menuju Garasi.
  */
-export async function settleOnClose(tx: Tx, tripId: number, accountId: number | null, now: Date) {
-  const reason = 'Trip ditutup sebelum kunjungan diproses';
+export async function settleOnClose(
+  tx: Tx, tripId: number, accountId: number | null, now: Date,
+  options: { reason?: string; employeeId?: number | null; kind?: NoteEventKind } = {},
+) {
+  const reason = options.reason ?? 'Trip ditutup sebelum kunjungan diproses';
   const open = await tx.select({ id: tripVisits.id }).from(tripVisits).where(and(eq(tripVisits.tripId, tripId), eq(tripVisits.status, 'OPEN')));
   if (open.length) {
     const links = (await activeKeys(tx, tripId)).filter((k) => open.some((v) => v.id === k.visitId));
-    await endLinks(tx, links, { tripId, kind: 'TRIP_CLOSED', reason, accountId, now, tomorrow: true });
-    await tx.update(tripVisits).set({ status: 'TOMORROW', processedAt: now, reason }).where(inArray(tripVisits.id, open.map((v) => v.id)));
+    await endLinks(tx, links, { tripId, kind: options.kind ?? 'TRIP_CLOSED', reason, accountId, employeeId: options.employeeId, now, tomorrow: true });
+    await tx.update(tripVisits).set({ status: 'TOMORROW', processedAt: now, processedByEmployeeId: options.employeeId ?? null, reason })
+      .where(inArray(tripVisits.id, open.map((v) => v.id)));
   }
-  await tx.update(tripPickups).set({ status: 'NOT_READY', reason: 'Belum diambil saat trip ditutup', closedAt: now })
+  await tx.update(tripPickups).set({ status: 'NOT_READY', reason: options.reason ?? 'Belum diambil saat trip ditutup', closedAt: now })
     .where(and(eq(tripPickups.tripId, tripId), eq(tripPickups.status, 'OPEN')));
 }
 
@@ -268,6 +280,7 @@ export async function finishPickup(actor: Actor | null, tripId: number, pickupId
     select id from logistics.trip_crew where trip_id = ${tripId} and employee_id = ${actor.personId} and removed_at is null`);
   if (!crew.length) return fail(403, 'Hanya awak trip ini yang bisa menandai ambil barang.');
   if (trip.status !== 'RUNNING') return fail(409, 'Ambil barang ditandai selama trip berjalan.');
+  if (trip.headingHomeAt) return fail(409, 'Trip sudah Menuju Garasi.');
   const [pickup] = await db.select().from(tripPickups).where(and(eq(tripPickups.id, pickupId), eq(tripPickups.tripId, tripId))).limit(1);
   if (!pickup || pickup.status !== 'OPEN') return fail(409, 'Langkah ambil barang ini sudah selesai atau tidak jadi.');
   const upload = await saveUpload(actor, photo);
@@ -294,6 +307,8 @@ export type TripNoteView = {
 export type TripVisitView = {
   id: number; destination: string; customerId: number | null; status: VisitStatus; statusLabel: string; tone: 'info' | 'ok' | 'warn' | 'danger';
   reason: string | null; at: string | null; notes: TripNoteView[]; waitsForPickup: string[];
+  /** Kartu kunjungan HP (spec LT1 §3.6): data kasir + catatan pengiriman HRIS; foto dan pemroses hasil kunjungan. */
+  phone: string | null; address: string | null; deliveryNote: string | null; photoUrl: string | null; by: string | null;
 };
 export type TripPickupView = { id: number; origin: string; status: PickupStatus; statusLabel: string; reason: string | null; photoUrl: string | null; noteCount: number };
 
@@ -307,6 +322,14 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       .where(eq(tripVisits.tripId, tripId)).orderBy(tripVisitNotes.id),
   ]);
   const live = await liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor);
+  const customerIds = [...new Set(visits.map((v) => v.customerId).filter((id): id is number => id != null))];
+  const [contacts, names] = await Promise.all([
+    customerIds.length ? executor.execute<{ id: number; phone: string | null; address: string | null; delivery_note: string | null }>(sql`
+      select c.id, c.phone, c.address, st.delivery_note from logistics.pos_customers c left join logistics.stores st on st.customer_id = c.id
+      where c.id in (${ids(customerIds)})`) : [],
+    visits.some((v) => v.processedByEmployeeId != null) ? peopleNames() : new Map<number, string>(),
+  ]);
+  const contactOf = new Map(contacts.map((c) => [Number(c.id), c]));
   const today = wibDate(new Date());
   const base = backofficeBase();
   const pickupOrigin = new Map(pickups.filter((p) => p.status === 'OPEN').map((p) => [p.originBranchId, p.originName]));
@@ -334,6 +357,11 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       return {
         id: v.id, destination: v.destinationName, customerId: v.customerId, status, statusLabel: VISIT_LABELS[status], tone: VISIT_TONES[status],
         reason: v.reason, at: clock(v.releasedAt ?? v.processedAt), notes, waitsForPickup: waits,
+        phone: v.customerId ? contactOf.get(v.customerId)?.phone ?? null : null,
+        address: v.customerId ? contactOf.get(v.customerId)?.address ?? null : null,
+        deliveryNote: v.customerId ? contactOf.get(v.customerId)?.delivery_note ?? null : null,
+        photoUrl: v.photoFileId ? `/api/logistics/photo?trip=${tripId}&file=${v.photoFileId}` : null,
+        by: v.processedByEmployeeId ? names.get(v.processedByEmployeeId) ?? null : null,
       };
     }),
     pickups: pickups.map((p) => ({
@@ -349,8 +377,11 @@ export async function draftNoteKeys(tripId: number): Promise<NoteKey[]> {
   return (await activeKeys(db, tripId)).map((k) => k.key);
 }
 
-/** Foto ambil barang milik trip ini (untuk pintu foto trip). */
+/** Foto ambil barang dan kunjungan milik trip ini (untuk pintu foto trip). */
 export async function pickupPhotoIds(tripId: number): Promise<string[]> {
-  const rows = await db.select({ id: tripPickups.photoFileId }).from(tripPickups).where(eq(tripPickups.tripId, tripId));
-  return rows.map((r) => r.id).filter((id): id is string => !!id);
+  const [pickups, visits] = await Promise.all([
+    db.select({ id: tripPickups.photoFileId }).from(tripPickups).where(eq(tripPickups.tripId, tripId)),
+    db.select({ id: tripVisits.photoFileId }).from(tripVisits).where(eq(tripVisits.tripId, tripId)),
+  ]);
+  return [...pickups, ...visits].map((r) => r.id).filter((id): id is string => !!id);
 }

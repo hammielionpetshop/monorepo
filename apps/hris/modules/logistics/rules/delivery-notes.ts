@@ -2,12 +2,19 @@
 import type { IsoDate } from './trip';
 
 export type NoteKind = 'SALE' | 'TRANSFER';
-export type QueueStatus = 'WAITING' | 'ON_TRIP' | 'RECEIVED' | 'CANCELLED';
+export type QueueStatus = 'WAITING' | 'ON_TRIP' | 'NEEDS_DECISION' | 'DELIVERED' | 'RECEIVED' | 'CANCELLED' | 'DROPPED';
 
 export const QUEUE_LABELS: Record<QueueStatus, string> = {
-  WAITING: 'Menunggu dikirim', ON_TRIP: 'Dalam perjalanan', RECEIVED: 'Diterima cabang', CANCELLED: 'Batal di kasir',
+  WAITING: 'Menunggu dikirim', ON_TRIP: 'Dalam perjalanan', NEEDS_DECISION: 'Perlu keputusan', DELIVERED: 'Terkirim',
+  RECEIVED: 'Diterima cabang', CANCELLED: 'Batal di kasir', DROPPED: 'Batal logistik',
 };
-export const QUEUE_STATUSES: QueueStatus[] = ['WAITING', 'ON_TRIP', 'RECEIVED', 'CANCELLED'];
+export const QUEUE_STATUSES: QueueStatus[] = ['WAITING', 'ON_TRIP', 'NEEDS_DECISION', 'DELIVERED', 'RECEIVED', 'CANCELLED', 'DROPPED'];
+/** Status HRIS surat jalan per tab (LT1b-2a); tab lain dibaca dari kasir saja. */
+export const HRIS_TAB_STATUS: Partial<Record<QueueStatus, string>> = {
+  ON_TRIP: 'ON_TRIP', NEEDS_DECISION: 'NEEDS_DECISION', DELIVERED: 'DELIVERED', DROPPED: 'CANCELLED',
+};
+/** Tab yang terus bertambah: terbaru di atas. */
+export const NEWEST_FIRST: QueueStatus[] = ['DELIVERED', 'DROPPED'];
 export const STORE_NOTE_MAX = 500;
 
 /** Nota truk: selesai = menunggu dikirim; batal atau menunggu batal = batal di kasir. */
@@ -27,7 +34,7 @@ export function transferQueueStatus(status: string): QueueStatus | null {
 
 /**
  * Tab antrean dari status kasir + status HRIS surat jalan (kosong = belum pernah disentuh = Menunggu). Batal di kasir
- * menang atas status HRIS; surat jalan Terkirim / Perlu keputusan (LT1b-2) tidak tampil di tab mana pun di sini.
+ * dan PO Internal yang sudah diterima cabang menang atas status HRIS (LT1b-2a).
  */
 export function queueOf(kind: NoteKind, kasirStatus: string, hrisStatus: string | null): { status: QueueStatus; pendingVoid: boolean } | null {
   const hris = hrisStatus ?? 'WAITING';
@@ -38,9 +45,10 @@ export function queueOf(kind: NoteKind, kasirStatus: string, hrisStatus: string 
     const transfer = transferQueueStatus(kasirStatus);
     if (transfer !== 'WAITING') return transfer ? { status: transfer, pendingVoid: false } : null;
   }
-  if (hris === 'ON_TRIP') return { status: 'ON_TRIP', pendingVoid: false };
-  if (hris === 'WAITING') return { status: 'WAITING', pendingVoid: false };
-  return null;
+  const fromHris: Record<string, QueueStatus> = {
+    WAITING: 'WAITING', ON_TRIP: 'ON_TRIP', NEEDS_DECISION: 'NEEDS_DECISION', DELIVERED: 'DELIVERED', CANCELLED: 'DROPPED',
+  };
+  return fromHris[hris] ? { status: fromHris[hris], pendingVoid: false } : null;
 }
 
 /** Umur dalam hari kalender (WIB) dari tanggal dokumen sampai hari ini; tidak pernah negatif. */

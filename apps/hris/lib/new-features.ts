@@ -184,6 +184,10 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/toko': '2026-11-04',
   'fitur/surat-jalan-di-trip': '2026-11-04', // langkah Surat jalan di form trip + bagian Surat jalan di rincian trip / Trip Saya
   'fitur/rekap-lewat-trip': '2026-11-04', // tabel Lewat trip di Rekap Kehadiran
+  // LT1b-2a Alur trip HP driver (tayang staging 2026-11-04)
+  '/logistik/bensin-mobil': '2026-11-04',
+  'fitur/trip-hp-driver': '2026-11-04', // Siap Kirim, Terkirim/Kirim Besok/Gagal, Foto bak kosong, Sampai Garasi + amper, Laporan Pulang trip
+  'fitur/beranda-logistik-tindak-lanjut': '2026-11-04', // kartu Beranda bensin, mobil perlu perhatian, surat jalan perlu keputusan
 };
 
 function addDays(date: string, days: number): string {

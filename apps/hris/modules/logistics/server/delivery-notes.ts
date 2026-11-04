@@ -4,10 +4,11 @@ import { db } from '@/lib/db';
 import { can, type Actor, type ServiceResult } from '@/modules/access';
 import { settingOn } from '@/modules/settings';
 import {
-  QUEUE_LABELS, QUEUE_STATUSES, ageDays, backofficeLink, cleanStoreNote, compareQueue, queueOf, saleQueueStatus,
+  HRIS_TAB_STATUS, NEWEST_FIRST, QUEUE_LABELS, QUEUE_STATUSES, ageDays, backofficeLink, cleanStoreNote, compareQueue, queueOf, saleQueueStatus,
   type NoteKind, type QueueStatus,
 } from '../rules/delivery-notes';
-import { wibDate, type IsoDate } from '../rules/trip';
+import { reopenOpen } from '../rules/driver-trip';
+import { wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, fail } from './data';
 
 // Surat Jalan + Data Toko (spec LT1 §12). Kasir hanya dibaca lewat view logistics.pos_* (migrasi logistics 0003).
@@ -22,13 +23,27 @@ async function deliveryRoutes() {
   return db.select({ id: routes.id, name: routes.name, active: routes.active }).from(routes).where(eq(routes.kind, 'DELIVERY')).orderBy(asc(routes.name));
 }
 
-const SALE_STATUSES: Record<QueueStatus, string[]> = { WAITING: ['COMPLETED'], ON_TRIP: ['COMPLETED'], RECEIVED: [], CANCELLED: ['VOIDED', 'PENDING_VOID'] };
+const SALE_STATUSES: Record<QueueStatus, string[]> = {
+  WAITING: ['COMPLETED'], ON_TRIP: ['COMPLETED'], NEEDS_DECISION: ['COMPLETED'], DELIVERED: ['COMPLETED'], RECEIVED: [],
+  CANCELLED: ['VOIDED', 'PENDING_VOID'], DROPPED: ['COMPLETED'],
+};
 const TRANSFER_STATUSES: Record<QueueStatus, string[]> = {
-  WAITING: ['IN_TRANSIT'], ON_TRIP: ['IN_TRANSIT'], RECEIVED: ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED'], CANCELLED: ['CANCELLED'],
+  WAITING: ['IN_TRANSIT'], ON_TRIP: ['IN_TRANSIT'], NEEDS_DECISION: ['IN_TRANSIT'], DELIVERED: ['IN_TRANSIT'],
+  RECEIVED: ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED'], CANCELLED: ['CANCELLED'], DROPPED: ['IN_TRANSIT'],
 };
 const inList = (values: string[]) => (values.length ? sql.join(values.map((v) => sql`${v}`), sql`, `) : sql`null`);
-/** Status HRIS per tab (LT1b-1): Menunggu = belum pernah disentuh atau kembali menunggu; Dalam perjalanan = di trip. */
-const hrisFilter = (tab: QueueStatus) => (tab === 'WAITING' ? sql`coalesce(dn.status, 'WAITING') = 'WAITING'` : tab === 'ON_TRIP' ? sql`dn.status = 'ON_TRIP'` : sql`true`);
+/** Status HRIS per tab: Menunggu = belum pernah disentuh atau kembali menunggu; tab HRIS lain = status surat jalannya. */
+const hrisFilter = (tab: QueueStatus) => {
+  if (tab === 'WAITING') return sql`coalesce(dn.status, 'WAITING') = 'WAITING'`;
+  const status = HRIS_TAB_STATUS[tab];
+  return status ? sql`dn.status = ${status}` : sql`true`;
+};
+/** Kejadian HRIS terakhir surat jalan (alasan Gagal / Batal, trip-nya, jam). */
+const lastEvent = sql`left join lateral (
+  select e.kind, e.reason, e.at, et.number as trip_number, et.id as trip_id from logistics.delivery_note_events e
+  left join logistics.trips et on et.id = e.trip_id where e.note_id = dn.id order by e.id desc limit 1) ev on true`;
+const EVENT_COLUMNS = sql`dn.id as note_id, ev.kind as ev_kind, ev.reason as ev_reason, ev.at as ev_at, ev.trip_number as ev_trip_number, ev.trip_id as ev_trip_id`;
+type EventColumns = { note_id: number | null; ev_kind: string | null; ev_reason: string | null; ev_at: string | null; ev_trip_number: string | null; ev_trip_id: number | null };
 /** Trip yang sedang membawa surat jalan ini. */
 const onTrip = sql`left join lateral (
   select t.id, t.number from logistics.trip_visit_notes l join logistics.trip_visits v on v.id = l.visit_id join logistics.trips t on t.id = v.trip_id
@@ -38,6 +53,9 @@ export type NoteRow = {
   key: string; kind: NoteKind; id: number; number: string; on: IsoDate; age: number; status: QueueStatus; pendingVoid: boolean;
   originId: number; origin: string; destination: string; customerId: number | null; routeId: number | null; route: string | null;
   amount: number | null; revised: boolean; link: string | null; trip: { id: number; number: string } | null; tomorrowCount: number;
+  /** Id surat jalan HRIS (untuk keputusan) dan kejadian terakhirnya (LT1b-2a). */
+  noteId: number | null; event: { kind: string; reason: string | null; at: string; on: IsoDate; trip: { id: number; number: string } | null } | null;
+  canReopen: boolean;
 };
 
 export type NotesFilter = { tab: QueueStatus; originId: number | null; routeId: number | null; q: string };
@@ -48,7 +66,9 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
   const today = wibDate(new Date());
   const from = await deliveryFrom(today);
   const base = backofficeBase();
-  const routeList = await deliveryRoutes();
+  const now = new Date();
+  const [routeList, reopenDays] = await Promise.all([deliveryRoutes(), settingOn<number>('logistics.reopen_days', today)]);
+  const order = NEWEST_FIRST.includes(filter.tab) ? sql`desc` : sql`asc`;
   const routeName = new Map(routeList.map((r) => [r.id, r.name]));
 
   const [sales, transfers, counts, origins] = await Promise.all([
@@ -56,27 +76,29 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
       id: number; trx_number: string; branch_id: number; branch_name: string; customer_id: number | null; customer_name: string | null;
       payable_amount: number; status: string; revision: number; trx_on: string; default_route_id: number | null;
       hris_status: string | null; tomorrow_count: number | null; trip_id: number | null; trip_number: string | null;
-    }>(sql`
+    } & EventColumns>(sql`
       select s.id, s.trx_number, s.branch_id, s.branch_name, s.customer_id, c.name as customer_name, s.payable_amount, s.status, s.revision,
-        s.trx_on::text as trx_on, st.default_route_id, dn.status as hris_status, dn.tomorrow_count, tr.id as trip_id, tr.number as trip_number
+        s.trx_on::text as trx_on, st.default_route_id, dn.status as hris_status, dn.tomorrow_count, tr.id as trip_id, tr.number as trip_number, ${EVENT_COLUMNS}
       from logistics.pos_truck_sales s
       left join logistics.pos_customers c on c.id = s.customer_id
       left join logistics.stores st on st.customer_id = s.customer_id
       left join logistics.delivery_notes dn on dn.kind = 'SALE' and dn.doc_id = s.id
       ${onTrip}
+      ${lastEvent}
       where s.trx_on >= ${from}::date and s.status in (${inList(SALE_STATUSES[filter.tab])}) and ${hrisFilter(filter.tab)}
-      order by s.trx_on, s.trx_number limit ${LIST_LIMIT}`),
+      order by s.trx_on ${order}, s.trx_number ${order} limit ${LIST_LIMIT}`),
     db.execute<{
       id: number; ibt_number: string; source_branch_id: number; source_branch_name: string; destination_branch_name: string; status: string; created_on: string;
       hris_status: string | null; tomorrow_count: number | null; trip_id: number | null; trip_number: string | null;
-    }>(sql`
+    } & EventColumns>(sql`
       select p.id, p.ibt_number, p.source_branch_id, p.source_branch_name, p.destination_branch_name, p.status, p.created_on::text as created_on,
-        dn.status as hris_status, dn.tomorrow_count, tr.id as trip_id, tr.number as trip_number
+        dn.status as hris_status, dn.tomorrow_count, tr.id as trip_id, tr.number as trip_number, ${EVENT_COLUMNS}
       from logistics.pos_truck_transfers p
       left join logistics.delivery_notes dn on dn.kind = 'TRANSFER' and dn.doc_id = p.id
       ${onTrip}
+      ${lastEvent}
       where p.created_on >= ${from}::date and p.status in (${inList(TRANSFER_STATUSES[filter.tab])}) and ${hrisFilter(filter.tab)}
-      order by p.created_on, p.ibt_number limit ${LIST_LIMIT}`),
+      order by p.created_on ${order}, p.ibt_number ${order} limit ${LIST_LIMIT}`),
     db.execute<{ kind: NoteKind; status: string; hris_status: string | null; n: number }>(sql`
       select 'SALE' as kind, s.status, dn.status as hris_status, count(*)::int as n from logistics.pos_truck_sales s
         left join logistics.delivery_notes dn on dn.kind = 'SALE' and dn.doc_id = s.id
@@ -98,6 +120,17 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
     if (queue) tabCounts[queue.status] += Number(c.n);
   }
   const tripOf = (r: { trip_id: number | null; trip_number: string | null }) => (r.trip_id && r.trip_number ? { id: Number(r.trip_id), number: r.trip_number } : null);
+  const eventOf = (r: EventColumns, status: QueueStatus) => {
+    const at = r.ev_kind && r.ev_at ? new Date(r.ev_at) : null;
+    return {
+      noteId: r.note_id == null ? null : Number(r.note_id),
+      event: at ? {
+        kind: r.ev_kind!, reason: r.ev_reason, at: wibClock(at), on: wibDate(at),
+        trip: r.ev_trip_id && r.ev_trip_number ? { id: Number(r.ev_trip_id), number: r.ev_trip_number } : null,
+      } : null,
+      canReopen: status === 'DROPPED' && actor.fullAccess && r.ev_kind === 'DROPPED' && !!at && reopenOpen(at, now, Number(reopenDays)),
+    };
+  };
 
   let rows: NoteRow[] = [
     ...sales.map((s): NoteRow => {
@@ -109,26 +142,31 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
         destination: s.customer_name ?? 'Pelanggan tidak ditemukan', customerId: s.customer_id == null ? null : Number(s.customer_id),
         routeId, route: routeId ? routeName.get(routeId) ?? null : null, amount: Number(s.payable_amount), revised: Number(s.revision) > 1,
         link: backofficeLink(base, 'SALE', { number: s.trx_number, id: Number(s.id) }), trip: tripOf(s), tomorrowCount: Number(s.tomorrow_count ?? 0),
+        ...eventOf(s, queue.status),
       };
     }),
-    ...transfers.map((t): NoteRow => ({
-      key: `T${t.id}`, kind: 'TRANSFER', id: Number(t.id), number: t.ibt_number, on: t.created_on, age: ageDays(t.created_on, today),
-      status: queueOf('TRANSFER', t.status, t.hris_status)?.status ?? filter.tab, pendingVoid: false, originId: Number(t.source_branch_id), origin: t.source_branch_name,
-      destination: t.destination_branch_name, customerId: null, routeId: null, route: null, amount: null, revised: false,
-      link: backofficeLink(base, 'TRANSFER', { number: t.ibt_number, id: Number(t.id) }), trip: tripOf(t), tomorrowCount: Number(t.tomorrow_count ?? 0),
-    })),
+    ...transfers.map((t): NoteRow => {
+      const status = queueOf('TRANSFER', t.status, t.hris_status)?.status ?? filter.tab;
+      return {
+        key: `T${t.id}`, kind: 'TRANSFER', id: Number(t.id), number: t.ibt_number, on: t.created_on, age: ageDays(t.created_on, today),
+        status, pendingVoid: false, originId: Number(t.source_branch_id), origin: t.source_branch_name,
+        destination: t.destination_branch_name, customerId: null, routeId: null, route: null, amount: null, revised: false,
+        link: backofficeLink(base, 'TRANSFER', { number: t.ibt_number, id: Number(t.id) }), trip: tripOf(t), tomorrowCount: Number(t.tomorrow_count ?? 0),
+        ...eventOf(t, status),
+      };
+    }),
   ];
   const q = filter.q.trim().toLowerCase();
   rows = rows.filter((r) => (filter.originId == null || r.originId === filter.originId)
     && (filter.routeId == null || r.routeId === filter.routeId)
     && (!q || r.number.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)))
-    .sort(compareQueue);
+    .sort(NEWEST_FIRST.includes(filter.tab) ? (a, b) => compareQueue(b, a) : compareQueue);
 
   return {
     tab: filter.tab, tabs: QUEUE_STATUSES.map((s) => ({ status: s, label: QUEUE_LABELS[s], count: tabCounts[s] })),
     rows, truncated: sales.length >= LIST_LIMIT || transfers.length >= LIST_LIMIT, from, today, hasBackoffice: !!backofficeLink(base, 'SALE', { number: 'x', id: 1 }),
     origins: origins.map((o) => ({ id: Number(o.id), name: o.name })), routes: routeList.filter((r) => r.active).map((r) => ({ id: r.id, name: r.name })),
-    filter, canStores: can(actor, 'logistics.store.view'),
+    filter, canStores: can(actor, 'logistics.store.view'), canDecide: can(actor, 'logistics.delivery_note.decide'), reopenDays: Number(reopenDays),
   };
 }
 

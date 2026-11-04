@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { can, getOrgLookup, type Actor } from '@/modules/access';
 import { settingOn } from '@/modules/settings';
 import {
-  ROLE_LABELS, ROUTE_KIND_LABELS, STATUS_LABELS, STATUS_TONES, WAGE_KIND_LABELS, addDays, isHanging, wibClock, wibDate,
+  ROLE_LABELS, ROUTE_KIND_LABELS, WAGE_KIND_LABELS, addDays, isHanging, wibClock, wibDate,
   type CrewRole, type IsoDate, type RouteKind, type TripStatus, type WageKind,
 } from '../rules/trip';
 import { activeFence, activePeople, garageBranchId, garagePoint, loadFleet, loadTrip, peopleNames } from './data';
@@ -13,6 +13,8 @@ import { loadWeekRegimes, wageWeekOf } from './week';
 import { draftNoteKeys, liveNotesFor, pickupPhotoIds, tripNotesView, waitingNotes, type LiveNote } from './trip-notes';
 import { ageDays } from '../rules/delivery-notes';
 import type { NoteKey } from '../rules/trip-notes';
+import { PHASE_LABELS, PHASE_TONES, tripPhase, type TripPhase } from '../rules/driver-trip';
+import { endReportOf, endReportPhotoIds, pendingEndReports } from './driver-trip';
 
 export type NoteOption = {
   key: NoteKey; kind: 'SALE' | 'TRANSFER'; number: string; on: string; age: number; origin: string; originId: number; destination: string;
@@ -23,6 +25,8 @@ const clock = (at: Date | null) => (at ? wibClock(at) : null);
 
 export type TripCard = {
   id: number; number: string; status: TripStatus; statusLabel: string; tone: 'info' | 'ok' | 'warn' | 'danger';
+  /** Tahap di layar (spec LT1 §13.3): Siap Kirim dan Menuju Garasi di atas DRAFT/RUNNING. */
+  phase: TripPhase; readyAt: string | null; headingHomeAt: string | null; earlyFinish: string | null;
   vehicle: string; route: string | null; shopping: { id: number; name: string; status: string }[];
   crew: { id: number; employeeId: number; name: string; role: CrewRole; roleLabel: string; addedAfter: boolean; removed: boolean; inAt: string | null }[];
   tripDate: string | null; departedAt: string | null; finishedAt: string | null; officeClosed: boolean; hanging: boolean; createdOn: string;
@@ -41,8 +45,11 @@ async function cards(rows: (typeof trips.$inferSelect)[], now: Date): Promise<Tr
   ]);
   const vehicleName = new Map(fleet.vehicles.map((v) => [v.id, `${v.name} (${v.plate})`]));
   const routeName = new Map(fleet.routes.map((r) => [r.id, r.name]));
-  return rows.map((t) => ({
-    id: t.id, number: t.number, status: t.status as TripStatus, statusLabel: STATUS_LABELS[t.status as TripStatus], tone: STATUS_TONES[t.status as TripStatus],
+  return rows.map((t) => {
+    const phase = tripPhase(t.status as TripStatus, t.readyAt, t.headingHomeAt);
+    return {
+    id: t.id, number: t.number, status: t.status as TripStatus, statusLabel: PHASE_LABELS[phase], tone: PHASE_TONES[phase],
+    phase, readyAt: clock(t.readyAt), headingHomeAt: clock(t.headingHomeAt), earlyFinish: t.earlyFinishReason,
     vehicle: vehicleName.get(t.vehicleId) ?? '-', route: t.routeId ? routeName.get(t.routeId) ?? '-' : null,
     shopping: shopping.filter((s) => Number(s.trip_id) === t.id && s.status !== 'DROPPED')
       .map((s) => ({ id: Number(s.id), name: routeName.get(Number(s.route_id)) ?? '-', status: s.status })),
@@ -55,7 +62,8 @@ async function cards(rows: (typeof trips.$inferSelect)[], now: Date): Promise<Tr
       })),
     tripDate: t.tripDate, departedAt: clock(t.departedAt), finishedAt: clock(t.finishedAt), officeClosed: !!t.officeClosedByAccountId,
     hanging: t.status === 'RUNNING' && isHanging(t.tripDate, now, hour), createdOn: wibDate(t.createdAt),
-  }));
+    };
+  });
 }
 
 export type TripTab = 'today' | 'hanging' | 'history';
@@ -129,9 +137,11 @@ export async function tripDetailScreen(actor: Actor | null, id: number) {
   const routeName = new Map(fleet.routes.map((r) => [r.id, r.name]));
   const t = loaded.trip;
   const canManage = can(actor, 'logistics.trip.manage');
-  const delivery = await tripNotesView(id);
+  const [delivery, endReport] = await Promise.all([tripNotesView(id), endReportOf(id)]);
+  const photo = (file: string | null) => (file ? `/api/logistics/photo?trip=${t.id}&file=${file}` : null);
   return {
-    card, delivery,
+    card, delivery, endReport,
+    emptyBedPhotoUrl: photo(t.emptyBedPhotoFileId), fuelGaugePhotoUrl: photo(t.fuelGaugePhotoFileId),
     allCrew: loaded.crew.map((c) => ({
       id: c.id, name: names.get(c.employeeId) ?? `#${c.employeeId}`, roleLabel: ROLE_LABELS[c.role as CrewRole], removed: !!c.removedAt,
       removeReason: c.removeReason, addedAfter: c.addedAfterDeparture, addedAt: wibClock(c.addedAt), removedAt: clock(c.removedAt),
@@ -172,8 +182,9 @@ export async function myTripsScreen(actor: Actor | null) {
   const mine = await db.select({ tripId: tripCrew.tripId }).from(tripCrew)
     .where(and(eq(tripCrew.employeeId, actor.personId), isNull(tripCrew.removedAt)));
   const ids = [...new Set(mine.map((m) => m.tripId))];
+  // Driver dan kenek hanya melihat trip Siap Kirim, Berjalan, dan yang selesai hari ini (spec LT1 §13.3 butir 1).
   const rows = ids.length ? await db.select().from(trips).where(and(inArray(trips.id, ids), or(
-    inArray(trips.status, ['DRAFT', 'RUNNING']), eq(trips.tripDate, today),
+    and(eq(trips.status, 'DRAFT'), sql`${trips.readyAt} is not null`), eq(trips.status, 'RUNNING'), eq(trips.tripDate, today),
   ))).orderBy(trips.id) : [];
   const list = await cards(rows, now);
   const delivery = new Map(await Promise.all(list.filter((c) => c.status !== 'CANCELLED').map(async (c) => [c.id, await tripNotesView(c.id)] as const)));
@@ -190,7 +201,7 @@ export async function myTripsScreen(actor: Actor | null) {
   const wageRows = await db.select({ id: tripWages.id, kind: tripWages.kind, routeId: tripWages.routeId, cancelled: tripWages.cancelledAt })
     .from(tripWages).where(and(eq(tripWages.employeeId, actor.personId), gte(tripWages.tripDate, week.start), lte(tripWages.tripDate, today)));
   return {
-    today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'), delivery: Object.fromEntries(delivery),
+    today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'), delivery: Object.fromEntries(delivery), pendingReports: await pendingEndReports(actor), myId: actor.personId,
     weekCount: { ritase: wageRows.filter((w) => w.kind === 'RITASE' && !w.cancelled).length, shopping: wageRows.filter((w) => w.kind === 'SHOPPING' && !w.cancelled).length },
     weekStart: week.start,
   };
@@ -305,7 +316,10 @@ export async function openTripPhoto(actor: Actor | null, tripId: number, fileId:
   const loaded = await loadTrip(tripId);
   if (!loaded) return null;
   const t = loaded.trip;
-  const known = [t.crewPhotoFileId, t.officeClosePhotoFileId, ...loaded.shopping.map((s) => s.receiptPhotoFileId), ...await pickupPhotoIds(tripId)].filter(Boolean);
+  const known = [
+    t.crewPhotoFileId, t.officeClosePhotoFileId, t.emptyBedPhotoFileId, t.fuelGaugePhotoFileId, ...loaded.shopping.map((s) => s.receiptPhotoFileId),
+    ...await pickupPhotoIds(tripId), ...await endReportPhotoIds(tripId),
+  ].filter(Boolean);
   if (!known.includes(fileId)) return null;
   const allowed = loaded.crew.some((c) => c.employeeId === actor.personId) || can(actor, 'logistics.trip.view')
     || (fileId === t.crewPhotoFileId && can(actor, 'attendance.trip.photo'));

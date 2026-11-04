@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addCrew, addManualWage, addShopping, arriveTrip, cancelTrip, cancelWage, createTrip, dropShopping, releaseVisit, removeCrew, saveRoute, saveVehicle, setFleetActive,
-  setGarageBranch, turnFenceOff, turnFenceOn, updateDraft,
+  addCrew, addManualWage, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, markReady, releaseVisit,
+  removeCrew, reopenNote, retryVisit, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -12,7 +12,6 @@ export const dynamic = 'force-dynamic';
 
 const id = z.number().int().positive();
 const reason = z.string().max(500);
-const coord = z.number().nullable().optional();
 const tripBody = {
   vehicleId: id, routeId: id.nullable(), shoppingRouteIds: z.array(id).max(20), driverId: id, assistantIds: z.array(id).max(10),
   noteKeys: z.array(z.string().max(12)).max(200).optional(),
@@ -27,7 +26,14 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('add_shopping'), tripId: id, routeId: id }),
   z.object({ action: z.literal('drop_shopping'), tripId: id, shoppingId: id, reason }),
   z.object({ action: z.literal('release_visit'), tripId: id, visitId: id, reason }),
-  z.object({ action: z.literal('arrive'), tripId: id, latitude: coord, longitude: coord, accuracy: coord }),
+  // LT1b-2a (spec LT1 §13.3): Siap Kirim, Coba lagi, Perlu keputusan, tindak lanjut Laporan Pulang. Sampai Garasi pindah ke /upload (foto amper).
+  z.object({ action: z.literal('ready'), tripId: id }),
+  z.object({ action: z.literal('unready'), tripId: id }),
+  z.object({ action: z.literal('retry_visit'), tripId: id, visitId: id }),
+  z.object({ action: z.literal('decide_note'), noteId: id, decision: z.enum(['RESEND', 'DROP']), reason }),
+  z.object({ action: z.literal('reopen_note'), noteId: id }),
+  z.object({ action: z.literal('close_fuel'), reportId: id }),
+  z.object({ action: z.literal('close_condition'), reportId: id, note: z.string().max(300).nullable().optional() }),
   z.object({ action: z.literal('cancel_wage'), wageId: id, reason }),
   z.object({
     action: z.literal('manual_wage'), employeeId: id, tripDate: z.string().max(10), vehicleId: id, routeId: id, role: z.enum(['DRIVER', 'ASSISTANT']),
@@ -62,7 +68,13 @@ export async function POST(req: Request) {
       case 'add_shopping': return addShopping(actor, body.tripId, body.routeId);
       case 'drop_shopping': return dropShopping(actor, body.tripId, body.shoppingId, body.reason);
       case 'release_visit': return releaseVisit(actor, body.tripId, body.visitId, body.reason);
-      case 'arrive': return arriveTrip(actor, body.tripId, body);
+      case 'ready': return markReady(actor, body.tripId);
+      case 'unready': return unmarkReady(actor, body.tripId);
+      case 'retry_visit': return retryVisit(actor, body.tripId, body.visitId);
+      case 'decide_note': return decideNote(actor, body.noteId, body.decision, body.reason);
+      case 'reopen_note': return reopenNote(actor, body.noteId);
+      case 'close_fuel': return closeFuel(actor, body.reportId);
+      case 'close_condition': return closeCondition(actor, body.reportId, body.note ?? null);
       case 'cancel_wage': return cancelWage(actor, body.wageId, body.reason);
       case 'manual_wage': return addManualWage(actor, body);
       case 'save_vehicle': return saveVehicle(actor, body);
@@ -74,8 +86,7 @@ export async function POST(req: Request) {
     }
   })();
   if (result.ok && actor) {
-    // Upah ritase dinilai sesudah trip Selesai, ritase tangan, atau batal ritase (spec L7 §3.2, §3.3).
-    if (body.action === 'arrive') await valueTripWagesAfter({ tripId: body.tripId }, actor.accountId);
+    // Upah ritase dinilai sesudah ritase tangan atau batal ritase (spec L7 §3.2, §3.3); trip Selesai lewat /upload.
     if (body.action === 'cancel_wage') await valueTripWagesAfter({ ids: [body.wageId] }, actor.accountId);
     if (body.action === 'manual_wage' && result.data && 'id' in result.data) await valueTripWagesAfter({ ids: [result.data.id] }, actor.accountId);
   }

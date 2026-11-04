@@ -7,6 +7,7 @@ import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card } from '@/components/ui/surface';
+import { NewBadge } from '@/components/ui/new-badge';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import type { TripCard } from '../server/screens';
@@ -29,12 +30,14 @@ type Props = {
   wages: { id: number; name: string; roleLabel: string; kindLabel: string; route: string; withAssistant: boolean; cancelled: boolean; cancelReason: string | null }[];
   canManage: boolean; canCancelWage: boolean; canClose: boolean; isCrew: boolean;
   addOptions: { drivers: Option[]; assistants: Option[]; suppliers: Option[] } | null;
+  emptyBedPhotoUrl: string | null; fuelGaugePhotoUrl: string | null;
+  endReport: { by: string; at: string; conditionLabel: string; conditionNote: string | null; fuel: number | null; problemNote: string | null; photoUrl: string | null } | null;
 };
 
 type Ask =
   | { kind: 'cancel' } | { kind: 'close' } | { kind: 'remove_crew'; crewId: number; name: string } | { kind: 'drop_shopping'; shoppingId: number; name: string }
   | { kind: 'cancel_wage'; wageId: number; name: string } | { kind: 'add_crew' } | { kind: 'add_shopping' }
-  | { kind: 'release_visit'; visitId: number; name: string } | null;
+  | { kind: 'release_visit'; visitId: number; name: string } | { kind: 'ready' } | { kind: 'unready' } | null;
 
 const SHOP_STATUS: Record<string, { label: string; tone: 'info' | 'ok' | 'danger' }> = {
   OPEN: { label: 'Belum', tone: 'info' }, DONE: { label: 'Selesai', tone: 'ok' }, DROPPED: { label: 'Tidak jadi', tone: 'danger' },
@@ -77,6 +80,8 @@ export function TripDetailScreen(props: Props) {
           case 'add_crew': return { action: 'add_crew', tripId, employeeId: Number(pick), role };
           case 'add_shopping': return { action: 'add_shopping', tripId, routeId: Number(pick) };
           case 'release_visit': return { action: 'release_visit', tripId, visitId: ask.visitId, reason };
+          case 'ready': return { action: 'ready', tripId };
+          case 'unready': return { action: 'unready', tripId };
         }
       })());
     setBusy(false);
@@ -90,6 +95,7 @@ export function TripDetailScreen(props: Props) {
   const titles: Record<string, string> = {
     cancel: 'Batalkan trip', close: 'Tutup atas nama driver', remove_crew: 'Copot awak', drop_shopping: 'Supplier tidak jadi',
     cancel_wage: 'Batalkan ritase', add_crew: 'Tambah awak', add_shopping: 'Tambah supplier belanja', release_visit: 'Lepas dari trip',
+    ready: 'Siap Kirim', unready: 'Kembali ke Draft',
   };
   const addList = ask?.kind === 'add_crew' ? (role === 'DRIVER' ? props.addOptions?.drivers : props.addOptions?.assistants) ?? [] : props.addOptions?.suppliers ?? [];
 
@@ -97,12 +103,14 @@ export function TripDetailScreen(props: Props) {
     <div className="space-y-4">
       <TripCardView card={card} />
       <div className="flex flex-wrap gap-2">
-        {props.canManage && card.status === 'DRAFT' && (
+        {props.canManage && card.phase === 'DRAFT' && (
           <>
-            <Link href={`/logistik/trip/${card.id}/ubah`} className={buttonClass({ size: 'sm' })}>Ubah trip</Link>
-            <Button size="sm" variant="danger" onClick={() => open({ kind: 'cancel' })}>Batalkan trip</Button>
+            <Button size="sm" onClick={() => open({ kind: 'ready' })}>Siap Kirim <NewBadge feature="fitur/trip-hp-driver" /></Button>
+            <Link href={`/logistik/trip/${card.id}/ubah`} className={buttonClass({ size: 'sm', variant: 'secondary' })}>Ubah trip</Link>
           </>
         )}
+        {props.canManage && card.phase === 'READY' && <Button size="sm" variant="secondary" onClick={() => open({ kind: 'unready' })}>Kembali ke Draft</Button>}
+        {props.canManage && card.status === 'DRAFT' && <Button size="sm" variant="danger" onClick={() => open({ kind: 'cancel' })}>Batalkan trip</Button>}
         {props.addOptions && (
           <>
             <Button size="sm" variant="secondary" onClick={() => open({ kind: 'add_crew' })}>Tambah awak</Button>
@@ -137,12 +145,29 @@ export function TripDetailScreen(props: Props) {
             // eslint-disable-next-line @next/next/no-img-element
             <a href={props.crewPhotoUrl} target="_blank" rel="noreferrer"><img src={props.crewPhotoUrl} alt="Foto awak saat berangkat" className="max-h-64 rounded-lg" /></a>
           )}
+          {card.readyAt && <p className="text-sm">Siap Kirim {card.readyAt}.</p>}
+          {card.headingHomeAt && (
+            <p className="text-sm">
+              Menuju Garasi {card.headingHomeAt}{card.earlyFinish ? ` · Selesai lebih awal: ${card.earlyFinish}` : ''}
+              {props.emptyBedPhotoUrl && <> · <a href={props.emptyBedPhotoUrl} target="_blank" rel="noreferrer" className="underline">Foto bak</a></>}
+            </p>
+          )}
           {props.arrive && (
             <p className="text-sm">
               Sampai Garasi {card.finishedAt} (ditekan {props.arrive.by}){props.arrive.distanceM != null ? `, ${props.arrive.distanceM} m dari titik garasi` : ''}
               {props.arrive.fenceOff && <span className="ml-1"><Badge tone="warn">pagar uji mati</Badge></span>}
+              {props.fuelGaugePhotoUrl && <> · <a href={props.fuelGaugePhotoUrl} target="_blank" rel="noreferrer" className="underline">Foto amper</a></>}
             </p>
           )}
+          {card.status === 'DONE' && (props.endReport ? (
+            <div className="rounded-lg border border-line p-2 text-sm">
+              <p className="font-medium">Laporan Pulang ({props.endReport.by}, {props.endReport.at})</p>
+              <p>Mobil: {props.endReport.conditionLabel}{props.endReport.conditionNote ? ` — ${props.endReport.conditionNote}` : ''}
+                {props.endReport.photoUrl && <> · <a href={props.endReport.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a></>}</p>
+              <p>Bensin besok: {props.endReport.fuel ? `perlu, ± Rp${new Intl.NumberFormat('id-ID').format(props.endReport.fuel)}` : 'tidak perlu'}</p>
+              {props.endReport.problemNote && <p>Masalah: {props.endReport.problemNote}</p>}
+            </div>
+          ) : <p className="text-sm text-ink-muted">Laporan Pulang driver belum terkirim.</p>)}
         </Card>
         <Card className="space-y-2">
           <h2 className="font-semibold">Awak</h2>
@@ -210,6 +235,8 @@ export function TripDetailScreen(props: Props) {
           {ask?.kind === 'close' && <p>Untuk HP atau GPS driver yang bermasalah. Absen pulang awak = jam penutupan ini, ritase tetap dicatat sekali.</p>}
           {ask?.kind === 'remove_crew' && <p>Orang yang dicopot tidak mendapat ritase otomatis dari trip ini.</p>}
           {ask?.kind === 'release_visit' && <p>Semua surat jalan untuk tujuan ini kembali ke Menunggu dikirim dan bisa dimasukkan ke trip berikutnya.</p>}
+          {ask?.kind === 'ready' && <p>Trip muncul di Trip Saya driver dan kenek, dan baru bisa Berangkat sesudah ini. Untuk mengubah trip lagi, tekan Kembali ke Draft.</p>}
+          {ask?.kind === 'unready' && <p>Trip hilang dari Trip Saya awak sampai ditandai Siap Kirim lagi.</p>}
           {ask?.kind === 'add_crew' && (
             <Field id="add-role" label="Peran">
               <Select id="add-role" value={role} onChange={(e) => { setRole(e.target.value as 'DRIVER' | 'ASSISTANT'); setPick(''); }}>

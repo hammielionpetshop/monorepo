@@ -5,7 +5,7 @@ import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { logisticsAttention } from '@/modules/logistics';
+import { followupAttention, logisticsAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -45,6 +45,7 @@ export default async function HomePage() {
     weeklyPayCard(actor),
     unloadingAttention(actor),
     overpayAttention(actor),
+    followupAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -99,6 +100,10 @@ export default async function HomePage() {
   for (const trip of logistics?.hanging ?? []) {
     mine.push({ key: `trip-hanging-${trip.id}`, title: `Trip ${trip.number} belum Sampai Garasi`, detail: `${trip.vehicle}, berangkat ${trip.tripDate}`, href: `/logistik/trip/${trip.id}`, tone: 'danger', badge: 'fitur/beranda-trip' });
   }
+  // Tindak lanjut Logistik (spec LT1 §13.3 butir 6, 7): surat jalan Gagal, permintaan bensin, mobil perlu perhatian.
+  if (followup?.decide) mine.push({ key: 'notes-decide', title: `${followup.decide} surat jalan perlu keputusan`, detail: 'Kiriman gagal: Kirim ulang atau Batal', href: '/logistik/surat-jalan?tab=NEEDS_DECISION', tone: 'danger', badge: 'fitur/beranda-logistik-tindak-lanjut' });
+  if (followup?.fuel) mine.push({ key: 'fuel-wait', title: `${followup.fuel} mobil perlu isi bensin`, detail: 'Dari Laporan Pulang driver', href: '/logistik/bensin-mobil', badge: 'fitur/beranda-logistik-tindak-lanjut' });
+  if (followup?.condition) mine.push({ key: 'vehicle-attention', title: `${followup.condition} mobil perlu perhatian`, detail: 'Dari Laporan Pulang driver', href: '/logistik/bensin-mobil', tone: 'danger', badge: 'fitur/beranda-logistik-tindak-lanjut' });
   if (tripWages?.unrated) mine.push({ key: 'trip-wage-unrated', title: `${tripWages.unrated} upah ritase belum bertarif`, detail: 'Isi tarif pasangannya; upahnya dinilai ulang otomatis', href: '/pengaturan/tarif-ritase', tone: 'danger', badge: 'fitur/beranda-upah-ritase' });
   if (tripWages?.look) mine.push({ key: 'trip-wage-look', title: `${tripWages.look} upah ritase perlu dilihat`, detail: 'Ikut trip di hari yang bukan hari libur', href: '/gaji/upah-ritase?tab=LOOK', badge: 'fitur/beranda-upah-ritase' });
   // Bongkaran (spec L8 §4): belum dibayar (Finance, Pemilik, GM), peserta perlu dilihat (HR), berat berubah (Pemilik, GM).
