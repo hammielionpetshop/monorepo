@@ -26,10 +26,13 @@ export const DELIVERY_REASON_MAX = 300
 export const REQUIRED_SETTING_KEY = 'delivery_method_required'
 export const TRUCK_FIRST_SETTING_KEY = 'delivery_truck_first_branch_ids'
 
-// Petunjuk satu-satunya untuk "Diantar kurir cabang": selalu lewat baris Ongkos Kirim supaya pengantar
-// (dan bonusnya) tercatat. Antar tanpa ongkos = centang Gratis ongkir (tercatat, tidak ditagih, tanpa bonus).
+// Petunjuk satu-satunya untuk "Diantar kurir cabang": selalu bersama baris Ongkos Kirim supaya pengantar
+// (dan bonusnya) tercatat. Di kasir, baris itu dibuat langkah Pengiriman (pilih pengantar + ongkir atau
+// Gratis ongkir); antar tanpa ongkos = Gratis ongkir (tercatat, tidak ditagih, tanpa bonus).
 export const COURIER_NEEDS_ONGKIR_MESSAGE =
-  'Diantar kurir cabang harus lewat Ongkos Kirim: tambahkan produk Ongkos Kirim ke keranjang, lalu pilih pengantarnya. Tidak ditagih? Centang "Gratis ongkir".'
+  'Diantar kurir cabang harus bersama ongkos kirim: pilih pengantar dan isi ongkirnya di langkah Pengiriman (centang "Gratis ongkir" bila tidak ditagih).'
+
+export const TRUCK_NEEDS_CUSTOMER_MESSAGE = 'Dikirim truk Gudang hanya untuk nota berpelanggan (toko). Pilih pelanggannya dulu.'
 
 export class DeliveryMethodError extends Error {
   constructor(message: string, public status = 400) {
@@ -70,27 +73,33 @@ export function saleDeliveryOrder(truckFirst: boolean): SaleDeliveryMethod[] {
   return truckFirst ? ['TRUCK', 'PICKUP', 'BRANCH_COURIER'] : ['PICKUP', 'BRANCH_COURIER', 'TRUCK']
 }
 
-/** Apakah layar bayar perlu menanyakan cara kirim untuk nota ini. */
+/** Apakah nota berpelanggan ini perlu ditanya cara kirim (Bulk Sale: nota PO Internal tidak). */
 export function needsDeliveryChoice(input: { customerId: number | null | undefined; sourceIbtId?: number | null }): boolean {
   return input.customerId != null && input.customerId > 0 && input.sourceIbtId == null
 }
 
 /**
  * Cara kirim yang disimpan untuk satu nota.
- * - Nota Umum (tanpa pelanggan) dan nota hasil PO Internal: selalu kosong (pilihannya di PO Internal).
+ * - Nota hasil PO Internal: selalu kosong (pilihannya di PO Internal).
+ * - `everyNota` (kasir POS): semua nota ditanya, termasuk nota Umum. Tanpa itu (Bulk Sale) hanya nota
+ *   berpelanggan; nota Umum kosong.
  * - Nota berisi baris ongkir + pengantar: selalu kurir cabang.
- * - Kurir cabang TANPA baris ongkir ditolak (pengantar tidak tercatat); Bulk Sale tidak punya baris
- *   ongkir, jadi kurir cabang tidak tersedia di sana.
+ * - Nota grooming tanpa antar: otomatis ambil sendiri (diatur tab Grooming, tidak lewat langkah Pengiriman).
+ * - Kurir cabang TANPA baris ongkir ditolak (pengantar tidak tercatat). Truk Gudang wajib berpelanggan.
  * - Selain itu: pilihan kasir; kosong ditolak bila `required` (saklar wajib pilih menyala).
  */
 export function resolveSaleDeliveryMethod(input: {
   customerId: number | null | undefined
   sourceIbtId?: number | null
   hasCourierLine: boolean
+  hasGrooming?: boolean
+  everyNota?: boolean
   requested?: string | null
   required: boolean
 }): SaleDeliveryMethod | null {
-  if (!needsDeliveryChoice(input)) return null
+  if (input.sourceIbtId != null) return null
+  const hasCustomer = input.customerId != null && input.customerId > 0
+  if (!hasCustomer && !input.everyNota) return null
   const requested = input.requested ?? null
   if (requested != null && !isSaleDeliveryMethod(requested)) {
     throw new DeliveryMethodError('Cara kirim tidak dikenal')
@@ -102,7 +111,9 @@ export function resolveSaleDeliveryMethod(input: {
     return 'BRANCH_COURIER'
   }
   if (requested === 'BRANCH_COURIER') throw new DeliveryMethodError(COURIER_NEEDS_ONGKIR_MESSAGE)
+  if (requested === 'TRUCK' && !hasCustomer) throw new DeliveryMethodError(TRUCK_NEEDS_CUSTOMER_MESSAGE)
   if (requested != null) return requested
+  if (input.hasGrooming) return input.required ? 'PICKUP' : null
   if (input.required) {
     throw new DeliveryMethodError('Pilih cara kirim dulu: Ambil sendiri, Diantar kurir cabang, atau Dikirim truk Gudang.')
   }

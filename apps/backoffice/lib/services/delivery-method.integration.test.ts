@@ -88,7 +88,7 @@ describe('cara kirim nota', () => {
 
   it('tidak bisa diubah menjadi kurir cabang (harus lewat ongkir di kasir)', async () => {
     const trx = await sale('TRUCK')
-    await expect(changeTransactionDeliveryMethod(owner(), { transactionId: trx.id, newMethod: 'BRANCH_COURIER', reason: 'x' })).rejects.toThrow(/Ongkos Kirim/)
+    await expect(changeTransactionDeliveryMethod(owner(), { transactionId: trx.id, newMethod: 'BRANCH_COURIER', reason: 'x' })).rejects.toThrow(/ongkos kirim/i)
   })
 
   it('nilai di luar daftar ditolak database', async () => {
