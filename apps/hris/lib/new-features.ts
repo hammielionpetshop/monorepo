@@ -188,12 +188,12 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/bensin-mobil': '2026-11-04',
   'fitur/trip-hp-driver': '2026-11-04', // Siap Kirim, Terkirim/Kirim Besok/Gagal, Foto bak kosong, Sampai Garasi + amper, Laporan Pulang trip
   'fitur/beranda-logistik-tindak-lanjut': '2026-11-04', // kartu Beranda bensin, mobil perlu perhatian, surat jalan perlu keputusan
-  // LT1b-2b Titik toko (tayang staging 2026-11-05)
+  // LT1b-2b Titik toko (tayang staging 2026-11-04)
   // LT1b-3 Uang dan laporan di toko (tayang staging 2026-11-05)
   '/logistik/uang-toko': '2026-11-05',
   '/logistik/laporan-toko': '2026-11-05',
   'fitur/cara-bayar-toko': '2026-11-05', // cara bayar + bukti transfer saat Terkirim, Lapor masalah di kunjungan
-  'fitur/titik-toko': '2026-11-05', // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
+  'fitur/titik-toko': '2026-11-04', // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };
 
 function addDays(date: string, days: number): string {

@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-05 02:00 -->
+<!-- tayang: 2026-11-05 00:15 -->
 ### Added
 
 - **Cara bayar toko saat Terkirim.** Di Trip Saya, Terkirim ke toko kini bertahap: foto barang diterima → cara bayar → ringkasan → Simpan. Tagihan diambil dari sisa piutang nota di kasir (nota yang sudah lunas di kasir tertulis "tidak ada tagihan"). Pilihan: **Lunas cash**, **Lunas transfer** (wajib foto bukti transfer), **Bayar sebagian / titip cash** (isi uang yang diterima, sisanya ditagih kantor), dan **Tempo**. Cara bayar tidak bisa diubah dari HP sesudah disimpan.
