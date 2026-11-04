@@ -10,12 +10,15 @@ import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import type { TripCard } from '../server/screens';
+import type { TripPickupView, TripVisitView } from '../server/trip-notes';
+import { TripNotesPanel } from './trip-notes-panel';
 import { LiveCamera, photoForm } from './capture';
 import { TripCardView } from './trip-card';
 
 type Option = { id: number; name: string };
 type Props = {
   card: TripCard;
+  delivery: { visits: TripVisitView[]; pickups: TripPickupView[] };
   allCrew: { id: number; name: string; roleLabel: string; removed: boolean; removeReason: string | null; addedAfter: boolean; addedAt: string; removedAt: string | null }[];
   shopping: { id: number; name: string; status: string; doneAt: string | null; dropReason: string | null; receiptUrl: string | null }[];
   crewPhotoUrl: string | null;
@@ -30,7 +33,8 @@ type Props = {
 
 type Ask =
   | { kind: 'cancel' } | { kind: 'close' } | { kind: 'remove_crew'; crewId: number; name: string } | { kind: 'drop_shopping'; shoppingId: number; name: string }
-  | { kind: 'cancel_wage'; wageId: number; name: string } | { kind: 'add_crew' } | { kind: 'add_shopping' } | null;
+  | { kind: 'cancel_wage'; wageId: number; name: string } | { kind: 'add_crew' } | { kind: 'add_shopping' }
+  | { kind: 'release_visit'; visitId: number; name: string } | null;
 
 const SHOP_STATUS: Record<string, { label: string; tone: 'info' | 'ok' | 'danger' }> = {
   OPEN: { label: 'Belum', tone: 'info' }, DONE: { label: 'Selesai', tone: 'ok' }, DROPPED: { label: 'Tidak jadi', tone: 'danger' },
@@ -72,6 +76,7 @@ export function TripDetailScreen(props: Props) {
           case 'cancel_wage': return { action: 'cancel_wage', wageId: ask.wageId, reason };
           case 'add_crew': return { action: 'add_crew', tripId, employeeId: Number(pick), role };
           case 'add_shopping': return { action: 'add_shopping', tripId, routeId: Number(pick) };
+          case 'release_visit': return { action: 'release_visit', tripId, visitId: ask.visitId, reason };
         }
       })());
     setBusy(false);
@@ -81,10 +86,10 @@ export function TripDetailScreen(props: Props) {
     router.refresh();
   }
 
-  const needsReason = ask && ['cancel', 'close', 'remove_crew', 'drop_shopping', 'cancel_wage'].includes(ask.kind);
+  const needsReason = ask && ['cancel', 'close', 'remove_crew', 'drop_shopping', 'cancel_wage', 'release_visit'].includes(ask.kind);
   const titles: Record<string, string> = {
     cancel: 'Batalkan trip', close: 'Tutup atas nama driver', remove_crew: 'Copot awak', drop_shopping: 'Supplier tidak jadi',
-    cancel_wage: 'Batalkan ritase', add_crew: 'Tambah awak', add_shopping: 'Tambah supplier belanja',
+    cancel_wage: 'Batalkan ritase', add_crew: 'Tambah awak', add_shopping: 'Tambah supplier belanja', release_visit: 'Lepas dari trip',
   };
   const addList = ask?.kind === 'add_crew' ? (role === 'DRIVER' ? props.addOptions?.drivers : props.addOptions?.assistants) ?? [] : props.addOptions?.suppliers ?? [];
 
@@ -113,6 +118,13 @@ export function TripDetailScreen(props: Props) {
         <Alert tone="warn" title="Ditutup kantor">
           {props.officeClose.reason}{props.officeClose.photoUrl && <> · <a href={props.officeClose.photoUrl} target="_blank" rel="noreferrer" className="underline">Lihat foto</a></>}
         </Alert>
+      )}
+
+      {(props.delivery.visits.length > 0 || props.delivery.pickups.length > 0 || (props.canManage && card.status === 'DRAFT')) && (
+        <TripNotesPanel
+          visits={props.delivery.visits} pickups={props.delivery.pickups} storeLinks
+          onRelease={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? (v) => open({ kind: 'release_visit', visitId: v.id, name: v.destination }) : undefined}
+        />
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -197,6 +209,7 @@ export function TripDetailScreen(props: Props) {
           {ask && 'name' in ask && <p>{ask.name}</p>}
           {ask?.kind === 'close' && <p>Untuk HP atau GPS driver yang bermasalah. Absen pulang awak = jam penutupan ini, ritase tetap dicatat sekali.</p>}
           {ask?.kind === 'remove_crew' && <p>Orang yang dicopot tidak mendapat ritase otomatis dari trip ini.</p>}
+          {ask?.kind === 'release_visit' && <p>Semua surat jalan untuk tujuan ini kembali ke Menunggu dikirim dan bisa dimasukkan ke trip berikutnya.</p>}
           {ask?.kind === 'add_crew' && (
             <Field id="add-role" label="Peran">
               <Select id="add-role" value={role} onChange={(e) => { setRole(e.target.value as 'DRIVER' | 'ASSISTANT'); setPick(''); }}>

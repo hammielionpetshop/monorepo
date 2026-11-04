@@ -10,6 +10,14 @@ import {
 import { activeFence, activePeople, garageBranchId, garagePoint, loadFleet, loadTrip, peopleNames } from './data';
 import { nextWeek, prevWeek, weekOf } from '../rules/week';
 import { loadWeekRegimes, wageWeekOf } from './week';
+import { draftNoteKeys, liveNotesFor, pickupPhotoIds, tripNotesView, waitingNotes, type LiveNote } from './trip-notes';
+import { ageDays } from '../rules/delivery-notes';
+import type { NoteKey } from '../rules/trip-notes';
+
+export type NoteOption = {
+  key: NoteKey; kind: 'SALE' | 'TRANSFER'; number: string; on: string; age: number; origin: string; originId: number; destination: string;
+  routeId: number | null; route: string | null; amount: number | null;
+};
 
 const clock = (at: Date | null) => (at ? wibClock(at) : null);
 
@@ -78,7 +86,9 @@ export async function tripFormScreen(actor: Actor | null, id: number | null) {
   if (!actor || !can(actor, 'logistics.trip.manage')) return null;
   const today = wibDate(new Date());
   const [fleet, people] = await Promise.all([loadFleet(), activePeople(today)]);
-  let initial = null as null | { vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number | null; assistantIds: number[] };
+  let initial = null as null | {
+    vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number | null; assistantIds: number[]; noteKeys: NoteKey[];
+  };
   if (id) {
     const loaded = await loadTrip(id);
     if (!loaded || loaded.trip.status !== 'DRAFT') return { notEditable: true as const };
@@ -87,10 +97,18 @@ export async function tripFormScreen(actor: Actor | null, id: number | null) {
       shoppingRouteIds: loaded.shopping.filter((s) => s.status !== 'DROPPED').map((s) => s.routeId),
       driverId: loaded.activeCrew.find((c) => c.role === 'DRIVER')?.employeeId ?? null,
       assistantIds: loaded.activeCrew.filter((c) => c.role === 'ASSISTANT').map((c) => c.employeeId),
+      noteKeys: await draftNoteKeys(id),
     };
   }
+  const [waiting, attached] = await Promise.all([waitingNotes(), liveNotesFor(initial?.noteKeys ?? [])]);
+  const routeName = new Map(fleet.routes.map((r) => [r.id, r.name]));
+  const option = (n: LiveNote): NoteOption => ({
+    key: n.key, kind: n.kind, number: n.number, on: n.on, age: ageDays(n.on, today), origin: n.origin, originId: n.originBranchId, destination: n.destination,
+    routeId: n.routeId, route: n.routeId ? routeName.get(n.routeId) ?? null : null, amount: n.amount,
+  });
+  const notes = [...attached.values(), ...waiting.filter((w) => !attached.has(w.key))].map(option);
   return {
-    notEditable: false as const, id, initial,
+    notEditable: false as const, id, initial, notes, notesTruncated: waiting.length >= 300,
     vehicles: fleet.vehicles.filter((v) => v.active || v.id === initial?.vehicleId).map((v) => ({ id: v.id, name: `${v.name} (${v.plate})` })),
     deliveryRoutes: fleet.routes.filter((r) => r.kind === 'DELIVERY' && (r.active || r.id === initial?.routeId)).map((r) => ({ id: r.id, name: r.name })),
     shoppingRoutes: fleet.routes.filter((r) => r.kind === 'SHOPPING' && (r.active || initial?.shoppingRouteIds.includes(r.id))).map((r) => ({ id: r.id, name: r.name })),
@@ -111,8 +129,9 @@ export async function tripDetailScreen(actor: Actor | null, id: number) {
   const routeName = new Map(fleet.routes.map((r) => [r.id, r.name]));
   const t = loaded.trip;
   const canManage = can(actor, 'logistics.trip.manage');
+  const delivery = await tripNotesView(id);
   return {
-    card,
+    card, delivery,
     allCrew: loaded.crew.map((c) => ({
       id: c.id, name: names.get(c.employeeId) ?? `#${c.employeeId}`, roleLabel: ROLE_LABELS[c.role as CrewRole], removed: !!c.removedAt,
       removeReason: c.removeReason, addedAfter: c.addedAfterDeparture, addedAt: wibClock(c.addedAt), removedAt: clock(c.removedAt),
@@ -157,6 +176,7 @@ export async function myTripsScreen(actor: Actor | null) {
     inArray(trips.status, ['DRAFT', 'RUNNING']), eq(trips.tripDate, today),
   ))).orderBy(trips.id) : [];
   const list = await cards(rows, now);
+  const delivery = new Map(await Promise.all(list.filter((c) => c.status !== 'CANCELLED').map(async (c) => [c.id, await tripNotesView(c.id)] as const)));
   const doneToday = list.filter((c) => c.status === 'DONE' && c.tripDate === today);
   const running = list.find((c) => c.status === 'RUNNING');
   const firstIn = list.filter((c) => c.tripDate === today).map((c) => c.crew.find((m) => m.employeeId === actor.personId)?.inAt).filter(Boolean).sort()[0] ?? null;
@@ -170,7 +190,7 @@ export async function myTripsScreen(actor: Actor | null) {
   const wageRows = await db.select({ id: tripWages.id, kind: tripWages.kind, routeId: tripWages.routeId, cancelled: tripWages.cancelledAt })
     .from(tripWages).where(and(eq(tripWages.employeeId, actor.personId), gte(tripWages.tripDate, week.start), lte(tripWages.tripDate, today)));
   return {
-    today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'),
+    today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'), delivery: Object.fromEntries(delivery),
     weekCount: { ritase: wageRows.filter((w) => w.kind === 'RITASE' && !w.cancelled).length, shopping: wageRows.filter((w) => w.kind === 'SHOPPING' && !w.cancelled).length },
     weekStart: week.start,
   };
@@ -285,7 +305,7 @@ export async function openTripPhoto(actor: Actor | null, tripId: number, fileId:
   const loaded = await loadTrip(tripId);
   if (!loaded) return null;
   const t = loaded.trip;
-  const known = [t.crewPhotoFileId, t.officeClosePhotoFileId, ...loaded.shopping.map((s) => s.receiptPhotoFileId)].filter(Boolean);
+  const known = [t.crewPhotoFileId, t.officeClosePhotoFileId, ...loaded.shopping.map((s) => s.receiptPhotoFileId), ...await pickupPhotoIds(tripId)].filter(Boolean);
   if (!known.includes(fileId)) return null;
   const allowed = loaded.crew.some((c) => c.employeeId === actor.personId) || can(actor, 'logistics.trip.view')
     || (fileId === t.crewPhotoFileId && can(actor, 'attendance.trip.photo'));

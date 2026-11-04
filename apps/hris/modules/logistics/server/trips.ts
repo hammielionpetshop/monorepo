@@ -15,10 +15,32 @@ import {
   type LoadedTrip,
 } from './data';
 import { rateProblem } from './rates';
+import { TripNotesConflict, checkNoteKeys, releaseAllOnCancel, settleOnClose, syncDraftNotes, type LiveNote } from './trip-notes';
+import { tripNotesProblem } from '../rules/trip-notes';
 
 export type TripInput = {
   vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number; assistantIds: number[];
+  /** Surat jalan yang dicentang (spec LT1 §3.4); kosong = trip tanpa surat jalan (masa peralihan). */
+  noteKeys?: string[];
 };
+
+/** Jalankan isi transaksi; bentrok surat jalan di tengah jalan membatalkan seluruh perubahan dengan pesan 409. */
+async function withNotes<T>(run: () => Promise<ServiceResult<T>>): Promise<ServiceResult<T>> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof TripNotesConflict) return fail(409, error.message);
+    if (isUniqueViolation(error, 'trip_visit_notes_one_open')) return fail(409, 'Salah satu surat jalan baru saja dimasukkan ke trip lain. Muat ulang halaman.');
+    throw error;
+  }
+}
+
+async function notesFor(input: TripInput, tripId: number | null): Promise<{ ok: true; notes: LiveNote[] } | { ok: false; error: string }> {
+  const keys = input.noteKeys ?? [];
+  const routeError = tripNotesProblem(input.routeId, keys.length);
+  if (routeError) return { ok: false, error: routeError };
+  return checkNoteKeys(keys, tripId);
+}
 
 type Point = { latitude?: number | null; longitude?: number | null; accuracy?: number | null };
 
@@ -95,6 +117,9 @@ export async function createTrip(actor: Actor | null, input: TripInput): Promise
   const today = wibDate(new Date());
   const problem = await checkContent(input, today);
   if (problem) return fail(400, problem);
+  const picked = await notesFor(input, null);
+  if (!picked.ok) return fail(400, picked.error);
+  return withNotes(async () => {
   const id = await db.transaction(async (tx) => {
     await lockCrew(tx);
     const prefix = tripNumber(today, 0).slice(0, -1);
@@ -106,10 +131,12 @@ export async function createTrip(actor: Actor | null, input: TripInput): Promise
     if (input.shoppingRouteIds.length) {
       await tx.insert(tripShopping).values(input.shoppingRouteIds.map((routeId) => ({ tripId: trip.id, routeId, addedByAccountId: actor.accountId })));
     }
+    if (picked.notes.length) await syncDraftNotes(tx, trip.id, picked.notes, actor.accountId);
     await tellAssigned(tx, trip.id, [{ employeeId: input.driverId, role: 'DRIVER' }, ...input.assistantIds.map((employeeId) => ({ employeeId, role: 'ASSISTANT' as const }))], actor.accountId);
     return trip.id;
   });
-  return { ok: true, data: { id } };
+  return { ok: true as const, data: { id } };
+  });
 }
 
 /** Ubah trip Draft: mobil, rute, supplier, awak (LOG-22). Awak/supplier yang dilepas diberi tanda, tidak dihapus. */
@@ -117,11 +144,14 @@ export async function updateDraft(actor: Actor | null, id: number, input: TripIn
   if (!actor || !can(actor, 'logistics.trip.manage')) return fail(403, FORBIDDEN);
   const problem = await checkContent(input, wibDate(new Date()));
   if (problem) return fail(400, problem);
-  return db.transaction(async (tx) => {
+  const picked = await notesFor(input, id);
+  if (!picked.ok) return fail(400, picked.error);
+  return withNotes(() => db.transaction(async (tx) => {
     await lockCrew(tx);
     const loaded = await loadTrip(id, tx);
     if (!loaded) return fail(404, NOT_FOUND);
     if (loaded.trip.status !== 'DRAFT') return fail(409, 'Trip sudah berangkat atau ditutup; ubah awak dan supplier lewat rincian trip.');
+    await syncDraftNotes(tx, id, picked.notes, actor.accountId);
     const now = new Date();
     await tx.update(trips).set({ vehicleId: input.vehicleId, routeId: input.routeId, updatedAt: now }).where(eq(trips.id, id));
     const wanted = crewRows(id, input, actor.accountId);
@@ -147,7 +177,7 @@ export async function updateDraft(actor: Actor | null, id: number, input: TripIn
     await tellRemoved(tx, id, [...new Set(removed.map((c) => c.employeeId))].filter((e) => !stillOn.has(e)), 'Trip diubah sebelum berangkat.', actor.accountId);
     await tellAssigned(tx, id, added.map((a) => ({ employeeId: a.employeeId, role: a.role })), actor.accountId);
     return { ok: true as const, data: undefined };
-  });
+  }));
 }
 
 /** Batalkan trip selagi Draft, wajib alasan (LOG-23). */
@@ -161,6 +191,7 @@ export async function cancelTrip(actor: Actor | null, id: number, reason: string
     if (loaded.trip.status !== 'DRAFT') return fail(409, 'Hanya trip Draft yang bisa dibatalkan. Trip yang sudah berangkat ditutup atas nama driver.');
     await tx.update(trips).set({ status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason.trim(), cancelledByAccountId: actor.accountId })
       .where(eq(trips.id, id));
+    await releaseAllOnCancel(tx, id, reason.trim(), actor.accountId);
     await tellRemoved(tx, id, loaded.activeCrew.map((c) => c.employeeId), `Trip dibatalkan: ${reason.trim()}`, actor.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -315,6 +346,7 @@ async function finishTrip(tx: Tx, loaded: LoadedTrip, now: Date, patch: Partial<
   const [updated] = await tx.update(trips).set({ ...patch, status: 'DONE', finishedAt: now, updatedAt: now })
     .where(and(eq(trips.id, loaded.trip.id), eq(trips.status, 'RUNNING'))).returning({ id: trips.id });
   if (!updated) return false;
+  await settleOnClose(tx, loaded.trip.id, patch.officeClosedByAccountId ?? null, now);
   const drafts = wagesFor({
     routeId: loaded.trip.routeId,
     crew: loaded.activeCrew.map((c) => ({ employeeId: c.employeeId, role: c.role as CrewRole })),

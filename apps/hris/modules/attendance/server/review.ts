@@ -9,6 +9,7 @@ import {
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
+import { crewTripsBetween } from '@/modules/logistics';
 import { notify } from '@/modules/notifications';
 import { checkReason, settingOn } from '@/modules/settings';
 import { KIND_LABELS, wibClock, wibDate, type AttendanceKind } from '../rules/attendance';
@@ -336,14 +337,31 @@ const totalsOf = (cards: DayCard[]) => summarizeDays(cards.map((card) => ({
   status: card.status, lateMinutes: card.lateMinutes, earlyLeaveMinutes: card.earlyLeaveMinutes, pendingReviews: card.pendingReviews,
 })));
 
+/**
+ * Baris "Lewat trip" Rekap Kehadiran (spec L6 §3.8, LT1b-1): orang ber-cara absen Lewat trip. Hari dengan trip yang sudah
+ * berangkat = Jalan, hari lain = Tidak jalan (tanpa akibat). Hari ini belum dihitung, sama dengan rekap QR.
+ */
+async function tripRecap(people: { employeeId: number; name: string }[], period: { start: IsoDate; end: IsoDate }, today: IsoDate) {
+  const last = period.end < today ? period.end : addDays(today, -1);
+  if (!people.length || last < period.start) return people.map((p) => ({ employeeId: p.employeeId, name: p.name, days: 0, ran: 0, trips: 0, idle: 0 }));
+  const days = Math.round((Date.parse(`${last}T00:00:00Z`) - Date.parse(`${period.start}T00:00:00Z`)) / 86_400_000) + 1;
+  const rows = await crewTripsBetween(period.start, last, people.map((p) => p.employeeId));
+  return people.map((p) => {
+    const mine = rows.filter((r) => r.employeeId === p.employeeId);
+    const ran = new Set(mine.map((r) => r.tripDate)).size;
+    return { employeeId: p.employeeId, name: p.name, days, ran, trips: new Set(mine.map((r) => r.tripId)).size, idle: days - ran };
+  });
+}
+
 export async function recapScreen(actor: Actor, input: { period: string | null; branchId: number | null; employeeId: number | null }, now: Date = new Date()) {
   const today = wibDate(now);
   const { options, period } = pickPeriod(input.period, today);
   const asOf = period.end < today ? period.end : today;
   const { branches } = await branchLabels();
-  const people = (await rosterOn(asOf)).filter((person) => person.mode === 'QR'
-    && (input.branchId == null || person.branchId === input.branchId)
+  const roster = (await rosterOn(asOf)).filter((person) => (input.branchId == null || person.branchId === input.branchId)
     && can(actor, 'attendance.recap.view', targetOf(person)));
+  const people = roster.filter((person) => person.mode === 'QR');
+  const tripRows = await tripRecap(roster.filter((person) => person.mode === 'TRIP'), period, today);
   const days = await personDays(people, period, today, true, now);
   const overtime = await overtimeTotalsOf(people.map((person) => person.employeeId), period.start, period.end);
   const rows = people.map((person) => ({ employeeId: person.employeeId, name: person.name, totals: totalsOf(days.get(person.employeeId) ?? []), overtime: overtimeText(overtime.get(person.employeeId)) }));
@@ -351,7 +369,7 @@ export async function recapScreen(actor: Actor, input: { period: string | null; 
   const empty: RecapTotals = { ...EMPTY_TOTALS };
   const selected = people.find((person) => person.employeeId === input.employeeId);
   return {
-    period, periods: options, branchId: input.branchId, branches, rows,
+    period, periods: options, branchId: input.branchId, branches, rows, tripRows,
     summary: rows.reduce((sum, row) => addTotals(sum, row.totals), empty), overtimeSummary: overtimeText(overtimeAll),
     selected: selected ? { employeeId: selected.employeeId, name: selected.name, days: days.get(selected.employeeId) ?? [] } : null,
   };

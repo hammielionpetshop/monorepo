@@ -43,3 +43,9 @@ export {
 export { DeliveryNotesScreen } from './ui/delivery-notes-screen';
 export { StoresScreen } from './ui/stores-screen';
 export { StoreDetailScreen } from './ui/store-detail-screen';
+export {
+  MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits, tripNotesProblem,
+  type KasirChange, type NoteKey, type PickupStatus, type VisitStatus,
+} from './rules/trip-notes';
+export { finishPickup, releaseVisit, type TripNoteView, type TripPickupView, type TripVisitView } from './server/trip-notes';
+export { TripNotesPanel } from './ui/trip-notes-panel';

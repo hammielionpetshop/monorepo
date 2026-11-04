@@ -7,17 +7,21 @@ import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import type { TripCard } from '../server/screens';
+import type { TripPickupView, TripVisitView } from '../server/trip-notes';
+import { TripNotesPanel } from './trip-notes-panel';
 import { LiveCamera, photoForm, readLocation } from './capture';
 
-type Step = { kind: 'depart'; tripId: number } | { kind: 'shop'; tripId: number; shoppingId: number; name: string } | null;
+type Step = { kind: 'depart'; tripId: number } | { kind: 'shop'; tripId: number; shoppingId: number; name: string }
+  | { kind: 'pickup'; tripId: number; pickupId: number; name: string } | null;
 
 function crewLine(card: TripCard) {
   return card.crew.filter((c) => !c.removed).map((c) => `${c.name} (${c.roleLabel.toLowerCase()})`).join(', ');
 }
 
 /** Trip Saya (spec L6 §4, KEH-L18): Berangkat dengan foto awak, Belanja selesai dengan foto nota, Sampai Garasi di titik garasi. */
-export function MyTripsScreen({ headline, trips, weekCount, weekStart }: {
+export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery }: {
   headline: string; trips: TripCard[]; weekCount: { ritase: number; shopping: number }; weekStart: string;
+  delivery: Record<number, { visits: TripVisitView[]; pickups: TripPickupView[] }>;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -39,11 +43,14 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart }: {
     const point = step.kind === 'depart' ? await readLocation() : null;
     const form = step.kind === 'depart'
       ? photoForm({ action: 'depart', tripId: step.tripId, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy }, photo)
-      : photoForm({ action: 'shopping_done', tripId: step.tripId, shoppingId: step.shoppingId }, photo);
+      : step.kind === 'pickup'
+        ? photoForm({ action: 'pickup_done', tripId: step.tripId, pickupId: step.pickupId }, photo)
+        : photoForm({ action: 'shopping_done', tripId: step.tripId, shoppingId: step.shoppingId }, photo);
     const result = await postJson('/api/logistics/upload', form);
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
-    toast(step.kind === 'depart' ? `Berangkat tercatat ${String(result.data?.at ?? '')}. Absen masuk seluruh awak sudah tercatat.` : 'Belanja selesai tercatat.', 'ok');
+    toast(step.kind === 'depart' ? `Berangkat tercatat ${String(result.data?.at ?? '')}. Absen masuk seluruh awak sudah tercatat.`
+      : step.kind === 'pickup' ? 'Ambil barang tercatat.' : 'Belanja selesai tercatat.', 'ok');
     setStep(null);
     setPhoto(null);
     router.refresh();
@@ -61,12 +68,13 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart }: {
   }
 
   if (step) {
-    const title = step.kind === 'depart' ? 'Foto awak di dalam mobil' : `Foto nota ${step.name}`;
+    const title = step.kind === 'depart' ? 'Foto awak di dalam mobil' : step.kind === 'pickup' ? `Foto barang dari ${step.name}` : `Foto nota ${step.name}`;
     return (
       <Card className="mx-auto max-w-md space-y-3">
         <h2 className="font-semibold">{title}</h2>
         <p className="text-sm text-ink-muted">
-          {step.kind === 'depart' ? 'Semua awak terlihat di foto. Satu foto ini jadi absen masuk seluruh awak trip.' : 'Foto nota dari supplier, terbaca jelas.'}
+          {step.kind === 'depart' ? 'Semua awak terlihat di foto. Satu foto ini jadi absen masuk seluruh awak trip.'
+            : step.kind === 'pickup' ? 'Satu foto barang yang sudah diterima dan dimuat ke mobil.' : 'Foto nota dari supplier, terbaca jelas.'}
         </p>
         {error && <Alert tone="danger">{error}</Alert>}
         {photo ? (
@@ -74,7 +82,9 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart }: {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={URL.createObjectURL(photo)} alt="Pratinjau foto" className="w-full rounded-lg" />
             <div className="flex gap-2">
-              <Button block loading={busy} onClick={sendPhoto} className="min-h-12">{step.kind === 'depart' ? 'Berangkat' : 'Simpan belanja selesai'}</Button>
+              <Button block loading={busy} onClick={sendPhoto} className="min-h-12">
+                {step.kind === 'depart' ? 'Berangkat' : step.kind === 'pickup' ? 'Simpan barang sudah diambil' : 'Simpan belanja selesai'}
+              </Button>
               <Button variant="secondary" disabled={busy} onClick={() => setPhoto(null)} className="min-h-12">Ulangi</Button>
             </div>
           </>
@@ -116,6 +126,12 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart }: {
                 </li>
               ))}
             </ul>
+          )}
+          {delivery[t.id] && (delivery[t.id].visits.length > 0 || delivery[t.id].pickups.length > 0) && (
+            <TripNotesPanel
+              compact visits={delivery[t.id].visits} pickups={delivery[t.id].pickups}
+              onPickup={t.status === 'RUNNING' ? (p) => begin({ kind: 'pickup', tripId: t.id, pickupId: p.id, name: p.origin }) : undefined}
+            />
           )}
           {t.status === 'DRAFT' && <Button block className="min-h-12" onClick={() => begin({ kind: 'depart', tripId: t.id })}>Berangkat</Button>}
           {t.status === 'RUNNING' && (

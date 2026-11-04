@@ -85,7 +85,7 @@ export function StoreDetailScreen({ store, routes, notes, canManage }: Props) {
                 <span className="inline-flex flex-wrap items-center gap-1">
                   <span className="font-medium">{n.number}</span>
                   <span className="text-ink-muted">{n.on} · dari {n.origin}</span>
-                  <Badge tone={n.status === 'Menunggu dikirim' ? 'warn' : 'danger'}>{n.pendingVoid ? 'Menunggu batal' : n.status}</Badge>
+                  <Badge tone={n.status === 'Batal di kasir' ? 'danger' : n.status === 'Dalam perjalanan' ? 'info' : 'warn'}>{n.pendingVoid ? 'Menunggu batal' : n.status}</Badge>
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="tabular-nums">{rupiah(n.amount)}</span>
