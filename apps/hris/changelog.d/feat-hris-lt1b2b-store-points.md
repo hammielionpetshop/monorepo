@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-05 00:30 -->
+<!-- tayang: 2026-11-04 23:55 -->
 ### Added
 
 - **Titik toko dari kunjungan.** Di Trip Saya, kartu kunjungan toko punya tombol **Pasang titik toko**: baca lokasi HP (akurasi paling buruk 50 m, bisa diubah di Pengaturan), lalu foto depan toko dengan kamera langsung. Titik masuk **Menunggu** sampai disetujui Kepala Gudang, Pemilik, atau GM; titik yang mereka pasang sendiri langsung dipakai.

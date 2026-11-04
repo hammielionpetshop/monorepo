@@ -12,7 +12,7 @@ function ChangeBadge({ note }: { note: TripNoteView }) {
   return <Badge tone="warn">Berubah di kasir: {rupiah(note.change.from)} → {rupiah(note.change.to)}</Badge>;
 }
 
-export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY';
+export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY' | 'REPORT';
 export type PointAction = 'NEW' | 'CORRECTION';
 
 /**
@@ -99,6 +99,32 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                     : <Button size="sm" variant="secondary" onClick={() => onPoint(v, 'NEW')}>Pasang titik toko</Button>)}
                   <NewBadge feature="fitur/titik-toko" />
                 </div>
+              )}
+              {v.customerId != null && v.status === 'OPEN' && v.bill != null && (
+                <p className="text-xs">Tagihan: <b className="tabular-nums">{v.bill > 0 ? rupiah(v.bill) : 'tidak ada (lunas di kasir)'}</b></p>
+              )}
+              {v.payment && (
+                <p className="flex flex-wrap items-center gap-1 text-xs">
+                  <Badge tone={v.payment.method === 'TEMPO' ? 'danger' : v.payment.method === 'PARTIAL' ? 'warn' : 'ok'}>{v.payment.label}</Badge>
+                  {v.payment.bill > 0 && <span className="tabular-nums">diterima {rupiah(v.payment.received)} dari {rupiah(v.payment.bill)}</span>}
+                  {v.payment.left > 0 && <span className="tabular-nums text-ink-muted">· sisa ditagih {rupiah(v.payment.left)}</span>}
+                  {v.payment.proofUrl && <a href={v.payment.proofUrl} target="_blank" rel="noreferrer" className="underline">Bukti transfer</a>}
+                </p>
+              )}
+              {v.reports.length > 0 && (
+                <ul className="space-y-0.5 text-xs">
+                  {v.reports.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center gap-1">
+                      <Badge tone={r.closed ? 'ok' : 'warn'}>{r.label}</Badge>
+                      {r.note && <span>{r.note}</span>}
+                      <span className="text-ink-muted">· {r.by} {r.at}{r.closed ? ` · selesai: ${r.closeNote}` : ''}</span>
+                      <a href={r.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {onVisit && v.status === 'DELIVERED' && v.customerId != null && (
+                <Button size="sm" variant="secondary" onClick={() => onVisit(v, 'REPORT')}>Lapor masalah</Button>
               )}
               {v.waitsForPickup.length > 0 && <p className="text-xs text-ink-muted">Menunggu barang diambil di {v.waitsForPickup.join(', ')}.</p>}
               <ul className="space-y-0.5 pl-2">

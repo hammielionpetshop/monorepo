@@ -65,4 +65,14 @@ export {
   decidePoint, openStorePointPhoto, pastePoint, pendingPointCount, pendingPoints, proposeFromVisit, storePointHistory, type PointRow,
 } from './server/store-points';
 export { PendingPointsList, StorePointCard } from './ui/store-points-panel';
+export {
+  CHOSEN_METHODS, PAYMENT_HINTS, PAYMENT_LABELS, REPORT_KINDS, REPORT_LABELS, billOf, cleanPayment, cleanReport, leftToCollect,
+  type ChosenMethod, type PaymentMethod, type ReportKind,
+} from './rules/store-payments';
+export {
+  addVisitReport, closeVisitReport, openReportCount, storePaymentsScreen, visitReportsScreen, type ReportRow, type StorePaymentRow,
+  type VisitPaymentView, type VisitReportView,
+} from './server/store-payments';
+export { StorePaymentsScreen } from './ui/store-payments-screen';
+export { VisitReportsScreen } from './ui/visit-reports-screen';
 export { TripNotesPanel } from './ui/trip-notes-panel';
