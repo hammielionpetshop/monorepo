@@ -12,6 +12,10 @@ export interface TransactionRow {
   returnAmount: number
   status: string
   saleType: string
+  /** Cara kirim (PICKUP / BRANCH_COURIER / TRUCK) atau null. */
+  deliveryMethod: string | null
+  /** Nota berpelanggan yang belum punya cara kirim (POS lama / sebelum fitur). */
+  deliveryUnset: boolean
   createdAt: string
   // No. nota kembaran yang terindikasi double input (kosong = tidak ada)
   doubleInputTwins: string[]

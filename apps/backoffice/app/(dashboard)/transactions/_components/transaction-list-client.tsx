@@ -7,6 +7,7 @@ import { PERIOD_RANGES } from '@/lib/date-ranges'
 import type { TransactionRow, TransactionListResponse, BranchOption, CashierOption, PaymentMethodOption, CustomerOption } from './types'
 import TransactionDetailModal from './transaction-detail-modal'
 import { TierTags } from '@/components/ui/tier-tags'
+import { SALE_DELIVERY_LABELS, SALE_DELIVERY_METHODS, saleDeliveryLabel } from '@/lib/delivery-method'
 import { NewBadge } from '@/components/ui/new-badge'
 
 const STATUS_OPTIONS = [
@@ -73,6 +74,10 @@ interface Props {
   initialProductQ: string
   initialStatus: string
   initialSaleType: string
+  /** Saringan cara kirim (PICKUP / BRANCH_COURIER / TRUCK / UNSET). */
+  initialDeliveryMethod: string
+  /** Saklar "Wajib pilih cara kirim" menyala: kolom & saringan Cara Kirim tampil. */
+  showDelivery: boolean
   initialBranchId: string
   initialCashierId: string
   initialDateFrom: string
@@ -97,6 +102,8 @@ export default function TransactionListClient({
   initialProductQ,
   initialStatus,
   initialSaleType,
+  initialDeliveryMethod,
+  showDelivery,
   initialBranchId,
   initialCashierId,
   initialDateFrom,
@@ -121,6 +128,7 @@ export default function TransactionListClient({
   const [productQ, setProductQ] = useState(initialProductQ)
   const [status, setStatus] = useState(initialStatus)
   const [saleType, setSaleType] = useState(initialSaleType)
+  const [deliveryMethod, setDeliveryMethod] = useState(initialDeliveryMethod)
   const [branchId, setBranchId] = useState(initialBranchId)
   const [cashierId, setCashierId] = useState(initialCashierId)
   const [dateFrom, setDateFrom] = useState(initialDateFrom)
@@ -150,6 +158,7 @@ export default function TransactionListClient({
     productQ: string
     status: string
     saleType: string
+    deliveryMethod: string
     branchId: string
     cashierId: string
     dateFrom: string
@@ -168,6 +177,7 @@ export default function TransactionListClient({
       if (params.productQ) sp.set('productQ', params.productQ)
       if (params.status) sp.set('status', params.status)
       if (params.saleType) sp.set('saleType', params.saleType)
+      if (params.deliveryMethod) sp.set('deliveryMethod', params.deliveryMethod)
       if (params.branchId) sp.set('branchId', params.branchId)
       if (params.cashierId) sp.set('cashierId', params.cashierId)
       if (params.dateFrom) sp.set('dateFrom', params.dateFrom)
@@ -195,7 +205,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, cashierId: initialCashierId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId, suspectDouble: initialSuspectDouble })
+    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, deliveryMethod: initialDeliveryMethod, branchId: initialBranchId, cashierId: initialCashierId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId, suspectDouble: initialSuspectDouble })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -289,7 +299,7 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; cashierId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string; suspectDouble: boolean }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; deliveryMethod: string; branchId: string; cashierId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string; suspectDouble: boolean }>) {
     const nextCustomerId = overrides.customerId ?? customerId
     const next = {
       page: overrides.page ?? page,
@@ -297,6 +307,7 @@ export default function TransactionListClient({
       productQ: overrides.productQ ?? productQ,
       status: overrides.status ?? status,
       saleType: overrides.saleType ?? saleType,
+      deliveryMethod: overrides.deliveryMethod ?? deliveryMethod,
       branchId: overrides.branchId ?? branchId,
       cashierId: overrides.cashierId ?? cashierId,
       dateFrom: overrides.dateFrom ?? dateFrom,
@@ -312,6 +323,7 @@ export default function TransactionListClient({
     if (next.productQ) sp.set('productQ', next.productQ)
     if (next.status) sp.set('status', next.status)
     if (next.saleType) sp.set('saleType', next.saleType)
+    if (next.deliveryMethod) sp.set('deliveryMethod', next.deliveryMethod)
     if (next.branchId) sp.set('branchId', next.branchId)
     if (next.cashierId) sp.set('cashierId', next.cashierId)
     if (next.dateFrom) sp.set('dateFrom', next.dateFrom)
@@ -341,6 +353,7 @@ export default function TransactionListClient({
     setProductQ('')
     setStatus('')
     setSaleType('')
+    setDeliveryMethod('')
     setBranchId('')
     setCashierId('')
     setDateFrom('')
@@ -349,7 +362,7 @@ export default function TransactionListClient({
     setSuspectDouble(false)
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', cashierId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '', suspectDouble: false })
+    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', deliveryMethod: '', branchId: '', cashierId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '', suspectDouble: false })
   }
 
   function handlePageChange(newPage: number) {
@@ -400,7 +413,7 @@ export default function TransactionListClient({
     }
   }
 
-  const colSpan = isPrivileged ? 10 : 9
+  const colSpan = (isPrivileged ? 10 : 9) + (showDelivery ? 1 : 0)
 
   return (
     <div className="space-y-4">
@@ -480,6 +493,25 @@ export default function TransactionListClient({
               ))}
             </select>
           </div>
+
+          {showDelivery && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Cara Kirim <NewBadge feature="fitur/cara-kirim" className="ml-1 align-middle" />
+              </label>
+              <select
+                value={deliveryMethod}
+                onChange={e => setDeliveryMethod(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="">Semua</option>
+                {SALE_DELIVERY_METHODS.map(m => (
+                  <option key={m} value={m}>{SALE_DELIVERY_LABELS[m]}</option>
+                ))}
+                <option value="UNSET">Belum dipilih</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Dari Tanggal</label>
@@ -668,6 +700,11 @@ export default function TransactionListClient({
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
                   Tier <NewBadge feature="fitur/transaksi-tier-kolom" className="ml-1 align-middle" />
                 </th>
+                {showDelivery && (
+                  <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                    Cara Kirim <NewBadge feature="fitur/cara-kirim" className="ml-1 align-middle" />
+                  </th>
+                )}
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap text-right">Total</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Status</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Aksi</th>
@@ -734,6 +771,19 @@ export default function TransactionListClient({
                   <td className="px-4 py-3 whitespace-nowrap">
                     <TierTags tiers={row.tiers} />
                   </td>
+                  {showDelivery && (
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">
+                      {row.deliveryMethod ? (
+                        <span className={row.deliveryMethod === 'TRUCK' ? 'font-medium text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}>
+                          {saleDeliveryLabel(row.deliveryMethod)}
+                        </span>
+                      ) : row.deliveryUnset ? (
+                        <span className="italic text-amber-700 dark:text-amber-400">Belum dipilih</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-right tabular-nums font-medium text-foreground">
                     {row.returnAmount > 0 ? (
                       <>
@@ -884,6 +934,7 @@ export default function TransactionListClient({
           trxNumber={selectedTrxNumber}
           onClose={() => setSelectedTrxNumber(null)}
           canCloneToBulkSale={canBulkSale}
+          onDeliveryChanged={() => fetchData(pushUrl({}))}
         />
       )}
     </div>

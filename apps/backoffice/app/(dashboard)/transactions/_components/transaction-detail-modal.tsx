@@ -13,6 +13,8 @@ import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from './receipt-image-export'
 import { canCloneTransaction } from './clone-rules'
 import { NewBadge } from '@/components/ui/new-badge'
+import { ChangeDeliveryDialog } from '@/components/delivery/delivery-method-picker'
+import { saleDeliveryLabel } from '@/lib/delivery-method'
 import { CopyPlus, ImageDown, Printer, Receipt, Truck } from 'lucide-react'
 
 const FOOTER_BTN_SECONDARY =
@@ -81,6 +83,12 @@ interface TransactionDetail {
   changeAmount: number
   status: string
   saleType: string
+  sourceIbtId: number | null
+  /** Cara kirim (PICKUP / BRANCH_COURIER / TRUCK) atau null. */
+  deliveryMethod: string | null
+  /** Saklar "Wajib pilih cara kirim" menyala. */
+  deliveryRequired: boolean
+  deliveryChanges: { id: number; oldMethod: string | null; newMethod: string; reason: string; changedByName: string; createdAt: string }[]
   createdAt: string
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
@@ -101,6 +109,8 @@ interface TransactionDetailModalProps {
   onClose: () => void
   // Hanya halaman yang penggunanya boleh membuat Bulk Sale yang menyalakan tombol clone.
   canCloneToBulkSale?: boolean
+  /** Dipanggil sesudah cara kirim diubah (mis. memuat ulang daftar). */
+  onDeliveryChanged?: () => void
 }
 
 function formatRupiahInt(value: number): string {
@@ -138,8 +148,11 @@ export default function TransactionDetailModal({
   trxNumber,
   onClose,
   canCloneToBulkSale = false,
+  onDeliveryChanged,
 }: TransactionDetailModalProps) {
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
+  const [changingDelivery, setChangingDelivery] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const returnTotal = detail?.returns?.reduce((sum, r) => sum + r.totalRefundAmount, 0) ?? 0
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -267,7 +280,7 @@ export default function TransactionDetailModal({
     }
 
     fetchDetail()
-  }, [trxNumber])
+  }, [trxNumber, reloadKey])
 
   const receiptCartItems: CartItem[] | null = detail
     ? detail.items.map((item) => ({
@@ -373,6 +386,53 @@ export default function TransactionDetailModal({
                         {detail.customerName ?? <span className="italic text-muted-foreground">Umum</span>}
                       </span>
                     </div>
+                    {(detail.deliveryMethod != null ||
+                      (detail.deliveryRequired && detail.customerId != null && detail.sourceIbtId == null)) && (
+                      <div className="flex justify-between sm:justify-start gap-4 items-center">
+                        <span className="text-muted-foreground w-24">Cara kirim:</span>
+                        <span className="font-medium text-foreground flex items-center gap-2">
+                          {saleDeliveryLabel(detail.deliveryMethod) ?? (
+                            <span className="italic text-amber-700 dark:text-amber-400">Belum dipilih</span>
+                          )}
+                          {detail.status === 'COMPLETED' && detail.customerId != null && detail.sourceIbtId == null && (
+                            <button
+                              type="button"
+                              onClick={() => setChangingDelivery(true)}
+                              className="px-2 py-0.5 text-xs font-medium border border-border rounded-md hover:bg-accent"
+                            >
+                              {detail.deliveryMethod ? 'Ubah' : 'Pilih'}
+                            </button>
+                          )}
+                          <NewBadge feature="fitur/cara-kirim" />
+                        </span>
+                      </div>
+                    )}
+                    {detail.deliveryChanges.length > 0 && (
+                      <details className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer">Riwayat cara kirim ({detail.deliveryChanges.length})</summary>
+                        <ul className="mt-1 space-y-1">
+                          {detail.deliveryChanges.map((c) => (
+                            <li key={c.id}>
+                              {formatDateTime(c.createdAt)} · {c.changedByName}: {saleDeliveryLabel(c.oldMethod) ?? 'Belum dipilih'} →{' '}
+                              <b>{saleDeliveryLabel(c.newMethod) ?? c.newMethod}</b> — {c.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {changingDelivery && (
+                      <ChangeDeliveryDialog
+                        kind="TRANSACTION"
+                        documentKey={detail.trxNumber}
+                        current={detail.deliveryMethod}
+                        onClose={() => setChangingDelivery(false)}
+                        onSaved={() => {
+                          setChangingDelivery(false)
+                          setReloadKey((k) => k + 1)
+                          onDeliveryChanged?.()
+                        }}
+                      />
+                    )}
                     <div className="flex justify-between sm:justify-start gap-4">
                       <span className="text-muted-foreground w-24">Status:</span>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[detail.status] ?? 'bg-muted text-muted-foreground'}`}>

@@ -16,6 +16,7 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
+import type { SaleDeliveryMethod } from '@/lib/delivery-method'
 import {
   internalRetailWarning,
   pickDefaultPriceOption,
@@ -1330,7 +1331,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   }
   openReviewRef.current = openReview
 
-  async function submitBulkSale() {
+  async function submitBulkSale(deliveryMethod: SaleDeliveryMethod | null) {
     if (!selectedCustomer || !validateSale()) {
       setShowReview(false)
       return
@@ -1368,6 +1369,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           dueAt: isCredit ? (dueAt || null) : null,
           sourceIbtId: sourceIbt?.id ?? null,
           sourceOrderId: sourceOrder?.id ?? null,
+          deliveryMethod,
           items,
           totals: {
             subtotal: totals.subtotal,
@@ -2124,7 +2126,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           amountPaid={amountPaid}
           stockShortageCount={stockShortages.size}
           isSubmitting={isSubmitting}
-          onConfirm={submitBulkSale}
+          askDelivery={!sourceIbt}
+          branchId={branchId}
+          onConfirm={(deliveryMethod) => { void submitBulkSale(deliveryMethod) }}
           onCancel={() => setShowReview(false)}
         />
       )}

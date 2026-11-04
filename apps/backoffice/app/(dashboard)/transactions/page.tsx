@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, branches, paymentMethods, customers, users, eq } from '@/lib/db'
 import TransactionListClient from './_components/transaction-list-client'
+import { getDeliverySettings } from '@/lib/delivery-method-server'
 import type { BranchOption } from './_components/types'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const productQ = String(sp.productQ ?? '')
   const status = String(sp.status ?? '')
   const saleType = String(sp.saleType ?? '')
+  const deliveryMethod = String(sp.deliveryMethod ?? '')
   const branchId = isPrivileged ? String(sp.branchId ?? '') : ''
   const cashierId = String(sp.cashierId ?? '')
   const dateFrom = String(sp.dateFrom ?? '')
@@ -47,6 +49,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
       .limit(1)
     customerName = found[0]?.name ?? ''
   }
+
+  const deliverySettings = await getDeliverySettings()
 
   const [branchOptions, paymentMethodOptions, cashierOptions] = await Promise.all([
     isPrivileged
@@ -85,6 +89,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialProductQ={productQ}
         initialStatus={status}
         initialSaleType={saleType}
+        initialDeliveryMethod={deliveryMethod}
+        showDelivery={deliverySettings.required}
         initialBranchId={branchId}
         initialCashierId={cashierId}
         initialDateFrom={dateFrom}
