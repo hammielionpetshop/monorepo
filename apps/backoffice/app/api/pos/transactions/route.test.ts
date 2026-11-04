@@ -27,6 +27,7 @@ const db = {
 };
 
 // Jasa grooming menempel ke nota lewat modul ini; tes ini memakai DB tiruan, jadi modulnya ditiru.
+vi.mock('@/lib/delivery-method-server', () => ({ getDeliverySettings: vi.fn(async () => ({ required: true, truckFirstBranchIds: [] })) }));
 vi.mock('@/lib/services/grooming-order-service', () => ({
   GROOMING_CONDITION_MAX: 500,
   DELIVERY_ADDRESS_MAX: 500,

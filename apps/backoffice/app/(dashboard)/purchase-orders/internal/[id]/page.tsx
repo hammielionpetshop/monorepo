@@ -18,6 +18,7 @@ import {
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
+import { getDeliverySettings } from '@/lib/delivery-method-server'
 import { InternalTransferDetailClient } from './_components/internal-transfer-detail-client'
 import type { InternalTransferDetail, BranchOption, TransferCancelEntry } from './_components/types'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
@@ -83,6 +84,7 @@ export default async function InternalTransferDetailPage({
           convertedTransactionId: interBranchTransfers.convertedTransactionId,
           convertedTransactionNumber: transactions.trxNumber,
           notes: interBranchTransfers.notes,
+          deliveryMethod: interBranchTransfers.deliveryMethod,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,
           sourceBranchName: sourceBranchAlias.name,
@@ -226,6 +228,7 @@ export default async function InternalTransferDetailPage({
         permissions={permissions}
         branchScope={branchScope}
         allBranches={allBranches}
+        deliveryRequired={(await getDeliverySettings()).required}
       />
     </div>
   )

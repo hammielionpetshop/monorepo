@@ -17,6 +17,8 @@ import {
 } from "@/lib/db";
 import { TransactionService } from "@/lib/services/transaction-service";
 import { resolveShiftId } from "@/lib/services/shift-resolver";
+import { DeliveryMethodError, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
+import { getDeliverySettings } from "@/lib/delivery-method-server";
 
 const itemSchema = z.object({
   productId: z.number().int().positive(),
@@ -39,6 +41,7 @@ const payloadSchema = z.object({
   isCredit: z.boolean().optional(),
   sourceIbtId: z.number().int().positive().nullable().optional(),
   sourceOrderId: z.number().int().positive().nullable().optional(),
+  deliveryMethod: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   items: z.array(itemSchema).min(1, "Minimal satu produk harus dipilih"),
   totals: z.object({
@@ -187,6 +190,21 @@ export async function POST(request: Request) {
         { error: "Anda tidak memiliki akses ke cabang transaksi ini" },
         { status: 403 },
       );
+    }
+
+    // Cara kirim wajib dipilih (nota Bulk Sale selalu berpelanggan); nota PO Internal dikosongkan.
+    let deliveryMethod: string | null;
+    try {
+      deliveryMethod = resolveSaleDeliveryMethod({
+        customerId: body.customerId,
+        sourceIbtId: body.sourceIbtId,
+        hasCourierLine: false,
+        requested: body.deliveryMethod,
+        required: (await getDeliverySettings()).required,
+      });
+    } catch (error) {
+      if (error instanceof DeliveryMethodError) return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
     }
 
     const [customer] = await db
@@ -422,6 +440,7 @@ export async function POST(request: Request) {
       saleType: "BULK",
       sourceIbtId: body.sourceIbtId ?? null,
       sourceOrderId: body.sourceOrderId ?? null,
+      deliveryMethod,
     });
 
     // Kontak customer ikut dikembalikan untuk dicetak di surat jalan.

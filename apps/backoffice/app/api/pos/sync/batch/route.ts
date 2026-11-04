@@ -5,7 +5,6 @@ import { verifyAccessToken } from "@/lib/auth";
 import { db, branches, shifts, shiftCashierSessions, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
-
 const syncItemSchema = z.object({
   id: z.string().min(1),
   payload: z.object({
@@ -163,6 +162,9 @@ export async function POST(req: NextRequest) {
 
         await TransactionService.createTransaction({
           ...safePayload,
+          // Antrean offline POS desktop lama tidak membawa cara kirim: tersimpan kosong = "belum
+          // dipilih" (nota berpelanggan), dilengkapi lewat Ubah cara kirim di Riwayat Transaksi.
+          deliveryMethod: null,
           branchId: effectiveBranchId,
           cashierId: payload.userId,
           localTrxNumber: item.payload.localTrxNumber,
