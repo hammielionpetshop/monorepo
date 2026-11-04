@@ -179,6 +179,7 @@ export const ACTIONS = {
   'logistics.store.manage': { label: 'Ubah rute bawaan dan catatan pengiriman toko', group: LOGISTICS },
   'logistics.delivery_note.decide': { label: 'Putuskan surat jalan Gagal: Kirim ulang atau Batal', group: LOGISTICS },
   'logistics.vehicle_followup.manage': { label: 'Tindak lanjuti Laporan Pulang driver: Sudah diisi bensin, mobil perlu perhatian Selesai', group: LOGISTICS },
+  'logistics.store_point.decide': { label: 'Setujui atau tolak titik toko, dan tempel koordinat toko', group: LOGISTICS },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
   'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },

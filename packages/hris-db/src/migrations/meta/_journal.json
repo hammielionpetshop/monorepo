@@ -302,6 +302,13 @@
       "when": 1793807896387,
       "tag": "0042_lt1b2a_driver_trip",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793810473871,
+      "tag": "0043_lt1b2b_store_points",
+      "breakpoints": true
     }
   ]
 }

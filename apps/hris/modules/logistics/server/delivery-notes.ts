@@ -173,6 +173,8 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
 export type StoreRow = {
   customerId: number; code: string | null; name: string; phone: string | null; address: string | null; active: boolean;
   route: string | null; note: string | null; truckNotes: number; waiting: number; lastOn: IsoDate | null;
+  /** Titik toko (spec LT1 §13.4): ada titik Disetujui / usulan Menunggu. */
+  hasPoint: boolean; pointPending: boolean;
 };
 
 /**
@@ -189,6 +191,7 @@ export async function storesScreen(actor: Actor | null, query: string) {
   const rows = await db.execute<{
     id: number; code: string | null; name: string; phone: string | null; address: string | null; active: boolean;
     route_name: string | null; delivery_note: string | null; truck_notes: number; waiting: number; last_on: string | null;
+    has_point: boolean; point_pending: boolean;
   }>(sql`
     with truck as (
       select s.customer_id, count(*)::int as truck_notes,
@@ -197,7 +200,9 @@ export async function storesScreen(actor: Actor | null, query: string) {
       where s.trx_on >= ${from}::date and s.customer_id is not null group by s.customer_id
     )
     select c.id, c.code, c.name, c.phone, c.address, c.active, r.name as route_name, st.delivery_note,
-      coalesce(t.truck_notes, 0) as truck_notes, coalesce(t.waiting, 0) as waiting, t.last_on
+      coalesce(t.truck_notes, 0) as truck_notes, coalesce(t.waiting, 0) as waiting, t.last_on,
+      exists (select 1 from logistics.store_points p where p.customer_id = c.id and p.status = 'APPROVED') as has_point,
+      exists (select 1 from logistics.store_points p where p.customer_id = c.id and p.status = 'PENDING') as point_pending
     from logistics.pos_customers c
     left join truck t on t.customer_id = c.id
     left join logistics.stores st on st.customer_id = c.id
@@ -205,14 +210,17 @@ export async function storesScreen(actor: Actor | null, query: string) {
     where not c.is_internal_branch
       and ${searching
         ? sql`(c.name ilike ${like} or c.code ilike ${like} or c.phone ilike ${like})`
-        : sql`(t.customer_id is not null or (st.id is not null and (st.default_route_id is not null or st.delivery_note is not null)))`}
+        : sql`(t.customer_id is not null or (st.id is not null and (st.default_route_id is not null or st.delivery_note is not null))
+          or exists (select 1 from logistics.store_points p where p.customer_id = c.id and p.status in ('APPROVED', 'PENDING')))`}
     order by t.last_on desc nulls last, c.name
     limit ${LIST_LIMIT}`);
   const list: StoreRow[] = rows.map((r) => ({
     customerId: Number(r.id), code: r.code, name: r.name, phone: r.phone, address: r.address, active: r.active, route: r.route_name,
     note: r.delivery_note, truckNotes: Number(r.truck_notes), waiting: Number(r.waiting), lastOn: r.last_on,
+    hasPoint: !!r.has_point, pointPending: !!r.point_pending,
   }));
-  return { stores: list, query: q, searching, truncated: list.length >= LIST_LIMIT, from };
+  const [pending] = await db.execute<{ n: number }>(sql`select count(*)::int as n from logistics.store_points where status = 'PENDING'`);
+  return { stores: list, query: q, searching, truncated: list.length >= LIST_LIMIT, from, pendingPoints: Number(pending?.n ?? 0) };
 }
 
 /** Rincian toko: data kasir (baca saja), data pengiriman, nota truk terakhir. */
