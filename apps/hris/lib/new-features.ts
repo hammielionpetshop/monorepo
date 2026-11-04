@@ -182,6 +182,8 @@ export const NEW_FEATURES: Record<string, string> = {
   // LT1a Surat Jalan + Data Toko (tayang staging 2026-11-04)
   '/logistik/surat-jalan': '2026-11-04',
   '/logistik/toko': '2026-11-04',
+  'fitur/surat-jalan-di-trip': '2026-11-04', // langkah Surat jalan di form trip + bagian Surat jalan di rincian trip / Trip Saya
+  'fitur/rekap-lewat-trip': '2026-11-04', // tabel Lewat trip di Rekap Kehadiran
 };
 
 function addDays(date: string, days: number): string {

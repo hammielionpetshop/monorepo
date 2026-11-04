@@ -29,6 +29,13 @@
       "when": 1793778173844,
       "tag": "0003_lt1a_stores",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793806061886,
+      "tag": "0004_lt1b1_trip_notes",
+      "breakpoints": true
     }
   ]
 }

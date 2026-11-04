@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
-import { closeByOffice, departTrip, finishShopping } from '@/modules/logistics';
+import { closeByOffice, departTrip, finishPickup, finishShopping } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,8 @@ const positive = (value: FormDataEntryValue | null) => {
 };
 const coord = (value: FormDataEntryValue | null) => (value == null || value === '' ? null : Number(value));
 
-// Aksi trip berfoto (spec L6 §3.3, 3.4, 3.6): Berangkat (foto awak), Belanja selesai (foto nota), Tutup atas nama driver (foto bukti).
+// Aksi trip berfoto (spec L6 §3.3, 3.4, 3.6; LT1 §3.5): Berangkat (foto awak), Belanja selesai (foto nota), Ambil barang di cabang
+// asal (foto barang diterima driver), Tutup atas nama driver (foto bukti).
 // Jam = jam server saat permintaan ini diterima.
 export async function POST(req: Request) {
   const rejected = await checkMutation(req);
@@ -35,6 +36,11 @@ export async function POST(req: Request) {
       const shoppingId = positive(form.get('shoppingId'));
       if (!shoppingId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
       return finishShopping(actor, tripId, shoppingId, photo);
+    }
+    if (action === 'pickup_done') {
+      const pickupId = positive(form.get('pickupId'));
+      if (!pickupId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      return finishPickup(actor, tripId, pickupId, photo);
     }
     if (action === 'office_close') return closeByOffice(actor, tripId, String(form.get('reason') ?? '').slice(0, 500), photo);
     return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };

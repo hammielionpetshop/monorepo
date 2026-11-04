@@ -1,13 +1,13 @@
-// Surat Jalan + Data Toko (spec LT1 §12). Aturan murni: status antrean dibaca dari kasir, tanpa tabel surat jalan (LT1b).
+// Surat Jalan + Data Toko (spec LT1 §12). Aturan murni: status antrean dibaca dari kasir + status HRIS surat jalan (LT1b).
 import type { IsoDate } from './trip';
 
 export type NoteKind = 'SALE' | 'TRANSFER';
-export type QueueStatus = 'WAITING' | 'RECEIVED' | 'CANCELLED';
+export type QueueStatus = 'WAITING' | 'ON_TRIP' | 'RECEIVED' | 'CANCELLED';
 
 export const QUEUE_LABELS: Record<QueueStatus, string> = {
-  WAITING: 'Menunggu dikirim', RECEIVED: 'Diterima cabang', CANCELLED: 'Batal di kasir',
+  WAITING: 'Menunggu dikirim', ON_TRIP: 'Dalam perjalanan', RECEIVED: 'Diterima cabang', CANCELLED: 'Batal di kasir',
 };
-export const QUEUE_STATUSES: QueueStatus[] = ['WAITING', 'RECEIVED', 'CANCELLED'];
+export const QUEUE_STATUSES: QueueStatus[] = ['WAITING', 'ON_TRIP', 'RECEIVED', 'CANCELLED'];
 export const STORE_NOTE_MAX = 500;
 
 /** Nota truk: selesai = menunggu dikirim; batal atau menunggu batal = batal di kasir. */
@@ -22,6 +22,24 @@ export function transferQueueStatus(status: string): QueueStatus | null {
   if (status === 'IN_TRANSIT') return 'WAITING';
   if (status === 'PARTIALLY_RECEIVED' || status === 'FULLY_RECEIVED') return 'RECEIVED';
   if (status === 'CANCELLED') return 'CANCELLED';
+  return null;
+}
+
+/**
+ * Tab antrean dari status kasir + status HRIS surat jalan (kosong = belum pernah disentuh = Menunggu). Batal di kasir
+ * menang atas status HRIS; surat jalan Terkirim / Perlu keputusan (LT1b-2) tidak tampil di tab mana pun di sini.
+ */
+export function queueOf(kind: NoteKind, kasirStatus: string, hrisStatus: string | null): { status: QueueStatus; pendingVoid: boolean } | null {
+  const hris = hrisStatus ?? 'WAITING';
+  if (kind === 'SALE') {
+    const sale = saleQueueStatus(kasirStatus);
+    if (sale.status === 'CANCELLED') return sale;
+  } else {
+    const transfer = transferQueueStatus(kasirStatus);
+    if (transfer !== 'WAITING') return transfer ? { status: transfer, pendingVoid: false } : null;
+  }
+  if (hris === 'ON_TRIP') return { status: 'ON_TRIP', pendingVoid: false };
+  if (hris === 'WAITING') return { status: 'WAITING', pendingVoid: false };
   return null;
 }
 
