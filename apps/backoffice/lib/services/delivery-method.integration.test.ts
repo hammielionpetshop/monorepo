@@ -86,6 +86,11 @@ describe('cara kirim nota', () => {
     await expect(db.execute(sql`update petshop.delivery_method_changes set reason = 'x' where document_id = ${trx.id}`)).rejects.toThrow()
   })
 
+  it('tidak bisa diubah menjadi kurir cabang (harus lewat ongkir di kasir)', async () => {
+    const trx = await sale('TRUCK')
+    await expect(changeTransactionDeliveryMethod(owner(), { transactionId: trx.id, newMethod: 'BRANCH_COURIER', reason: 'x' })).rejects.toThrow(/ongkos kirim/i)
+  })
+
   it('nilai di luar daftar ditolak database', async () => {
     const trx = await sale(null)
     await expect(db.update(transactions).set({ deliveryMethod: 'DRONE' }).where(eq(transactions.id, trx.id))).rejects.toThrow()

@@ -10,6 +10,7 @@ import {
   TRANSFER_DELIVERY_LABELS,
   TRANSFER_DELIVERY_METHODS,
   saleDeliveryOrder,
+  COURIER_NEEDS_ONGKIR_MESSAGE,
   type SaleDeliveryMethod,
   type TransferDeliveryMethod,
 } from '@/lib/delivery-method'
@@ -31,17 +32,21 @@ function choiceClass(active: boolean, disabled: boolean) {
 /**
  * Pilihan cara kirim nota (layar bayar POS & Bulk Sale). Tidak ada pilihan bawaan: kasir wajib
  * menekan salah satu. `lockedTo` = nota berongkir, hanya "Diantar kurir cabang".
+ * `courier`: 'needs-ongkir' = kasir POS tanpa baris ongkir (tombol mati + petunjuk);
+ * 'hidden' = Bulk Sale (tidak bisa memuat ongkir).
  */
 export function SaleDeliveryPicker({
   value,
   onChange,
   truckFirst,
   lockedTo,
+  courier,
 }: {
   value: SaleDeliveryMethod | null
   onChange: (value: SaleDeliveryMethod) => void
   truckFirst: boolean
   lockedTo?: SaleDeliveryMethod | null
+  courier?: 'needs-ongkir' | 'hidden'
 }) {
   return (
     <div>
@@ -49,8 +54,9 @@ export function SaleDeliveryPicker({
         Cara kirim <span className="text-destructive">*</span>
       </p>
       <div className="flex gap-2" role="radiogroup" aria-label="Cara kirim">
-        {saleDeliveryOrder(truckFirst).map((m) => {
-          const disabled = lockedTo != null && lockedTo !== m
+        {saleDeliveryOrder(truckFirst).filter((m) => !(m === 'BRANCH_COURIER' && courier === 'hidden')).map((m) => {
+          const disabled =
+            (lockedTo != null && lockedTo !== m) || (m === 'BRANCH_COURIER' && courier === 'needs-ongkir' && lockedTo == null)
           const active = (lockedTo ?? value) === m
           return (
             <button
@@ -69,6 +75,9 @@ export function SaleDeliveryPicker({
         })}
       </div>
       {lockedTo && <p className="mt-1 text-[11px] text-muted-foreground">Nota ini berisi ongkos kirim, jadi diantar kurir cabang.</p>}
+      {!lockedTo && courier === 'needs-ongkir' && (
+        <p className="mt-1 text-[11px] text-muted-foreground">{COURIER_NEEDS_ONGKIR_MESSAGE}</p>
+      )}
       {!lockedTo && value == null && <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">Pilih dulu sebelum Bayar.</p>}
     </div>
   )
@@ -150,7 +159,9 @@ export function ChangeDeliveryDialog({
   onClose: () => void
   onSaved: (deliveryMethod: string) => void
 }) {
-  const options: readonly string[] = kind === 'TRANSACTION' ? SALE_DELIVERY_METHODS : TRANSFER_DELIVERY_METHODS
+  // Kurir cabang tidak bisa dipilih lewat Ubah: hanya lahir dari baris Ongkos Kirim saat bayar.
+  const options: readonly string[] =
+    kind === 'TRANSACTION' ? SALE_DELIVERY_METHODS.filter((m) => m !== 'BRANCH_COURIER') : TRANSFER_DELIVERY_METHODS
   const labels: Record<string, string> = kind === 'TRANSACTION' ? SALE_DELIVERY_LABELS : TRANSFER_DELIVERY_LABELS
   const [next, setNext] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -220,6 +231,11 @@ export function ChangeDeliveryDialog({
       <p className="mt-1 text-[11px] text-muted-foreground">
         Tercatat atas nama Anda. Cabang asal boleh mengubah sampai {DELIVERY_CHANGE_DAYS} hari; sesudahnya Pemilik atau GM.
       </p>
+      {kind === 'TRANSACTION' && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Diantar kurir cabang hanya lewat Ongkos Kirim di kasir (pilih pengantar; Gratis ongkir bila tidak ditagih).
+        </p>
+      )}
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </RequiredChoiceDialog>
   )

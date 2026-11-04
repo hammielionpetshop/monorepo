@@ -8,6 +8,10 @@ import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
 import MobileCartBar from './mobile-cart-bar'
 import CheckoutModal from './checkout-modal'
+import DeliveryStep from './delivery-step'
+import type { DeliveryChoice } from './delivery-step-model'
+import { isOngkirItem } from '@/lib/ongkir'
+import type { CartItem } from './cart-store'
 import ShiftGateClient from './shift-gate-client'
 import ExpenseDialog from './expense-dialog'
 import CustomerSearchDialog from './customer-search-dialog'
@@ -131,6 +135,10 @@ export default function PosClient({
 }: PosClientProps) {
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  // Langkah Pengiriman sebelum layar bayar: jawabannya (+ baris ongkir untuk kurir cabang) dipakai
+  // layar bayar. Dikosongkan setiap isi keranjang / pelanggan berubah.
+  const [deliveryStepOpen, setDeliveryStepOpen] = useState(false)
+  const [delivery, setDelivery] = useState<{ choice: DeliveryChoice; ongkirLine: CartItem | null } | null>(null)
   const [productRefreshKey, setProductRefreshKey] = useState(0)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
@@ -182,8 +190,20 @@ export default function PosClient({
   // memakai kunci yang sama sehingga server tidak mencatatnya dua kali. Keranjang berubah → kunci baru.
   const checkoutRequestId = useMemo(
     () => newCheckoutRequestId(),
-    [items, selectedCustomer?.id, sourceIbt?.id],
+    // Jawaban Pengiriman ikut: ongkir mengubah isi nota, jadi kuncinya harus baru.
+    [items, selectedCustomer?.id, sourceIbt?.id, delivery],
   )
+  useEffect(() => {
+    setDelivery(null)
+  }, [items, selectedCustomer?.id, sourceIbt?.id])
+  // Keranjang dari tab Grooming (antar-jemput diatur di sana) dan PO Internal (cara kirim dipilih saat
+  // Kirim) langsung ke layar bayar. Selain itu langkah Pengiriman wajib dijawab dulu.
+  const skipDeliveryStep = Boolean(sourceIbt) || cartHasGrooming || items.some((i) => i.delivery)
+  const startCheckout = useCallback(() => {
+    if (skipDeliveryStep) setCheckoutOpen(true)
+    else setDeliveryStepOpen(true)
+  }, [skipDeliveryStep])
+  const checkoutItems = delivery?.ongkirLine ? [...items, delivery.ongkirLine] : items
 
   const refreshOpenBillCount = useCallback(async () => {
     try {
@@ -248,12 +268,12 @@ export default function PosClient({
         openCustomerSearch()
       } else if (e.key === 'F10' && items.length > 0 && isOnline) {
         e.preventDefault()
-        setCheckoutOpen(true)
+        startCheckout()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [items.length, isOnline, openHold, openCustomerSearch])
+  }, [items.length, isOnline, openHold, openCustomerSearch, startCheckout])
 
   if (!shift || !isCashierInShift) {
     return (
@@ -407,7 +427,7 @@ export default function PosClient({
           {/* Desktop cart panel */}
           <div className="hidden md:flex md:w-[40%] border-l border-border flex-col">
             <CartPanel
-              onCheckout={() => setCheckoutOpen(true)}
+              onCheckout={startCheckout}
               onOpenCustomerSearch={openCustomerSearch}
               onHold={openHold}
               onPreview={() => setPreviewOpen(true)}
@@ -419,7 +439,7 @@ export default function PosClient({
             <MobileCartBar
               itemCount={itemCount}
               grandTotal={grandTotal}
-              onCheckout={() => setCheckoutOpen(true)}
+              onCheckout={startCheckout}
               onOpenCustomerSearch={openCustomerSearch}
               onHold={openHold}
               onPreview={() => setPreviewOpen(true)}
@@ -430,9 +450,33 @@ export default function PosClient({
         </div>
       </div>
 
+      {deliveryStepOpen && (
+        <DeliveryStep
+          hasCustomer={selectedCustomer != null}
+          customerTier={customerTier ?? 'RETAIL'}
+          initial={delivery?.choice ?? null}
+          legacyOngkirInCart={items.some((i) => isOngkirItem(i) && !i.delivery)}
+          onConfirm={(choice, ongkirLine) => {
+            setDelivery({ choice, ongkirLine })
+            setDeliveryStepOpen(false)
+            setCheckoutOpen(true)
+          }}
+          onClose={() => setDeliveryStepOpen(false)}
+        />
+      )}
+
       {checkoutOpen && (
         <CheckoutModal
-          items={items}
+          items={checkoutItems}
+          deliveryChoice={skipDeliveryStep ? null : delivery?.choice ?? null}
+          onChangeDelivery={
+            skipDeliveryStep
+              ? undefined
+              : () => {
+                  setCheckoutOpen(false)
+                  setDeliveryStepOpen(true)
+                }
+          }
           grandTotal={grandTotal}
           paymentMethods={paymentMethods}
           shiftId={shift.id}

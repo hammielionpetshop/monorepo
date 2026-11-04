@@ -69,8 +69,9 @@ export default function DeliveryMethodSetting({
           ]}
         >
           <p>
-            Kasir tidak ditanya lagi saat bayar, Bulk Sale, dan Kirim PO Internal. Kolom &amp; saringan Cara Kirim disembunyikan.
-            Cara kirim yang sudah tercatat tetap tersimpan, dan bisa dinyalakan lagi kapan saja.
+            Pilihan &quot;Dikirim truk Gudang&quot; disembunyikan, Bulk Sale dan Kirim PO Internal tidak ditanya cara kirim, dan kolom &amp;
+            saringan Cara Kirim disembunyikan. Langkah Pengiriman kasir (Ambil sendiri / Kurir cabang + ongkir) tetap ada karena ongkos
+            kirim diisi di sana. Data yang sudah tercatat tetap tersimpan, dan bisa dinyalakan lagi kapan saja.
           </p>
         </RequiredChoiceDialog>
       )}
@@ -78,8 +79,9 @@ export default function DeliveryMethodSetting({
         Cara kirim nota <NewBadge feature="fitur/cara-kirim" />
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        Saat bayar nota berpelanggan, kasir wajib memilih: Ambil sendiri, Diantar kurir cabang, atau Dikirim truk Gudang.
-        Saat Kirim PO Internal: Truk Gudang atau Kirim sendiri. Nota Umum tidak ditanya.
+        Sebelum layar bayar, kasir menjawab langkah Pengiriman: Ambil sendiri, Kurir cabang (pengantar + ongkir / Gratis ongkir),
+        atau Dikirim truk Gudang (gratis ongkir, nota berpelanggan). Bulk Sale: Ambil sendiri / Truk Gudang. Kirim PO Internal:
+        Truk Gudang / Kirim sendiri.
       </p>
       <label className="mb-3 flex items-center gap-2 text-sm">
         <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} className="h-4 w-4" />

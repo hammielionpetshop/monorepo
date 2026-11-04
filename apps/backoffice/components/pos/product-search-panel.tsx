@@ -88,6 +88,8 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
         search,
         page: String(pageNum),
         limit: String(LIMIT),
+        // Ongkos kirim tidak dijual dari keranjang lagi: diisi di langkah Pengiriman.
+        excludeOngkir: '1',
       })
       const res  = await fetch(`/api/pos/products?${params}`)
       if (!res.ok) throw new Error('Gagal memuat produk')
@@ -208,7 +210,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
     if (trimmed.length < 3) return
 
     try {
-      const res  = await fetch(`/api/pos/products?barcode=${encodeURIComponent(trimmed)}`)
+      const res  = await fetch(`/api/pos/products?barcode=${encodeURIComponent(trimmed)}&excludeOngkir=1`)
       const data = await res.json()
 
       if (!data.products?.length) {
