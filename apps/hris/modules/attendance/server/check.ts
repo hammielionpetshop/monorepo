@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { can, getOrgLookup, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { removeStoredBytes, saveUpload } from '@/modules/files';
+import { runningSelfTripNumber } from '@/modules/logistics';
 import { notify } from '@/modules/notifications';
 import { settingOn } from '@/modules/settings';
 import {
@@ -429,6 +430,9 @@ export async function submitAttendance(actor: Actor, input: SubmitInput, now: Da
     }
     // Pulang
     if (records.BREAK && !records.RETURN) return fail(409, 'Anda masih istirahat. Absen Masuk Kembali dulu.');
+    // Pulang ditolak selama perjalanan antar sendiri masih berjalan (LOG-110, spec LT1 §15.2).
+    const selfTrip = await runningSelfTripNumber(person.employeeId, tx);
+    if (selfTrip) return fail(409, `Perjalanan antar ${selfTrip} masih berjalan. Ambil Foto 3 (kembali di cabang) dulu.`);
     const minOut = await settingOn<number>('attendance.min_out_minutes', current.workDate, {}, tx);
     const opens = earliestOut(records.IN.recordedAt, minOut);
     if (now < opens) {

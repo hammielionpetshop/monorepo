@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { photoPurges, photoViews, storePoints, tripVisits } from '@petshop/logistics';
+import { photoPurges, photoViews, selfTrips, selfTripStops, storePoints, tripVisits } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, listEmployeesWithAnyAction, type Actor, type ServiceResult } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
@@ -61,6 +61,31 @@ export async function proposeFromVisit(actor: Actor | null, tripId: number, visi
   const [visit] = await db.select().from(tripVisits).where(and(eq(tripVisits.id, visitId), eq(tripVisits.tripId, tripId))).limit(1);
   if (!visit || visit.status === 'RELEASED') return fail(404, 'Kunjungan tidak ditemukan di trip ini.');
   if (visit.customerId == null) return fail(400, 'Titik hanya untuk toko. Titik cabang diatur di Cabang & Jabatan.');
+  return proposeCore(me, { customerId: visit.customerId, name: visit.destinationName, tripId, visitId, selfStopId: null }, input, photo);
+}
+
+/**
+ * Pasang titik dari tujuan antar sendiri (spec LT1 §15.2): PJ perjalanan Berjalan, tujuan toko (bukan nota Umum). Aturan
+ * akurasi, foto, dan persetujuan sama dengan dari kunjungan trip.
+ */
+export async function proposeFromSelfStop(actor: Actor | null, selfTripId: number, stopId: number, input: ProposeInput, photo: File | null): Promise<ServiceResult<{ status: PointStatus }>> {
+  if (!actor) return fail(403, FORBIDDEN);
+  const [trip] = await db.select().from(selfTrips).where(eq(selfTrips.id, selfTripId)).limit(1);
+  if (!trip || trip.employeeId !== actor.personId) return fail(404, 'Perjalanan antar tidak ditemukan.');
+  if (trip.status !== 'RUNNING') return fail(409, 'Perjalanan ini sudah kembali (Foto 3).');
+  const [stop] = await db.select().from(selfTripStops).where(and(eq(selfTripStops.id, stopId), eq(selfTripStops.tripId, selfTripId))).limit(1);
+  if (!stop) return fail(404, 'Tujuan tidak ditemukan di perjalanan ini.');
+  if (stop.customerId == null) return fail(400, 'Titik hanya untuk toko berpelanggan, bukan nota Umum.');
+  return proposeCore(actor, { customerId: stop.customerId, name: stop.destinationName, tripId: null, visitId: null, selfStopId: stopId }, input, photo);
+}
+
+async function proposeCore(
+  me: Actor, from: { customerId: number; name: string; tripId: number | null; visitId: number | null; selfStopId: number | null },
+  input: ProposeInput, photo: File | null,
+): Promise<ServiceResult<{ status: PointStatus }>> {
+  const { tripId, visitId, selfStopId } = from;
+  const visit = { destinationName: from.name };
+  const actor = me;
   const { latitude, longitude, accuracy } = input.point;
   if (!validPoint(latitude, longitude)) return fail(400, 'Lokasi HP tidak terbaca. Nyalakan lokasi (GPS) lalu ulangi.');
   const limit = Number(await settingOn<number>('logistics.point_accuracy_m', wibDate(new Date())));
@@ -68,7 +93,7 @@ export async function proposeFromVisit(actor: Actor | null, tripId: number, visi
   if (accuracyError) return fail(400, accuracyError);
   const reason = input.kind === 'CORRECTION' ? correctionReason(input.reason) : null;
   if (reason && !reason.ok) return fail(400, reason.error);
-  const customerId = visit.customerId;
+  const customerId = from.customerId;
   const current = await pointsOf([customerId]);
   if (current.pending.has(customerId)) return fail(409, PENDING_TAKEN);
   if (input.kind === 'NEW' && current.approved.has(customerId)) return fail(409, 'Toko ini sudah punya titik. Bila salah, pakai Laporkan titik salah.');
@@ -83,7 +108,7 @@ export async function proposeFromVisit(actor: Actor | null, tripId: number, visi
       const [row] = await tx.insert(storePoints).values({
         customerId, status: direct ? 'APPROVED' : 'PENDING', source: 'VISIT', kind: input.kind, reason: reason?.ok ? reason.value : null,
         latitude: latitude as number, longitude: longitude as number, accuracyM: Math.round(accuracy as number), photoFileId: upload.data.id,
-        tripId, visitId, proposedByEmployeeId: me.personId, proposedByAccountId: me.accountId, proposedAt: now,
+        tripId, visitId, selfStopId, proposedByEmployeeId: me.personId, proposedByAccountId: me.accountId, proposedAt: now,
         ...(direct ? { decidedAt: now, decidedByAccountId: me.accountId } : {}),
       }).returning({ id: storePoints.id });
       if (!direct) {
@@ -230,12 +255,12 @@ export async function pendingPointCount(actor: Actor | null): Promise<number> {
 export async function openStorePointPhoto(actor: Actor | null, pointId: number): Promise<string | null> {
   if (!actor) return null;
   const [point] = await db.select().from(storePoints).where(eq(storePoints.id, pointId)).limit(1);
-  if (!point?.photoFileId || !point.tripId) return null;
+  if (!point?.photoFileId || (!point.tripId && !point.selfStopId)) return null;
   const allowed = can(actor, 'logistics.store.view') || can(actor, DECIDE) || point.proposedByAccountId === actor.accountId;
   if (!allowed) return null;
   const [purged] = await db.select().from(photoPurges).where(eq(photoPurges.fileId, point.photoFileId)).limit(1);
   if (purged) return null;
-  await db.insert(photoViews).values({ tripId: point.tripId, fileId: point.photoFileId, viewedByAccountId: actor.accountId });
+  if (point.tripId) await db.insert(photoViews).values({ tripId: point.tripId, fileId: point.photoFileId, viewedByAccountId: actor.accountId });
   return point.photoFileId;
 }
 

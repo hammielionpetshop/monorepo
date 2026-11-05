@@ -69,9 +69,12 @@ describe.skipIf(!ADMIN_URL)('L4d-1: Buku Bonus grooming dan ongkir', () => {
       migrationsFolder: fileURLToPath(new URL('auth/src/migrations/', root)), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth',
     });
     await migrationClient.end();
-    const folder = new URL('hris-db/src/migrations/', root);
-    for (const file of readdirSync(folder).filter((name) => name.endsWith('.sql')).sort()) {
-      await sql.unsafe(readFileSync(new URL(file, folder), 'utf8')).simple();
+    // Aliran logistics ikut (antar sendiri LT3b dibaca absen Pulang dan bonus ongkir); view kasirnya butuh petshop.branches.
+    await sql`create table if not exists petshop.branches (id serial primary key, code varchar(20) not null, name varchar(100) not null, is_active boolean not null default true)`;
+    for (const folder of [new URL('logistics/src/migrations/', root), new URL('hris-db/src/migrations/', root)]) {
+      for (const file of readdirSync(folder).filter((name) => name.endsWith('.sql')).sort()) {
+        await sql.unsafe(readFileSync(new URL(file, folder), 'utf8')).simple();
+      }
     }
     process.env.DATABASE_URL = url.toString();
     [{ id: kasirBranch }] = await sql`insert into petshop.branches (code, name) values ('TP', 'Toko Pusat') returning id`;
