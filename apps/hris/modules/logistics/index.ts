@@ -2,7 +2,7 @@
 // modul lain dan app/ hanya mengimpor dari sini (scripts/check-module-boundaries.mjs, eslint).
 export {
   ROLE_LABELS, ROUTE_KIND_LABELS, STATUS_LABELS, WAGE_KIND_LABELS, contentProblem, crewProblem, fridayOf, garageCheck, isHanging, manualDateProblem,
-  tripNumber, wagesFor, type CrewRole, type RouteKind, type TripStatus, type WageKind,
+  addDays, tripNumber, wagesFor, wibDate, type CrewRole, type RouteKind, type TripStatus, type WageKind,
 } from './rules/trip';
 export {
   addCrew, addManualWage, addShopping, arriveTrip, cancelTrip, cancelWage, closeByOffice, createTrip, departTrip, dropShopping, finishShopping,
@@ -88,3 +88,9 @@ export {
 } from './server/returned-goods';
 export { ReturnedGoodsScreen } from './ui/returned-goods-screen';
 export { PendingNotesScreen } from './ui/pending-notes-screen';
+export { LOAD_STATUS_LABELS, type LoadPhotoKind, type LoadReportStatus } from './rules/load-reports';
+export {
+  addLoadNotes, addLoadPhoto, cancelLoadReport, candidateNotes, createLoadReport, finishLoadReport, loadReportDetail, loadReportList, openLoadPhoto,
+  releaseLoadNote, removeLoadPhoto, type LoadReportTab,
+} from './server/load-reports';
+export { LoadReportDetailScreen, LoadReportsScreen } from './ui/load-reports-screen';
