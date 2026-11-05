@@ -1,6 +1,6 @@
 import Big from 'big.js';
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { reportDecisions, trips, tripVisits, visitPayments, visitReportItems, visitReports } from '@petshop/logistics';
+import { reportDecisions, trips, tripVisits, visitNoteBills, visitPayments, visitReportItems, visitReports } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, listEmployeesWithAnyAction, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
@@ -14,6 +14,7 @@ import { cleanReturnItems, quantityText, type ReturnItemInput } from '../rules/r
 import { addDays, reasonProblem, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames, type Executor } from './data';
 import { runningForCrew } from './driver-trip';
+import { CHECKED_LOCK, paymentChecked } from './money-checks';
 import { canCorrectSelf } from './self-delivery-money';
 
 // Uang dan laporan di toko (spec LT1 §13.2, §13.5, LT1b-3). Piutang kasir dibaca lewat view logistics.pos_customer_debts.
@@ -35,6 +36,19 @@ export async function openVisitBills(visitIds: number[], executor: Executor = db
     where l.visit_id in (${ids(visitIds)}) and l.active`);
   for (const id of visitIds) bills.set(id, billOf(rows.filter((r) => Number(r.visit_id) === id && r.remaining_amount != null).map((r) => Number(r.remaining_amount))));
   return bills;
+}
+
+/** Tagihan per nota (nota kasir SALE berpiutang belum lunas) kunjungan terbuka, urut nota paling lama dulu (spec LT1 §16.1 butir 2). */
+async function openNoteBills(visitId: number, executor: Executor) {
+  const rows = await executor.execute<{ note_id: number; doc_id: number; remaining_amount: number }>(sql`
+    select n.id as note_id, n.doc_id, sum(d.remaining_amount)::int as remaining_amount
+    from logistics.trip_visit_notes l
+    join logistics.delivery_notes n on n.id = l.note_id and n.kind = 'SALE'
+    join logistics.pos_customer_debts d on d.transaction_id = n.doc_id and d.status <> 'PAID'
+    where l.visit_id = ${visitId} and l.active
+    group by n.id, n.doc_id
+    order by n.doc_id`);
+  return rows.map((r) => ({ noteId: Number(r.note_id), transactionId: Number(r.doc_id), bill: Math.max(0, Math.round(Number(r.remaining_amount))) }));
 }
 
 export type PaymentInput = { method?: string | null; partialAmount?: number | null; promiseDate?: string | null };
@@ -59,6 +73,9 @@ export async function recordPayment(
     proofPhotoFileId: clean.method === 'TRANSFER' ? proofFileId : null, recordedByEmployeeId: by.employeeId, recordedByAccountId: by.accountId,
     recordedAt: now, promiseDate: promise.date,
   });
+  // Tagihan per nota saat Terkirim: dasar pembagian uang dan tanda pelunasan POS di Terima Uang (spec LT1 §16.1 butir 2, 7).
+  const notes = bill > 0 ? (await openNoteBills(visit.id, tx)).filter((n) => n.bill > 0) : [];
+  if (notes.length) await tx.insert(visitNoteBills).values(notes.map((n) => ({ visitId: visit.id, noteId: n.noteId, transactionId: n.transactionId, billAmount: n.bill })));
   return { ok: true };
 }
 
@@ -311,6 +328,7 @@ export async function correctPayment(
     return fail(403, 'Awak hanya bisa mengoreksi cara bayar selama trip berjalan dan belum Menuju Garasi; sesudahnya oleh Kepala Gudang, Pemilik, atau GM.');
   }
   if (current.billAmount === 0) return fail(409, 'Kunjungan ini tidak punya tagihan.');
+  if (await paymentChecked('TRUCK', current.id)) return fail(409, CHECKED_LOCK);
   const reason = (input.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
   const problem = reasonProblem(reason);
   if (problem) return fail(400, problem);

@@ -351,6 +351,13 @@
       "when": 1793858879384,
       "tag": "0049_lt3c_self_delivery_office",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793894337534,
+      "tag": "0050_lt4a_money_check",
+      "breakpoints": true
     }
   ]
 }
