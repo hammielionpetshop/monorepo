@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import type { BootstrapPaymentMethod } from '@/components/pos/pos-client'
 import { formatPetAge } from '@/lib/pet-age'
-import { formatDateTime, formatRp, type GroomingOrder } from './types'
+import { NewBadge } from '@/components/ui/new-badge'
+import { formatDateTime, formatRp, type GroomingHold, type GroomingOrder } from './types'
 
 interface Props {
   view: 'aktif' | 'selesai'
@@ -15,6 +16,10 @@ interface Props {
   /** Naik setiap ada nota baru / perubahan dari panel lain → muat ulang. */
   refreshKey: number
   onPrint: (orders: GroomingOrder[]) => void
+  /** Cetak (ulang) karcis Grooming Ditahan. */
+  onPrintHold: (hold: GroomingHold) => void
+  /** Buat nota dari tahanan; `pickup` = sesudah nota tersimpan kucing langsung ditandai diambil. */
+  onMakeNota: (hold: GroomingHold, pickup: boolean) => void
   onChanged: () => void
 }
 
@@ -23,9 +28,11 @@ const todayWib = () => new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().s
 type Action =
   | { kind: 'pickup'; order: GroomingOrder }
   | { kind: 'pay'; order: GroomingOrder; methodId: number | null }
+  | { kind: 'cancelHold'; hold: GroomingHold; reason: string }
 
-export default function OrderListPanel({ view, paymentMethods, hasOpenShift, canReceiveDebtPayment, refreshKey, onPrint, onChanged }: Props) {
+export default function OrderListPanel({ view, paymentMethods, hasOpenShift, canReceiveDebtPayment, refreshKey, onPrint, onPrintHold, onMakeNota, onChanged }: Props) {
   const [orders, setOrders] = useState<GroomingOrder[]>([])
+  const [holds, setHolds] = useState<GroomingHold[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -46,13 +53,18 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
         params.set('from', date)
         params.set('to', date)
       }
-      const res = await fetch(`/api/pos/grooming/orders?${params}`)
+      const [res, holdRes] = await Promise.all([
+        fetch(`/api/pos/grooming/orders?${params}`),
+        fetch(`/api/pos/grooming/holds?${params}`),
+      ])
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError((data as { error?: string }).error ?? 'Gagal memuat daftar grooming')
+      const holdData = await holdRes.json().catch(() => ({}))
+      if (!res.ok || !holdRes.ok) {
+        setError(((res.ok ? holdData : data) as { error?: string }).error ?? 'Gagal memuat daftar grooming')
         return
       }
       setOrders(data as GroomingOrder[])
+      setHolds(holdData as GroomingHold[])
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi.')
     } finally {
@@ -80,6 +92,21 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
     setBusy(true)
     setActionError(null)
     try {
+      if (action.kind === 'cancelHold') {
+        const res = await fetch(`/api/pos/grooming/holds/${action.hold.id}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: action.reason }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setActionError((data as { error?: string }).error ?? 'Gagal membatalkan tahanan')
+          return
+        }
+        setAction(null)
+        onChanged()
+        return
+      }
       if (action.kind === 'pay') {
         if (!action.methodId) {
           setActionError('Pilih metode pembayarannya')
@@ -124,7 +151,33 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
 
   return (
     <div>
-      {action && (
+      {action?.kind === 'cancelHold' && (
+        <RequiredChoiceDialog
+          title={`Batalkan tahanan TAHAN-${action.hold.id}?`}
+          tone="warning"
+          actions={[
+            { label: 'Kembali', onClick: () => { setAction(null); setActionError(null) }, variant: 'secondary', disabled: busy },
+            { label: busy ? 'Memproses…' : 'Ya, batalkan', onClick: () => { void confirmAction() }, variant: 'primary', disabled: busy },
+          ]}
+        >
+          <p>
+            {action.hold.owner.name} — {action.hold.lines.map((l) => l.pet.name).join(', ')}. Belum ada nota, jadi tidak ada uang yang dibalik.
+          </p>
+          <label className="mt-3 block text-sm font-semibold" htmlFor="hold-cancel-reason">Alasan pembatalan *</label>
+          <textarea
+            id="hold-cancel-reason"
+            value={action.reason}
+            onChange={(e) => setAction({ ...action, reason: e.target.value })}
+            rows={2}
+            maxLength={300}
+            placeholder="mis. konsumen batal, salah input"
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          {actionError && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</p>}
+        </RequiredChoiceDialog>
+      )}
+
+      {action && action.kind !== 'cancelHold' && (
         <RequiredChoiceDialog
           title={
             action.kind === 'pay'
@@ -185,7 +238,7 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari nama kucing, pemilik, nomor HP, atau nomor nota"
+          placeholder="Cari nama kucing, pemilik, nomor HP, nomor nota, atau karcis TAHAN"
           className="w-full max-w-md border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
         {view === 'selesai' && (
@@ -204,7 +257,106 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
 
       {error && <div className="mb-3 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
       {loading && <p className="text-sm text-muted-foreground">Memuat…</p>}
-      {!loading && !error && orders.length === 0 && (
+      {holds.length > 0 && (
+        <ul className="mb-3 space-y-2">
+          {holds.map((h) => (
+            <li
+              key={`hold-${h.id}`}
+              className={`rounded-lg border p-3 ${h.status === 'DITAHAN' ? 'border-amber-500/50 bg-amber-500/5' : 'border-border bg-card'}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base font-bold">{h.owner.name}</span>
+                    {h.owner.phone && <span className="text-muted-foreground">{h.owner.phone}</span>}
+                    {h.status === 'DITAHAN' ? (
+                      <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-800 dark:text-amber-200">
+                        BELUM ADA NOTA
+                      </span>
+                    ) : (
+                      <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                        DIBATALKAN — TANPA NOTA
+                      </span>
+                    )}
+                    {h.delivery && (
+                      <span className="rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-700">DIANTAR</span>
+                    )}
+                    <NewBadge feature="fitur/grooming-tahan" />
+                  </div>
+                  <ul className="mt-1 space-y-0.5">
+                    {h.lines.map((l) => (
+                      <li key={l.sequence}>
+                        <b>{l.pet.name}</b> <span className="text-muted-foreground">({l.pet.species}, {l.pet.color}, {formatPetAge(l.pet.birthDate)})</span>
+                        {' '}· {l.serviceName} · Groomer: <b>{l.groomer.name}</b>
+                        <span className="text-xs text-muted-foreground"> · Karcis {l.ticketNumber}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-xs text-muted-foreground">
+                    Ditahan {formatDateTime(h.heldAt)}
+                    {h.cancelledAt ? ` · batal ${formatDateTime(h.cancelledAt)} (${h.cancelReason ?? '-'})` : ''}
+                  </div>
+                  {h.delivery && (
+                    <div className="text-xs text-muted-foreground">
+                      Delivery: {h.delivery.courier.name} · {h.delivery.address}{h.delivery.free ? ' · gratis ongkir' : ''}
+                    </div>
+                  )}
+                  {expandedId === -h.id && (
+                    <div className="mt-2 rounded-md bg-muted/50 px-3 py-2 text-xs">
+                      {h.lines.map((l) => (
+                        <span key={l.sequence} className="block"><b>Kondisi {l.pet.name}:</b> {l.condition}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {h.status === 'DITAHAN' && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!hasOpenShift}
+                        title={hasOpenShift ? undefined : 'Buka shift dulu untuk membuat nota'}
+                        onClick={() => onMakeNota(h, false)}
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        Buat Nota
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!hasOpenShift}
+                        title={hasOpenShift ? undefined : 'Buka shift dulu untuk membuat nota'}
+                        onClick={() => onMakeNota(h, true)}
+                        className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+                      >
+                        Buat Nota &amp; {h.delivery ? 'Antar' : 'Ambil'}
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => setExpandedId(expandedId === -h.id ? null : -h.id)} className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
+                    {expandedId === -h.id ? 'Tutup' : 'Lihat'}
+                  </button>
+                  {h.status === 'DITAHAN' && (
+                    <>
+                      <button type="button" onClick={() => onPrintHold(h)} className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
+                        Cetak karcis
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setActionError(null); setAction({ kind: 'cancelHold', hold: h, reason: '' }) }}
+                        className="rounded-md border border-destructive/30 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        Batalkan
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!loading && !error && orders.length === 0 && holds.length === 0 && (
         <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
           {view === 'aktif' ? 'Tidak ada kucing yang sedang dikerjakan.' : 'Tidak ada riwayat untuk pilihan ini.'}
         </p>
