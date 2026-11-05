@@ -89,6 +89,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'logistics',
     label: 'Logistik',
     items: [
+      { href: '/logistik/dashboard', label: 'Dashboard Logistik', icon: 'table', action: ['logistics.dashboard.view', 'logistics.money_check.do', 'logistics.store_payment.view', 'logistics.vehicle_followup.manage', 'logistics.fuel.record'] },
       { href: '/logistik/trip', label: 'Trip', icon: 'truck', action: 'logistics.trip.view' },
       { href: '/logistik/ritase', label: 'Ritase', icon: 'table', action: 'logistics.wage.view' },
       { href: '/logistik/surat-jalan', label: 'Surat Jalan', icon: 'list', action: 'logistics.delivery_note.view' },
@@ -101,7 +102,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/logistik/antar-sendiri/kantor', label: 'Antar Sendiri · Kantor', icon: 'list', action: ['logistics.self_delivery.view', 'logistics.self_delivery.manage'] },
       { href: '/logistik/catat-kasir', label: 'Perlu dicatat di kasir', icon: 'list', action: 'logistics.note_cut.decide' },
       { href: '/logistik/barang-kembali', label: 'Barang Kembali', icon: 'truck', action: ['logistics.returned_goods.receive', 'logistics.trip.view'] },
-      { href: '/logistik/bensin-mobil', label: 'Bensin & Mobil', icon: 'truck', action: 'logistics.vehicle_followup.manage' },
+      { href: '/logistik/bensin-mobil', label: 'Bensin & Mobil', icon: 'truck', action: ['logistics.vehicle_followup.manage', 'logistics.fuel.record'] },
+      { href: '/logistik/di-luar-titik', label: 'Di Luar Titik', icon: 'list', action: 'logistics.outside_point.review' },
       { href: '/logistik/mobil-rute', label: 'Mobil & Rute', icon: 'list', action: ['logistics.fleet.manage', 'logistics.trip.view'] },
     ],
   },

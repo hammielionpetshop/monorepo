@@ -138,6 +138,11 @@ export async function keepKasirChange(actor: Actor | null, tripId: number, noteI
  */
 export async function kasirChangeAttention(actor: Actor | null): Promise<{ count: number; tripId: number | null } | null> {
   if (!actor || !can(actor, 'logistics.trip.manage')) return null;
+  return countKasirChanges();
+}
+
+/** Nota berubah di kasir yang masih terbuka, tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countKasirChanges(): Promise<{ count: number; tripId: number | null } | null> {
   const rows = await db.execute<{ trip_id: number; n: number }>(sql`
     select k.trip_id, count(distinct k.note_id)::int as n
     from logistics.kasir_changes k

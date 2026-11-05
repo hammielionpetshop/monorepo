@@ -317,14 +317,6 @@ export async function sendEndReport(actor: Actor | null, tripId: number, input: 
   });
 }
 
-/** Sudah diisi bensin (§13.3 butir 6). Nominal sebenarnya dan Buku Kas menyusul (Tahap 5). */
-export async function closeFuel(actor: Actor | null, reportId: number): Promise<ServiceResult> {
-  if (!actor || !can(actor, 'logistics.vehicle_followup.manage')) return fail(403, FORBIDDEN);
-  const [row] = await db.update(tripEndReports).set({ fuelCloseKind: 'FILLED', fuelClosedAt: new Date(), fuelClosedByAccountId: actor.accountId })
-    .where(and(eq(tripEndReports.id, reportId), eq(tripEndReports.needsFuel, true), isNull(tripEndReports.fuelClosedAt))).returning({ id: tripEndReports.id });
-  return row ? { ok: true, data: undefined } : fail(409, 'Permintaan bensin ini sudah ditutup.');
-}
-
 /** Mobil perlu perhatian → Selesai (§13.3 butir 6), catatan boleh. */
 export async function closeCondition(actor: Actor | null, reportId: number, note: string | null): Promise<ServiceResult> {
   if (!actor || !can(actor, 'logistics.vehicle_followup.manage')) return fail(403, FORBIDDEN);
@@ -439,14 +431,20 @@ export async function followupAttention(actor: Actor | null) {
   const canFollow = can(actor, 'logistics.vehicle_followup.manage');
   const canDecide = can(actor, 'logistics.delivery_note.decide');
   if (!canFollow && !canDecide) return null;
+  const counts = await countFollowup();
+  return {
+    fuel: canFollow ? Number(counts.fuel) : 0, condition: canFollow ? Number(counts.condition) : 0, decide: canDecide ? Number(counts.decide) : 0,
+  };
+}
+
+/** Hitung permintaan bensin Menunggu, mobil perlu perhatian, surat jalan perlu keputusan tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countFollowup(): Promise<{ fuel: number; condition: number; decide: number }> {
   const [counts] = await db.execute<{ fuel: number; condition: number; decide: number }>(sql`
     select
       (select count(*)::int from logistics.trip_end_reports where needs_fuel and fuel_closed_at is null) as fuel,
       (select count(*)::int from logistics.trip_end_reports where condition = 'ATTENTION' and condition_closed_at is null) as condition,
       (select count(*)::int from logistics.delivery_notes where status = 'NEEDS_DECISION') as decide`);
-  return {
-    fuel: canFollow ? Number(counts.fuel) : 0, condition: canFollow ? Number(counts.condition) : 0, decide: canDecide ? Number(counts.decide) : 0,
-  };
+  return { fuel: Number(counts.fuel), condition: Number(counts.condition), decide: Number(counts.decide) };
 }
 
 /** Laporan Pulang + foto trip (rincian trip). */

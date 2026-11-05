@@ -326,6 +326,11 @@ export async function voidMoneyCheck(actor: Actor | null, input: { source: Check
 /** Angka Beranda (§16.1 butir 8): toko belum diperiksa (dan yang > 3 hari), nota diperiksa > 3 hari tapi belum masuk POS. */
 export async function moneyCheckAttention(actor: Actor | null): Promise<{ waiting: number; red: number; posRed: number }> {
   if (!actor || !can(actor, DO)) return { waiting: 0, red: 0, posRed: 0 };
+  return countMoneyChecks();
+}
+
+/** Hitung uang toko belum diperiksa / belum masuk POS tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countMoneyChecks(): Promise<{ waiting: number; red: number; posRed: number }> {
   const today = wibDate(new Date());
   const from = String(await settingOn<string>('logistics.money_check_from', today));
   const back = addDays(today, -30);
@@ -340,4 +345,13 @@ export async function moneyCheckAttention(actor: Actor | null): Promise<{ waitin
     return s === 'WAITING' || s === 'PARTLY';
   }).length;
   return { waiting: waiting.length, red: waiting.filter((p) => daysBetween(wibDate(p.recordedAt), today) > CHECK_RED_DAYS).length, posRed };
+}
+
+/** Kurang serah 30 hari terakhir dari pemeriksaan yang berlaku (Dashboard Logistik), tanpa pemeriksaan hak. */
+export async function shortHandoverSummary(): Promise<{ count: number; total: number }> {
+  const [row] = await db.execute<{ n: number; total: number }>(sql`
+    select count(*)::int as n, coalesce(sum(reported_amount - actual_amount), 0)::bigint as total
+    from logistics.money_checks
+    where voided_at is null and responsible_employee_id is not null and checked_at > now() - interval '30 days'`);
+  return { count: Number(row?.n ?? 0), total: Number(row?.total ?? 0) };
 }

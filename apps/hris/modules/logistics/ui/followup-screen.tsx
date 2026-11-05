@@ -17,8 +17,8 @@ type Recent = FollowupRow & { fuelState: string | null; conditionState: string |
 
 const tripLink = (r: FollowupRow) => <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link>;
 
-/** Bensin & Mobil (spec LT1 §13.3 butir 6): tindak lanjut Laporan Pulang driver. Buku Kas menyusul (Tahap 5). */
-export function FollowupScreen({ fuel, condition, recent }: { fuel: FollowupRow[]; condition: FollowupRow[]; recent: Recent[] }) {
+/** Bensin & Mobil (spec LT1 §13.3 butir 6): keadaan mobil dan Laporan Pulang driver. Bensin di FuelPanel (spec LT1 §17.1). */
+export function FollowupScreen({ condition, recent }: { condition: FollowupRow[]; recent: Recent[] }) {
   const router = useRouter();
   const toast = useToast();
   const [closing, setClosing] = useState<FollowupRow | null>(null);
@@ -40,23 +40,6 @@ export function FollowupScreen({ fuel, condition, recent }: { fuel: FollowupRow[
   return (
     <div className="space-y-4">
       {error && !closing && <Alert tone="danger">{error}</Alert>}
-      <Card className="space-y-2">
-        <h2 className="font-semibold">Perlu isi bensin <span className="tabular-nums text-ink-muted">{fuel.length}</span></h2>
-        <p className="text-sm text-ink-muted">Dari Laporan Pulang driver. Satu permintaan per mobil; laporan baru menggantikan yang lama. Pencatatan uang ke Buku Kas menyusul.</p>
-        {!fuel.length ? <EmptyState title="Tidak ada permintaan bensin" /> : (
-          <ul className="space-y-2">
-            {fuel.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line p-2 text-sm">
-                <span>
-                  <span className="font-medium">{r.vehicle}</span> · ± <span className="tabular-nums">{rupiah(r.fuelEstimate ?? 0)}</span>
-                  <span className="block text-ink-muted">{r.driver}, {r.sentOn} {r.sentAt} · {tripLink(r)}</span>
-                </span>
-                <Button size="sm" loading={busy} onClick={() => send({ action: 'close_fuel', reportId: r.id }, `Bensin ${r.vehicle} ditandai sudah diisi.`)}>Sudah diisi</Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
       <Card className="space-y-2">
         <h2 className="font-semibold">Mobil perlu perhatian <span className="tabular-nums text-ink-muted">{condition.length}</span></h2>
         {!condition.length ? <EmptyState title="Semua mobil baik" /> : (
@@ -100,7 +83,7 @@ export function FollowupScreen({ fuel, condition, recent }: { fuel: FollowupRow[
         <div className="space-y-3">
           {error && <Alert tone="danger">{error}</Alert>}
           {closing && <p>{closing.conditionNote}</p>}
-          <Field id="close-note" label="Catatan (boleh kosong)" hint="Contoh: sudah diservis di bengkel X. Biaya servis tetap dicatat di Buku Kas.">
+          <Field id="close-note" label="Catatan (boleh kosong)" hint="Contoh: sudah diservis di bengkel X.">
             <Textarea id="close-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
           </Field>
         </div>

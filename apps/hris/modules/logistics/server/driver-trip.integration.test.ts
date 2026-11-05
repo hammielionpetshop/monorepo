@@ -220,8 +220,61 @@ describe.skipIf(!ADMIN_URL)('LT1b-2a: alur trip HP driver', () => {
     expect(await lg.followupAttention(await actorOf(ids.kg))).toEqual({ fuel: 1, condition: 1, decide: 1 });
     expect(await lg.followupAttention(await actorOf(ids.finance))).toEqual({ fuel: 1, condition: 1, decide: 0 });
     const reportId = screen.fuel[0].id;
-    expect((await lg.closeFuel(await actorOf(ids.finance), reportId)).ok).toBe(true);
-    expect(await lg.closeFuel(await actorOf(ids.finance), reportId)).toMatchObject({ ok: false, status: 409 });
+    // LT5a (spec LT1 §17.1): Finance isi nominal + foto struk; Kepala Gudang hanya melihat.
+    const finance = await actorOf(ids.finance);
+    expect(await lg.fillFuelRequest(await actorOf(ids.kg), reportId, 300_000, jpeg())).toMatchObject({ ok: false, status: 403 });
+    expect(await lg.fillFuelRequest(finance, reportId, 0, jpeg())).toMatchObject({ ok: false, status: 400 });
+    expect(await lg.fillFuelRequest(finance, reportId, 300_000, null)).toMatchObject({ ok: false, status: 400 });
+    const filled = await lg.fillFuelRequest(finance, reportId, 300_000, jpeg());
+    expect(filled.ok).toBe(true);
+    expect(await lg.fillFuelRequest(finance, reportId, 300_000, jpeg())).toMatchObject({ ok: false, status: 409 });
+    const expenses = () => sql`select amount, with_request, driver_employee_id from logistics.fuel_expenses order by id`;
+    expect((await expenses()).map((r) => [Number(r.amount), r.with_request, Number(r.driver_employee_id)])).toEqual([[300_000, true, ids.driver]]);
+    const fillId = filled.ok ? filled.data.id : 0;
+    expect(await lg.correctFuel(finance, fillId, { vehicleId: 0, driverId: 0, amount: 310_000, reason: 'x' }, null)).toMatchObject({ ok: false, status: 400 });
+    const corrected = await lg.correctFuel(finance, fillId, { vehicleId: 0, driverId: 0, amount: 310_000, reason: 'Salah ketik nominal' }, null);
+    expect(corrected.ok).toBe(true);
+    expect(await lg.correctFuel(finance, fillId, { vehicleId: 0, driverId: 0, amount: 320_000, reason: 'Salah ketik lagi' }, null)).toMatchObject({ ok: false, status: 409 });
+    expect((await expenses()).map((r) => Number(r.amount))).toEqual([310_000]);
+    // Batal mengembalikan permintaan ke Menunggu; diisi lagi.
+    const correctedId = corrected.ok ? corrected.data.id : 0;
+    expect((await lg.voidFuel(finance, correctedId, 'Tercatat dobel')).ok).toBe(true);
+    expect(await expenses()).toEqual([]);
+    expect((await lg.followupAttention(await actorOf(ids.kg)))?.fuel).toBe(1);
+    expect((await lg.fillFuelRequest(finance, reportId, 305_000, jpeg())).ok).toBe(true);
+    // Driver lupa minta: Catat bensin tanpa permintaan, driver diberi tahu.
+    const [{ vehicle_id: vehicleId }] = await sql`select vehicle_id from logistics.trips where id = ${tripId}`;
+    const noReq = { vehicleId: Number(vehicleId), driverId: ids.driver, amount: 100_000, reasonCode: 'FORGOT', reasonText: null };
+    expect(await lg.recordFuelWithoutRequest(finance, { ...noReq, reasonCode: null }, jpeg())).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.recordFuelWithoutRequest(finance, noReq, jpeg())).ok).toBe(true);
+    const [told] = await sql`select title from hris.notifications where kind = 'logistics.fuel_no_request' and recipient_account_id = ${ids.driver + 1000}`;
+    expect(told?.title).toMatch(/tanpa permintaan/);
+    expect((await expenses()).map((r) => [Number(r.amount), r.with_request])).toEqual([[305_000, true], [100_000, false]]);
+    expect(await lg.fuelPeriodSummary('2026-11-05')).toMatchObject({ total: 405_000, count: 2, noRequest: 1 });
+    await expect(sql`delete from logistics.fuel_fills`).rejects.toThrow(/tidak boleh dihapus/);
+
+    // Dashboard Logistik (spec LT1 §17.1 butir 7, 8): bagian mengikuti hak.
+    expect(await lg.logisticsDashboard(await actorOf(ids.driver))).toBeNull();
+    const ownerBoard = (await lg.logisticsDashboard(await actorOf(ids.owner)))!;
+    expect(ownerBoard.sections.map((s) => s.key)).toEqual(['RUNNING', 'DELIVERY', 'MONEY', 'FLEET']);
+    expect(ownerBoard.sections.find((s) => s.key === 'FLEET')!.rows.find((r) => r.key === 'fuel-period')).toMatchObject({ value: expect.stringContaining('405') });
+    expect((await lg.logisticsDashboard(finance))!.sections.map((s) => s.key)).toEqual(['MONEY', 'FLEET']);
+    expect((await lg.logisticsDashboard(await actorOf(ids.kg)))!.sections.map((s) => s.key)).toEqual(['RUNNING', 'DELIVERY', 'MONEY', 'FLEET']);
+
+    // Di luar titik (§17.1 butir 9): kunjungan Terkirim yang jauh dari titik toko ditinjau bukan oleh awaknya.
+    const [delivered] = await sql`select id from logistics.trip_visits where trip_id = ${tripId} and status = 'DELIVERED' order by id limit 1`;
+    await sql`update logistics.trip_visits set distance_m = 900 where id = ${delivered.id}`;
+    const kg = await actorOf(ids.kg);
+    expect(await lg.outsideScreen(finance, 'WAITING')).toBeNull();
+    const waiting = (await lg.outsideScreen(kg, 'WAITING'))!;
+    expect(waiting.rows.map((r) => [r.kind, r.id, r.distanceM, r.canReview])).toEqual([['TRUCK', Number(delivered.id), 900, true]]);
+    expect(await lg.reviewOutside(kg, 'TRUCK', Number(delivered.id), 'NOT_OK', 'abc')).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.reviewOutside(kg, 'TRUCK', Number(delivered.id), 'NOT_OK', 'Jauh dari toko tanpa alasan')).ok).toBe(true);
+    expect(await lg.reviewOutside(await actorOf(ids.owner), 'TRUCK', Number(delivered.id), 'OK', null)).toMatchObject({ ok: false, status: 409 });
+    expect((await lg.outsideScreen(kg, 'WAITING'))!.rows).toEqual([]);
+    expect((await lg.outsideScreen(kg, 'DONE'))!.rows.map((r) => r.verdict)).toEqual(['NOT_OK']);
+    const [warned] = await sql`select title from hris.notifications where kind = 'logistics.outside_point' and recipient_account_id = ${ids.driver + 1000}`;
+    expect(warned?.title).toMatch(/Tidak wajar/);
     expect((await lg.closeCondition(await actorOf(ids.kg), reportId, 'Sudah diservis')).ok).toBe(true);
     expect(await lg.followupAttention(await actorOf(ids.kg))).toEqual({ fuel: 0, condition: 0, decide: 1 });
     const detail = (await lg.tripDetailScreen(await actorOf(ids.kg), tripId))!;

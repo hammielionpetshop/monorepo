@@ -54,7 +54,7 @@ export {
   type Condition, type TripPhase, type VisitOutcome,
 } from './rules/driver-trip';
 export {
-  closeCondition, closeFuel, decideNote, followupAttention, followupScreen, headHome, markReady, pendingEndReports, processVisit, reopenNote, retryVisit,
+  closeCondition, decideNote, followupAttention, followupScreen, headHome, markReady, pendingEndReports, processVisit, reopenNote, retryVisit,
   sendEndReport, unmarkReady, type EndReportPending, type FollowupRow, type VisitInput,
 } from './server/driver-trip';
 export { FollowupScreen } from './ui/followup-screen';
@@ -113,3 +113,13 @@ export {
 } from './server/self-delivery-office';
 export { SelfDeliveryOfficeScreen } from './ui/self-delivery-office-screen';
 export { addSelfStopReport, canCorrectSelf, correctSelfPayment } from './server/self-delivery-money';
+// Logistik LT5a (spec LT1 §17.1): bensin sebagai sumber uang keluar, Dashboard Logistik, tinjau kiriman di luar titik.
+export { FUEL_MAX, NO_REQUEST_REASONS, fuelPeriod, type NoRequestReason } from './rules/fuel';
+export {
+  correctFuel, fillFuelRequest, fuelPanel, fuelPeriodSummary, openFuelReceipt, recordFuelWithoutRequest, voidFuel, type FuelFillRow,
+} from './server/fuel';
+export { dashboardParts, logisticsDashboard, type BoardRow, type BoardSection } from './server/dashboard';
+export { outsideScreen, reviewOutside, type OutsideKind, type OutsideRow } from './server/outside-points';
+export { FuelPanel } from './ui/fuel-panel';
+export { DashboardScreen } from './ui/dashboard-screen';
+export { OutsideScreen } from './ui/outside-screen';

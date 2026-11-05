@@ -247,6 +247,11 @@ export async function storePointHistory(actor: Actor, customerId: number) {
 /** Angka Beranda: usulan titik menunggu (pemegang hak putus). */
 export async function pendingPointCount(actor: Actor | null): Promise<number> {
   if (!actor || !can(actor, DECIDE)) return 0;
+  return countPendingPoints();
+}
+
+/** Hitung titik toko Menunggu tanpa pemeriksaan hak (Dashboard Logistik, spec LT1 §17.1 butir 7). */
+export async function countPendingPoints(): Promise<number> {
   const [row] = await db.execute<{ n: number }>(sql`select count(*)::int as n from logistics.store_points where status = 'PENDING'`);
   return Number(row?.n ?? 0);
 }

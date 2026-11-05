@@ -264,6 +264,11 @@ export async function selfDeliveryAttention(actor: Actor | null): Promise<{ late
   if (!actor || !(actor.fullAccess || actor.grants.has(MANAGE) || actor.grants.has(VIEW))) return null;
   const scope = officeScope(actor);
   if (scope === 'NONE') return null;
+  return countSelfAttention(scope);
+}
+
+/** Hitung antar sendiri belum kembali / Gagal / tunai lewat hari; scope null = semua cabang (Dashboard Logistik). */
+export async function countSelfAttention(scope: number[] | null): Promise<{ late: number; failed: number; cashLate: number } | null> {
   const today = wibDate(new Date());
   const where = scope ? sql`t.branch_id in (${ids(scope)})` : sql`true`;
   const [row] = await db.execute<{ late: number; failed: number; cash_late: number }>(sql`
@@ -274,4 +279,13 @@ export async function selfDeliveryAttention(actor: Actor | null): Promise<{ late
     from logistics.self_trips t where ${where}`);
   const result = { late: Number(row?.late ?? 0), failed: Number(row?.failed ?? 0), cashLate: Number(row?.cash_late ?? 0) };
   return result.late || result.failed || result.cashLate ? result : null;
+}
+
+/** Perjalanan antar sendiri yang sedang berjalan di semua cabang (Dashboard Logistik), tanpa pemeriksaan hak. */
+export async function runningSelfTrips(): Promise<{ id: number; number: string; branch: string; employeeId: number; startedAt: Date }[]> {
+  const rows = await db.execute<{ id: number; number: string; branch: string | null; employee_id: number; started_at: string }>(sql`
+    select t.id, t.number, b.name as branch, t.employee_id, t.started_at
+    from logistics.self_trips t left join hris.branches b on b.id = t.branch_id
+    where t.status = 'RUNNING' order by t.started_at`);
+  return rows.map((r) => ({ id: Number(r.id), number: r.number, branch: r.branch ?? '-', employeeId: Number(r.employee_id), startedAt: new Date(r.started_at) }));
 }
