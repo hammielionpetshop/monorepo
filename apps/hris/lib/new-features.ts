@@ -211,6 +211,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/antar-sendiri/kantor': '2026-11-05',
   'fitur/beranda-antar-sendiri': '2026-11-05', // kartu Beranda: antar belum kembali, Gagal perlu keputusan, tunai belum diterima
   'fitur/antar-sendiri-uang': '2026-11-05', // Lapor masalah + Koreksi cara bayar di tujuan antar sendiri
+  '/logistik/terima-uang': '2026-11-05', // Terima Uang: periksa uang trip per nota, selisih, tanda pelunasan POS
   'fitur/uang-toko-antar-sendiri': '2026-11-05', // Uang dari Toko memuat antar sendiri (saringan sumber + cabang)
   'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };

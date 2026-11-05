@@ -76,6 +76,11 @@ export {
   type VisitReportView,
 } from './server/store-payments';
 export { StorePaymentsScreen } from './ui/store-payments-screen';
+export { CHECK_RED_DAYS, MONEY_KIND_LABELS, POS_STATUS_LABELS, cleanCheck, posStatusOf, suggestSplit, type MoneyKind, type PosStatus } from './rules/money-checks';
+export {
+  moneyCheckAttention, moneyCheckScreen, saveMoneyCheck, voidMoneyCheck, type CheckSource, type MoneyCheckTab, type MoneyPaymentView,
+} from './server/money-checks';
+export { MoneyCheckScreen } from './ui/money-check-screen';
 export { ToRecordScreen } from './ui/to-record-screen';
 export { VisitReportsScreen } from './ui/visit-reports-screen';
 export { TripNotesPanel } from './ui/trip-notes-panel';
