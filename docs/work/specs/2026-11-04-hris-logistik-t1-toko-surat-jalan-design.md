@@ -438,3 +438,17 @@ Keputusan owner atas butir terbuka (2026-11-05):
 | 5 | **Janji bayar sisa** (LOG-113): wajib untuk Bayar sebagian / Tempo, bawaan hari + 7, paling cepat besok, paling lama hari + 60. Tampil di Uang dari Toko (kolom Janji bayar) dan kartu kunjungan; **Lewat janji** bila tanggalnya lewat dan sisa piutang kasir nota kunjungan itu masih ada. Catatan cara bayar sebelum LT2b tanpa tanggal |
 
 **Data.** Migrasi `logistics` 0009: tabel `report_decisions` (keputusan, nota, nominal, alasan, catatan, pemutus, alasan ubah, `replaced_at`, Sudah dicatat + nomor referensi; satu yang berlaku per laporan; tanpa hapus), kolom `visit_payments.promise_date`, `correction_of_id`, `correction_reason`, `recorded_by_account_id`, `replaced_at` (unik per kunjungan hanya untuk baris yang berlaku), jenis laporan `PRICE`. Migrasi `hris` 0046: hak `logistics.note_cut.decide` (Finance) dan `logistics.store_payment.correct` (Kepala Gudang).
+
+### 14.3 LT2c Nota berubah di kasir (owner "ok" 2026-11-05)
+
+| # | Keputusan |
+|---|---|
+| 1 | **Pemeriksa berkala** `logistics-kasir-check` tiap 10 menit, sepanjang hari: surat jalan aktif di kunjungan terbuka pada trip Draft/Berjalan dibandingkan dengan `amount_at_trip`/`revision_at_trip` memakai aturan `kasirChange` yang sudah ada (§3.3). |
+| 2 | **Yang diberi tahu**: Kepala Gudang + Pemilik/GM (`logistics.trip.manage`, tautan rincian trip) dan driver/kenek trip itu (tautan Trip Saya). |
+| 3 | **Sekali per keadaan**: penanda = jenis + nominal + revisi kasir (`CHANGED:<nominal>:<revisi>`, `PENDING_CANCEL`, `CANCELLED`). Diubah lagi = keadaan baru, diberi tahu lagi. Tiap keadaan baru dicatat di riwayat surat jalan (`KASIR_CHANGED`). Kasir kembali seperti semula / surat jalan lepas dari trip = keadaan ditutup (`cleared_at`). |
+| 4 | **Keputusan Kepala Gudang** di rincian trip: **Lepas** (sudah ada) atau **Tetap antar** (baru, riwayat `KASIR_KEPT`): tanda abu-abu, keluar dari kartu Beranda. Nota batal final tidak bisa Tetap antar. |
+| 5 | **Kartu Beranda** "Nota berubah di kasir" (pemegang `logistics.trip.manage`): jumlah nota yang belum diputuskan; satu trip → rincian trip, lebih → Surat Jalan tab Dalam perjalanan. |
+| 6 | **Terkirim**: tetap ditolak bila ada nota kunjungan yang **batal final** di kasir (aturan LT1b-2a yang lebih ketat dari usulan "semua nota batal" dipertahankan). **Menunggu batal** = peringatan saja, tidak menolak. |
+| 7 | **Di luar**: perubahan nota sesudah Terkirim (lewat potong nota / Retur BO, §14.2), cara bayar, upah. |
+
+**Data.** Migrasi `logistics` 0010: tabel `kasir_changes` (surat jalan, trip, jenis, penanda unik per surat jalan+trip, nominal saat trip → kasir, revisi, ditemukan, Tetap antar oleh/kapan, ditutup; tanpa hapus) + jenis riwayat `KASIR_CHANGED`, `KASIR_KEPT`. Tanpa migrasi hris (hak memakai `logistics.trip.manage`). Jadwal di `infra/apps/cron/crontab` (`*/10`).

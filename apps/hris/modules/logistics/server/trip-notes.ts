@@ -7,7 +7,7 @@ import { settingOn } from '@/modules/settings';
 import { ageDays, backofficeLink, compareQueue, type NoteKind } from '../rules/delivery-notes';
 import { reasonProblem, wibDate, type IsoDate } from '../rules/trip';
 import {
-  MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, VISIT_TONES, kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits,
+  MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, VISIT_TONES, kasirChange, kasirChangeKey, noteKey, parseNoteKey, pickupOrigins, planVisits,
   type KasirChange, type NoteKey, type PickupStatus, type VisitStatus,
 } from '../rules/trip-notes';
 import { outsidePoint } from '../rules/store-points';
@@ -304,8 +304,10 @@ export async function finishPickup(actor: Actor | null, tripId: number, pickupId
 }
 
 export type TripNoteView = {
-  key: NoteKey; kind: NoteKind; number: string; on: IsoDate; age: number; origin: string; amount: number | null;
+  key: NoteKey; noteId: number; kind: NoteKind; number: string; on: IsoDate; age: number; origin: string; amount: number | null;
   change: KasirChange; tomorrowCount: number; link: string | null;
+  /** Perubahan kasir sudah diputuskan Tetap antar oleh Kepala Gudang (spec LT1 §14.3 butir 4): tanda abu-abu. */
+  kept: boolean;
 };
 export type TripVisitView = {
   id: number; destination: string; customerId: number | null; status: VisitStatus; statusLabel: string; tone: 'info' | 'ok' | 'warn' | 'danger';
@@ -330,7 +332,12 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       .innerJoin(tripVisits, eq(tripVisits.id, tripVisitNotes.visitId)).innerJoin(deliveryNotes, eq(deliveryNotes.id, tripVisitNotes.noteId))
       .where(eq(tripVisits.tripId, tripId)).orderBy(tripVisitNotes.id),
   ]);
-  const live = await liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor);
+  const [live, keptRows] = await Promise.all([
+    liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor),
+    executor.execute<{ note_id: number; signature: string }>(sql`
+      select note_id, signature from logistics.kasir_changes where trip_id = ${tripId} and kept_at is not null and cleared_at is null`),
+  ]);
+  const kept = new Set(keptRows.map((r) => `${Number(r.note_id)}:${r.signature}`));
   const customerIds = [...new Set(visits.map((v) => v.customerId).filter((id): id is number => id != null))];
   const storeVisitIds = visits.filter((v) => v.customerId != null).map((v) => v.id);
   const [contacts, names, points, radius, bills, money] = await Promise.all([
@@ -355,12 +362,14 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       const notes = mine.map((l): TripNoteView => {
         const key = noteKey(l.note.kind as NoteKind, l.note.docId);
         const doc = live.get(key);
+        const change = doc && v.status === 'OPEN'
+          ? kasirChange({ amount: l.note.amountAtTrip, revision: l.note.revisionAtTrip }, { amount: doc.amount, revision: doc.revision, status: doc.kasirStatus })
+          : null;
+        const sign = kasirChangeKey(change, doc?.revision ?? null);
         return {
-          key, kind: l.note.kind as NoteKind, number: l.note.number, on: doc?.on ?? today, age: doc ? ageDays(doc.on, today) : 0,
+          key, noteId: l.note.id, kind: l.note.kind as NoteKind, number: l.note.number, on: doc?.on ?? today, age: doc ? ageDays(doc.on, today) : 0,
           origin: doc?.origin ?? '-', amount: doc?.amount ?? null,
-          change: doc && v.status === 'OPEN'
-            ? kasirChange({ amount: l.note.amountAtTrip, revision: l.note.revisionAtTrip }, { amount: doc.amount, revision: doc.revision, status: doc.kasirStatus })
-            : null,
+          change, kept: !!sign && kept.has(`${l.note.id}:${sign.signature}`),
           tomorrowCount: l.note.tomorrowCount, link: backofficeLink(base, l.note.kind as NoteKind, { number: l.note.number, id: l.note.docId }),
         };
       });

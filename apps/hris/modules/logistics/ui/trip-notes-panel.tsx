@@ -7,9 +7,12 @@ import type { TripNoteView, TripPickupView, TripVisitView } from '../server/trip
 
 function ChangeBadge({ note }: { note: TripNoteView }) {
   if (!note.change) return null;
-  if (note.change.kind === 'cancelled') return <Badge tone="danger">{note.change.pending ? 'Menunggu batal di kasir' : 'Dibatalkan di kasir'}</Badge>;
-  if (note.change.from === note.change.to) return <Badge tone="warn">Dikoreksi di kasir</Badge>;
-  return <Badge tone="warn">Berubah di kasir: {rupiah(note.change.from)} → {rupiah(note.change.to)}</Badge>;
+  const text = note.change.kind === 'cancelled'
+    ? (note.change.pending ? 'Menunggu batal di kasir' : 'Dibatalkan di kasir')
+    : note.change.from === note.change.to ? 'Dikoreksi di kasir' : `Berubah di kasir: ${rupiah(note.change.from)} → ${rupiah(note.change.to)}`;
+  // Sudah diputuskan Tetap antar (spec LT1 §14.3 butir 4): abu-abu, bukan merah/kuning lagi.
+  if (note.kept) return <span className="inline-flex rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-ink-muted">{text} · tetap antar</span>;
+  return <Badge tone={note.change.kind === 'cancelled' ? 'danger' : 'warn'}>{text}</Badge>;
 }
 
 export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY' | 'REPORT' | 'PAYMENT';
@@ -19,9 +22,11 @@ export type PointAction = 'NEW' | 'CORRECTION';
  * Surat jalan di trip (spec LT1 §3.4–3.6): langkah ambil barang di cabang asal dan kunjungan per tujuan. Dipakai rincian
  * trip (kantor, ada tombol Lepas) dan Trip Saya (awak: ambil barang, Terkirim / Kirim Besok / Gagal / Coba lagi, LT1b-2a).
  */
-export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, onPoint, storeLinks, compact }: {
+export function TripNotesPanel({ visits, pickups, onRelease, onKeep, onPickup, onVisit, onPoint, storeLinks, compact }: {
   visits: TripVisitView[]; pickups: TripPickupView[];
-  onRelease?: (visit: TripVisitView) => void; onPickup?: (pickup: TripPickupView) => void; onVisit?: (visit: TripVisitView, action: VisitAction) => void;
+  onRelease?: (visit: TripVisitView) => void;
+  /** Tetap antar nota yang berubah di kasir (spec LT1 §14.3 butir 4): kantor. */
+  onKeep?: (visit: TripVisitView, note: TripNoteView) => void; onPickup?: (pickup: TripPickupView) => void; onVisit?: (visit: TripVisitView, action: VisitAction) => void;
   /** Titik toko dari kunjungan (spec LT1 §13.4): awak trip selama Berjalan. */
   onPoint?: (visit: TripVisitView, action: PointAction) => void;
   storeLinks?: boolean; compact?: boolean;
@@ -145,6 +150,12 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                     {n.amount != null && <span className="tabular-nums">{rupiah(n.amount)}</span>}
                     {n.tomorrowCount > 0 && <Badge tone="warn">Pernah tertunda ×{n.tomorrowCount}</Badge>}
                     <ChangeBadge note={n} />
+                    {onKeep && v.status === 'OPEN' && n.change && !n.kept && !(n.change.kind === 'cancelled' && !n.change.pending) && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => onKeep(v, n)}>Tetap antar</Button>
+                        <NewBadge feature="fitur/nota-berubah-kasir" />
+                      </>
+                    )}
                     {!compact && n.link && <a href={n.link} target="_blank" rel="noreferrer" className="underline">Back Office</a>}
                   </li>
                 ))}
