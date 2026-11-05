@@ -3,10 +3,10 @@ import Big from 'big.js';
 import { REASON_MIN, addDays, type IsoDate } from './trip';
 import type { PaymentMethod } from './store-payments';
 
-export type SelfTripStatus = 'RUNNING' | 'DONE';
+export type SelfTripStatus = 'RUNNING' | 'DONE' | 'CLOSED';
 export type SelfStopStatus = 'OPEN' | 'DELIVERED' | 'TOMORROW' | 'FAILED';
 
-export const SELF_TRIP_LABELS: Record<SelfTripStatus, string> = { RUNNING: 'Berjalan', DONE: 'Kembali' };
+export const SELF_TRIP_LABELS: Record<SelfTripStatus, string> = { RUNNING: 'Berjalan', DONE: 'Kembali', CLOSED: 'Ditutup kantor' };
 export const SELF_STOP_LABELS: Record<SelfStopStatus, string> = { OPEN: 'Belum', DELIVERED: 'Terkirim', TOMORROW: 'Kirim Besok', FAILED: 'Gagal' };
 export const SELF_STOP_TONES: Record<SelfStopStatus, 'info' | 'ok' | 'warn' | 'danger'> = { OPEN: 'info', DELIVERED: 'ok', TOMORROW: 'warn', FAILED: 'danger' };
 

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
-import { finishSelfTrip, proposeFromSelfStop, receiveSelfCash, selfStopOutcome, startSelfTrip } from '@/modules/logistics';
+import {
+  closeSelfTrip, decideSelfStop, finishSelfTrip, handoverSelfTrip, proposeFromSelfStop, receiveSelfCash, selfStopOutcome, startSelfTrip,
+} from '@/modules/logistics';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +18,7 @@ const OUTCOMES = { deliver: 'DELIVERED', tomorrow: 'TOMORROW', fail: 'FAILED' } 
 const bad = { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
 
 // Antar sendiri (spec LT1 §15.2): Mulai antar (Foto 1), hasil tujuan (Foto 2 + cara bayar), Kembali (Foto 3), terima tunai,
-// dan titik toko dari tujuan. Jam = jam server saat permintaan diterima.
+// titik toko dari tujuan, serta tindakan kantor (spec §15.3): tutup, alihkan PJ, keputusan Gagal. Jam = jam server saat permintaan diterima.
 export async function POST(req: Request) {
   const rejected = await checkMutation(req);
   if (rejected) return NextResponse.json({ error: rejected }, { status: 403 });
@@ -30,6 +32,12 @@ export async function POST(req: Request) {
   const photo = fileOf(form.get('photo'));
   const point = { latitude: coord(form.get('latitude')), longitude: coord(form.get('longitude')), accuracy: coord(form.get('accuracy')) };
   const result = await (async () => {
+    if (action === 'decide') {
+      const stopId = positive(form.get('stopId'));
+      const decision = form.get('decision');
+      if (!stopId || (decision !== 'RESEND' && decision !== 'DROP')) return bad;
+      return decideSelfStop(actor, stopId, decision, text(form.get('reason'), 400));
+    }
     if (action === 'start') {
       const transactionIds = String(form.get('transactionIds') ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 50);
       return startSelfTrip(actor, { transactionIds, point }, photo);
@@ -45,6 +53,11 @@ export async function POST(req: Request) {
     }
     if (action === 'finish') return finishSelfTrip(actor, tripId, { gapReason: text(form.get('gapReason'), 40), gapNote: text(form.get('gapNote'), 300), point }, photo);
     if (action === 'cash') return receiveSelfCash(actor, tripId);
+    if (action === 'close') return closeSelfTrip(actor, tripId, text(form.get('reason'), 400));
+    if (action === 'handover') {
+      const toEmployeeId = positive(form.get('toEmployeeId'));
+      return toEmployeeId ? handoverSelfTrip(actor, tripId, toEmployeeId, text(form.get('reason'), 400)) : bad;
+    }
     if (action === 'store_point') {
       const stopId = positive(form.get('stopId'));
       const kind = form.get('kind');

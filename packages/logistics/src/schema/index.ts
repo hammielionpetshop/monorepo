@@ -848,6 +848,11 @@ export const selfTrips = logisticsSchema.table(
     cashReceivedAt: timestamp('cash_received_at', { withTimezone: true }),
     cashReceivedByEmployeeId: integer('cash_received_by_employee_id'),
     cashReceivedByAccountId: integer('cash_received_by_account_id'),
+    /** Ditutup kantor (LOG-110, spec LT1 §15.3): Kepala Toko / Kepala Gudang / Pemilik / GM, bukan PJ, alasan wajib. */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByEmployeeId: integer('closed_by_employee_id'),
+    closedByAccountId: integer('closed_by_account_id'),
+    closeReason: text('close_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -855,9 +860,10 @@ export const selfTrips = logisticsSchema.table(
     // Satu orang hanya satu perjalanan berjalan (LOG-43).
     uniqueIndex('self_trips_one_running').on(t.employeeId).where(sql`${t.status} = 'RUNNING'`),
     index('self_trips_branch_idx').on(t.branchId, t.startedAt),
-    check('self_trips_status', sql`${t.status} in ('RUNNING', 'DONE')`),
+    check('self_trips_status', sql`${t.status} in ('RUNNING', 'DONE', 'CLOSED')`),
     check('self_trips_done', sql`(${t.status} = 'DONE') = (${t.returnedAt} is not null and ${t.returnPhotoFileId} is not null)`),
-    check('self_trips_cash', sql`${t.cashAmount} >= 0 and (${t.cashAmount} = 0 or ${t.status} = 'DONE')`),
+    check('self_trips_closed', sql`(${t.status} = 'CLOSED') = (${t.closedAt} is not null and ${t.closedByAccountId} is not null and ${t.closeReason} is not null)`),
+    check('self_trips_cash', sql`${t.cashAmount} >= 0 and (${t.cashAmount} = 0 or ${t.status} in ('DONE', 'CLOSED'))`),
     check('self_trips_cash_received', sql`(${t.cashReceivedAt} is null) = (${t.cashReceivedByAccountId} is null)
       and (${t.cashReceivedAt} is null or (${t.cashAmount} > 0 and ${t.cashReceivedByEmployeeId} is distinct from ${t.employeeId}))`),
     check('self_trips_gap', sql`(${t.gapReason} is null) or ${t.status} = 'DONE'`),
@@ -894,14 +900,52 @@ export const selfTripStops = logisticsSchema.table(
     accuracyM: integer('accuracy_m'),
     /** Jarak Terkirim dari titik toko Disetujui (meter), bila ada. */
     distanceM: integer('distance_m'),
+    /** Tujuan tanpa hasil saat kantor menutup perjalanan → Kirim Besok tanpa Foto 2 (LOG-110). */
+    officeClosed: boolean('office_closed').notNull().default(false),
+    /** Keputusan Gagal oleh cabang asal (spec LT1 §15.3): RESEND = nota kembali ke daftar tugas, DROP = batal kirim. */
+    decision: text('decision'),
+    decisionReason: text('decision_reason'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decidedByAccountId: integer('decided_by_account_id'),
     addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('self_trip_stops_live').on(t.transactionId).where(sql`${t.status} in ('OPEN', 'DELIVERED', 'FAILED')`),
+    uniqueIndex('self_trip_stops_live').on(t.transactionId)
+      .where(sql`${t.status} in ('OPEN', 'DELIVERED') or (${t.status} = 'FAILED' and ${t.decision} is distinct from 'RESEND')`),
     index('self_trip_stops_trip_idx').on(t.tripId),
     check('self_trip_stops_status', sql`${t.status} in ('OPEN', 'DELIVERED', 'TOMORROW', 'FAILED')`),
-    check('self_trip_stops_done', sql`(${t.status} = 'OPEN') = (${t.doneAt} is null) and (${t.status} = 'OPEN') = (${t.photoFileId} is null)`),
+    check('self_trip_stops_done', sql`(${t.status} = 'OPEN') = (${t.doneAt} is null) and (${t.status} <> 'OPEN' or ${t.photoFileId} is null)
+      and (${t.status} = 'OPEN' or ${t.photoFileId} is not null or ${t.officeClosed})`),
+    check('self_trip_stops_office', sql`not ${t.officeClosed} or (${t.status} = 'TOMORROW' and ${t.photoFileId} is null)`),
     check('self_trip_stops_reason', sql`(${t.status} in ('TOMORROW', 'FAILED')) = (${t.reasonCode} is not null and ${t.reasonText} is not null)`),
+    check('self_trip_stops_decision', sql`(${t.decision} is null or (${t.decision} in ('RESEND', 'DROP') and ${t.status} = 'FAILED'))
+      and (${t.decision} is null) = (${t.decidedAt} is null) and (${t.decision} is null) = (${t.decidedByAccountId} is null)
+      and (${t.decision} is distinct from 'DROP' or ${t.decisionReason} is not null)`),
+  ],
+);
+
+/**
+ * Riwayat tindakan kantor atas antar sendiri (spec LT1 §15.3): tutup perjalanan, alihkan PJ, keputusan Gagal. Tidak dihapus.
+ */
+export const selfTripEvents = logisticsSchema.table(
+  'self_trip_events',
+  {
+    id: serial('id').primaryKey(),
+    tripId: integer('trip_id').notNull().references(() => selfTrips.id),
+    stopId: integer('stop_id').references(() => selfTripStops.id),
+    kind: text('kind').notNull(),
+    reason: text('reason'),
+    fromEmployeeId: integer('from_employee_id'),
+    toEmployeeId: integer('to_employee_id'),
+    byEmployeeId: integer('by_employee_id').notNull(),
+    byAccountId: integer('by_account_id').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('self_trip_events_trip_idx').on(t.tripId),
+    check('self_trip_events_kind', sql`${t.kind} in ('CLOSED', 'HANDOVER', 'RESENT', 'DROPPED')`),
+    check('self_trip_events_handover', sql`(${t.kind} = 'HANDOVER') = (${t.toEmployeeId} is not null and ${t.fromEmployeeId} is not null)`),
+    check('self_trip_events_stop', sql`(${t.kind} in ('RESENT', 'DROPPED')) = (${t.stopId} is not null)`),
   ],
 );
 

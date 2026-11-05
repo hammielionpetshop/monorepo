@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { selfTripPayments, selfTrips, selfTripStops } from '@petshop/logistics';
+import { selfTripEvents, selfTripPayments, selfTrips, selfTripStops } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
@@ -11,6 +11,7 @@ import {
   GAP_REASONS, SELF_STOP_LABELS, SELF_TRIP_LABELS, cashLate, cashOf, cleanGapReason, gapMinutes, isVoided, photoDeadlinePassed, selfTripNumber,
   stageWaitProblem, stopsProblem, type SelfStopStatus, type SelfTripStatus,
 } from '../rules/self-delivery';
+import { SELF_DECISION_LABELS, SELF_EVENT_LABELS, tripLate, type SelfDecision, type SelfEventKind } from '../rules/self-delivery-office';
 import { PAYMENT_LABELS, billOf, cleanPayment, cleanPromise, leftToCollect, type PaymentMethod } from '../rules/store-payments';
 import { addDays, validPoint, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames, type Executor } from './data';
@@ -22,6 +23,9 @@ import { distanceFromPoint, pointsOf } from './store-points';
 const RUN = 'logistics.self_delivery.run';
 const CASH = 'logistics.self_delivery.cash_receive';
 const VIEW = 'logistics.self_delivery.view';
+const MANAGE = 'logistics.self_delivery.manage';
+/** Tujuan yang masih memegang nota (tidak bisa dibawa lagi): Belum, Terkirim, Gagal yang belum diputuskan Kirim ulang. */
+export const LIVE_STOP = sql.raw(`(x.status in ('OPEN', 'DELIVERED') or (x.status = 'FAILED' and x.decision is distinct from 'RESEND'))`);
 const ids = (values: number[]) => sql.join((values.length ? values : [-1]).map((v) => sql`${v}`), sql`, `);
 const stamp = (at: Date | null) => (at ? `${wibDate(at)} ${wibClock(at)}` : null);
 
@@ -39,7 +43,7 @@ class Rollback extends Error {
 export type HomeBranch = { id: number; name: string; kasirBranchId: number };
 
 /** Cabang HRIS penempatan pelaku yang punya cabang kasir. */
-async function homeBranch(actor: Actor): Promise<HomeBranch | null> {
+export async function homeBranch(actor: Actor): Promise<HomeBranch | null> {
   if (actor.branchId == null) return null;
   const [row] = await db.execute<{ id: number; name: string; kasir_branch_id: number | null }>(sql`
     select id, name, kasir_branch_id from hris.branches where id = ${actor.branchId}`);
@@ -50,7 +54,7 @@ async function homeBranch(actor: Actor): Promise<HomeBranch | null> {
  * Sudah absen masuk dan belum pulang (LOG-110). Hari kemarin yang belum pulang masih berlaku sampai batas absen pulang
  * (KEH-18), sama dengan hari aktif di modul Kehadiran.
  */
-async function onDuty(employeeId: number, now: Date, executor: Executor = db): Promise<boolean> {
+export async function onDuty(employeeId: number, now: Date, executor: Executor = db): Promise<boolean> {
   const today = wibDate(now);
   const rows = await executor.execute<{ work_date: string; has_in: boolean; has_out: boolean }>(sql`
     select d.work_date::text as work_date,
@@ -76,7 +80,7 @@ export async function runningSelfTripNumber(employeeId: number, executor: Execut
 }
 
 /** Akun karyawan aktif di cabang ini yang jabatannya memegang hak itu (tanpa Pemilik/GM full_access, agar tidak ramai). */
-async function branchAccounts(branchId: number, action: string): Promise<number[]> {
+export async function branchAccounts(branchId: number, action: string): Promise<number[]> {
   const rows = await db.execute<{ employee_id: number }>(sql`
     select distinct cp.employee_id from hris.current_placements cp
     join hris.positions p on p.id = cp.position_id and p.active
@@ -85,24 +89,25 @@ async function branchAccounts(branchId: number, action: string): Promise<number[
   return accountsOf(rows.map((r) => Number(r.employee_id)));
 }
 
-type SaleRow = {
+export type SaleRow = {
   id: number; trx_number: string; branch_id: number; customer_id: number | null; customer_name: string | null; customer_phone: string | null;
   address: string | null; payable_amount: number; status: string; courier_id: number | null; courier_name: string | null; trx_on: string;
   created_at: Date; courier_employee_id: number | null; courier_employee_name: string | null; tomorrow_count: number;
 };
 
 /** Nota kurir cabang yang belum dibawa / sudah Kirim Besok (tanpa tujuan berlaku), sejak tanggal mulai antar sendiri. */
-async function openSales(kasirBranchId: number, executor: Executor, only: number[] | null = null): Promise<SaleRow[]> {
+export async function openSales(kasirBranchId: number | number[], executor: Executor, only: number[] | null = null): Promise<SaleRow[]> {
   const from = String(await settingOn<string>('logistics.self_delivery_from', wibDate(new Date()), {}, executor));
   return executor.execute<SaleRow>(sql`
     select s.id, s.trx_number, s.branch_id, s.customer_id, s.customer_name, s.customer_phone, s.address, s.payable_amount, s.status,
       s.courier_id, s.courier_name, s.trx_on::text as trx_on, s.created_at, l.employee_id as courier_employee_id, e.name as courier_employee_name,
-      (select count(*)::int from logistics.self_trip_stops x where x.transaction_id = s.id and x.status = 'TOMORROW') as tomorrow_count
+      (select count(*)::int from logistics.self_trip_stops x where x.transaction_id = s.id and (x.status = 'TOMORROW' or x.decision = 'RESEND')) as tomorrow_count
     from logistics.pos_courier_sales s
     left join hris.pos_groomer_links l on l.pos_groomer_id = s.courier_id and l.released_at is null
     left join hris.employees e on e.id = l.employee_id
-    where s.branch_id = ${kasirBranchId} and s.trx_on >= ${from}::date and s.status not in ('VOIDED', 'PENDING_VOID')
-      and not exists (select 1 from logistics.self_trip_stops x where x.transaction_id = s.id and x.status in ('OPEN', 'DELIVERED', 'FAILED'))
+    where s.branch_id in (${ids(Array.isArray(kasirBranchId) ? kasirBranchId : [kasirBranchId])}) and s.trx_on >= ${from}::date
+      and s.status not in ('VOIDED', 'PENDING_VOID')
+      and not exists (select 1 from logistics.self_trip_stops x where x.transaction_id = s.id and ${LIVE_STOP})
       ${only ? sql`and s.id in (${ids(only)})` : sql``}
     order by s.created_at asc, s.id asc limit 200`);
 }
@@ -243,7 +248,7 @@ export async function selfStopOutcome(actor: Actor | null, tripId: number, stopI
         await notify(tx, await branchAccounts(trip.branchId, VIEW), {
           kind: 'logistics.self_failed', title: `Antar ${stop.trxNumber} ke ${stop.destinationName} gagal (${trip.number})`,
           body: `${reason.text}. Barang dibawa kembali ke cabang; keputusan kirim ulang atau batal menyusul.`,
-          link: '/logistik/antar-sendiri', entity: 'self_trip_stop', entityId: stopId,
+          link: '/logistik/antar-sendiri/kantor?tab=FAILED', entity: 'self_trip_stop', entityId: stopId,
         }, actor.accountId);
       }
       return { ok: true as const, data: undefined };
@@ -315,7 +320,7 @@ export async function receiveSelfCash(actor: Actor | null, tripId: number): Prom
     if (!trip) return fail(404, 'Perjalanan antar tidak ditemukan.');
     if (!can(actor, CASH, { branchId: trip.branchId })) return fail(403, FORBIDDEN);
     if (trip.employeeId === actor.personId) return fail(403, 'Uang yang Anda bawa sendiri diterima rekan cabang.');
-    if (trip.status !== 'DONE' || trip.cashAmount <= 0) return fail(409, 'Perjalanan ini tidak membawa uang tunai.');
+    if (trip.status === 'RUNNING' || trip.cashAmount <= 0) return fail(409, 'Perjalanan ini tidak membawa uang tunai.');
     if (trip.cashReceivedAt) return fail(409, 'Uang ini sudah diterima.');
     await tx.update(selfTrips).set({ cashReceivedAt: new Date(), cashReceivedByEmployeeId: actor.personId, cashReceivedByAccountId: actor.accountId })
       .where(eq(selfTrips.id, tripId));
@@ -327,23 +332,29 @@ export type SelfStopView = {
   id: number; trxNumber: string; destination: string; customerId: number | null; phone: string | null; address: string | null; amount: number;
   status: SelfStopStatus; statusLabel: string; reason: string | null; doneAt: string | null; courierMismatch: boolean; voided: boolean;
   bill: number; payment: { method: PaymentMethod; label: string; received: number; left: number; promiseDate: string | null } | null;
+  officeClosed: boolean; decision: { kind: SelfDecision; label: string; reason: string | null; at: string } | null; backofficeUrl: string | null;
   distanceM: number | null; mapUrl: string | null; hasPoint: boolean; pointPending: boolean; photoUrl: string | null; proofUrl: string | null;
 };
 export type SelfTripView = {
   id: number; number: string; status: SelfTripStatus; statusLabel: string; branch: string; pj: string; employeeId: number;
   startedAt: string; returnedAt: string | null; gapReason: string | null; gapMinutes: number | null;
   cash: number; cashReceived: { by: string; at: string } | null; cashLate: boolean;
+  closed: { by: string; at: string; reason: string } | null; late: boolean; branchId: number;
+  events: { kind: SelfEventKind; label: string; text: string; at: string }[];
   pickupUrl: string; returnUrl: string | null; stops: SelfStopView[];
 };
 
-async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executor: Executor = db): Promise<SelfTripView[]> {
+export async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executor: Executor = db): Promise<SelfTripView[]> {
   if (!rows.length) return [];
   const tripIds = rows.map((t) => t.id);
-  const [stops, payments, people, branches] = await Promise.all([
+  const base = (process.env.BACKOFFICE_PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
+  const boRoot = /^https?:\/\/[^/\s]+$/.test(base) ? base : null;
+  const [stops, payments, people, branches, events] = await Promise.all([
     executor.select().from(selfTripStops).where(inArray(selfTripStops.tripId, tripIds)).orderBy(asc(selfTripStops.id)),
     executor.select().from(selfTripPayments).where(inArray(selfTripPayments.tripId, tripIds)),
     peopleNames(),
     executor.execute<{ id: number; name: string }>(sql`select id, name from hris.branches where id in (${ids([...new Set(rows.map((t) => t.branchId))])})`),
+    executor.select().from(selfTripEvents).where(inArray(selfTripEvents.tripId, tripIds)).orderBy(asc(selfTripEvents.id)),
   ]);
   const txIds = stops.map((s) => s.transactionId);
   const [sales, bills, points] = await Promise.all([
@@ -361,7 +372,20 @@ async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executor: Exec
     startedAt: stamp(t.startedAt)!, returnedAt: stamp(t.returnedAt), gapReason: t.gapReason, gapMinutes: t.gapMinutes,
     cash: t.cashAmount,
     cashReceived: t.cashReceivedAt ? { by: people.get(t.cashReceivedByEmployeeId ?? 0) ?? '-', at: stamp(t.cashReceivedAt)! } : null,
-    cashLate: t.cashAmount > 0 && !t.cashReceivedAt && !!t.returnedAt && cashLate(wibDate(t.returnedAt), today),
+    cashLate: t.cashAmount > 0 && !t.cashReceivedAt && !!(t.returnedAt ?? t.closedAt) && cashLate(wibDate((t.returnedAt ?? t.closedAt)!), today),
+    closed: t.closedAt ? { by: people.get(t.closedByEmployeeId ?? 0) ?? '-', at: stamp(t.closedAt)!, reason: t.closeReason ?? '' } : null,
+    late: t.status === 'RUNNING' && tripLate(wibDate(t.startedAt), today), branchId: t.branchId,
+    events: events.filter((e) => e.tripId === t.id).map((e) => {
+      const who = people.get(e.byEmployeeId) ?? '-';
+      const stop = e.stopId ? stops.find((s) => s.id === e.stopId) : undefined;
+      const detail = e.kind === 'HANDOVER'
+        ? `${people.get(e.fromEmployeeId ?? 0) ?? '-'} → ${people.get(e.toEmployeeId ?? 0) ?? '-'}`
+        : stop ? `${stop.destinationName} (${stop.trxNumber})` : '';
+      return {
+        kind: e.kind as SelfEventKind, label: SELF_EVENT_LABELS[e.kind as SelfEventKind], at: stamp(e.at)!,
+        text: [detail, e.reason, `oleh ${who}`].filter(Boolean).join(' · '),
+      };
+    }),
     pickupUrl: `/api/logistics/self-photo?trip=${t.id}&kind=pickup`,
     returnUrl: t.returnPhotoFileId ? `/api/logistics/self-photo?trip=${t.id}&kind=return` : null,
     stops: stops.filter((s) => s.tripId === t.id).map((s) => {
@@ -377,6 +401,11 @@ async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executor: Exec
           method: p.method as PaymentMethod, label: PAYMENT_LABELS[p.method as PaymentMethod], received: p.receivedAmount,
           left: leftToCollect(p.method as PaymentMethod, p.billAmount, p.receivedAmount), promiseDate: p.promiseDate,
         } : null,
+        officeClosed: s.officeClosed,
+        decision: s.decision ? {
+          kind: s.decision as SelfDecision, label: SELF_DECISION_LABELS[s.decision as SelfDecision], reason: s.decisionReason, at: stamp(s.decidedAt)!,
+        } : null,
+        backofficeUrl: boRoot ? `${boRoot}/transactions?trx=${encodeURIComponent(s.trxNumber)}` : null,
         distanceM: s.distanceM, mapUrl: approved?.mapUrl ?? null, hasPoint: !!approved,
         pointPending: s.customerId != null && points.pending.has(s.customerId),
         photoUrl: s.photoFileId ? `/api/logistics/self-photo?trip=${t.id}&kind=stop&stop=${s.id}` : null,
@@ -395,19 +424,16 @@ export async function selfDeliveryScreen(actor: Actor | null) {
   const branch = await homeBranch(actor);
   const canRun = !!branch && can(actor, RUN, { branchId: branch.id });
   const canCash = !!branch && can(actor, CASH, { branchId: branch.id });
-  const canView = can(actor, VIEW, branch ? { branchId: branch.id } : undefined);
+  const canView = can(actor, VIEW, branch ? { branchId: branch.id } : undefined) || can(actor, MANAGE, branch ? { branchId: branch.id } : undefined);
   if (!canRun && !canCash && !canView) return null;
   const now = new Date();
   const today = wibDate(now);
-  const [sales, mine, cashRows, branchRows, minMinutes, gapLimit, duty, pointAccuracyM] = await Promise.all([
+  const [sales, mine, cashRows, minMinutes, gapLimit, duty, pointAccuracyM] = await Promise.all([
     canRun && branch ? openSales(branch.kasirBranchId, db) : Promise.resolve([] as SaleRow[]),
     db.select().from(selfTrips).where(and(eq(selfTrips.employeeId, actor.personId),
       sql`(${selfTrips.status} = 'RUNNING' or ${selfTrips.startedAt} >= ${`${addDays(today, -1)}T00:00:00+07:00`}::timestamptz)`)).orderBy(desc(selfTrips.startedAt)),
-    canCash && branch ? db.select().from(selfTrips).where(and(eq(selfTrips.branchId, branch.id), eq(selfTrips.status, 'DONE'),
-      sql`${selfTrips.cashAmount} > 0 and ${selfTrips.cashReceivedAt} is null`)).orderBy(asc(selfTrips.returnedAt)) : Promise.resolve([]),
-    canView ? db.select().from(selfTrips).where(and(
-      actor.fullAccess || actor.grants.get(VIEW) === 'ALL' ? sql`true` : eq(selfTrips.branchId, branch?.id ?? -1),
-      sql`${selfTrips.startedAt} >= ${`${addDays(today, -6)}T00:00:00+07:00`}::timestamptz`)).orderBy(desc(selfTrips.startedAt)).limit(100) : Promise.resolve([]),
+    canCash && branch ? db.select().from(selfTrips).where(and(eq(selfTrips.branchId, branch.id), inArray(selfTrips.status, ['DONE', 'CLOSED']),
+      sql`${selfTrips.cashAmount} > 0 and ${selfTrips.cashReceivedAt} is null`)).orderBy(asc(selfTrips.createdAt)) : Promise.resolve([]),
     settingOn<number>('logistics.self_stage_min_minutes', today).then(Number),
     settingOn<number>('logistics.self_gap_minutes', today).then(Number),
     canRun ? onDuty(actor.personId, now) : Promise.resolve(false),
@@ -418,16 +444,15 @@ export async function selfDeliveryScreen(actor: Actor | null) {
     amount: Number(s.payable_amount), trxOn: s.trx_on, at: wibClock(new Date(s.created_at)), courier: courierLabel(s),
     mine: s.courier_employee_id != null && Number(s.courier_employee_id) === actor.personId, tomorrowCount: Number(s.tomorrow_count),
   }));
-  const [mineViews, cashViews, branchViews] = await Promise.all([tripViews(mine), tripViews(cashRows), tripViews(branchRows)]);
+  const [mineViews, cashViews] = await Promise.all([tripViews(mine), tripViews(cashRows)]);
   const running = mineViews.find((t) => t.status === 'RUNNING') ?? null;
   return {
     branch: branch?.name ?? null, me: actor.personId, canRun, canCash, canView, onDuty: duty, minMinutes, gapLimit, pointAccuracyM,
     lastStageAt: running ? (await lastStageAt(db, mine.find((t) => t.id === running.id)!)).toISOString() : null,
     startedAtIso: running ? mine.find((t) => t.id === running.id)!.startedAt.toISOString() : null,
     tasks: { mine: tasks.filter((t) => t.mine), others: tasks.filter((t) => !t.mine) },
-    running, recent: mineViews.filter((t) => t.status === 'DONE'),
+    running, recent: mineViews.filter((t) => t.status !== 'RUNNING'),
     cashWaiting: cashViews.filter((t) => t.employeeId !== actor.personId), cashMine: cashViews.filter((t) => t.employeeId === actor.personId),
-    branchTrips: branchViews,
     reasons: VISIT_REASONS, gapReasons: GAP_REASONS,
   };
 }
@@ -436,7 +461,7 @@ export type SelfDeliveryScreenData = NonNullable<Awaited<ReturnType<typeof selfD
 
 /** Menu Antar Sendiri tampil bagi pemegang salah satu haknya. */
 export function selfDeliveryMenuVisible(actor: Actor | null): boolean {
-  return !!actor && (actor.fullAccess || [RUN, CASH, VIEW].some((a) => actor.grants.has(a)));
+  return !!actor && (actor.fullAccess || [RUN, CASH, VIEW, MANAGE].some((a) => actor.grants.has(a)));
 }
 
 /** Jumlah tunai antar sendiri yang menunggu diterima laci cabang pelaku (kartu Beranda). */
@@ -444,7 +469,7 @@ export async function selfCashWaitingCount(actor: Actor | null): Promise<number>
   if (!actor || actor.branchId == null || !can(actor, CASH, { branchId: actor.branchId })) return 0;
   const [row] = await db.execute<{ n: number }>(sql`
     select count(*)::int as n from logistics.self_trips
-    where branch_id = ${actor.branchId} and status = 'DONE' and cash_amount > 0 and cash_received_at is null and employee_id <> ${actor.personId}`);
+    where branch_id = ${actor.branchId} and status in ('DONE', 'CLOSED') and cash_amount > 0 and cash_received_at is null and employee_id <> ${actor.personId}`);
   return Number(row?.n ?? 0);
 }
 
@@ -453,7 +478,8 @@ export async function openSelfPhoto(actor: Actor | null, input: { tripId: number
   if (!actor) return null;
   const [trip] = await db.select().from(selfTrips).where(eq(selfTrips.id, input.tripId)).limit(1);
   if (!trip) return null;
-  const allowed = trip.employeeId === actor.personId || can(actor, VIEW, { branchId: trip.branchId }) || can(actor, CASH, { branchId: trip.branchId });
+  const allowed = trip.employeeId === actor.personId || can(actor, VIEW, { branchId: trip.branchId }) || can(actor, CASH, { branchId: trip.branchId })
+    || can(actor, MANAGE, { branchId: trip.branchId });
   if (!allowed) return null;
   if (input.kind === 'pickup') return trip.pickupPhotoFileId;
   if (input.kind === 'return') return trip.returnPhotoFileId;
