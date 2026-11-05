@@ -1,6 +1,6 @@
 import { alias } from 'drizzle-orm/pg-core'
 import {
-  db, groomingOrders, serviceDeliveries, groomers, pets, customers, transactions, transactionItems, auditLogs,
+  db, groomingOrders, groomingHolds, serviceDeliveries, groomers, pets, customers, transactions, transactionItems, auditLogs,
   eq, and, or, ne, ilike, inArray, gte, lt, asc, desc, sql,
 } from '../db'
 import { phoneSearchDigits } from '../phone'
@@ -26,7 +26,7 @@ export class GroomingOrderError extends Error {
       | 'PET_INACTIVE' | 'GROOMER_NOT_FOUND' | 'GROOMER_INACTIVE' | 'GROOMER_ROLE' | 'CONDITION_REQUIRED' | 'NOT_FOUND' | 'WRONG_STATUS'
       | 'NOT_DELIVERY_SERVICE' | 'COURIER_NOT_FOUND' | 'COURIER_INACTIVE' | 'COURIER_ROLE' | 'ADDRESS_REQUIRED' | 'DELIVERY_DUPLICATE'
       | 'DELIVERY_WITHOUT_GROOMING' | 'GROOMING_DATA_REQUIRED' | 'REASON_REQUIRED' | 'SAME_GROOMER'
-      | 'COURIER_REQUIRED' | 'FREE_SHIPPING_MISMATCH',
+      | 'COURIER_REQUIRED' | 'FREE_SHIPPING_MISMATCH' | 'HOLD_MISMATCH' | 'HOLD_CLOSED',
     message: string,
     readonly status = 400,
   ) {
@@ -39,6 +39,13 @@ export interface GroomingLineInput {
   petId: number
   groomerId: number
   condition: string
+  /** Grooming Ditahan yang sedang dibuatkan nota (lihat grooming-hold-service). */
+  holdId?: number | null
+}
+
+/** Nomor karcis grooming yang diterima lewat Tahan (karcis dicetak sebelum nota ada). */
+export function holdTicketNumber(holdId: number, sequence: number): string {
+  return `TAHAN-${holdId}/${sequence}`
 }
 
 /**
@@ -59,6 +66,9 @@ export async function attachGroomingOrderInTx(
     qty: number
     cashierId: number | null | undefined
     grooming: GroomingLineInput
+    /** Dari tahanan: waktu & penerima saat kucing benar-benar datang, bukan saat nota dibuat. */
+    receivedAt?: Date
+    receivedById?: number | null
   },
 ): Promise<void> {
   const { grooming } = params
@@ -100,7 +110,8 @@ export async function attachGroomingOrderInTx(
     productId: params.productId,
     groomerId: groomer.id,
     condition: condition.slice(0, GROOMING_CONDITION_MAX),
-    receivedById: params.cashierId ?? null,
+    receivedById: params.receivedById !== undefined ? params.receivedById : (params.cashierId ?? null),
+    ...(params.receivedAt ? { receivedAt: params.receivedAt } : {}),
   })
 }
 
@@ -289,7 +300,7 @@ export async function restoreGroomingOrdersAfterReturCancelInTx(tx: Tx, transact
 
 export interface GroomingOrderView {
   id: number
-  /** Nomor karcis = nomor nota / urutan kucing di nota. */
+  /** Nomor karcis = nomor nota / urutan kucing di nota, atau TAHAN-<id>/<urutan> bila diterima lewat Tahan. */
   ticketNumber: string
   trxNumber: string
   transactionId: number
@@ -324,6 +335,7 @@ const deliveryItems = alias(transactionItems, 'delivery_items')
 const viewSelect = {
   id: groomingOrders.id,
   sequence: groomingOrders.sequence,
+  holdId: groomingHolds.id,
   trxNumber: transactions.trxNumber,
   transactionId: groomingOrders.transactionId,
   status: groomingOrders.status,
@@ -368,6 +380,7 @@ function baseQuery(executor: Tx | typeof db = db) {
       ne(serviceDeliveries.status, DELIVERY_STATUS.DIBATALKAN),
     ))
     .leftJoin(couriers, eq(couriers.id, serviceDeliveries.courierId))
+    .leftJoin(groomingHolds, eq(groomingHolds.transactionId, groomingOrders.transactionId))
     .leftJoin(deliveryItems, eq(deliveryItems.id, serviceDeliveries.transactionItemId))
 }
 
@@ -377,7 +390,7 @@ function toView(r: ViewRow): GroomingOrderView {
   const debtRemaining = Number(r.debtRemaining ?? 0)
   return {
     id: r.id,
-    ticketNumber: `${r.trxNumber}/${r.sequence}`,
+    ticketNumber: r.holdId != null ? holdTicketNumber(r.holdId, r.sequence) : `${r.trxNumber}/${r.sequence}`,
     trxNumber: r.trxNumber,
     transactionId: r.transactionId,
     status: r.status as GroomingStatus,
@@ -434,6 +447,7 @@ export async function listGroomingOrders(filters: GroomingListFilters): Promise<
             ilike(pets.name, `%${q}%`),
             ilike(customers.name, `%${q}%`),
             ilike(transactions.trxNumber, `%${q}%`),
+            sql`('TAHAN-' || ${groomingHolds.id}::text) ILIKE ${`%${q}%`}`,
             digits.length >= 3 ? sql`${phoneNormalized} LIKE ${`%${digits}%`}` : undefined,
           )
         : undefined,

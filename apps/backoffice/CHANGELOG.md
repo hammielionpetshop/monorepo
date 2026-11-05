@@ -2,6 +2,18 @@
 
 # Changelog
 
+## [1.107.113] - 2026-11-05
+
+### Added
+- **Grooming bisa ditahan: karcis dulu, nota menyusul.** Di tab Grooming › Terima Kucing ada tombol baru **Tahan**. Kucing langsung tercatat dan karcis 2 lembar (konsumen + groomer) tercetak dengan nomor `TAHAN-<nomor>/<urutan>`, tanpa membuat nota dan tanpa perlu shift terbuka.
+  - Tahanan tampil di **Sedang Dikerjakan** bertanda **BELUM ADA NOTA**, bisa dicari dengan nomor karcis TAHAN. Tombolnya: **Buat Nota** (Lunas / Tambah belanja / Bayar saat ambil), **Buat Nota & Ambil**, **Cetak karcis** (cetakan kedua bertanda CETAK ULANG), dan **Batalkan** (alasan wajib; tampil di Sudah Selesai sebagai "DIBATALKAN — TANPA NOTA").
+  - Kucing yang belum bernota tidak bisa ditandai diambil — notanya harus dibuat dulu.
+  - Harga dihitung saat nota dibuat (harga & golongan pelanggan hari itu). Isi nota harus sama dengan karcis; satu tahanan tidak bisa menjadi dua nota.
+  - Karcis tidak perlu dicetak ulang sesudah nota dibuat: grooming itu tetap memakai nomor karcis TAHAN-nya. Uang, shift, piutang, laporan, dan bonus groomer baru berjalan setelah nota dibuat.
+
+### Fixed
+- **Tombol 1 / 2 / 3 di langkah "Barang ini bagaimana sampainya?" kini langsung jalan.** Sebelumnya, bila kursor masih tertinggal di kotak cari produk (mis. sesudah scan barcode lalu F10), menekan 1/2/3 tidak memilih apa-apa dan angkanya malah masuk ke kotak cari di belakang. Kini kursor dipindah ke langkah Pengiriman saat dibuka: 1 = Ambil sendiri, 2 = Dikirim kurir cabang, 3 = Dikirim truk Gudang. Mengetik nilai ongkir atau memilih pengantar di dalam langkah itu tidak terganggu.
+
 ## [1.107.112] - 2026-11-05
 
 ### Added

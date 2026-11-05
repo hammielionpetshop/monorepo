@@ -48,6 +48,15 @@ export default function DeliveryStep({
   const [free, setFree] = useState(initial?.method === 'BRANCH_COURIER' ? initial.free : false)
   const [error, setError] = useState('')
   const courierSelectRef = useRef<HTMLSelectElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Pindahkan kursor ke langkah ini saat dibuka (biasanya kursor masih di kotak cari produk),
+  // supaya ketikan tidak masuk ke layar di belakang.
+  useEffect(() => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && !dialogRef.current?.contains(active)) active.blur()
+    if (!courierSelectRef.current) dialogRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -122,7 +131,14 @@ export default function DeliveryStep({
         return
       }
       if (!options || legacyOngkirInCart) return
-      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement
+      // Yang dihitung "sedang mengetik" hanya kolom DI DALAM langkah ini. Kursor yang tertinggal
+      // di kotak cari produk di belakang tidak boleh menelan 1/2/3 (dan angkanya tidak boleh
+      // ikut masuk ke kotak itu).
+      const target = e.target instanceof Node ? e.target : null
+      const insideDialog = Boolean(target && dialogRef.current?.contains(target))
+      const typing =
+        insideDialog &&
+        (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement)
       if (e.key === 'Enter' && courierMode) {
         e.preventDefault()
         confirmCourier()
@@ -146,7 +162,7 @@ export default function DeliveryStep({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Pengiriman">
-      <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-5 shadow-xl">
+      <div ref={dialogRef} tabIndex={-1} className="w-full max-w-xl rounded-2xl border border-border bg-card p-5 shadow-xl outline-none">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-bold">
             Barang ini bagaimana sampainya? <NewBadge feature="fitur/langkah-pengiriman" />

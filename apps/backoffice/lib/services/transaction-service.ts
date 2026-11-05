@@ -8,6 +8,7 @@ import { isOngkirKind } from '../ongkir'
 import { assertManualDiscounts, recordManualDiscountInTx } from './line-discount-service'
 import { judgeSalePromos, recordPromoDiscountInTx, recordPromoUsageInTx } from './promo-sale-service'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
+import { lockGroomingHoldForNotaInTx, markGroomingHoldConvertedInTx } from './grooming-hold-service'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -251,6 +252,11 @@ export class TransactionService {
       // Nota grooming: pengantarannya = delivery antar-jemput kucing (alamat wajib). Selain itu
       // ongkir = antar barang (cukup pengantar).
       const groomingNota = items.some((i: { grooming?: unknown }) => i.grooming != null);
+      // Grooming Ditahan yang dibuatkan nota: tahanan dikunci & dicocokkan dengan isi nota di sini,
+      // lalu ditandai DIBUATKAN_NOTA setelah semua baris tersimpan (transaksi DB yang sama).
+      const groomingHold = groomingNota
+        ? await lockGroomingHoldForNotaInTx(tx, { items, branchId, customerId: payload.customerId })
+        : null;
 
       for (const [itemIndex, item] of items.entries()) {
         const product = productsMap.get(Number(item.productId));
@@ -307,6 +313,7 @@ export class TransactionService {
               qty: Math.round(Number(item.qty)),
               cashierId,
               grooming: item.grooming,
+              ...(groomingHold ? { receivedAt: groomingHold.heldAt, receivedById: groomingHold.heldById } : {}),
             });
           }
           // Setiap ongkir wajib mencatat pengantar internal (bonus 50% ongkir) — spec butir 28–31.
@@ -423,6 +430,9 @@ export class TransactionService {
         }
       }
 
+      if (groomingHold) {
+        await markGroomingHoldConvertedInTx(tx, { holdId: groomingHold.id, transactionId: trx.id, branchId, cashierId });
+      }
 
       // Catat kejadian oversell (stok terjual melebihi persediaan) untuk ditinjau owner.
       // qtyShortBase dalam base UOM. authorizedOversell = disetujui PIN di POS desktop.

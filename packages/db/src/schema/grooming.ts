@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean, date, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, date, text, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { customers } from './master';
 import { users } from './users';
@@ -79,6 +79,32 @@ export const groomingOrders = petshop.table('grooming_orders', {
   index('idx_grooming_orders_transaction').on(t.transactionId),
   index('idx_grooming_orders_pet').on(t.petId),
   index('idx_grooming_orders_groomer').on(t.groomerId, t.receivedAt),
+]);
+
+// Grooming Ditahan (migrasi 0053, docs/work/specs/2026-11-05-grooming-tahan-design.md): kucing
+// sudah diterima & karcisnya tercetak, notanya menyusul. Tidak ada uang di sini dan tidak pernah
+// dihapus. Status: DITAHAN → DIBUATKAN_NOTA (nota tersimpan, `grooming_orders` lahir bersama
+// nota) atau DIBATALKAN (alasan wajib). Nomor karcis = TAHAN-<id>/<urutan kucing di `lines`>.
+export const groomingHolds = petshop.table('grooming_holds', {
+  id: serial('id').primaryKey(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  // [{ petId, productId, groomerId, condition, discount? }] — urutannya = urutan karcis & nota.
+  lines: jsonb('lines').notNull(),
+  // { courierId, address, qty, free } bila antar-jemput; null = diambil sendiri.
+  delivery: jsonb('delivery'),
+  status: varchar('status', { length: 20 }).default('DITAHAN').notNull(),
+  ticketPrintCount: integer('ticket_print_count').default(0).notNull(),
+  transactionId: integer('transaction_id').references(() => transactions.id),
+  heldById: integer('held_by_id').references(() => users.id),
+  heldAt: timestamp('held_at').defaultNow().notNull(),
+  convertedAt: timestamp('converted_at'),
+  cancelledById: integer('cancelled_by_id').references(() => users.id),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelReason: text('cancel_reason'),
+}, (t) => [
+  index('idx_grooming_holds_branch_status').on(t.branchId, t.status, t.heldAt),
+  uniqueIndex('uq_grooming_holds_transaction').on(t.transactionId),
 ]);
 
 // Jejak "Ganti Groomer" (J4, migrasi 0041). Catatan grooming tidak pernah diedit diam-diam: tiap
