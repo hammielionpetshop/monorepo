@@ -1187,6 +1187,15 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.delivery_note.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'logistics.load_report_on': {
+    label: 'Laporan Muat di cabang',
+    module: 'logistics',
+    explain: 'Cabang yang memakai Laporan Muat (foto nota + foto barang dimuat, bukti bila toko komplain). Isi awal: hanya Toko Pusat (spec LT1 §15.1).',
+    type: { kind: 'choice', options: YES_NO },
+    targets: ['ALL', 'BRANCH'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.load_report.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'migration.cutover_on': {
     label: 'Hari pindah ke HRIS baru',
     module: 'migration',
