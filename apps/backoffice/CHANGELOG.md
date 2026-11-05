@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.107.111] - 2026-11-05
+
+### Added
+- **Batalkan PO** di detail PO Supplier untuk PO berstatus Disetujui, Dalam Pengiriman, Diterima, dan Selesai — untuk PO yang salah input admin. Jendelanya berisi panduan: kapan dipakai, apa yang terjadi, langkah-langkah, dan alasan wajib diisi. PO yang dibatalkan tidak bisa dipakai lagi; alasan, nama pembatal, dan waktunya tampil di detail PO.
+- PO **Selesai** yang dibatalkan (wajib PIN Owner cabang PO): stok yang masuk dari PO itu ditarik dari batch milik PO itu sendiri dan tercatat di Mutasi Stok sebagai "Batal PO", hutang supplier ditandai Dihapus, dan pengembalian modal diusulkan di Tinjauan Modal. Pembatalan ditolak — dengan langkah yang harus dilakukan — bila hutangnya sudah dibayar, ada retur supplier untuk PO itu, atau barangnya sudah terpakai (terjual, dipindah, dipotong opname).
+
 ## [1.107.110] - 2026-11-04
 
 ### Added

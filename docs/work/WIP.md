@@ -1,10 +1,11 @@
 # WIP
 
-Last updated: 2026-10-31
+Last updated: 2026-11-05
 Owner: repo session state
 
 ## Current Focus
 
+- Backoffice 1.107.111: **Batalkan PO** Supplier + panduan di detail PO (Disetujui / Dalam Pengiriman / Diterima tanpa sentuh stok; Selesai wajib PIN Owner — stok ditarik dari batch milik PO, hutang Dihapus, usulan balik modal, baris "Batal PO" di Mutasi Stok; ditolak bila hutang dibayar, ada retur aktif, atau barang terpakai; `feat/po-cancel`, tanpa migrasi). Staging run `41985464471` (`29d69b70`); owner: sudah diuji di staging, aman (2026-11-05; skenario uji tidak dirinci). Belum ada fitur batalkan pembayaran hutang supplier — PO Selesai yang sudah dibayar dikoreksi lewat Retur Supplier.
 - Backoffice 1.107.110: menu **Laporan › Riwayat Ongkir** (ongkir + pengantar + bonus, saringan tanggal/cabang/pengantar/ditagih-gratis, bonus per pengantar; `feat/bo-ongkir-report`, tanpa migrasi). Staging run `41791566800` (`5bbb35c4`); owner: "ok sudah di uji semua, aman, rilis sisa nya" (2026-11-04).
 - Backoffice 1.107.109: **langkah Pengiriman** sebelum layar bayar kasir (setiap nota: Ambil sendiri / Kurir cabang + pengantar + ongkir atau Gratis ongkir / Truk Gudang gratis ongkir; produk Ongkos Kirim disembunyikan dari pencarian kasir; Grooming & PO Internal tetap; kurir cabang tidak ada di Bulk Sale / Ubah cara kirim) dan menu **Ongkir** kasir (riwayat ongkir & pengantar cabang, tanpa bonus) — `feat/pos-delivery-step` (melebur `fix/cara-kirim-kurir-cabang`) + `feat/pos-ongkir-history`, tanpa migrasi. Tayang staging (run `41788351775` `31789407` dan run `41789322651` `820be110`); tayang produksi (PR #71); **lolos uji owner** (owner: "ok sudah di uji semua, aman", 2026-11-04; skenario tidak dirinci). Keputusan owner: kiriman ojol/kurir luar = pilih **Ambil sendiri**.
 - Backoffice 1.107.108: **Cara kirim** wajib dipilih saat bayar nota berpelanggan (POS + Bulk Sale: Ambil sendiri / Diantar kurir cabang / Dikirim truk Gudang), wajib Truk Gudang / Kirim sendiri saat Kirim PO Internal, Ubah cara kirim + riwayat tanpa hapus (cabang asal ≤ 7 hari, sesudahnya Owner/GM), kolom & saringan Riwayat Transaksi, saklar di Pengaturan Cabang (`feat/cara-kirim-kasir`, migrasi petshop `0050`; Logistik Tahap 1 bagian kasir, spec LT1) — **lolos uji owner di staging** (deployment staging run `41782258525`, `2728fd30`; owner: "ok rilis", 2026-11-04; skenario uji tidak dirinci owner). Cara kirim belum dicetak di struk/surat jalan. Bagian HRIS (LT1a Surat Jalan + Data Toko, LT1b trip + HP) menyusul.
