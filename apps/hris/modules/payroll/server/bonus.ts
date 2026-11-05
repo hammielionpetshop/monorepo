@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { getOrgLookup, hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { placementOn, todayWib } from '@/modules/employees';
+import { selfDeliveryPhotoGaps } from '@/modules/logistics';
 import { notify } from '@/modules/notifications';
 import { checkReason, loadRows, resolveSetting, setSettingsBatch, settingOn, upcomingRows } from '@/modules/settings';
 import {
@@ -504,10 +505,13 @@ export async function bonusApprovalScreen(actor: Actor | null, input: { period: 
   });
   const unpaired = await unpairedSummary(services, linkMap, resolve);
   const posNames = new Map(groomers.map((g) => [Number(g.id), String(g.name)]));
+  // Tanda ⚠ foto antar sendiri belum lengkap (LOG-109, spec LT1 §15.2): hanya tampilan, nominal dan status bonus tidak diubah.
+  const deliveryRows = rows.filter((x) => x.kind === 'DELIVERY' && x.flag !== 'CORRECTION' && visible(x) && (x.status === 'APPROVED' || x.status === 'HELD'));
+  const photoGaps = await selfDeliveryPhotoGaps(deliveryRows.map((x) => x.posRefId).filter((id): id is number => id != null), now);
   return {
     period, periods, me: actor?.personId ?? null,
     grooming: [...grooming.values()].sort((a, b) => b.pending.length - a.pending.length || a.name.localeCompare(b.name)),
-    delivery: rows.filter((x) => x.kind === 'DELIVERY' && x.flag !== 'CORRECTION' && visible(x) && (x.status === 'APPROVED' || x.status === 'HELD')).map(view),
+    delivery: deliveryRows.map((x) => ({ ...view(x), flag: x.flag ?? (x.posRefId != null && photoGaps.has(x.posRefId) ? 'SELF_PHOTO' : null) })),
     changes,
     held: held.filter(visible).map(view),
     unpaired: [...unpaired.values()].map((u) => ({ ...u, name: posNames.get(u.posGroomerId) ?? `#${u.posGroomerId}` })),

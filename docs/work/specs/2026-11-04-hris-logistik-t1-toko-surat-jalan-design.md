@@ -460,7 +460,7 @@ Tahap 3 = laporan muat cabang + antar sendiri. Dipecah tiga, diuji berurutan:
 | Bagian | Isi | Status |
 |---|---|---|
 | **LT3a Laporan Muat** | Bukti foto barang yang dimuat di Toko Pusat untuk menjawab komplain | Disetujui owner 2026-11-05 (§15.1) |
-| **LT3b Antar sendiri (HP pengantar)** | Nota Kurir cabang: Foto 1 ambil barang, Foto 2 + Terkirim / Kirim Besok / Gagal + cara bayar di tujuan, Foto 3 kembali | Usulan 7 butir belum dijawab owner |
+| **LT3b Antar sendiri (HP pengantar)** | Nota Kurir cabang: Foto 1 ambil barang, Foto 2 + Terkirim / Kirim Besok / Gagal + cara bayar di tujuan, Foto 3 kembali | Disetujui owner 2026-11-05 (§15.2) |
 | **LT3c Antar sendiri (kantor)** | Daftar per cabang, tutup perjalanan dengan alasan, tanda 23.59, pengantar kasir belum dipasangkan | Menyusul LT3b |
 
 ### 15.1 LT3a Laporan Muat (owner 2026-11-05)
@@ -482,3 +482,23 @@ Ini mengganti bacaan LOG-37 s.d. 41 dan 105 s.d. 111 (laporan muat sebagai jalur
 | 9 | **Di luar LT3a**: menautkan laporan muat ke surat jalan / kunjungan (foto muat tampil di rincian surat jalan), tanda "belum ada foto muat", pemberitahuan |
 
 **Data.** Migrasi `logistics` 0011: view `pos_branch_sales` (nota kasir berpelanggan: id, nomor, cabang kasir, pelanggan, nominal, status, cara kirim, jam; baca saja), tabel `load_reports` (cabang HRIS + cabang kasir, pelanggan, status `DRAFT`/`DONE`/`CANCELLED`, pembuat, Selesai oleh/jam, Batal oleh/jam/alasan), `load_report_notes` (laporan, `transaction_id`, nomor + nominal saat dipilih, `released_at`; unik per nota selama belum dilepas), `load_report_photos` (laporan, jenis `NOTE`/`GOODS`, berkas, susulan, pemotret, jam, `removed_at` hanya selama Proses). Tanpa hapus. Migrasi `hris` 0047: pengaturan `logistics.load_report_on`, hak `logistics.load_report.create` (Kepala Toko, Kasir, Pramuniaga: cabang) dan `logistics.load_report.view` (Kepala Gudang, Marketing: semua; Kepala Toko: cabang). Foto dibuka lewat `/api/logistics/load-photo` dengan hak lihat laporannya; tidak ikut dibuang mesin harian.
+
+### 15.2 LT3b Antar sendiri di HP pengantar (owner 2026-11-05)
+
+**Keputusan owner.** "ok" atas 7 butir usulan (2026-11-05). Pertanyaan "nota kurir bayar di tempat: kasir mencatat lunas atau piutang?" belum dijawab; rancangan aman untuk keduanya: tagihan = sisa piutang kasir, nota lunas / Umum = tanpa tagihan.
+
+| # | Aturan |
+|---|---|
+| 1 | **Tugas antar** = nota kasir `delivery_method = BRANCH_COURIER` cabang kasir pengantar, sejak `logistics.self_delivery_from` (isi awal 2026-11-05), tidak batal / menunggu batal, belum punya tujuan yang berlaku (Belum / Terkirim / Gagal). Kirim Besok mengembalikan nota ke daftar. Pengantar kasir (`service_deliveries.courier_id`) dipasangkan ke karyawan lewat `hris.pos_groomer_links` (L4d-1). Nota pengantar sendiri = "Untuk Anda"; nota lain di cabang boleh dibawa siapa pun yang berhak, bertanda **pengantar beda dengan kasir** (LOG-108). Bonus ongkir tetap dari kasir |
+| 2 | **Mulai antar** (hak `logistics.self_delivery.run`, BRANCH: Kepala Toko, Kasir, Pramuniaga): 1–10 nota, **Foto 1** kamera langsung, PJ = pemotret. Hanya sudah absen masuk dan belum pulang (hari kemarin berlaku sampai `attendance.out_cutoff_hour`). Satu orang satu perjalanan berjalan (indeks unik). Nomor AS-YYMMDD-n |
+| 3 | **Foto 2 per tujuan**: Terkirim (ditolak bila nota batal di kasir) / Kirim Besok / Gagal dengan alasan baku yang sama dengan truk. Gagal memberi tahu pemegang `logistics.self_delivery.view` cabang itu; keputusan kirim ulang / batal = LT3c |
+| 4 | **Cara bayar** saat Terkirim = aturan LT1b-3/LT2b (`cleanPayment`, bukti transfer, janji bayar sisa), tagihan = sisa piutang kasir nota itu (`pos_customer_debts` belum PAID). Tabel `self_trip_payments` (tanpa koreksi salah tekan di LT3b) |
+| 5 | **Tahap & selisih** (LOG-43): Foto 2 / Foto 3 ditolak sebelum `logistics.self_stage_min_minutes` (2) menit sejak foto sebelumnya. Selisih |lama berangkat (Foto 1 → tujuan pertama) − lama kembali (tujuan terakhir → Foto 3)| ≥ `logistics.self_gap_minutes` (20) wajib alasan baku (macet, isi bensin, istirahat, menunggu di toko, tugas lain, lainnya + keterangan) |
+| 6 | **Foto 3** hanya bila semua tujuan diproses. Tunai (Lunas cash + Bayar sebagian) dijumlah ke `cash_amount`; pemegang `logistics.self_delivery.cash_receive` cabang itu (Kepala Toko, Kasir; bukan PJ) diberi tahu dan menekan **Sudah diterima** (LOG-128). Belum diterima sesudah hari kembali = tanda merah |
+| 7 | **Absen Pulang ditolak** selama perjalanan antar orang itu masih berjalan (LOG-110) |
+| 8 | **Bonus ongkir ⚠** (LOG-109): di Persetujuan Bonus › Ongkir, baris ongkir nota kurir sejak tanggal mulai yang belum punya tujuan Terkirim/Gagal di perjalanan yang sudah Foto 3 sesudah 23.59 hari berikutnya diberi tanda `SELF_PHOTO` — hanya tampilan, `bonus_entries` tidak ditulis |
+| 9 | **Titik toko** dari tujuan berpelanggan: aturan LT1b-2b; `store_points.self_stop_id` baru, check sumber VISIT = foto + (trip atau tujuan antar sendiri). Jarak Terkirim dicatat `self_trip_stops.distance_m` |
+| 10 | **Melihat**: PJ (perjalanannya), Kepala Toko (cabang, 7 hari), Kepala Gudang / Marketing / Finance (semua) lewat `logistics.self_delivery.view`; penerima tunai melihat perjalanan yang menunggu diterima. Foto lewat `/api/logistics/self-photo` |
+| 11 | **Di luar LT3b** (LT3c / berikutnya): tutup perjalanan oleh kantor dengan alasan, alihkan PJ, keputusan Gagal, tanda belum kembali 23.59, pilih pengantar kantor, Lapor masalah / retur dari tujuan antar sendiri, koreksi cara bayar, masuknya uang antar sendiri ke Uang dari Toko, kartu Beranda tunai menunggu |
+
+**Data.** Migrasi `logistics` 0012: `self_trips`, `self_trip_stops` (unik per nota selama Belum/Terkirim/Gagal), `self_trip_payments`, kolom `store_points.self_stop_id`, view `pos_courier_sales` (nota kurir + pelanggan + alamat + pengantar kasir; baca saja), tanpa hapus. Migrasi `hris` 0048: pengaturan `logistics.self_delivery_from`, `logistics.self_stage_min_minutes`, `logistics.self_gap_minutes`; hak `logistics.self_delivery.run` / `.cash_receive` / `.view`. Halaman `/logistik/antar-sendiri`, API `/api/logistics/self-delivery` (POST aksi berfoto).
