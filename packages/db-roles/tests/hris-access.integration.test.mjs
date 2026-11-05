@@ -61,6 +61,8 @@ const ANSWER_KEY = {
     'logistics.self_delivery.view': 'ALL',
     // LT5a (spec LT1 §17.1)
     'logistics.fuel.record': 'ALL',
+    // LT5b (spec LT1 §17.2)
+    'logistics.report.view': 'ALL',
   },
   Marketing: {
     ...EVERY_EMPLOYEE,
@@ -72,6 +74,8 @@ const ANSWER_KEY = {
     'logistics.self_delivery.view': 'ALL',
     // LT5a (spec LT1 §17.1)
     'logistics.dashboard.view': 'ALL',
+    // LT5b (spec LT1 §17.2)
+    'logistics.report.view': 'ALL',
   },
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
@@ -99,6 +103,8 @@ const ANSWER_KEY = {
     'logistics.self_delivery.view': 'ALL', 'logistics.self_delivery.manage': 'ALL',
     // LT5a (spec LT1 §17.1)
     'logistics.dashboard.view': 'ALL', 'logistics.outside_point.review': 'ALL',
+    // LT5b (spec LT1 §17.2)
+    'logistics.report.view': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,

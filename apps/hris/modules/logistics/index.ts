@@ -123,3 +123,7 @@ export { outsideScreen, reviewOutside, type OutsideKind, type OutsideRow } from 
 export { FuelPanel } from './ui/fuel-panel';
 export { DashboardScreen } from './ui/dashboard-screen';
 export { OutsideScreen } from './ui/outside-screen';
+// Logistik LT5b (spec LT1 §17.2): Laporan Logistik baca saja, 6 tab, unduh CSV.
+export { REPORT_TABS, reportRange, type ReportTab } from './rules/logistics-report';
+export { logisticsReportDownload, logisticsReportScreen, reportParts, type ReportQuery } from './server/logistics-report';
+export { LogisticsReportScreen } from './ui/logistics-report-screen';
