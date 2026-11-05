@@ -1,3 +1,0 @@
-### Added
-
-- **Kelompok campur di syarat promo** (Promo › Buat promo, bentuk Beli A–B lebih murah, Beli X gratis Y, dan Bundling): beberapa barang — mis. pasir 10 L semua aroma, atau makanan semua rasa — masuk satu kelompok dengan satu jumlah minimal. Qty semua anggota dijumlah, jadi pelanggan bebas mencampur aroma/rasa; begitu totalnya mencapai jumlah minimal, promo berjalan (kelipatan tetap mengikuti total kelompok). Hadiahnya tetap jenis yang sudah ada (gratis barang, potongan, harga jadi). Ada tombol **Tambah semua hasil** untuk memasukkan semua aroma sekaligus dari pencarian nama; semua anggota satu kelompok memakai satuan yang sama. Kelompok campur bisa digabung dengan syarat barang biasa. Barang syarat per promo kini sampai 100.

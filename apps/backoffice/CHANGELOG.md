@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.107.112] - 2026-11-05
+
+### Added
+- **Kelompok campur di syarat promo** (Promo › Buat promo, bentuk Beli A–B lebih murah, Beli X gratis Y, dan Bundling): beberapa barang — mis. pasir 10 L semua aroma, atau makanan semua rasa — masuk satu kelompok dengan satu jumlah minimal. Qty semua anggota dijumlah, jadi pelanggan bebas mencampur aroma/rasa; begitu totalnya mencapai jumlah minimal, promo berjalan (kelipatan tetap mengikuti total kelompok). Hadiahnya tetap jenis yang sudah ada (gratis barang, potongan, harga jadi). Ada tombol **Tambah semua hasil** untuk memasukkan semua aroma sekaligus dari pencarian nama; semua anggota satu kelompok memakai satuan yang sama. Kelompok campur bisa digabung dengan syarat barang biasa. Barang syarat per promo kini sampai 100.
+
+### Changed
+- **Kiriman antar cabang (PO Internal) yang diterima kini melunasi utang stok cabang penerima**, sama seperti penerimaan PO supplier — Gudang adalah pemasok toko. Barang yang terjual saat stok sistem kosong (oversale) tidak lagi menumpuk di menu Utang Stok setiap kali kiriman Gudang diterima; HPP nota oversale dikoreksi memakai harga kiriman.
+
+### Fixed
+- **Pembersihan utang stok lama (sampai 31 Oktober 2026)** yang menumpuk karena kiriman Gudang dulu tidak melunasinya. Tidak ada data yang dihapus dan angka stok kasir tidak berubah: utang yang tertutup oleh stok yang sudah masuk dilunasi (tercatat sebagai pelunasan "Pembersihan"), sisanya — barang yang stok sistemnya memang minus — ditandai write-off dengan alasan pembersihan dan tetap tampil sebagai defisit sampai Stock Opname berikutnya. HPP nota bulan lalu tidak diubah. Utang sejak 1 November tetap terbuka dan lunas lewat kiriman/PO berikutnya.
+
 ## [1.107.111] - 2026-11-05
 
 ### Added
