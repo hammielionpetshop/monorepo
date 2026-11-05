@@ -358,6 +358,13 @@
       "when": 1793894337534,
       "tag": "0050_lt4a_money_check",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793896434747,
+      "tag": "0051_lt5a_fuel_dashboard",
+      "breakpoints": true
     }
   ]
 }

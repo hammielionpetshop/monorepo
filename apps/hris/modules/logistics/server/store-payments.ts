@@ -611,6 +611,11 @@ export async function visitReportsScreen(actor: Actor | null) {
 /** Angka Beranda: laporan toko yang belum diputuskan (pemegang hak potong nota, §14.2 butir 1). */
 export async function openReportCount(actor: Actor | null): Promise<number> {
   if (!actor || !can(actor, 'logistics.note_cut.decide')) return 0;
+  return countOpenReports();
+}
+
+/** Hitung laporan toko belum diputuskan tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countOpenReports(): Promise<number> {
   const [row] = await db.execute<{ n: number }>(sql`select count(*)::int as n from logistics.visit_reports where closed_at is null`);
   return Number(row?.n ?? 0);
 }
@@ -661,6 +666,11 @@ export async function toRecordScreen(actor: Actor | null) {
 /** Angka Beranda (§14.2 butir 3): keputusan belum dicatat di kasir, dan yang sudah lebih dari 3 hari. */
 export async function unrecordedCounts(actor: Actor | null): Promise<{ waiting: number; red: number }> {
   if (!actor || !can(actor, 'logistics.note_cut.decide')) return { waiting: 0, red: 0 };
+  return countUnrecorded();
+}
+
+/** Hitung potong nota / retur belum dicatat di kasir tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countUnrecorded(): Promise<{ waiting: number; red: number }> {
   const redBefore = addDays(wibDate(new Date()), -UNRECORDED_RED_DAYS);
   const [row] = await db.execute<{ waiting: number; red: number }>(sql`
     select count(*)::int as waiting,

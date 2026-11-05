@@ -485,6 +485,13 @@ export async function selfCashWaitingCount(actor: Actor | null): Promise<number>
   return Number(row?.n ?? 0);
 }
 
+/** Tunai antar sendiri belum diterima laci di semua cabang, tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countSelfCashWaitingAll(): Promise<number> {
+  const [row] = await db.execute<{ n: number }>(sql`
+    select count(*)::int as n from logistics.self_trips where status in ('DONE', 'CLOSED') and cash_amount > 0 and cash_received_at is null`);
+  return Number(row?.n ?? 0);
+}
+
 /** Pintu foto antar sendiri: PJ, penerima tunai / pelihat cabang itu. Mengembalikan id berkas atau null. */
 export async function openSelfPhoto(actor: Actor | null, input: { tripId: number; kind: string; stopId?: number | null }): Promise<string | null> {
   if (!actor) return null;

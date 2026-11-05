@@ -214,6 +214,10 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/terima-uang': '2026-11-05', // Terima Uang: periksa uang trip per nota, selisih, tanda pelunasan POS
   'fitur/uang-toko-antar-sendiri': '2026-11-05', // Uang dari Toko memuat antar sendiri (saringan sumber + cabang)
   'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
+  // LT5a Bensin + Dashboard + Di luar titik (tayang staging 2026-11-06)
+  '/logistik/dashboard': '2026-11-06',
+  '/logistik/di-luar-titik': '2026-11-06',
+  'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 
 function addDays(date: string, days: number): string {
