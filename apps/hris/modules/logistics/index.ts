@@ -94,3 +94,10 @@ export {
   releaseLoadNote, removeLoadPhoto, type LoadReportTab,
 } from './server/load-reports';
 export { LoadReportDetailScreen, LoadReportsScreen } from './ui/load-reports-screen';
+export { GAP_REASONS, SELF_STOP_LABELS, SELF_TRIP_LABELS, type SelfStopStatus, type SelfTripStatus } from './rules/self-delivery';
+export {
+  finishSelfTrip, openSelfPhoto, receiveSelfCash, runningSelfTripNumber, selfCashWaitingCount, selfDeliveryMenuVisible, selfDeliveryPhotoGaps,
+  selfDeliveryScreen, selfStopOutcome, startSelfTrip, type SelfDeliveryScreenData, type SelfStopInput, type SelfStopView, type SelfTask, type SelfTripView,
+} from './server/self-delivery';
+export { proposeFromSelfStop } from './server/store-points';
+export { SelfDeliveryScreen } from './ui/self-delivery-screen';

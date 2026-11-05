@@ -343,6 +343,8 @@ export const storePoints = logisticsSchema.table(
     photoFileId: uuid('photo_file_id'),
     tripId: integer('trip_id').references(() => trips.id),
     visitId: integer('visit_id').references(() => tripVisits.id),
+    /** Dipasang pengantar antar sendiri (spec LT1 §15.2). */
+    selfStopId: integer('self_stop_id').references(() => selfTripStops.id),
     proposedByEmployeeId: integer('proposed_by_employee_id'),
     proposedByAccountId: integer('proposed_by_account_id').notNull(),
     proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull().defaultNow(),
@@ -356,7 +358,7 @@ export const storePoints = logisticsSchema.table(
     uniqueIndex('store_points_one_pending').on(t.customerId).where(sql`${t.status} = 'PENDING'`),
     index('store_points_customer_idx').on(t.customerId),
     check('store_points_status', sql`${t.status} in ('PENDING', 'APPROVED', 'REJECTED', 'REPLACED')`),
-    check('store_points_source', sql`${t.source} in ('VISIT', 'OFFICE') and (${t.source} = 'VISIT') = (${t.photoFileId} is not null and ${t.tripId} is not null)`),
+    check('store_points_source', sql`${t.source} in ('VISIT', 'OFFICE') and (${t.source} = 'VISIT') = (${t.photoFileId} is not null and (${t.tripId} is not null or ${t.selfStopId} is not null))`),
     check('store_points_kind', sql`${t.kind} in ('NEW', 'CORRECTION') and (${t.kind} = 'NEW' or ${t.reason} is not null)`),
     check('store_points_decided', sql`(${t.status} = 'PENDING') = (${t.decidedAt} is null) and (${t.status} = 'REJECTED') = (${t.rejectReason} is not null)`),
     check('store_points_replaced', sql`(${t.status} = 'REPLACED') = (${t.replacedAt} is not null)`),
@@ -807,5 +809,134 @@ export const loadReportPhotos = logisticsSchema.table(
     uniqueIndex('load_report_photos_file_unique').on(t.fileId),
     check('load_report_photos_kind', sql`${t.kind} in ('NOTE', 'GOODS')`),
     check('load_report_photos_removed', sql`(${t.removedAt} is null) = (${t.removedByAccountId} is null) and (${t.removedAt} is null or not ${t.late})`),
+  ],
+);
+
+/**
+ * Antar sendiri (spec LT1 §15.2, LT3b; LOG-42, 43, 110, 117, 128): perjalanan karyawan cabang mengantar nota kasir "Diantar
+ * kurir cabang". RUNNING (Foto 1 ambil barang) → DONE (Foto 3 kembali di cabang). Bukan trip truk: tanpa mobil, ritase, atau
+ * upah. Tunai diserahkan ke laci cabang asal dan diterima karyawan cabang itu (bukan PJ). Tidak dihapus.
+ */
+export const selfTrips = logisticsSchema.table(
+  'self_trips',
+  {
+    id: serial('id').primaryKey(),
+    /** AS-YYMMDD-n, tanggal mulai (WIB). */
+    number: text('number').notNull(),
+    /** Cabang HRIS asal + cabang kasirnya. */
+    branchId: integer('branch_id').notNull(),
+    kasirBranchId: integer('kasir_branch_id').notNull(),
+    /** PJ = yang memotret Foto 1 (LOG-43). */
+    employeeId: integer('employee_id').notNull(),
+    accountId: integer('account_id').notNull(),
+    status: text('status').notNull().default('RUNNING'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    pickupPhotoFileId: uuid('pickup_photo_file_id').notNull(),
+    startLatitude: doublePrecision('start_latitude'),
+    startLongitude: doublePrecision('start_longitude'),
+    startAccuracyM: integer('start_accuracy_m'),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
+    returnPhotoFileId: uuid('return_photo_file_id'),
+    returnLatitude: doublePrecision('return_latitude'),
+    returnLongitude: doublePrecision('return_longitude'),
+    returnAccuracyM: integer('return_accuracy_m'),
+    /** Selisih lama berangkat dan lama kembali ≥ batas (LOG-43): alasan baku + keterangan. */
+    gapReason: text('gap_reason'),
+    gapMinutes: integer('gap_minutes'),
+    /** Tunai yang dibawa pulang (Lunas cash + Bayar sebagian), dihitung saat Foto 3. */
+    cashAmount: integer('cash_amount').notNull().default(0),
+    cashReceivedAt: timestamp('cash_received_at', { withTimezone: true }),
+    cashReceivedByEmployeeId: integer('cash_received_by_employee_id'),
+    cashReceivedByAccountId: integer('cash_received_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('self_trips_number_unique').on(t.number),
+    // Satu orang hanya satu perjalanan berjalan (LOG-43).
+    uniqueIndex('self_trips_one_running').on(t.employeeId).where(sql`${t.status} = 'RUNNING'`),
+    index('self_trips_branch_idx').on(t.branchId, t.startedAt),
+    check('self_trips_status', sql`${t.status} in ('RUNNING', 'DONE')`),
+    check('self_trips_done', sql`(${t.status} = 'DONE') = (${t.returnedAt} is not null and ${t.returnPhotoFileId} is not null)`),
+    check('self_trips_cash', sql`${t.cashAmount} >= 0 and (${t.cashAmount} = 0 or ${t.status} = 'DONE')`),
+    check('self_trips_cash_received', sql`(${t.cashReceivedAt} is null) = (${t.cashReceivedByAccountId} is null)
+      and (${t.cashReceivedAt} is null or (${t.cashAmount} > 0 and ${t.cashReceivedByEmployeeId} is distinct from ${t.employeeId}))`),
+    check('self_trips_gap', sql`(${t.gapReason} is null) or ${t.status} = 'DONE'`),
+  ],
+);
+
+/**
+ * Tujuan antar sendiri: satu per nota kasir. OPEN → DELIVERED (Terkirim) / TOMORROW (Kirim Besok, nota kembali ke daftar
+ * tugas) / FAILED (Gagal, menunggu keputusan cabang asal). Satu nota hanya di satu tujuan yang masih berlaku.
+ */
+export const selfTripStops = logisticsSchema.table(
+  'self_trip_stops',
+  {
+    id: serial('id').primaryKey(),
+    tripId: integer('trip_id').notNull().references(() => selfTrips.id),
+    transactionId: integer('transaction_id').notNull(),
+    trxNumber: text('trx_number').notNull(),
+    /** Kosong = nota Umum (tanpa pelanggan). */
+    customerId: integer('customer_id'),
+    destinationName: text('destination_name').notNull(),
+    /** Nominal kasir saat dibawa. */
+    amountAtStart: integer('amount_at_start').notNull(),
+    /** Pengantar di kasir bukan PJ ini / belum dipasangkan (LOG-108). */
+    courierMismatch: boolean('courier_mismatch').notNull().default(false),
+    status: text('status').notNull().default('OPEN'),
+    reasonCode: text('reason_code'),
+    reasonText: text('reason_text'),
+    /** Foto 2 sampai di tujuan (LOG-43). */
+    photoFileId: uuid('photo_file_id'),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    doneByEmployeeId: integer('done_by_employee_id'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    accuracyM: integer('accuracy_m'),
+    /** Jarak Terkirim dari titik toko Disetujui (meter), bila ada. */
+    distanceM: integer('distance_m'),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('self_trip_stops_live').on(t.transactionId).where(sql`${t.status} in ('OPEN', 'DELIVERED', 'FAILED')`),
+    index('self_trip_stops_trip_idx').on(t.tripId),
+    check('self_trip_stops_status', sql`${t.status} in ('OPEN', 'DELIVERED', 'TOMORROW', 'FAILED')`),
+    check('self_trip_stops_done', sql`(${t.status} = 'OPEN') = (${t.doneAt} is null) and (${t.status} = 'OPEN') = (${t.photoFileId} is null)`),
+    check('self_trip_stops_reason', sql`(${t.status} in ('TOMORROW', 'FAILED')) = (${t.reasonCode} is not null and ${t.reasonText} is not null)`),
+  ],
+);
+
+/**
+ * Cara bayar saat Terkirim antar sendiri (spec LT1 §15.2; LOG-50, 117): aturan sama dengan `visit_payments`. Tagihan = sisa
+ * piutang kasir nota itu; nota Umum / lunas = NONE. Tidak dihapus.
+ */
+export const selfTripPayments = logisticsSchema.table(
+  'self_trip_payments',
+  {
+    id: serial('id').primaryKey(),
+    stopId: integer('stop_id').notNull().references(() => selfTripStops.id),
+    tripId: integer('trip_id').notNull().references(() => selfTrips.id),
+    transactionId: integer('transaction_id').notNull(),
+    customerId: integer('customer_id'),
+    method: text('method').notNull(),
+    billAmount: integer('bill_amount').notNull(),
+    receivedAmount: integer('received_amount').notNull(),
+    proofPhotoFileId: uuid('proof_photo_file_id'),
+    promiseDate: date('promise_date', { mode: 'string' }),
+    recordedByEmployeeId: integer('recorded_by_employee_id').notNull(),
+    recordedByAccountId: integer('recorded_by_account_id').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('self_trip_payments_stop_unique').on(t.stopId),
+    index('self_trip_payments_trip_idx').on(t.tripId),
+    check('self_trip_payments_method', sql`${t.method} in ('NONE', 'CASH', 'TRANSFER', 'PARTIAL', 'TEMPO')`),
+    check('self_trip_payments_amounts', sql`${t.billAmount} >= 0 and ${t.receivedAmount} >= 0 and (
+      (${t.method} = 'NONE' and ${t.billAmount} = 0 and ${t.receivedAmount} = 0)
+      or (${t.method} in ('CASH', 'TRANSFER') and ${t.billAmount} > 0 and ${t.receivedAmount} = ${t.billAmount})
+      or (${t.method} = 'PARTIAL' and ${t.receivedAmount} > 0 and ${t.receivedAmount} < ${t.billAmount})
+      or (${t.method} = 'TEMPO' and ${t.billAmount} > 0 and ${t.receivedAmount} = 0))`),
+    check('self_trip_payments_customer', sql`${t.method} = 'NONE' or ${t.customerId} is not null`),
+    check('self_trip_payments_proof', sql`(${t.method} = 'TRANSFER') = (${t.proofPhotoFileId} is not null)`),
+    check('self_trip_payments_promise', sql`(${t.promiseDate} is not null) = (${t.method} in ('PARTIAL', 'TEMPO'))`),
   ],
 );

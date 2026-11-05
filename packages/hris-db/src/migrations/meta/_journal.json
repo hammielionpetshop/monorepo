@@ -337,6 +337,13 @@
       "when": 1793844093721,
       "tag": "0047_lt3a_load_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793845924634,
+      "tag": "0048_lt3b_self_delivery",
+      "breakpoints": true
     }
   ]
 }

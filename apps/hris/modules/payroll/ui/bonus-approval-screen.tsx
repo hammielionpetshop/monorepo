@@ -25,11 +25,11 @@ type Change = { id: number; entry: Entry; afterText: string; createdAt: string }
 type Unpaired = { posGroomerId: number; name: string; grooming: number; delivery: number; estimate: number };
 type Tab = 'grooming' | 'delivery' | 'free' | 'changes' | 'held' | 'unpaired';
 
-const FLAG_TEXT: Record<string, string> = { GROOMER_CHANGED: '⚠ ganti groomer', CHANGED_FROM_POS: 'berubah dari kasir', CORRECTION: 'koreksi' };
+const FLAG_TEXT: Record<string, string> = { GROOMER_CHANGED: '⚠ ganti groomer', CHANGED_FROM_POS: 'berubah dari kasir', CORRECTION: 'koreksi', SELF_PHOTO: '⚠ foto antar belum lengkap' };
 
 export function FlagBadge({ flag }: { flag: string | null }) {
   if (!flag) return null;
-  return <Badge tone={flag === 'GROOMER_CHANGED' ? 'warn' : 'info'}>{FLAG_TEXT[flag] ?? flag}</Badge>;
+  return <Badge tone={flag === 'GROOMER_CHANGED' || flag === 'SELF_PHOTO' ? 'warn' : 'info'}>{FLAG_TEXT[flag] ?? flag}</Badge>;
 }
 
 /** GAJ-L20 Persetujuan Bonus (spec L4d §3.3, §4): Grooming per groomer per periode, Ongkir, Perubahan dari kasir, Ditahan, Belum dipasangkan. */
@@ -130,7 +130,7 @@ export function BonusApprovalScreen(props: {
       {tab === 'delivery' && (
         <div className="space-y-3">
           <Alert tone="info">Bonus ongkir tercatat otomatis tanpa pengesahan. Yang salah bisa dibatalkan dengan alasan sebelum slip periodenya ditutup. Gratis ongkir tidak berbonus.</Alert>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} /> Hanya yang bertanda</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} /> Hanya yang bertanda <NewBadge feature="fitur/antar-sendiri-bonus" /></label>
           <EntryTable rows={shownDelivery} showPerson actions={(e) => (can.approve && e.employeeId !== me && e.status === 'APPROVED' && !props.locked
             ? <Button size="sm" variant="ghost" onClick={() => setRejecting({ entry: e, cancel: true })}>Batalkan</Button> : null)} />
         </div>
