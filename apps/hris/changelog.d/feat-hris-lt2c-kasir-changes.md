@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-05 08:40 -->
 ### Added
 
 - **Pemberitahuan nota berubah di kasir.** Tiap 10 menit HRIS memeriksa nota yang sudah masuk trip (trip Draft atau Berjalan, tujuan belum dikunjungi). Bila nominal atau revisinya berubah, menunggu batal, atau dibatalkan di kasir, Kepala Gudang (serta Pemilik dan GM) dan driver/kenek trip itu diberi tahu, misalnya "TRX-… berubah di kasir Rp 2.000.000 → Rp 1.500.000". Satu keadaan cukup diberitahukan sekali; bila nota diubah lagi, pemberitahuan dikirim lagi. Setiap perubahan tercatat di riwayat surat jalan.
