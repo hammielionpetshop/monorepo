@@ -223,4 +223,32 @@ describe.skipIf(!ADMIN_URL)('LT4a: Terima Uang', () => {
     expect(await lg.moneyCheckAttention(finance)).toEqual({ waiting: 0, red: 0, posRed: 0 });
     expect(await lg.moneyCheckAttention(kg)).toEqual({ waiting: 0, red: 0, posRed: 0 });
   });
+
+  it('LT5b Laporan Logistik: angka trip ini, uang terperiksa terpisah, unduhan tercatat', async () => {
+    const finance = await actorOf(ids.finance);
+    expect(await lg.logisticsReportScreen(await actorOf(ids.driver), {})).toBeNull();
+    const data = (await lg.logisticsReportScreen(finance, {}))!;
+    expect(data.range).toMatchObject({ from: '2026-10-26', to: '2026-11-25' });
+    const value = (label: string) => String(data.table.rows.find((r) => r.label === label)?.value ?? '').replace(/\s/g, '');
+    expect(value('Trip truk')).toBe('1');
+    expect(value('Kunjungan / tujuan diproses')).toBe('4');
+    expect(value('Nota terkirim')).toBe('5');
+    // Sinar sebagian tunai 120 rb; Maju dikoreksi jadi transfer 200 rb; Depan transfer 100 rb yang tidak masuk.
+    expect(value('Tunai dilaporkan')).toBe('Rp120.000');
+    expect(value('Transfer dilaporkan')).toBe('Rp300.000');
+    expect(value('Terperiksa: dilaporkan')).toBe('Rp420.000');
+    expect(value('Terperiksa: diterima')).toBe('Rp320.000');
+    expect(value('Belum diperiksa')).toBe('Rp0');
+    expect(value('Cara bayar Bayar sebagian (banyaknya)')).toBe('1');
+    const crew = (await lg.logisticsReportScreen(finance, { tab: 'awak' }))!.table.rows;
+    expect(crew.map((r) => [r.name, r.roles, r.truckTrips, r.delivered])).toEqual([['Dedi', 'Driver', 1, 4], ['Eko', 'Kenek', 1, 4]]);
+    const branches = (await lg.logisticsReportScreen(finance, { tab: 'cabang' }))!.table.rows;
+    expect(branches.map((r) => [r.name, r.notesDelivered, r.cash, r.transfer])).toEqual([['Gudang', 5, 120000, 300000]]);
+    expect((await lg.logisticsReportScreen(finance, { dari: '2026-08-01', sampai: '2026-11-06' }))!.error).toContain('3 bulan');
+    const file = (await lg.logisticsReportDownload(finance, { tab: 'trip' }))!;
+    expect(file.filename).toBe('laporan-logistik-trip-2026-10-26-sd-2026-11-25.csv');
+    expect(file.csv).toContain('TR-261106-1');
+    const [logged] = await sql`select action, after from hris.audit_events where entity = 'logistics_report'`;
+    expect(logged).toMatchObject({ action: 'DOWNLOAD', after: { tab: 'trip', from: '2026-10-26', to: '2026-11-25' } });
+  });
 });

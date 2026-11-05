@@ -365,6 +365,13 @@
       "when": 1793896434747,
       "tag": "0051_lt5a_fuel_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793898331199,
+      "tag": "0052_lt5b_logistics_report",
+      "breakpoints": true
     }
   ]
 }
