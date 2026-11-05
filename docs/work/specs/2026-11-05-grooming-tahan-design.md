@@ -2,7 +2,7 @@
 
 # Grooming Ditahan — karcis dulu, nota menyusul
 
-**Status:** rancangan, menunggu persetujuan owner (arah disetujui owner 2026-11-05: "ok sudah sesuai").
+**Status:** disetujui owner 2026-11-05 ("ok sudah sesuai", lalu "ok kerjakan" atas spec ini). Dikerjakan di `feat/grooming-hold`.
 **Domain:** Jasa & grooming (tab Grooming kasir) + POS & transaksi (pembuatan nota).
 **Migrasi:** petshop `0053` (tabel baru; tidak mengubah tabel lama).
 
@@ -110,8 +110,9 @@ pengantar sah) — memakai pemeriksaan yang sudah ada di `grooming-order-service
 | Rute | Guna |
 |---|---|
 | `POST /api/pos/grooming/holds` | Simpan tahanan (tanpa shift) |
-| `GET /api/pos/grooming/orders?view=aktif` | Ikut mengembalikan tahanan `DITAHAN` (bertanda) |
-| `GET /api/pos/grooming/orders?view=selesai` | Ikut mengembalikan tahanan `DIBATALKAN` |
+| `GET /api/pos/grooming/holds?view=aktif` | Tahanan `DITAHAN` (layar menggabungkannya di Sedang Dikerjakan) |
+| `GET /api/pos/grooming/holds?view=selesai` | Tahanan `DIBATALKAN` (Sudah Selesai) |
+| `GET /api/pos/grooming/orders` | Grooming dari tahanan menampilkan nomor karcis TAHAN; bisa dicari dengan nomor TAHAN |
 | `POST /api/pos/grooming/holds/[id]/ticket-printed` | Catat cetakan karcis tahanan |
 | `POST /api/pos/grooming/holds/[id]/cancel` | Batalkan dengan alasan |
 | `POST /api/pos/transactions` | Baris boleh membawa `groomingHoldId` (lihat 4.3) |

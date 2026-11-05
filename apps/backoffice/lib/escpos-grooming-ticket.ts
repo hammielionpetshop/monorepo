@@ -40,6 +40,8 @@ export interface GroomingTicketData {
   receivedAt: Date | string
   /** true = nota sudah lunas; false = bayar saat ambil. */
   isPaid: boolean
+  /** Grooming Ditahan: karcis dicetak sebelum nota ada. */
+  held?: boolean
   /** Delivery antar-jemput; null = diambil sendiri. */
   delivery: { courierName: string; address: string } | null
   isReprint: boolean
@@ -70,7 +72,7 @@ export function groomingTicketLines(data: GroomingTicketData, copy: GroomingTick
   ]
   if (copy === 'KONSUMEN') {
     lines.push(...field('Pemilik', data.ownerPhone ? `${data.ownerName} ${data.ownerPhone}` : data.ownerName))
-    lines.push(...field('Status', data.isPaid ? 'LUNAS' : 'BELUM BAYAR - bayar saat ambil'))
+    lines.push(...field('Status', data.held ? 'BELUM ADA NOTA - nota menyusul' : data.isPaid ? 'LUNAS' : 'BELUM BAYAR - bayar saat ambil'))
   } else {
     lines.push(...field('Groomer', data.groomerName))
     lines.push(...field('Pemilik', data.ownerName))
