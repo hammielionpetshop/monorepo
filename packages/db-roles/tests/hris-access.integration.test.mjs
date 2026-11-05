@@ -55,6 +55,8 @@ const ANSWER_KEY = {
     'logistics.store_payment.view': 'ALL',
     // LT2b (spec LT1 §14.2)
     'logistics.note_cut.decide': 'ALL',
+    // LT4a (spec LT1 §16.1)
+    'logistics.money_check.do': 'ALL',
   },
   Marketing: {
     ...EVERY_EMPLOYEE,

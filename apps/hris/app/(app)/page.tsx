@@ -5,7 +5,7 @@ import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { followupAttention, kasirChangeAttention, logisticsAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, unrecordedCounts } from '@/modules/logistics';
+import { followupAttention, kasirChangeAttention, logisticsAttention, moneyCheckAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, unrecordedCounts } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -54,6 +54,7 @@ export default async function HomePage() {
     kasirChangeAttention(actor),
     selfDeliveryAttention(actor),
     selfCashWaitingCount(actor),
+    moneyCheckAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -120,6 +121,9 @@ export default async function HomePage() {
   if (goodsWaiting) mine.push({ key: 'returned-goods', title: `${goodsWaiting} barang kembali belum diterima`, detail: 'Tidak terkirim dan retur yang ikut pulang di truk', href: '/logistik/barang-kembali', tone: 'danger', badge: '/logistik/barang-kembali' });
   if (pendingNotes?.red) mine.push({ key: 'pending-notes', title: `${pendingNotes.red} surat jalan tertunda terlalu lama`, detail: `Dari ${pendingNotes.total} yang tertunda`, href: '/logistik/surat-jalan/tertunda', tone: 'danger', badge: '/logistik/surat-jalan/tertunda' });
   if (openStoreReports) mine.push({ key: 'store-reports', title: `${openStoreReports} laporan toko belum diputuskan`, detail: 'Potong nota / Retur BO / Tidak dipotong', href: '/logistik/laporan-toko', tone: 'danger', badge: 'fitur/potong-nota' });
+  // Terima Uang (spec LT1 §16.1 butir 8): uang trip belum diperiksa, dan yang sudah diperiksa tapi belum masuk POS > 3 hari.
+  if (moneyCheck.waiting) mine.push({ key: 'money-check', title: `${moneyCheck.waiting} uang toko belum diperiksa`, detail: moneyCheck.red ? `${moneyCheck.red} sudah lebih dari 3 hari` : 'Cocokkan uang trip per nota di Terima Uang', href: '/logistik/terima-uang', tone: moneyCheck.red ? 'danger' : undefined, badge: '/logistik/terima-uang' });
+  if (moneyCheck.posRed) mine.push({ key: 'money-check-pos', title: `${moneyCheck.posRed} nota belum masuk POS`, detail: 'Sudah diperiksa lebih dari 3 hari, pelunasan di BO belum tercatat', href: '/logistik/terima-uang?tab=DONE', tone: 'danger', badge: '/logistik/terima-uang' });
   if (unrecorded.waiting) mine.push({ key: 'note-cuts-unrecorded', title: `${unrecorded.waiting} potong nota / retur belum dicatat di kasir`, detail: unrecorded.red ? `${unrecorded.red} sudah lebih dari 3 hari` : 'Catat di kasir lalu tandai Sudah dicatat', href: '/logistik/catat-kasir', tone: unrecorded.red ? 'danger' : undefined, badge: '/logistik/catat-kasir' });
   if (pendingStorePoints) mine.push({ key: 'store-points', title: `${pendingStorePoints} titik toko menunggu persetujuan`, detail: 'Dipasang driver dari kunjungan', href: '/logistik/toko?tab=titik', badge: 'fitur/titik-toko' });
   if (followup?.fuel) mine.push({ key: 'fuel-wait', title: `${followup.fuel} mobil perlu isi bensin`, detail: 'Dari Laporan Pulang driver', href: '/logistik/bensin-mobil', badge: 'fitur/beranda-logistik-tindak-lanjut' });

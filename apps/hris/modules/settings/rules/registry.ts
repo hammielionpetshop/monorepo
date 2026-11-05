@@ -1168,6 +1168,15 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.store.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'logistics.money_check_from': {
+    label: 'Terima Uang mulai tanggal',
+    module: 'logistics',
+    explain: 'Cara bayar truk dan antar sendiri yang dicatat sejak tanggal ini masuk daftar Terima Uang untuk diperiksa Finance (spec LT1 §16.1).',
+    type: { kind: 'date' },
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.store_payment.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'logistics.returned_goods_from': {
     label: 'Barang kembali mulai tanggal',
     module: 'logistics',

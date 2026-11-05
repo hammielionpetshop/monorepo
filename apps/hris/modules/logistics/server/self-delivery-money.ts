@@ -11,6 +11,7 @@ import { cashAfterCorrection, selfCorrectProblem } from '../rules/self-delivery-
 import { PAYMENT_LABELS, cleanPayment, cleanPromise, cleanReport, REPORT_LABELS, type PaymentMethod } from '../rules/store-payments';
 import { reasonProblem, wibDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail } from './data';
+import { CHECKED_LOCK, paymentChecked } from './money-checks';
 import { branchAccounts } from './self-delivery';
 import type { PaymentInput } from './store-payments';
 
@@ -50,6 +51,7 @@ export async function correctSelfPayment(
   });
   if (problem) return fail(403, problem);
   if (current.billAmount === 0) return fail(409, 'Tujuan ini tidak punya tagihan.');
+  if (await paymentChecked('SELF', current.id)) return fail(409, CHECKED_LOCK);
   const reason = (input.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
   const reasonError = reasonProblem(reason);
   if (reasonError) return fail(400, reasonError);

@@ -1007,3 +1007,72 @@ export const selfTripPayments = logisticsSchema.table(
     check('self_trip_payments_correction', sql`(${t.correctionOfId} is null) = (${t.correctionReason} is null)`),
   ],
 );
+
+/**
+ * Tagihan per nota saat Terkirim truk (spec LT1 §16.1 butir 2): sisa piutang kasir tiap nota kunjungan pada saat cara bayar
+ * dicatat. Dasar pembagian uang per nota dan tanda pelunasan POS. Tetap walau cara bayar dikoreksi (tagihan tetap). Tidak dihapus.
+ */
+export const visitNoteBills = logisticsSchema.table(
+  'visit_note_bills',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => tripVisits.id),
+    noteId: integer('note_id').notNull().references(() => deliveryNotes.id),
+    /** Nota kasir (`delivery_notes.doc_id`, jenis SALE). */
+    transactionId: integer('transaction_id').notNull(),
+    billAmount: integer('bill_amount').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('visit_note_bills_unique').on(t.visitId, t.noteId),
+    check('visit_note_bills_amount', sql`${t.billAmount} >= 0`),
+  ],
+);
+
+/**
+ * Pemeriksaan uang per nota (spec LT1 §16.1, LT4a): Finance mencocokkan uang yang dibawa / ditransfer dengan laporan cara bayar.
+ * Satu baris berlaku per nota per cara bayar (truk: `visit_payment_id` + nota; antar sendiri: `self_payment_id`). Kurang serah tunai
+ * atas nama pembawa (`responsible_employee_id`); transfer kurang tetap piutang toko. `pos_expected_amount` = yang harus dilunasi di
+ * POS. Batal = tanda + alasan, tidak dihapus.
+ */
+export const moneyChecks = logisticsSchema.table(
+  'money_checks',
+  {
+    id: serial('id').primaryKey(),
+    /** TRUCK / SELF. */
+    source: text('source').notNull(),
+    visitPaymentId: integer('visit_payment_id').references(() => visitPayments.id),
+    selfPaymentId: integer('self_payment_id').references(() => selfTripPayments.id),
+    tripId: integer('trip_id').references(() => trips.id),
+    selfTripId: integer('self_trip_id').references(() => selfTrips.id),
+    transactionId: integer('transaction_id').notNull(),
+    noteNumber: text('note_number').notNull(),
+    /** CASH (Lunas cash / Bayar sebagian) atau TRANSFER. */
+    kind: text('kind').notNull(),
+    reportedAmount: integer('reported_amount').notNull(),
+    actualAmount: integer('actual_amount').notNull(),
+    posExpectedAmount: integer('pos_expected_amount').notNull(),
+    /** Tagihan nota saat Terkirim (null = tidak diketahui, kunjungan sebelum LT4a). */
+    billAmount: integer('bill_amount'),
+    responsibleEmployeeId: integer('responsible_employee_id'),
+    note: text('note'),
+    checkedByAccountId: integer('checked_by_account_id').notNull(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedByAccountId: integer('voided_by_account_id'),
+    voidReason: text('void_reason'),
+  },
+  (t) => [
+    uniqueIndex('money_checks_truck_current').on(t.visitPaymentId, t.transactionId).where(sql`${t.voidedAt} is null and ${t.visitPaymentId} is not null`),
+    uniqueIndex('money_checks_self_current').on(t.selfPaymentId).where(sql`${t.voidedAt} is null and ${t.selfPaymentId} is not null`),
+    index('money_checks_transaction_idx').on(t.transactionId),
+    check('money_checks_source', sql`(${t.source} = 'TRUCK' and ${t.visitPaymentId} is not null and ${t.tripId} is not null and ${t.selfPaymentId} is null and ${t.selfTripId} is null)
+      or (${t.source} = 'SELF' and ${t.selfPaymentId} is not null and ${t.selfTripId} is not null and ${t.visitPaymentId} is null and ${t.tripId} is null)`),
+    check('money_checks_kind', sql`${t.kind} in ('CASH', 'TRANSFER')`),
+    check('money_checks_amounts', sql`${t.reportedAmount} >= 0 and ${t.actualAmount} >= 0 and ${t.posExpectedAmount} >= 0
+      and (${t.billAmount} is null or ${t.billAmount} >= 0)`),
+    check('money_checks_note', sql`${t.reportedAmount} = ${t.actualAmount} or ${t.note} is not null`),
+    check('money_checks_responsible', sql`${t.responsibleEmployeeId} is null or (${t.kind} = 'CASH' and ${t.actualAmount} < ${t.reportedAmount})`),
+    check('money_checks_voided', sql`(${t.voidedAt} is null) = (${t.voidedByAccountId} is null) and (${t.voidedAt} is null) = (${t.voidReason} is null)`),
+  ],
+);
