@@ -42,10 +42,11 @@ function ReportCard({ row, onDecide }: { row: ReportRow; onDecide?: (row: Report
         <div className="space-y-1">
           <p className="inline-flex flex-wrap items-center gap-1">
             <Badge tone={row.kind === 'RETURN' ? 'info' : 'warn'}>{row.label}</Badge>
-            <Link href={`/logistik/toko/${row.customerId}`} className="font-medium underline">{row.store}</Link>
+            {row.customerId != null ? <Link href={`/logistik/toko/${row.customerId}`} className="font-medium underline">{row.store}</Link> : <span className="font-medium">{row.store}</span>}
+            {row.source && <Badge tone="info">{row.source}</Badge>}
           </p>
           <p className="text-sm text-ink-muted">
-            {row.by} · {row.on} {row.at} · trip <Link href={`/logistik/trip/${row.tripId}`} className="underline">{row.tripNumber}</Link>
+            {row.by} · {row.on} {row.at} · {row.source ? 'perjalanan' : 'trip'} <Link href={row.tripHref} className="underline">{row.tripNumber}</Link>
             {row.carriedBack ? ' · barang dibawa pulang' : ''}
           </p>
           {row.note && <p className="text-sm">{row.note}</p>}

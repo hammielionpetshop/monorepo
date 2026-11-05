@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { selfTripEvents, selfTripPayments, selfTrips, selfTripStops } from '@petshop/logistics';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { selfTripEvents, selfTripPayments, selfTrips, selfTripStops, visitReports } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
@@ -12,7 +12,7 @@ import {
   stageWaitProblem, stopsProblem, type SelfStopStatus, type SelfTripStatus,
 } from '../rules/self-delivery';
 import { SELF_DECISION_LABELS, SELF_EVENT_LABELS, tripLate, type SelfDecision, type SelfEventKind } from '../rules/self-delivery-office';
-import { PAYMENT_LABELS, billOf, cleanPayment, cleanPromise, leftToCollect, type PaymentMethod } from '../rules/store-payments';
+import { PAYMENT_LABELS, REPORT_LABELS, billOf, cleanPayment, cleanPromise, leftToCollect, type PaymentMethod, type ReportKind } from '../rules/store-payments';
 import { addDays, validPoint, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames, type Executor } from './data';
 import { distanceFromPoint, pointsOf } from './store-points';
@@ -290,7 +290,7 @@ export async function finishSelfTrip(actor: Actor | null, tripId: number, input:
       const [left] = await tx.execute<{ n: number }>(sql`select count(*)::int as n from logistics.self_trip_stops where trip_id = ${tripId} and status = 'OPEN'`);
       if (Number(left.n)) throw new Rollback(409, 'Masih ada tujuan yang belum diproses.');
       const payments = await tx.select({ method: selfTripPayments.method, receivedAmount: selfTripPayments.receivedAmount })
-        .from(selfTripPayments).where(eq(selfTripPayments.tripId, tripId));
+        .from(selfTripPayments).where(and(eq(selfTripPayments.tripId, tripId), isNull(selfTripPayments.replacedAt)));
       const cash = cashOf(payments);
       await tx.update(selfTrips).set({
         status: 'DONE', returnedAt: now, returnPhotoFileId: upload.data.id, returnLatitude: point?.latitude ?? null,
@@ -328,10 +328,16 @@ export async function receiveSelfCash(actor: Actor | null, tripId: number): Prom
   });
 }
 
+export type SelfReportView = { id: number; label: string; note: string | null; photoUrl: string; closeNote: string | null; carriedBack: boolean };
 export type SelfStopView = {
   id: number; trxNumber: string; destination: string; customerId: number | null; phone: string | null; address: string | null; amount: number;
   status: SelfStopStatus; statusLabel: string; reason: string | null; doneAt: string | null; courierMismatch: boolean; voided: boolean;
-  bill: number; payment: { method: PaymentMethod; label: string; received: number; left: number; promiseDate: string | null } | null;
+  bill: number;
+  payment: {
+    method: PaymentMethod; label: string; bill: number; received: number; left: number; promiseDate: string | null; correctionReason: string | null;
+  } | null;
+  /** Lapor masalah / retur dari tujuan ini (spec LT1 §15.4 butir 3). */
+  reports: SelfReportView[];
   officeClosed: boolean; decision: { kind: SelfDecision; label: string; reason: string | null; at: string } | null; backofficeUrl: string | null;
   distanceM: number | null; mapUrl: string | null; hasPoint: boolean; pointPending: boolean; photoUrl: string | null; proofUrl: string | null;
 };
@@ -349,12 +355,14 @@ export async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executo
   const tripIds = rows.map((t) => t.id);
   const base = (process.env.BACKOFFICE_PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
   const boRoot = /^https?:\/\/[^/\s]+$/.test(base) ? base : null;
-  const [stops, payments, people, branches, events] = await Promise.all([
+  const [stops, payments, people, branches, events, reports] = await Promise.all([
     executor.select().from(selfTripStops).where(inArray(selfTripStops.tripId, tripIds)).orderBy(asc(selfTripStops.id)),
-    executor.select().from(selfTripPayments).where(inArray(selfTripPayments.tripId, tripIds)),
+    executor.select().from(selfTripPayments).where(and(inArray(selfTripPayments.tripId, tripIds), isNull(selfTripPayments.replacedAt))),
     peopleNames(),
     executor.execute<{ id: number; name: string }>(sql`select id, name from hris.branches where id in (${ids([...new Set(rows.map((t) => t.branchId))])})`),
     executor.select().from(selfTripEvents).where(inArray(selfTripEvents.tripId, tripIds)).orderBy(asc(selfTripEvents.id)),
+    executor.execute<{ id: number; self_stop_id: number; kind: string; note: string | null; close_note: string | null; carried_back: boolean }>(sql`
+      select id, self_stop_id, kind, note, close_note, carried_back from logistics.visit_reports where self_trip_id in (${ids(tripIds)}) order by id`),
   ]);
   const txIds = stops.map((s) => s.transactionId);
   const [sales, bills, points] = await Promise.all([
@@ -398,9 +406,13 @@ export async function tripViews(rows: (typeof selfTrips.$inferSelect)[], executo
         reason: s.reasonText, doneAt: stamp(s.doneAt), courierMismatch: s.courierMismatch, voided: now ? isVoided(now.status) : false,
         bill: bills.get(s.transactionId) ?? 0,
         payment: p ? {
-          method: p.method as PaymentMethod, label: PAYMENT_LABELS[p.method as PaymentMethod], received: p.receivedAmount,
-          left: leftToCollect(p.method as PaymentMethod, p.billAmount, p.receivedAmount), promiseDate: p.promiseDate,
+          method: p.method as PaymentMethod, label: PAYMENT_LABELS[p.method as PaymentMethod], bill: p.billAmount, received: p.receivedAmount,
+          left: leftToCollect(p.method as PaymentMethod, p.billAmount, p.receivedAmount), promiseDate: p.promiseDate, correctionReason: p.correctionReason,
         } : null,
+        reports: reports.filter((r) => Number(r.self_stop_id) === s.id).map((r) => ({
+          id: Number(r.id), label: REPORT_LABELS[r.kind as ReportKind] ?? r.kind, note: r.note, closeNote: r.close_note, carriedBack: r.carried_back,
+          photoUrl: `/api/logistics/self-photo?trip=${t.id}&kind=report&report=${r.id}`,
+        })),
         officeClosed: s.officeClosed,
         decision: s.decision ? {
           kind: s.decision as SelfDecision, label: SELF_DECISION_LABELS[s.decision as SelfDecision], reason: s.decisionReason, at: stamp(s.decidedAt)!,
@@ -480,7 +492,17 @@ export async function openSelfPhoto(actor: Actor | null, input: { tripId: number
   if (!trip) return null;
   const allowed = trip.employeeId === actor.personId || can(actor, VIEW, { branchId: trip.branchId }) || can(actor, CASH, { branchId: trip.branchId })
     || can(actor, MANAGE, { branchId: trip.branchId });
-  if (!allowed) return null;
+  // Uang dari Toko (bukti transfer) dan Laporan Toko / Perlu dicatat di kasir (foto laporan) juga dibuka kantor (spec LT1 §15.4).
+  const office = (input.kind === 'proof' && can(actor, 'logistics.store_payment.view'))
+    || (input.kind === 'report' && (can(actor, 'logistics.delivery_note.view') || can(actor, 'logistics.delivery_note.decide') || can(actor, 'logistics.note_cut.decide')));
+  if (!allowed && !office) return null;
+  if (input.kind === 'report') {
+    if (!input.stopId) return null;
+    const [report] = await db.select({ fileId: visitReports.photoFileId }).from(visitReports)
+      .where(and(eq(visitReports.id, input.stopId), eq(visitReports.selfTripId, trip.id))).limit(1);
+    return report?.fileId ?? null;
+  }
+  if (!allowed && input.kind !== 'proof') return null;
   if (input.kind === 'pickup') return trip.pickupPhotoFileId;
   if (input.kind === 'return') return trip.returnPhotoFileId;
   if (!input.stopId) return null;
@@ -490,8 +512,9 @@ export async function openSelfPhoto(actor: Actor | null, input: { tripId: number
     return stop?.fileId ?? null;
   }
   if (input.kind === 'proof') {
+    // Bukti yang berlaku (koreksi bisa memakai bukti baru; spec LT1 §15.4).
     const [pay] = await db.select({ fileId: selfTripPayments.proofPhotoFileId }).from(selfTripPayments)
-      .where(and(eq(selfTripPayments.stopId, input.stopId), eq(selfTripPayments.tripId, trip.id))).limit(1);
+      .where(and(eq(selfTripPayments.stopId, input.stopId), eq(selfTripPayments.tripId, trip.id), isNull(selfTripPayments.replacedAt))).limit(1);
     return pay?.fileId ?? null;
   }
   return null;

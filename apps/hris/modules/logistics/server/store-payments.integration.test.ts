@@ -160,12 +160,12 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
   it('Uang dari Toko untuk Finance: cash dibawa driver, transfer, sisa ditagih kantor', async () => {
     expect(await lg.storePaymentsScreen(await actorOf(ids.driver), DAY)).toBeNull();
     const screen = (await lg.storePaymentsScreen(await actorOf(ids.finance), DAY))!;
-    expect(screen.totals).toEqual({ cash: 50000, transfer: 150000, left: 250000, visits: 4 });
+    expect(screen.totals).toEqual({ cash: 50000, transfer: 150000, left: 250000, visits: 4, cashTruck: 50000, cashSelf: 0 });
     expect(screen.trips).toHaveLength(1);
     expect(screen.trips[0].crew).toBe('Dedi, Eko');
     expect(screen.rows.find((r) => r.store === 'Toko Sinar')?.notes).toEqual(['TRX-A', 'TRX-B']);
     expect(screen.rows.find((r) => r.store === 'Toko Maju')).toMatchObject({ promiseDate: '2026-11-13', overdue: false });
-    expect(screen.canCorrect).toBe(false);
+    expect(screen.rows.some((r) => r.canCorrect)).toBe(false);
   });
 
   it('Lapor masalah sesudah Terkirim: jenis baku + foto; retur dibawa pulang; kantor menutup dengan catatan', async () => {
@@ -233,7 +233,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     expect((await lg.correctPayment(kenek, depan.id, { method: 'CASH', reason: 'salah tekan, bayar cash' }, null)).ok).toBe(true);
     expect((await visitOf('Toko Depan')).payment).toMatchObject({ method: 'CASH', received: 100000, promiseDate: null, correctionReason: 'salah tekan, bayar cash' });
     const screen = (await lg.storePaymentsScreen(await actorOf(ids.finance), DAY))!;
-    expect(screen.totals).toEqual({ cash: 150000, transfer: 150000, left: 150000, visits: 4 });
+    expect(screen.totals).toEqual({ cash: 150000, transfer: 150000, left: 150000, visits: 4, cashTruck: 150000, cashSelf: 0 });
     const [told] = await sql`select title from hris.notifications where kind = 'logistics.payment_corrected' and recipient_account_id = ${ids.finance + 1000}`;
     expect(told.title).toBe('Cara bayar Toko Depan dikoreksi (trip TR-261106-1)');
     expect((await sql`select count(*)::int as n from logistics.visit_payments where replaced_at is not null`)[0].n).toBe(1);

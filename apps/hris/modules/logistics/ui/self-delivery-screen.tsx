@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -17,7 +18,8 @@ import {
 import { wibDate } from '../rules/trip';
 import type { SelfDeliveryScreenData, SelfStopView, SelfTask, SelfTripView } from '../server/self-delivery';
 import { LiveCamera, photoForm, readLocation } from './capture';
-import { PromiseField, defaultPromise } from './payment-correct';
+import { PaymentCorrectForm, PromiseField, defaultPromise } from './payment-correct';
+import { ReportForm } from './report-form';
 
 const API = '/api/logistics/self-delivery';
 type Step =
@@ -26,6 +28,8 @@ type Step =
   | { kind: 'outcome'; stop: SelfStopView; outcome: VisitOutcome }
   | { kind: 'finish' }
   | { kind: 'point'; stop: SelfStopView; pointKind: 'NEW' | 'CORRECTION' }
+  | { kind: 'report'; stop: SelfStopView }
+  | { kind: 'payment'; stop: SelfStopView }
   | null;
 
 function Photo({ blob, alt }: { blob: Blob; alt: string }) {
@@ -46,6 +50,25 @@ export function SelfDeliveryScreen({ data }: { data: SelfDeliveryScreenData }) {
   if (step?.kind === 'outcome') return <OutcomeFlow tripId={trip!.id} stop={step.stop} outcome={step.outcome} reasons={data.reasons[step.outcome]} onDone={done} />;
   if (step?.kind === 'finish') return <FinishFlow data={data} onDone={done} />;
   if (step?.kind === 'point') return <PointFlow tripId={trip!.id} stop={step.stop} pointKind={step.pointKind} limitM={data.pointAccuracyM} onDone={done} />;
+  // Lapor masalah / retur dan koreksi cara bayar oleh PJ sebelum Foto 3 (spec LT1 §15.4 butir 2, 3).
+  if (step?.kind === 'report') {
+    return (
+      <ReportForm destination={step.stop.destination} origins={[]} endpoint={API} fields={{ action: 'self_report', tripId: trip!.id, stopId: step.stop.id }}
+        hint="Finance yang memutuskan potong nota. Retur dibawa pulang ke cabang Anda." onDone={done} />
+    );
+  }
+  if (step?.kind === 'payment' && step.stop.payment) {
+    const p = step.stop.payment;
+    return (
+      <Card className="mx-auto max-w-md space-y-3">
+        <h2 className="font-semibold">Koreksi cara bayar: {step.stop.destination}</h2>
+        <PaymentCorrectForm
+          target={{ visitId: null, selfStopId: step.stop.id, tripId: trip!.id, store: step.stop.destination, bill: p.bill, method: p.method, received: p.received, promiseDate: p.promiseDate, hasProof: !!step.stop.proofUrl }}
+          onDone={done}
+        />
+      </Card>
+    );
+  }
 
   const all = [...data.tasks.mine, ...data.tasks.others];
   const toggle = (id: number) => setPicked((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
@@ -76,6 +99,15 @@ export function SelfDeliveryScreen({ data }: { data: SelfDeliveryScreenData }) {
                       <Button className="min-h-12" variant="danger" onClick={() => setStep({ kind: 'outcome', stop: s, outcome: 'FAILED' })}>Gagal</Button>
                     </div>
                   </>
+                )}
+                {s.status === 'DELIVERED' && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => setStep({ kind: 'report', stop: s })}>Lapor masalah</Button>
+                    {s.payment && s.payment.bill > 0 && (
+                      <Button size="sm" variant="ghost" onClick={() => setStep({ kind: 'payment', stop: s })}>Koreksi cara bayar</Button>
+                    )}
+                    <NewBadge feature="fitur/antar-sendiri-uang" />
+                  </div>
                 )}
                 {s.customerId != null && (
                   <div className="flex flex-wrap gap-2 text-sm">
@@ -163,6 +195,18 @@ function StopHead({ stop }: { stop: SelfStopView }) {
           {stop.payment.label}{stop.payment.received ? ` · diterima ${rupiah(stop.payment.received)}` : ''}{stop.payment.left ? ` · sisa ${rupiah(stop.payment.left)}` : ''}
           {stop.distanceM != null ? ` · ${stop.distanceM} m dari titik` : ''}
         </p>
+      )}
+      {stop.payment?.correctionReason && <p className="text-xs text-ink-muted">Dikoreksi: {stop.payment.correctionReason}</p>}
+      {stop.reports.length > 0 && (
+        <ul className="space-y-0.5 text-xs">
+          {stop.reports.map((r) => (
+            <li key={r.id}>
+              <Badge tone="warn">{r.label}</Badge>{r.note ? ` ${r.note}` : ''}{' '}
+              <a className="text-brand underline" href={r.photoUrl} target="_blank" rel="noreferrer">foto</a>
+              {r.closeNote ? <span className="text-ink-muted"> · {r.closeNote}</span> : <span className="text-ink-muted"> · menunggu keputusan Finance</span>}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

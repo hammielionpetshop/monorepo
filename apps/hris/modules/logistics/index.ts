@@ -72,7 +72,8 @@ export {
 } from './rules/store-payments';
 export {
   addVisitReport, correctPayment, decideVisitReport, markDecisionRecorded, openReportCount, storePaymentsScreen, toRecordScreen, unrecordedCounts,
-  visitReportsScreen, type DecisionView, type ReportRow, type StorePaymentRow, type ToRecordRow, type VisitPaymentView, type VisitReportView,
+  visitReportsScreen, type DecisionView, type PaymentSourceFilter, type ReportRow, type StorePaymentRow, type ToRecordRow, type VisitPaymentView,
+  type VisitReportView,
 } from './server/store-payments';
 export { StorePaymentsScreen } from './ui/store-payments-screen';
 export { ToRecordScreen } from './ui/to-record-screen';
@@ -106,3 +107,4 @@ export {
   closeSelfTrip, decideSelfStop, handoverSelfTrip, selfDeliveryAttention, selfDeliveryOfficeScreen, type SelfDeliveryOfficeData,
 } from './server/self-delivery-office';
 export { SelfDeliveryOfficeScreen } from './ui/self-delivery-office-screen';
+export { addSelfStopReport, canCorrectSelf, correctSelfPayment } from './server/self-delivery-money';

@@ -29,7 +29,11 @@ export function PromiseField({ value, onChange }: { value: string; onChange: (va
 }
 
 export type CorrectTarget = {
-  visitId: number; tripId: number; store: string; bill: number; method: PaymentMethod; received: number; promiseDate: string | null; hasProof: boolean;
+  visitId: number | null; tripId: number; store: string; bill: number; method: PaymentMethod; received: number; promiseDate: string | null; hasProof: boolean;
+  /** Tujuan antar sendiri (spec LT1 §15.4 butir 2): dikirim ke API antar sendiri, bukan kunjungan truk. */
+  selfStopId?: number | null;
+  /** Antar sendiri sesudah Foto 3: tunai berubah → laci menerima ulang. */
+  cashNote?: string | null;
 };
 
 /**
@@ -55,8 +59,9 @@ export function PaymentCorrectForm({ target, onDone }: { target: CorrectTarget; 
     if (!clean.ok) return;
     setBusy(true);
     setError(null);
-    const result = await postJson('/api/logistics/upload', photoForm({
-      action: 'correct_payment', tripId: target.tripId, visitId: target.visitId, payMethod: clean.method,
+    const self = target.selfStopId != null;
+    const result = await postJson(self ? '/api/logistics/self-delivery' : '/api/logistics/upload', photoForm({
+      action: 'correct_payment', tripId: target.tripId, ...(self ? { stopId: target.selfStopId } : { visitId: target.visitId }), payMethod: clean.method,
       partialAmount: clean.method === 'PARTIAL' ? clean.received : null, promiseDate: needsPromise(clean.method) ? promise : null, reason,
     }, clean.method === 'TRANSFER' ? proof : null));
     setBusy(false);
@@ -68,6 +73,7 @@ export function PaymentCorrectForm({ target, onDone }: { target: CorrectTarget; 
   return (
     <div className="space-y-3">
       {error && <Alert tone="danger">{error}</Alert>}
+      {target.cashNote && <Alert tone="warn">{target.cashNote}</Alert>}
       <p className="text-sm">
         Tagihan saat Terkirim: <b className="tabular-nums">{rupiah(target.bill)}</b> · sekarang <b>{PAYMENT_LABELS[target.method]}</b>
         {target.received > 0 ? <> ({rupiah(target.received)})</> : null}
