@@ -452,3 +452,33 @@ Keputusan owner atas butir terbuka (2026-11-05):
 | 7 | **Di luar**: perubahan nota sesudah Terkirim (lewat potong nota / Retur BO, §14.2), cara bayar, upah. |
 
 **Data.** Migrasi `logistics` 0010: tabel `kasir_changes` (surat jalan, trip, jenis, penanda unik per surat jalan+trip, nominal saat trip → kasir, revisi, ditemukan, Tetap antar oleh/kapan, ditutup; tanpa hapus) + jenis riwayat `KASIR_CHANGED`, `KASIR_KEPT`. Tanpa migrasi hris (hak memakai `logistics.trip.manage`). Jadwal di `infra/apps/cron/crontab` (`*/10`).
+
+## 15. Logistik Tahap 3 (owner 2026-11-05)
+
+Tahap 3 = laporan muat cabang + antar sendiri. Dipecah tiga, diuji berurutan:
+
+| Bagian | Isi | Status |
+|---|---|---|
+| **LT3a Laporan Muat** | Bukti foto barang yang dimuat di Toko Pusat untuk menjawab komplain | Disetujui owner 2026-11-05 (§15.1) |
+| **LT3b Antar sendiri (HP pengantar)** | Nota Kurir cabang: Foto 1 ambil barang, Foto 2 + Terkirim / Kirim Besok / Gagal + cara bayar di tujuan, Foto 3 kembali | Usulan 7 butir belum dijawab owner |
+| **LT3c Antar sendiri (kantor)** | Daftar per cabang, tutup perjalanan dengan alasan, tanda 23.59, pengantar kasir belum dipasangkan | Menyusul LT3b |
+
+### 15.1 LT3a Laporan Muat (owner 2026-11-05)
+
+**Keputusan owner.** Laporan muat **tetap ada**, tetapi **hanya sebagai bukti** (pelaporan) agar bila konsumen komplain ada foto muatnya. Kebiasaan sekarang: orang yang menyiapkan barang memilih toko, memotret nota, memotret barang, lalu klik Selesai. Yang memakai hanya **Toko Pusat**; nama toko harus **sinkron dengan nota kasir Toko Pusat**, jadi **nota kasir wajib dipilih**. Foto **dari kamera langsung**. Yang melihat: Pemilik, GM, Kepala Gudang, Kepala Toko cabang itu, Marketing, dan staf cabang untuk laporannya sendiri ("ok" atas saran).
+
+Ini mengganti bacaan LOG-37 s.d. 41 dan 105 s.d. 111 (laporan muat sebagai jalur kirim + paket): jalur kirim tetap lewat cara kirim kasir dan surat jalan (§11). Laporan muat **tidak menahan** apa pun (trip, antar, kasir) dan tidak mengubah data kasir.
+
+| # | Aturan |
+|---|---|
+| 1 | **Saklar per cabang** `logistics.load_report_on` (Ya/Tidak, sasaran Semua atau Cabang). Isi awal: Semua = Tidak, **Toko Pusat = Ya**. Cabang lain tinggal dinyalakan di Pengaturan |
+| 2 | **Buat laporan** (hak baru `logistics.load_report.create`, lingkup cabang: Kepala Toko, Kasir, Pramuniaga; Pemilik/GM lewat full_access memilih cabang): pilih **nota kasir** cabang itu yang berpelanggan, tidak batal, tanggal nota 7 hari terakhir, dan belum dipakai laporan muat lain yang tidak batal. Toko = pelanggan nota itu (tidak diketik). Boleh menambah nota lain **dari pelanggan yang sama** dalam satu laporan (1–10 nota). Satu nota hanya di satu laporan yang berlaku |
+| 3 | **Foto nota lalu foto barang**, kamera langsung (bukan galeri), jam server. Foto nota 1–5; foto barang baru bisa diambil sesudah ada foto nota, 1–20. Tiap foto langsung tersimpan, jadi laporan boleh ditinggal dan dilanjutkan (status **Proses**). Selama Proses foto boleh dibuang (tercatat, tidak dihapus) dan nota boleh ditambah / dilepas |
+| 4 | **Selesai** (wajib ≥ 1 foto nota dan ≥ 1 foto barang): laporan terkunci; nota dan foto tidak bisa dibuang atau diubah. Masih bisa **Tambah foto susulan** (nota / barang, kamera langsung, dalam batas jumlah), bertanda "susulan" + siapa + jam |
+| 5 | **Batal** hanya selama Proses, alasan wajib (≥ 5 huruf); nota dilepas dan bisa dipakai laporan lain. Riwayat dan fotonya tetap |
+| 6 | **Siapa yang mengerjakan laporan Proses / susulan**: pemegang hak buat di cabang laporan itu (rekan satu cabang boleh melanjutkan) |
+| 7 | **Melihat** (hak baru `logistics.load_report.view`): Kepala Gudang dan Marketing semua cabang, Kepala Toko cabangnya; Pemilik/GM semua. Pemegang hak buat melihat laporan Proses cabangnya dan laporan yang ia buat sendiri |
+| 8 | **Halaman Laporan Muat** (`/logistik/laporan-muat`): tab Proses dan Selesai (+ Batal), saring tanggal (bawaan 7 hari), cari nomor nota / nama toko / pembuat. Rincian (`/logistik/laporan-muat/[id]`): toko, nota (nomor, nominal kasir), foto nota, foto barang, pembuat, jam Selesai, foto susulan, alasan batal |
+| 9 | **Di luar LT3a**: menautkan laporan muat ke surat jalan / kunjungan (foto muat tampil di rincian surat jalan), tanda "belum ada foto muat", pemberitahuan |
+
+**Data.** Migrasi `logistics` 0011: view `pos_branch_sales` (nota kasir berpelanggan: id, nomor, cabang kasir, pelanggan, nominal, status, cara kirim, jam; baca saja), tabel `load_reports` (cabang HRIS + cabang kasir, pelanggan, status `DRAFT`/`DONE`/`CANCELLED`, pembuat, Selesai oleh/jam, Batal oleh/jam/alasan), `load_report_notes` (laporan, `transaction_id`, nomor + nominal saat dipilih, `released_at`; unik per nota selama belum dilepas), `load_report_photos` (laporan, jenis `NOTE`/`GOODS`, berkas, susulan, pemotret, jam, `removed_at` hanya selama Proses). Tanpa hapus. Migrasi `hris` 0047: pengaturan `logistics.load_report_on`, hak `logistics.load_report.create` (Kepala Toko, Kasir, Pramuniaga: cabang) dan `logistics.load_report.view` (Kepala Gudang, Marketing: semua; Kepala Toko: cabang). Foto dibuka lewat `/api/logistics/load-photo` dengan hak lihat laporannya; tidak ikut dibuang mesin harian.

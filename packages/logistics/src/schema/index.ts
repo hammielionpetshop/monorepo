@@ -730,3 +730,82 @@ export const reportDecisions = logisticsSchema.table(
       and (${t.recordedAt} is null or ${t.decision} <> 'NO_CUT')`),
   ],
 );
+
+/**
+ * Laporan Muat (spec LT1 §15.1, LT3a): bukti foto barang yang dimuat di cabang (Toko Pusat) untuk menjawab komplain.
+ * Hanya bukti: tidak menahan trip/antar dan tidak mengubah kasir. Toko = pelanggan nota kasir yang dipilih.
+ * DRAFT = Proses (foto boleh ditambah/dibuang), DONE = Selesai (terkunci, hanya foto susulan), CANCELLED = Batal (alasan).
+ */
+export const loadReports = logisticsSchema.table(
+  'load_reports',
+  {
+    id: serial('id').primaryKey(),
+    /** Cabang HRIS pembuat laporan (`hris.branches.id`). */
+    branchId: integer('branch_id').notNull(),
+    /** Cabang kasir asal nota (`petshop.branches.id`). */
+    kasirBranchId: integer('kasir_branch_id').notNull(),
+    customerId: integer('customer_id').notNull(),
+    status: text('status').notNull().default('DRAFT'),
+    createdByEmployeeId: integer('created_by_employee_id'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    doneByAccountId: integer('done_by_account_id'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    index('load_reports_branch_idx').on(t.branchId, t.createdAt),
+    index('load_reports_customer_idx').on(t.customerId),
+    check('load_reports_status', sql`${t.status} in ('DRAFT', 'DONE', 'CANCELLED')`),
+    check('load_reports_done', sql`(${t.status} = 'DONE') = (${t.doneAt} is not null) and (${t.doneAt} is null) = (${t.doneByAccountId} is null)`),
+    check('load_reports_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)
+      and (${t.cancelledAt} is null) = (${t.cancelledByAccountId} is null) and (${t.cancelledAt} is null) = (${t.cancelReason} is null)`),
+  ],
+);
+
+/** Nota kasir di laporan muat. Satu nota hanya di satu laporan yang berlaku; dilepas (Proses / Batal) = `released_at`. */
+export const loadReportNotes = logisticsSchema.table(
+  'load_report_notes',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => loadReports.id),
+    transactionId: integer('transaction_id').notNull(),
+    trxNumber: text('trx_number').notNull(),
+    /** Nominal kasir saat nota dipilih. */
+    amount: integer('amount').notNull(),
+    addedByAccountId: integer('added_by_account_id').notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedByAccountId: integer('released_by_account_id'),
+  },
+  (t) => [
+    uniqueIndex('load_report_notes_once').on(t.transactionId).where(sql`${t.releasedAt} is null`),
+    index('load_report_notes_report_idx').on(t.reportId),
+    check('load_report_notes_released', sql`(${t.releasedAt} is null) = (${t.releasedByAccountId} is null)`),
+  ],
+);
+
+/** Foto laporan muat: NOTE = foto nota, GOODS = foto barang. Dibuang hanya selama Proses (`removed_at`); susulan = sesudah Selesai. */
+export const loadReportPhotos = logisticsSchema.table(
+  'load_report_photos',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => loadReports.id),
+    kind: text('kind').notNull(),
+    fileId: uuid('file_id').notNull(),
+    late: boolean('late').notNull().default(false),
+    takenByEmployeeId: integer('taken_by_employee_id'),
+    takenByAccountId: integer('taken_by_account_id').notNull(),
+    takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+    removedByAccountId: integer('removed_by_account_id'),
+  },
+  (t) => [
+    index('load_report_photos_report_idx').on(t.reportId),
+    uniqueIndex('load_report_photos_file_unique').on(t.fileId),
+    check('load_report_photos_kind', sql`${t.kind} in ('NOTE', 'GOODS')`),
+    check('load_report_photos_removed', sql`(${t.removedAt} is null) = (${t.removedByAccountId} is null) and (${t.removedAt} is null or not ${t.late})`),
+  ],
+);

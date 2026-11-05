@@ -184,6 +184,8 @@ export const ACTIONS = {
   'logistics.returned_goods.receive': { label: 'Terima barang kembali dari trip (Sesuai / Tidak sesuai)', group: LOGISTICS },
   'logistics.note_cut.decide': { label: 'Putuskan potong nota atas Laporan Toko dan tandai Sudah dicatat di kasir', group: LOGISTICS },
   'logistics.store_payment.correct': { label: 'Koreksi cara bayar toko sesudah trip (salah tekan), alasan wajib', group: LOGISTICS },
+  'logistics.load_report.create': { label: 'Buat Laporan Muat (pilih nota kasir, foto nota dan barang, Selesai, Batal, foto susulan)', group: LOGISTICS },
+  'logistics.load_report.view': { label: 'Lihat Laporan Muat (bukti foto barang yang dimuat)', group: LOGISTICS },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
   'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },

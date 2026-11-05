@@ -202,6 +202,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/potong-nota': '2026-11-05', // keputusan Potong nota / Retur BO / Tidak dipotong di Laporan Toko, pilihan Harga beda di Lapor masalah
   'fitur/janji-bayar': '2026-11-05', // janji bayar sisa saat Bayar sebagian / Tempo, koreksi cara bayar salah tekan
   'fitur/nota-berubah-kasir': '2026-11-05', // pemberitahuan nota berubah / dibatalkan di kasir sesudah masuk trip, Tetap antar, kartu Beranda
+  // LT3a Laporan Muat (tayang staging 2026-11-05)
+  '/logistik/laporan-muat': '2026-11-05',
   'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };
 

@@ -78,6 +78,13 @@
       "when": 1793842134066,
       "tag": "0010_lt2c_kasir_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793844069642,
+      "tag": "0011_lt3a_load_reports",
+      "breakpoints": true
     }
   ]
 }

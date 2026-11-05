@@ -60,6 +60,8 @@ const ANSWER_KEY = {
     ...EVERY_EMPLOYEE,
     // LT1a (spec LT1 §12)
     'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL', 'logistics.store.manage': 'ALL',
+    // LT3a (spec LT1 §15.1)
+    'logistics.load_report.view': 'ALL',
   },
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
@@ -81,15 +83,19 @@ const ANSWER_KEY = {
     'logistics.returned_goods.receive': 'ALL',
     // LT2b (spec LT1 §14.2)
     'logistics.store_payment.correct': 'ALL',
+    // LT3a (spec LT1 §15.1)
+    'logistics.load_report.view': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,
   'Kepala Toko': {
     ...EVERY_EMPLOYEE, 'attendance.schedule.view': 'BRANCH', 'attendance.schedule.update': 'BRANCH', 'attendance.closure.view': 'BRANCH',
     'attendance.assist.view': 'BRANCH', 'attendance.photo.view': 'BRANCH',
+    // LT3a (spec LT1 §15.1)
+    'logistics.load_report.create': 'BRANCH', 'logistics.load_report.view': 'BRANCH',
   },
-  Kasir: EVERY_EMPLOYEE,
-  Pramuniaga: EVERY_EMPLOYEE,
+  Kasir: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH' },
+  Pramuniaga: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH' },
   Groomer: EVERY_EMPLOYEE,
   'Belum ditentukan': EVERY_EMPLOYEE,
 }
