@@ -422,7 +422,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
             if (!receivedItem) throw new Error('QTY_MELEBIHI_SISA_KIRIM')
 
-            // Tambah stok di cabang tujuan — teruskan expiry date dari batch asal
+            // Tambah stok di cabang tujuan — teruskan expiry date dari batch asal.
+            // Gudang adalah pemasok toko (keputusan owner 2026-11-05): kiriman yang diterima
+            // melunasi utang stok (oversell) cabang tujuan dulu, sama seperti penerimaan PO supplier.
             const expiryForBatch = item.expiryDate
               ? new Date(item.expiryDate as string)
               : null
@@ -435,7 +437,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               item.costPriceAtTransfer.toString(),
               undefined,
               expiryForBatch,
-              { transferItemId: item.id },
+              {
+                transferItemId: item.id,
+                settleShortfalls: true,
+                settleShortfallsReferenceType: 'TRANSFER_RECEIVING',
+                settleShortfallsReferenceId: transferId,
+              },
             )
 
             // Hanya IBT hasil Bulk Sale: costPriceAtTransfer-nya harga jual per satuan item. IBT

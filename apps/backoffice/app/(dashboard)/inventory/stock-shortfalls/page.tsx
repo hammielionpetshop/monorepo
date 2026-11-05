@@ -57,7 +57,8 @@ export default async function StockShortfallsPage({
       </div>
       <p className="text-sm text-muted-foreground mb-4">
         Daftar kekurangan stok akibat penjualan/koreksi nota yang melebihi stok tercatat, yang
-        masih belum lunas. Dilunasi otomatis (FIFO) oleh penerimaan PO produk yang sama —
+        masih belum lunas. Dilunasi otomatis (FIFO) oleh penerimaan PO supplier atau kiriman cabang
+        (PO Internal) produk yang sama di cabang ini, juga oleh Stock Opname —
         tutup manual hanya untuk kasus barang terbukti hilang/rusak, bukan sekadar telat input.
       </p>
 
