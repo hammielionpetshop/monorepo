@@ -15,7 +15,7 @@ import { NewBadge } from '@/components/ui/new-badge'
 import { freeShippingQty } from '@/lib/ongkir'
 import {
   buildGroomingCartItems, cartTotal, formatRp, intakeLineAmounts, priceForTier,
-  type IntakeLine, type Owner, type OwnerPet, type PersonOption, type ServiceOption,
+  type GroomingHold, type IntakeLine, type Owner, type OwnerPet, type PersonOption, type ServiceOption,
 } from './types'
 
 interface Props {
@@ -26,7 +26,8 @@ interface Props {
   groomers: PersonOption[]
   couriers: PersonOption[]
   paymentMethods: BootstrapPaymentMethod[]
-  shiftId: number
+  /** null = belum ada shift yang bisa dipakai: hanya Tahan yang aktif (tanpa uang). */
+  shiftId: number | null
   cashierId: number
   cashierName: string
   branchId: number
@@ -34,6 +35,8 @@ interface Props {
   storeInfo: ReceiptStoreInfo
   /** Nota tersimpan & layar bayar ditutup → cetak karcis nota ini. */
   onNotaSaved: (transactionId: number) => void
+  /** Tahanan tersimpan → cetak karcisnya & tampilkan di Sedang Dikerjakan. */
+  onHoldSaved: (hold: GroomingHold) => void
 }
 
 const inputClass =
@@ -80,6 +83,8 @@ export default function IntakePanel(props: Props) {
   const [savedTransactionId, setSavedTransactionId] = useState<number | null>(null)
   // "Tambah belanja" saat keranjang tab Kasir sudah berisi grooming lain: tanya dulu sebelum mengganti.
   const [replaceItems, setReplaceItems] = useState<CartItem[] | null>(null)
+  const [holding, setHolding] = useState(false)
+  const canMakeNota = props.shiftId !== null
   // Popup Diskon untuk satu ekor di daftar (id kucingnya).
   const [discountPetId, setDiscountPetId] = useState<number | null>(null)
   const discountLine = discountPetId == null ? undefined : lines.find((l) => l.pet.id === discountPetId)
@@ -258,7 +263,46 @@ export default function IntakePanel(props: Props) {
     }
   }
 
+  // Tahan: kucing tercatat & karcis tercetak, nota menyusul (tanpa uang, tanpa shift).
+  async function holdNow() {
+    if (holding) return
+    const items = prepareItems()
+    if (!items || !owner) return
+    setHolding(true)
+    try {
+      const res = await fetch('/api/pos/grooming/holds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: owner.id,
+          lines: lines.map((l) => ({
+            petId: l.pet.id,
+            productId: l.service.productId,
+            groomerId: l.groomer.id,
+            condition: l.condition,
+            ...(l.discount ? { discount: l.discount } : {}),
+          })),
+          delivery: deliveryOn
+            ? { courierId: Number(courierId), address: address.trim(), qty: Number(effectiveOngkirQty), free: freeDelivery }
+            : null,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? 'Gagal menahan grooming')
+        return
+      }
+      resetAll()
+      props.onHoldSaved(data as GroomingHold)
+    } catch {
+      setError('Terjadi kesalahan jaringan. Periksa tab Sedang Dikerjakan sebelum mengulang, supaya tidak tertahan dua kali.')
+    } finally {
+      setHolding(false)
+    }
+  }
+
   function openCheckout(debt: boolean) {
+    if (!canMakeNota) return setError('Buka shift dulu untuk membuat nota. Tanpa shift, gunakan Tahan.')
     const items = prepareItems()
     if (!items) return
     if (debt && !props.paymentMethods.some((m) => m.type === 'DEBT')) {
@@ -271,6 +315,7 @@ export default function IntakePanel(props: Props) {
   // "Tambah belanja": baris grooming pindah ke keranjang tab Kasir supaya jadi SATU nota dengan
   // barang. Pembayaran & karcis diselesaikan dari sana (karcis dicetak begitu nota tersimpan).
   function addShopping() {
+    if (!canMakeNota) return setError('Buka shift dulu untuk membuat nota. Tanpa shift, gunakan Tahan.')
     const items = prepareItems()
     if (!items || !owner) return
     const cart = useCartStore.getState()
@@ -292,7 +337,7 @@ export default function IntakePanel(props: Props) {
 
   return (
     <div className="space-y-4">
-      {checkout && owner && (
+      {checkout && owner && props.shiftId !== null && (
         <CheckoutModal
           items={checkout.items}
           grandTotal={cartTotal(checkout.items)}
@@ -683,10 +728,24 @@ export default function IntakePanel(props: Props) {
             Diskon diberikan per kucing lewat tombol “+ Diskon” di daftar ini (wajib pilih alasan). Pelanggan sekalian belanja barang? Tekan “Tambah
             belanja” — grooming pindah ke keranjang tab Kasir dan dibayar satu nota dengan barangnya.
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {!canMakeNota && (
+            <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
+              Belum ada shift yang bisa dipakai, jadi nota belum bisa dibuat. Kucing tetap bisa diterima dengan <b>Tahan</b> — karcis
+              langsung tercetak, notanya dibuat nanti dari tab Sedang Dikerjakan.
+            </p>
+          )}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || holding}
+              onClick={() => { void holdNow() }}
+              className="rounded-lg border-2 border-sky-500/50 bg-sky-500/10 px-4 py-3 text-sm font-semibold text-sky-800 hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-200"
+            >
+              {holding ? 'Menahan…' : 'Tahan — karcis dulu, nota menyusul'} <NewBadge feature="fitur/grooming-tahan" />
+            </button>
+            <button
+              type="button"
+              disabled={lines.length === 0 || !canMakeNota}
               onClick={() => openCheckout(false)}
               className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
@@ -694,7 +753,7 @@ export default function IntakePanel(props: Props) {
             </button>
             <button
               type="button"
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || !canMakeNota}
               onClick={addShopping}
               className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/20 disabled:opacity-50"
             >
@@ -702,7 +761,7 @@ export default function IntakePanel(props: Props) {
             </button>
             <button
               type="button"
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || !canMakeNota}
               onClick={() => openCheckout(true)}
               className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-500/20 disabled:opacity-50"
             >

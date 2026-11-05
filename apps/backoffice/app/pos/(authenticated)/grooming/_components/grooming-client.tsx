@@ -10,7 +10,8 @@ import { printGroomingTickets, type GroomingTicketData } from '@/lib/print-groom
 import IntakePanel from './intake-panel'
 import OrderListPanel from './order-list-panel'
 import GroomingTicketPrint from './grooming-ticket-print'
-import { toTicketData, type GroomingOrder, type PersonOption, type ServiceOption } from './types'
+import HoldNotaDialog from './hold-nota-dialog'
+import { holdToTicketData, toTicketData, type GroomingHold, type GroomingOrder, type PersonOption, type ServiceOption } from './types'
 
 type Tab = 'terima' | 'aktif' | 'hotel' | 'selesai'
 
@@ -40,6 +41,8 @@ export default function GroomingClient(props: Props) {
   const [activeCount, setActiveCount] = useState<number | null>(null)
   // Karcis yang sedang dicetak lewat jalur cadangan browser (window.print).
   const [browserTickets, setBrowserTickets] = useState<GroomingTicketData[]>([])
+  // Grooming Ditahan yang sedang dibuatkan nota.
+  const [notaHold, setNotaHold] = useState<{ hold: GroomingHold; pickup: boolean } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -75,16 +78,44 @@ export default function GroomingClient(props: Props) {
   // Angka kecil di tab "Sedang Dikerjakan".
   useEffect(() => {
     let cancelled = false
-    fetch('/api/pos/grooming/orders?view=aktif')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && Array.isArray(data)) setActiveCount(data.length)
+    // Kucing di toko = grooming bernota yang dikerjakan + kucing di tahanan yang belum bernota.
+    Promise.all([
+      fetch('/api/pos/grooming/orders?view=aktif').then((res) => (res.ok ? res.json() : null)),
+      fetch('/api/pos/grooming/holds?view=aktif').then((res) => (res.ok ? res.json() : null)),
+    ])
+      .then(([orders, holds]) => {
+        if (cancelled || !Array.isArray(orders) || !Array.isArray(holds)) return
+        setActiveCount(orders.length + (holds as GroomingHold[]).reduce((sum, h) => sum + h.lines.length, 0))
       })
       .catch(() => undefined)
     return () => {
       cancelled = true
     }
   }, [refreshKey])
+
+  const printTickets = useCallback(async (tickets: GroomingTicketData[]) => {
+    setBrowserTickets(tickets)
+    const route = await printGroomingTickets(tickets, () => {
+      // Beri waktu React menaruh karcis di halaman sebelum dialog cetak browser dibuka.
+      setTimeout(() => window.print(), 150)
+    })
+    if (route === 'qz' || route === 'bluetooth') toast.success(`Karcis dicetak (${tickets.length * 2} lembar)`)
+  }, [])
+
+  // Karcis Grooming Ditahan: dicatat per tahanan; cetakan kedua dst. bertanda CETAK ULANG.
+  const printHold = useCallback(
+    async (hold: GroomingHold) => {
+      let isReprint = hold.ticketPrintCount > 0
+      try {
+        const res = await fetch(`/api/pos/grooming/holds/${hold.id}/ticket-printed`, { method: 'POST' })
+        if (res.ok) isReprint = Boolean(((await res.json()) as { isReprint?: boolean }).isReprint)
+      } catch {
+        // pencatatan gagal tidak menghalangi cetak
+      }
+      await printTickets(holdToTicketData(hold, props.storeInfo.storeName, isReprint))
+    },
+    [printTickets, props.storeInfo.storeName],
+  )
 
   const printOrders = useCallback(
     async (orders: GroomingOrder[]) => {
@@ -101,14 +132,9 @@ export default function GroomingClient(props: Props) {
         }
         tickets.push(toTicketData(order, props.storeInfo.storeName, isReprint))
       }
-      setBrowserTickets(tickets)
-      const route = await printGroomingTickets(tickets, () => {
-        // Beri waktu React menaruh karcis di halaman sebelum dialog cetak browser dibuka.
-        setTimeout(() => window.print(), 150)
-      })
-      if (route === 'qz' || route === 'bluetooth') toast.success(`Karcis dicetak (${tickets.length * 2} lembar)`)
+      await printTickets(tickets)
     },
-    [props.storeInfo.storeName],
+    [printTickets, props.storeInfo.storeName],
   )
 
   const printTransaction = useCallback(
@@ -117,7 +143,13 @@ export default function GroomingClient(props: Props) {
       try {
         const res = await fetch(`/api/pos/grooming/orders?transactionId=${transactionId}`)
         if (!res.ok) throw new Error('gagal')
-        await printOrders((await res.json()) as GroomingOrder[])
+        const orders = (await res.json()) as GroomingOrder[]
+        // Nota dari Grooming Ditahan: karcis TAHAN sudah dipegang konsumen & groomer, tidak dicetak ulang.
+        if (orders.length > 0 && orders.every((o) => o.ticketNumber.startsWith('TAHAN-'))) {
+          toast.success('Nota tersimpan. Karcis TAHAN tetap berlaku — tidak perlu cetak ulang.')
+          return
+        }
+        await printOrders(orders)
       } catch {
         toast.error('Nota tersimpan, tetapi karcis gagal dicetak. Cetak dari tab Sedang Dikerjakan.')
       }
@@ -145,9 +177,38 @@ export default function GroomingClient(props: Props) {
 
   const canIntake = props.shiftId !== null && props.isCashierInShift
 
+  const onHoldSaved = (hold: GroomingHold) => {
+    setTab('aktif')
+    setRefreshKey((k) => k + 1)
+    toast.success(`Grooming ditahan (TAHAN-${hold.id}). Nota dibuat nanti dari Sedang Dikerjakan.`)
+    void printHold(hold)
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl p-3 sm:p-4">
       <GroomingTicketPrint tickets={browserTickets} />
+
+      {notaHold && canIntake && (
+        <HoldNotaDialog
+          hold={notaHold.hold}
+          pickup={notaHold.pickup}
+          services={services}
+          ongkir={ongkir}
+          freeShippingValue={freeShippingValue}
+          paymentMethods={props.paymentMethods}
+          shiftId={props.shiftId as number}
+          cashierId={props.cashierId}
+          cashierName={props.cashierName}
+          branchId={props.branchId}
+          branchName={props.branchName}
+          storeInfo={props.storeInfo}
+          onDone={(message) => {
+            setNotaHold(null)
+            setRefreshKey((k) => k + 1)
+            if (message) toast.success(message)
+          }}
+        />
+      )}
 
       <div className="mb-3 flex items-center gap-2">
         <h1 className="text-lg font-semibold">Grooming</h1>
@@ -174,18 +235,20 @@ export default function GroomingClient(props: Props) {
         <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{loadError}</div>
       )}
 
+      {tab === 'terima' && !canIntake && (
+        <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">
+            {props.shiftId === null ? 'Belum ada shift yang terbuka di cabang ini.' : 'Anda belum bergabung di shift yang sedang berjalan.'}
+          </p>
+          <p className="mt-1">
+            Nota belum bisa dibuat, tetapi kucing tetap bisa diterima dengan tombol <b>Tahan</b> (karcis dulu, nota menyusul).{' '}
+            <Link href="/pos" className="font-semibold underline">Buka tab Kasir</Link> untuk membuka / bergabung shift.
+          </p>
+        </div>
+      )}
+
       {tab === 'terima' &&
-        (!canIntake ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-6 text-center text-sm text-amber-900">
-            <p className="font-semibold">
-              {props.shiftId === null ? 'Belum ada shift yang terbuka di cabang ini.' : 'Anda belum bergabung di shift yang sedang berjalan.'}
-            </p>
-            <p className="mt-1">Menerima kucing membuat nota, jadi shift harus terbuka dulu.</p>
-            <Link href="/pos" className="mt-3 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              Buka tab Kasir
-            </Link>
-          </div>
-        ) : !loaded ? (
+        (!loaded ? (
           !loadError && <p className="text-sm text-muted-foreground">Memuat…</p>
         ) : services.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
@@ -204,13 +267,14 @@ export default function GroomingClient(props: Props) {
             groomers={groomers}
             couriers={couriers}
             paymentMethods={props.paymentMethods}
-            shiftId={props.shiftId as number}
+            shiftId={canIntake ? props.shiftId : null}
             cashierId={props.cashierId}
             cashierName={props.cashierName}
             branchId={props.branchId}
             branchName={props.branchName}
             storeInfo={props.storeInfo}
             onNotaSaved={(transactionId) => { void printTransaction(transactionId) }}
+            onHoldSaved={onHoldSaved}
           />
         ))}
 
@@ -223,6 +287,8 @@ export default function GroomingClient(props: Props) {
           canReceiveDebtPayment={props.canReceiveDebtPayment}
           refreshKey={refreshKey}
           onPrint={(orders) => { void printOrders(orders) }}
+          onPrintHold={(hold) => { void printHold(hold) }}
+          onMakeNota={(hold, pickup) => setNotaHold({ hold, pickup })}
           onChanged={() => setRefreshKey((k) => k + 1)}
         />
       )}

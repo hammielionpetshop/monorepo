@@ -2,7 +2,7 @@ import Big from 'big.js'
 import type { CartItem } from '@/components/pos/cart-store'
 import type { GroomingTicketData } from '@/lib/escpos-grooming-ticket'
 import { formatPetAge } from '@/lib/pet-age'
-import { applyFreeShipping, ONGKIR_KIND } from '@/lib/ongkir'
+import { applyFreeShipping, freeShippingQty, ONGKIR_KIND } from '@/lib/ongkir'
 import { resolveManualDiscount, type ManualDiscountEntry } from '@/lib/manual-discount'
 
 export interface ServiceOption {
@@ -193,4 +193,83 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
   })
+}
+
+/** Bentuk tahanan dari /api/pos/grooming/holds (Grooming Ditahan — karcis dulu, nota menyusul). */
+export interface GroomingHold {
+  id: number
+  status: 'DITAHAN' | 'DIBUATKAN_NOTA' | 'DIBATALKAN'
+  heldAt: string
+  cancelledAt: string | null
+  cancelReason: string | null
+  ticketPrintCount: number
+  owner: { id: number; name: string; phone: string | null; tierType: string }
+  lines: {
+    sequence: number
+    ticketNumber: string
+    pet: OwnerPet
+    productId: number
+    serviceName: string
+    groomer: PersonOption
+    condition: string
+    discount: ManualDiscountEntry | null
+  }[]
+  delivery: { courier: PersonOption; address: string; qty: number; free: boolean } | null
+}
+
+export function holdToTicketData(hold: GroomingHold, storeName: string, isReprint: boolean): GroomingTicketData[] {
+  return hold.lines.map((line) => ({
+    storeName,
+    ticketNumber: line.ticketNumber,
+    ownerName: hold.owner.name,
+    ownerPhone: hold.owner.phone,
+    petName: line.pet.name,
+    petSpecies: line.pet.species,
+    petColor: line.pet.color,
+    petAge: formatPetAge(line.pet.birthDate),
+    serviceName: line.serviceName,
+    groomerName: line.groomer.name,
+    condition: line.condition,
+    receivedAt: hold.heldAt,
+    isPaid: false,
+    held: true,
+    delivery: hold.delivery ? { courierName: hold.delivery.courier.name, address: hold.delivery.address } : null,
+    isReprint,
+  }))
+}
+
+/**
+ * Baris nota dari tahanan: harga dihitung SEKARANG (harga jasa & golongan pelanggan hari ini),
+ * diskon tersimpan dihitung ulang. Tiap baris grooming membawa `holdId` supaya server menutup
+ * tahanannya di transaksi nota yang sama.
+ */
+export function buildHoldCartItems(
+  hold: GroomingHold,
+  services: ServiceOption[],
+  ongkir: ServiceOption | null,
+  freeShippingValue: number | null,
+): CartItem[] {
+  const lines: IntakeLine[] = hold.lines.map((line) => {
+    const service = services.find((s) => s.productId === line.productId)
+    if (!service) throw new Error(`${line.serviceName} (${line.pet.name}) sudah tidak punya harga di cabang ini — hubungi Owner/GM`)
+    return { pet: line.pet, service, groomer: line.groomer, condition: line.condition, ...(line.discount ? { discount: line.discount } : {}) }
+  })
+  const delivery: IntakeDelivery | null = hold.delivery
+    ? {
+        courier: hold.delivery.courier,
+        address: hold.delivery.address,
+        qty: hold.delivery.qty,
+        free: hold.delivery.free,
+        freeValue: freeShippingValue ?? undefined,
+      }
+    : null
+  if (delivery?.free && ongkir && freeShippingValue != null) {
+    // Gratis ongkir: qty mengikuti nilai standar hari ini (sama seperti Terima Kucing).
+    const unit = Number(priceForTier(ongkir.tierPrices, hold.owner.tierType)?.price ?? 0)
+    const qty = freeShippingQty(freeShippingValue, unit)
+    if (qty != null) delivery.qty = qty
+  }
+  return buildGroomingCartItems(lines, hold.owner.tierType, delivery, ongkir).map((item) =>
+    item.grooming ? { ...item, grooming: { ...item.grooming, holdId: hold.id } } : item,
+  )
 }
