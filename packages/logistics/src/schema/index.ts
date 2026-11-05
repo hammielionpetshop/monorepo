@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
-  boolean, check, date, doublePrecision, index, integer, pgSchema, serial, text, timestamp, uniqueIndex, uuid,
+  boolean, check, date, doublePrecision, index, integer, numeric, pgSchema, serial, text, timestamp, uniqueIndex, uuid,
 } from 'drizzle-orm/pg-core';
 
 // Logistik Minimal (spec HRIS L6 §2, PRD 08). Tanpa foreign key ke schema lain (PRD 01 §2): id karyawan, akun,
@@ -507,6 +507,8 @@ export const visitReports = logisticsSchema.table(
     note: text('note'),
     photoFileId: uuid('photo_file_id').notNull(),
     carriedBack: boolean('carried_back').notNull().default(false),
+    /** Cabang kasir pemilik barang retur (spec LT1 §14.1 butir 2); kosong = laporan lama / bukan retur (dianggap Gudang). */
+    ownerBranchId: integer('owner_branch_id'),
     reportedByEmployeeId: integer('reported_by_employee_id').notNull(),
     reportedAt: timestamp('reported_at', { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp('closed_at', { withTimezone: true }),
@@ -556,7 +558,7 @@ export const deliveryNoteEvents = logisticsSchema.table(
   },
   (t) => [
     index('delivery_note_events_note_idx').on(t.noteId),
-    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED', 'RETRY', 'RESENT', 'DROPPED', 'REOPENED')`),
+    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED', 'RETRY', 'RESENT', 'DROPPED', 'REOPENED', 'PENDING_CLOSED')`),
   ],
 );
 
@@ -594,5 +596,54 @@ export const tripEndReports = logisticsSchema.table(
     check('trip_end_reports_fuel', sql`${t.needsFuel} = (${t.fuelEstimate} is not null) and (${t.fuelEstimate} is null or ${t.fuelEstimate} > 0)`),
     check('trip_end_reports_fuel_close', sql`(${t.fuelClosedAt} is null) = (${t.fuelCloseKind} is null) and (${t.fuelClosedAt} is null or ${t.needsFuel})`),
     check('trip_end_reports_condition_close', sql`${t.conditionClosedAt} is null or ${t.condition} = 'ATTENTION'`),
+  ],
+);
+
+/** Rincian barang retur yang dibawa pulang (spec LT1 §14.1 butir 2): nama + jumlah + satuan, diketik awak. Tidak dihapus. */
+export const visitReportItems = logisticsSchema.table(
+  'visit_report_items',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => visitReports.id),
+    name: text('name').notNull(),
+    quantity: numeric('quantity', { precision: 12, scale: 2 }).notNull(),
+    unit: text('unit').notNull(),
+  },
+  (t) => [
+    index('visit_report_items_report_idx').on(t.reportId),
+    check('visit_report_items_name', sql`char_length(btrim(${t.name})) between 2 and 120`),
+    check('visit_report_items_unit', sql`char_length(btrim(${t.unit})) between 1 and 20`),
+    check('visit_report_items_quantity', sql`${t.quantity} > 0`),
+  ],
+);
+
+/**
+ * Penerimaan barang kembali (spec LT1 §14.1 butir 1): barang yang ikut pulang di truk (surat jalan Kirim Besok / Gagal,
+ * retur dibawa pulang) diterima di Gudang, lalu, bila milik cabang lain, di cabang pemiliknya. Satu baris per sumber per
+ * langkah; sumber NOTE = `trip_visit_notes.id`, RETURN = `visit_reports.id`. Tidak diubah atau dihapus.
+ */
+export const goodsReceipts = logisticsSchema.table(
+  'goods_receipts',
+  {
+    id: serial('id').primaryKey(),
+    sourceKind: text('source_kind').notNull(),
+    sourceId: integer('source_id').notNull(),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    /** WAREHOUSE = diterima di Gudang; OWNER = diterima cabang pemilik barang. */
+    step: text('step').notNull(),
+    /** MATCH = Sesuai; MISMATCH = Tidak sesuai (catatan wajib). */
+    result: text('result').notNull(),
+    note: text('note'),
+    photoFileId: uuid('photo_file_id').notNull(),
+    receivedByAccountId: integer('received_by_account_id').notNull(),
+    receivedByEmployeeId: integer('received_by_employee_id'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('goods_receipts_once').on(t.sourceKind, t.sourceId, t.step),
+    index('goods_receipts_trip_idx').on(t.tripId),
+    check('goods_receipts_source', sql`${t.sourceKind} in ('NOTE', 'RETURN')`),
+    check('goods_receipts_step', sql`${t.step} in ('WAREHOUSE', 'OWNER')`),
+    check('goods_receipts_result', sql`${t.result} in ('MATCH', 'MISMATCH') and (${t.result} = 'MATCH' or ${t.note} is not null)`),
   ],
 );

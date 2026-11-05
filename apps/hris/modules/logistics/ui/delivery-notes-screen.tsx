@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { buttonClass } from '@/components/ui/button';
 import { DataList } from '@/components/ui/data-list';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge } from '@/components/ui/surface';
 import type { QueueStatus } from '../rules/delivery-notes';
 import { rupiah } from '../rules/rates';
@@ -20,7 +21,9 @@ function href(filter: NotesFilter, tab: QueueStatus) {
 }
 
 /** Surat Jalan (spec LT1 §12): nota dan PO Internal bertanda truk Gudang, dibaca langsung dari kasir. */
-export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBackoffice, origins, routes, filter, canStores, canDecide, reopenDays }: {
+export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBackoffice, origins, routes, filter, canStores, canDecide, reopenDays, pending }: {
+  /** Tab Tertunda (spec LT1 §14.1 butir 3) di halaman sendiri. */
+  pending: { total: number; red: number };
   tab: QueueStatus; tabs: { status: QueueStatus; label: string; count: number }[]; rows: NoteRow[]; truncated: boolean; from: string; today: string;
   hasBackoffice: boolean; origins: Option[]; routes: Option[]; filter: NotesFilter; canStores: boolean; canDecide: boolean; reopenDays: number;
 }) {
@@ -33,6 +36,10 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
             {t.label} <span className="ml-1 tabular-nums opacity-80">{t.count}</span>
           </Link>
         ))}
+        <Link href="/logistik/surat-jalan/tertunda" className={buttonClass({ variant: pending.red ? 'danger' : 'secondary', size: 'sm' })}>
+          Tertunda <span className="ml-1 tabular-nums opacity-80">{pending.total}</span>
+        </Link>
+        <NewBadge feature="/logistik/surat-jalan/tertunda" />
       </nav>
 
       <form action="/logistik/surat-jalan" className="flex flex-wrap items-end gap-2">

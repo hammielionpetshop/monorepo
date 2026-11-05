@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addVisitReport, arriveTrip, closeByOffice, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, sendEndReport,
+  addVisitReport, arriveTrip, closeByOffice, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, receiveGoods, sendEndReport,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -14,6 +14,16 @@ const positive = (value: FormDataEntryValue | null) => {
 };
 const coord = (value: FormDataEntryValue | null) => (value == null || value === '' ? null : Number(value));
 const text = (value: FormDataEntryValue | null | undefined, max: number) => (typeof value === 'string' ? value.slice(0, max) : null);
+/** Rincian barang retur dikirim sebagai JSON di field `items` (spec LT1 §14.1 butir 2). */
+const itemsOf = (value: FormDataEntryValue | null) => {
+  if (typeof value !== 'string' || value.length > 20_000) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.slice(0, 50).map((i) => ({ name: text(i?.name, 200), quantity: text(String(i?.quantity ?? ''), 20), unit: text(i?.unit, 40) })) : null;
+  } catch {
+    return null;
+  }
+};
 const OUTCOMES = { deliver_visit: 'DELIVERED', tomorrow_visit: 'TOMORROW', fail_visit: 'FAILED' } as const;
 
 // Aksi trip berfoto (spec L6 §3.3, 3.4, 3.6; LT1 §3.5, §13.3): Berangkat (foto awak), Belanja selesai (foto nota), Ambil barang di cabang
@@ -54,7 +64,16 @@ export async function POST(req: Request) {
     if (action === 'visit_report') {
       const visitId = positive(form.get('visitId'));
       if (!visitId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
-      return addVisitReport(actor, tripId, visitId, { kind: text(form.get('kind'), 20), note: text(form.get('note'), 400) }, photo);
+      return addVisitReport(actor, tripId, visitId, {
+        kind: text(form.get('kind'), 20), note: text(form.get('note'), 400), items: itemsOf(form.get('items')), ownerBranchId: positive(form.get('ownerBranchId')),
+      }, photo);
+    }
+    // Terima barang kembali (spec LT1 §14.1 butir 1). tripId = trip pembawanya; sumber = surat jalan / laporan retur.
+    if (action === 'receive_goods') {
+      const sourceId = positive(form.get('sourceId'));
+      const kind = form.get('sourceKind');
+      if (!sourceId || (kind !== 'NOTE' && kind !== 'RETURN')) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      return receiveGoods(actor, { kind, sourceId, result: text(form.get('result'), 20), note: text(form.get('note'), 400) }, photo);
     }
     if (action === 'head_home') return headHome(actor, tripId, photo, text(form.get('earlyReason'), 500));
     if (action === 'arrive') return arriveTrip(actor, tripId, point, photo);

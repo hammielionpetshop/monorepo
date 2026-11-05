@@ -25,6 +25,9 @@ function ReportCard({ row, onClose }: { row: ReportRow; onClose?: (row: ReportRo
             {row.carriedBack ? ' · barang dibawa pulang' : ''}
           </p>
           {row.note && <p className="text-sm">{row.note}</p>}
+          {row.items.length > 0 && (
+            <ul className="list-disc pl-5 text-sm">{row.items.map((i, n) => <li key={n}>{i.name}: {i.quantity} {i.unit}</li>)}</ul>
+          )}
           <a href={row.photoUrl} target="_blank" rel="noreferrer" className="text-sm underline">Foto</a>
           {row.closed && <p className="text-sm text-ink-muted">Selesai ({row.closedBy}): {row.closeNote}</p>}
         </div>

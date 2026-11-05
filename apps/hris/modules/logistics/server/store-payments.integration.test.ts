@@ -167,7 +167,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     expect(await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'OTHER', note: 'x' }, jpeg())).toMatchObject({ ok: false, status: 400 });
     expect(await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'DAMAGED', note: '2 sak sobek' }, null)).toMatchObject({ ok: false, status: 400 });
     expect((await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'DAMAGED', note: '2 sak sobek' }, jpeg())).ok).toBe(true);
-    expect((await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'RETURN', note: '1 dus' }, jpeg())).ok).toBe(true);
+    expect((await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'RETURN', note: '1 dus', items: [{ name: 'Whiskas 1 kg', quantity: 1, unit: 'dus' }] }, jpeg())).ok).toBe(true);
     expect((await visitOf('Toko Maju')).reports.map((r) => [r.label, r.carriedBack])).toEqual([['Barang rusak', false], ['Retur (dibawa pulang)', true]]);
     const [told] = await sql`select title, link from hris.notifications where kind = 'logistics.visit_report' and recipient_account_id = ${ids.kg + 1000} order by id limit 1`;
     expect(told).toMatchObject({ title: 'Barang rusak: Toko Maju (trip TR-261106-1)', link: '/logistik/laporan-toko' });

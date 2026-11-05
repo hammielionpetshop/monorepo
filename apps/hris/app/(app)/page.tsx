@@ -5,7 +5,7 @@ import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { followupAttention, logisticsAttention, openReportCount, pendingPointCount } from '@/modules/logistics';
+import { followupAttention, logisticsAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -48,6 +48,8 @@ export default async function HomePage() {
     followupAttention(actor),
     pendingPointCount(actor),
     openReportCount(actor),
+    returnedGoodsWaiting(actor),
+    hasAction(actor, 'logistics.delivery_note.decide') ? pendingNoteCounts(actor) : null,
   ]);
 
   const mine: AttentionCard[] = [];
@@ -104,6 +106,8 @@ export default async function HomePage() {
   }
   // Tindak lanjut Logistik (spec LT1 §13.3 butir 6, 7): surat jalan Gagal, permintaan bensin, mobil perlu perhatian.
   if (followup?.decide) mine.push({ key: 'notes-decide', title: `${followup.decide} surat jalan perlu keputusan`, detail: 'Kiriman gagal: Kirim ulang atau Batal', href: '/logistik/surat-jalan?tab=NEEDS_DECISION', tone: 'danger', badge: 'fitur/beranda-logistik-tindak-lanjut' });
+  if (goodsWaiting) mine.push({ key: 'returned-goods', title: `${goodsWaiting} barang kembali belum diterima`, detail: 'Tidak terkirim dan retur yang ikut pulang di truk', href: '/logistik/barang-kembali', tone: 'danger', badge: '/logistik/barang-kembali' });
+  if (pendingNotes?.red) mine.push({ key: 'pending-notes', title: `${pendingNotes.red} surat jalan tertunda terlalu lama`, detail: `Dari ${pendingNotes.total} yang tertunda`, href: '/logistik/surat-jalan/tertunda', tone: 'danger', badge: '/logistik/surat-jalan/tertunda' });
   if (openStoreReports) mine.push({ key: 'store-reports', title: `${openStoreReports} laporan toko belum selesai`, detail: 'Barang salah, kurang, rusak, retur dari driver', href: '/logistik/laporan-toko', tone: 'danger', badge: 'fitur/cara-bayar-toko' });
   if (pendingStorePoints) mine.push({ key: 'store-points', title: `${pendingStorePoints} titik toko menunggu persetujuan`, detail: 'Dipasang driver dari kunjungan', href: '/logistik/toko?tab=titik', badge: 'fitur/titik-toko' });
   if (followup?.fuel) mine.push({ key: 'fuel-wait', title: `${followup.fuel} mobil perlu isi bensin`, detail: 'Dari Laporan Pulang driver', href: '/logistik/bensin-mobil', badge: 'fitur/beranda-logistik-tindak-lanjut' });

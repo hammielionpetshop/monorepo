@@ -1,6 +1,6 @@
 import Big from 'big.js';
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { tripVisits, visitPayments, visitReports } from '@petshop/logistics';
+import { tripVisits, visitPayments, visitReportItems, visitReports } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, listEmployeesWithAnyAction, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
@@ -8,6 +8,7 @@ import { notify } from '@/modules/notifications';
 import {
   PAYMENT_LABELS, REPORT_LABELS, billOf, cleanPayment, cleanReport, leftToCollect, type PaymentMethod, type ReportKind,
 } from '../rules/store-payments';
+import { cleanReturnItems, quantityText, type ReturnItemInput } from '../rules/returned-goods';
 import { reasonProblem, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, peopleNames, type Executor } from './data';
 import { runningForCrew } from './driver-trip';
@@ -53,12 +54,18 @@ export async function recordPayment(
   return { ok: true };
 }
 
-/** Laporan kunjungan sesudah Terkirim (§13.5 butir 4, 5): awak trip Berjalan, foto wajib; kantor diberi tahu. */
+/**
+ * Laporan kunjungan sesudah Terkirim (§13.5 butir 4, 5): awak trip Berjalan, foto wajib; kantor diberi tahu. Retur wajib
+ * rincian barang (nama, jumlah, satuan) dan pemilik barang = cabang asal surat jalan kunjungan itu (§14.1 butir 2).
+ */
 export async function addVisitReport(
-  actor: Actor | null, tripId: number, visitId: number, input: { kind?: string | null; note?: string | null }, photo: File | null,
+  actor: Actor | null, tripId: number, visitId: number,
+  input: { kind?: string | null; note?: string | null; items?: ReturnItemInput[] | null; ownerBranchId?: number | null }, photo: File | null,
 ): Promise<ServiceResult> {
   const clean = cleanReport(input.kind, input.note);
   if (!clean.ok) return fail(400, clean.error);
+  const items = clean.kind === 'RETURN' ? cleanReturnItems(input.items) : null;
+  if (items && !items.ok) return fail(400, items.error);
   const running = await runningForCrew(actor, tripId);
   if (!running.ok) return running;
   const me = actor!;
@@ -66,14 +73,26 @@ export async function addVisitReport(
   if (!visit) return fail(404, 'Kunjungan tidak ditemukan di trip ini.');
   if (visit.customerId == null) return fail(400, 'Laporan kunjungan hanya untuk toko.');
   if (visit.status !== 'DELIVERED') return fail(409, 'Laporan kunjungan dibuat sesudah Terkirim.');
+  let ownerBranchId: number | null = null;
+  if (clean.kind === 'RETURN') {
+    const origins = [...new Set((await db.execute<{ origin_branch_id: number }>(sql`
+      select n.origin_branch_id from logistics.trip_visit_notes l join logistics.delivery_notes n on n.id = l.note_id
+      where l.visit_id = ${visitId}`)).map((r) => Number(r.origin_branch_id)))];
+    if (origins.length === 1) ownerBranchId = origins[0];
+    else if (origins.length > 1) {
+      if (input.ownerBranchId == null || !origins.includes(input.ownerBranchId)) return fail(400, 'Pilih barang retur milik cabang mana.');
+      ownerBranchId = input.ownerBranchId;
+    }
+  }
   const upload = await saveUpload(actor, photo);
   if (!upload.ok) return upload;
   const customerId = visit.customerId;
   return db.transaction(async (tx) => {
     const [row] = await tx.insert(visitReports).values({
       visitId, tripId, customerId, kind: clean.kind, note: clean.note, photoFileId: upload.data.id, carriedBack: clean.kind === 'RETURN',
-      reportedByEmployeeId: me.personId,
+      ownerBranchId, reportedByEmployeeId: me.personId,
     }).returning({ id: visitReports.id });
+    if (items?.ok) await tx.insert(visitReportItems).values(items.items.map((i) => ({ reportId: row.id, ...i })));
     await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.delivery_note.decide'])), {
       kind: 'logistics.visit_report', title: `${REPORT_LABELS[clean.kind]}: ${visit.destinationName} (trip ${running.loaded.trip.number})`,
       body: `${clean.note ? `${clean.note}. ` : ''}Putuskan potong nota di Back Office, lalu tandai Selesai di Laporan Toko.`,
@@ -98,7 +117,14 @@ export type VisitPaymentView = { method: PaymentMethod; label: string; bill: num
 export type VisitReportView = {
   id: number; kind: ReportKind; label: string; note: string | null; carriedBack: boolean; photoUrl: string; by: string; at: string;
   closed: boolean; closeNote: string | null;
+  /** Rincian barang retur (§14.1 butir 2). */
+  items: { name: string; quantity: string; unit: string }[];
 };
+
+async function itemsOf(reportIds: number[], executor: Executor = db) {
+  const rows = reportIds.length ? await executor.select().from(visitReportItems).where(inArray(visitReportItems.reportId, reportIds)).orderBy(visitReportItems.id) : [];
+  return (reportId: number) => rows.filter((r) => r.reportId === reportId).map((r) => ({ name: r.name, quantity: quantityText(r.quantity), unit: r.unit }));
+}
 
 /** Cara bayar + laporan kunjungan untuk tampilan trip (rincian trip, Trip Saya). */
 export async function visitMoneyView(tripId: number, visitIds: number[], executor: Executor = db) {
@@ -106,7 +132,7 @@ export async function visitMoneyView(tripId: number, visitIds: number[], executo
     visitIds.length ? executor.select().from(visitPayments).where(inArray(visitPayments.visitId, visitIds)) : [],
     visitIds.length ? executor.select().from(visitReports).where(inArray(visitReports.visitId, visitIds)).orderBy(visitReports.id) : [],
   ]);
-  const names = reports.length ? await peopleNames() : new Map<number, string>();
+  const [names, itemsFor] = await Promise.all([reports.length ? peopleNames() : new Map<number, string>(), itemsOf(reports.map((r) => r.id), executor)]);
   const photo = (fileId: string) => `/api/logistics/photo?trip=${tripId}&file=${fileId}`;
   return {
     payments: new Map(payments.map((p): [number, VisitPaymentView] => [p.visitId, {
@@ -118,6 +144,7 @@ export async function visitMoneyView(tripId: number, visitIds: number[], executo
       view: {
         id: r.id, kind: r.kind as ReportKind, label: REPORT_LABELS[r.kind as ReportKind], note: r.note, carriedBack: r.carriedBack,
         photoUrl: photo(r.photoFileId), by: names.get(r.reportedByEmployeeId) ?? '-', at: wibClock(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote,
+        items: itemsFor(r.id),
       } satisfies VisitReportView,
     })),
   };
@@ -213,6 +240,7 @@ export async function visitReportsScreen(actor: Actor | null) {
       select l.account_id, e.name from auth.account_links l join hris.employees e on e.id = l.local_user_id
       where l.app_code = 'hris' and l.account_id in (${ids([...new Set(closed.map((r) => r.closedByAccountId!))])})`) : [],
   ]);
+  const itemsFor = await itemsOf(all.filter((r) => r.kind === 'RETURN').map((r) => r.id));
   const visitOf = new Map(visits.map((v) => [Number(v.id), v]));
   const closerOf = new Map(closers.map((c) => [Number(c.account_id), c.name]));
   const view = (r: typeof visitReports.$inferSelect): ReportRow => {
@@ -220,7 +248,7 @@ export async function visitReportsScreen(actor: Actor | null) {
     return {
       id: r.id, kind: r.kind as ReportKind, label: REPORT_LABELS[r.kind as ReportKind], note: r.note, carriedBack: r.carriedBack,
       photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`, by: names.get(r.reportedByEmployeeId) ?? '-', at: wibClock(r.reportedAt),
-      on: wibDate(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote, closedBy: r.closedByAccountId ? closerOf.get(r.closedByAccountId) ?? '-' : null,
+      on: wibDate(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote, items: itemsFor(r.id), closedBy: r.closedByAccountId ? closerOf.get(r.closedByAccountId) ?? '-' : null,
       tripId: r.tripId, tripNumber: v?.number ?? '-', store: v?.destination_name ?? '-', customerId: r.customerId,
     };
   };
