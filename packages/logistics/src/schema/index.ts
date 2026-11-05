@@ -568,7 +568,38 @@ export const deliveryNoteEvents = logisticsSchema.table(
   },
   (t) => [
     index('delivery_note_events_note_idx').on(t.noteId),
-    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED', 'RETRY', 'RESENT', 'DROPPED', 'REOPENED', 'PENDING_CLOSED')`),
+    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED', 'RETRY', 'RESENT', 'DROPPED', 'REOPENED', 'PENDING_CLOSED', 'KASIR_CHANGED', 'KASIR_KEPT')`),
+  ],
+);
+
+/**
+ * Nota berubah / dibatalkan di kasir sesudah masuk trip (spec LT1 §14.3): satu baris per keadaan kasir yang berbeda dari
+ * saat masuk trip, ditemukan pemeriksa berkala `logistics-kasir-check`. Diubah lagi di kasir = baris baru (diberi tahu
+ * lagi). Tetap antar = `keptAt`; kasir kembali seperti semula / surat jalan lepas dari trip = `clearedAt`. Tidak dihapus.
+ */
+export const kasirChanges = logisticsSchema.table(
+  'kasir_changes',
+  {
+    id: serial('id').primaryKey(),
+    noteId: integer('note_id').notNull().references(() => deliveryNotes.id),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    /** CHANGED = nominal/revisi berubah, PENDING_CANCEL = menunggu batal, CANCELLED = dibatalkan di kasir. */
+    kind: text('kind').notNull(),
+    /** Penanda keadaan kasir (jenis + nominal + revisi): satu pemberitahuan per keadaan. */
+    signature: text('signature').notNull(),
+    fromAmount: integer('from_amount'),
+    toAmount: integer('to_amount'),
+    revision: integer('revision'),
+    detectedAt: timestamp('detected_at', { withTimezone: true }).notNull().defaultNow(),
+    keptAt: timestamp('kept_at', { withTimezone: true }),
+    keptByAccountId: integer('kept_by_account_id'),
+    clearedAt: timestamp('cleared_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('kasir_changes_once').on(t.noteId, t.tripId, t.signature),
+    index('kasir_changes_open_idx').on(t.tripId).where(sql`${t.keptAt} is null and ${t.clearedAt} is null`),
+    check('kasir_changes_kind', sql`${t.kind} in ('CHANGED', 'PENDING_CANCEL', 'CANCELLED')`),
+    check('kasir_changes_kept', sql`(${t.keptAt} is null) = (${t.keptByAccountId} is null) and (${t.keptAt} is null or ${t.kind} <> 'CANCELLED')`),
   ],
 );
 

@@ -123,7 +123,8 @@ export async function processVisit(
     const view = (await tripNotesView(tripId)).visits.find((v) => v.id === visitId);
     const problem = deliverProblem({
       waitsForPickup: view?.waitsForPickup ?? [],
-      cancelledNumbers: (view?.notes ?? []).filter((n) => n.change?.kind === 'cancelled').map((n) => n.number),
+      // Menunggu batal di kasir = peringatan saja; batal final ditolak (spec LT1 §14.3 butir 6).
+      cancelledNumbers: (view?.notes ?? []).filter((n) => n.change?.kind === 'cancelled' && !n.change.pending).map((n) => n.number),
     });
     if (problem) return fail(409, problem);
   }

@@ -47,6 +47,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['advance-daily', async () => (await import('@/modules/advances')).runAdvanceDaily()],
   // 12.05 WIB: trip menggantung diberitahukan sekali, isi foto awak lewat masa simpan dibuang (spec L6 §6).
   ['logistics-daily', async () => (await import('@/modules/logistics')).runLogisticsDaily()],
+  // Tiap 10 menit: nota yang sudah di trip berubah / dibatalkan di kasir diberitahukan sekali per keadaan (spec LT1 §14.3).
+  ['logistics-kasir-check', async () => (await import('@/modules/logistics')).runKasirCheck()],
   // 04.40 WIB: nilai upah ritase yang terlewat, penilaian ulang status hari 14 hari ke belakang, pemeriksa (spec L7 §6).
   ['trip-wage-daily', async () => (await import('@/modules/payroll')).runTripWageDaily()],
   // 00.15 WIB tiap hari: kerangka slip mingguan minggu berjalan dan minggu lalu (spec L7 §6).
