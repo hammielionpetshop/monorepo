@@ -436,6 +436,32 @@ export const stockLedgerUnion = sql`
 
   UNION ALL
 
+  -- PO_IN minus: Batalkan PO Selesai menarik stok dari batch milik PO itu (lihat
+  -- po-cancel-service). Sengaja memakai jenis PO_IN supaya Pembelian di laporan ikut bersih.
+  SELECT
+    'PO_C' || b.id::text   AS id,
+    al.created_at,
+    b.product_id,
+    b.branch_id,
+    p_poc.base_uom_id      AS uom_id,
+    'PO_IN'                AS movement_type,
+    -b.qty_received        AS qty_change,
+    po.po_number           AS reference_number,
+    po.id::text AS reference_id,
+    al.user_id             AS actor_id,
+    b.cost_price           AS unit_price,
+    b.cost_price           AS cogs,
+    ('Batal PO: ' || COALESCE(al.new_data::jsonb->>'reason', '-'))::text AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.product_stock_batches b
+  JOIN petshop.purchase_orders po ON po.id = b.purchase_order_id AND po.status = 'CANCELLED'
+  JOIN petshop.audit_logs al ON al.table_name = 'purchase_orders' AND al.action = 'PO_CANCELLED'
+    AND al.record_id = po.id::text
+  JOIN petshop.products p_poc ON p_poc.id = b.product_id
+
+  UNION ALL
+
   -- ADJUSTMENT
   SELECT
     'ADJ_' || sa.id::text          AS id,
