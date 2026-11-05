@@ -109,7 +109,7 @@ export async function activeKeys(tx: Executor, tripId: number) {
 }
 
 export type NoteEventKind = 'ON_TRIP' | 'RELEASED' | 'TRIP_CANCELLED' | 'TRIP_CLOSED' | 'LOADED' | 'NOT_READY' | 'DELIVERED' | 'TOMORROW' | 'FAILED'
-  | 'RETRY' | 'RESENT' | 'DROPPED' | 'REOPENED';
+  | 'RETRY' | 'RESENT' | 'DROPPED' | 'REOPENED' | 'PENDING_CLOSED';
 type EndOptions = {
   tripId: number; kind: NoteEventKind; reason: string | null; accountId: number | null; employeeId?: number | null; now: Date; tomorrow?: boolean;
   /** Status surat jalan sesudahnya: kembali Menunggu (bawaan), Terkirim, atau Perlu keputusan (LT1b-2a). */
@@ -316,6 +316,8 @@ export type TripVisitView = {
   point: ApprovedPoint | null; pointPending: boolean; distanceM: number | null; outside: boolean;
   /** Uang dan laporan di toko (spec LT1 §13.5): tagihan kunjungan terbuka, cara bayar saat Terkirim, laporan kunjungan. */
   bill: number | null; payment: VisitPaymentView | null; reports: VisitReportView[];
+  /** Cabang asal surat jalan kunjungan ini (pilihan pemilik barang retur, spec LT1 §14.1 butir 2). */
+  origins: { id: number; name: string }[];
 };
 export type TripPickupView = { id: number; origin: string; status: PickupStatus; statusLabel: string; reason: string | null; photoUrl: string | null; noteCount: number };
 
@@ -379,6 +381,8 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
         distanceM: v.distanceM, outside: outsidePoint(v.distanceM, Number(radius)),
         bill: bills.get(v.id) ?? null, payment: money.payments.get(v.id) ?? null,
         reports: money.reports.filter((r) => r.visitId === v.id).map((r) => r.view),
+        origins: [...new Map(mine.map((l) => [l.note.originBranchId, live.get(noteKey(l.note.kind as NoteKind, l.note.docId))?.origin ?? `Cabang #${l.note.originBranchId}`])).entries()]
+          .map(([id, name]) => ({ id, name })),
       };
     }),
     pickups: pickups.map((p) => ({

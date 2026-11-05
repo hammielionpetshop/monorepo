@@ -398,3 +398,31 @@ Rincian ini mengikuti §13.2. Bagian yang tidak diputuskan owner memakai pilihan
 | 7 | Rincian trip dan Trip Saya menampilkan cara bayar + laporan kunjungan per kunjungan |
 
 **Data.** Migrasi `logistics` 0007: view baca saja `pos_customer_debts`, tabel `visit_payments` (unik per kunjungan; cara bayar, tagihan, diterima, foto bukti; cek isi per cara bayar; tanpa hapus) dan `visit_reports` (jenis, catatan, foto, dibawa pulang, ditutup kantor + catatan; tanpa hapus). Migrasi `hris` 0044: hak `logistics.store_payment.view` (Finance, Kepala Gudang). Stub tes `petshop-pos.sql` ditambah `customer_debts`.
+
+## 14. Logistik Tahap 2 (owner "ok" 2026-11-05)
+
+Usulan Tahap 2 disetujui owner 2026-11-05 ("ok" = semua sesuai saran). Tahap 2 dipecah tiga dan diuji berurutan:
+
+| Bagian | Isi | Diuji oleh |
+|---|---|---|
+| **LT2a Barang kembali & tertunda** | Barang yang ikut pulang diterima di Gudang (lalu cabang pemilik), rincian barang retur, tab Tertunda | Kepala Gudang + driver |
+| **LT2b Potong nota & koreksi uang** | Keputusan potong nota → daftar "Perlu dicatat di kasir", koreksi cara bayar salah tekan, janji bayar sisa | Finance + Kepala Gudang |
+| **LT2c Nota berubah di kasir** | Pemeriksa berkala memberi tahu Kepala Gudang bila nota yang sudah di trip diubah/dibatalkan di kasir | Kepala Gudang |
+
+Keputusan owner atas butir terbuka (2026-11-05):
+
+- **B.** Harga beda tanpa barang yang diretur: dicatat di HRIS sebagai "potongan harga"; Finance mengoreksinya manual di kasir (LT2b).
+- **C.** Nilai retur **tidak** diisi di HRIS; nilainya ikut Retur di Back Office (pengecualian atas LOG-60/124).
+- **D.** Koreksi cara bayar (LOG-116) ditarik maju dari Tahap 4 ke LT2b.
+- **E.** Lebih bayar / titipan toko (LOG-49/114) belum dibuat.
+- **F.** Retur yang ditugaskan kantor lewat trip (LOG-58/126) belum dibuat; driver tetap membawa retur langsung saat kunjungan (§13.2).
+
+### 14.1 LT2a Barang kembali, rincian retur, dan tertunda
+
+| # | Aturan |
+|---|---|
+| 1 | **Barang Kembali** (`/logistik/barang-kembali`; LOG-115, 120): daftar dibaca dari trip **Selesai** sejak `logistics.returned_goods_from` (2026-11-05). Sumbernya (a) surat jalan di kunjungan **Kirim Besok / Gagal** yang barangnya memang dimuat (asal Gudang, atau Ambil barang di cabang asalnya Selesai) dan tidak dicoba lagi di trip yang sama; (b) laporan kunjungan **Retur (dibawa pulang)**. Semua turun di Gudang: pemegang hak baru `logistics.returned_goods.receive` (Kepala Gudang; Pemilik/GM lewat full_access) menekan **Terima** dengan foto kamera langsung, **Sesuai** atau **Tidak sesuai** (catatan wajib ≥ 5 huruf). Barang milik cabang selain Gudang lalu muncul di "Perlu diantar ke cabang pemilik" dan diterima lagi di cabang itu (hak yang sama; Kepala Toko diberi lewat Hak Akses Jabatan bila perlu). Tidak ada langkah turunkan barang terpisah untuk driver (§13.3 butir 3 tetap). Awak trip itu tidak boleh menerima barang yang ia bawa. Tidak sesuai memberi tahu pemegang `logistics.trip.manage` (Kepala Gudang, Pemilik, GM), kecuali penerimanya sendiri. Penerimaan tidak bisa diubah atau dihapus. Kartu Beranda "barang kembali belum diterima" |
+| 2 | **Rincian retur** (LOG-59): Lapor masalah › Retur wajib 1–20 baris barang: nama (2–120 huruf), jumlah > 0 (boleh 2 angka di belakang koma), satuan (1–20 huruf). Pemilik barang = cabang asal surat jalan kunjungan itu; bila asalnya lebih dari satu cabang, driver memilih. Rincian tampil di Laporan Toko, rincian trip / Trip Saya, dan Barang Kembali |
+| 3 | **Tertunda** (LOG-57, 119; halaman `/logistik/surat-jalan/tertunda`, tombol tab di Surat Jalan): surat jalan Menunggu / Dalam perjalanan yang kasirnya masih aktif dan, sejak tutup terakhir, punya Kirim Besok / trip ditutup dengan kunjungan sisa / Kirim ulang yang tidak dibatalkan Coba lagi. Paling lama di atas; **merah** bila lebih dari `logistics.pending_red_days` (3) hari sejak pertama tertunda. **Tutup** oleh pemegang `logistics.delivery_note.decide` (Kepala Gudang, Pemilik, GM), keterangan wajib; tercatat sebagai riwayat surat jalan `PENDING_CLOSED`, surat jalan tetap di antreannya, dan Kirim Besok berikutnya memunculkannya lagi. Perlu keputusan (Gagal) tidak masuk Tertunda; tempatnya tab Perlu keputusan. Kartu Beranda bila ada yang merah |
+
+**Data.** Migrasi `logistics` 0008: tabel `goods_receipts` (sumber `NOTE` = `trip_visit_notes.id` / `RETURN` = `visit_reports.id`, langkah `WAREHOUSE`/`OWNER`, hasil `MATCH`/`MISMATCH` + catatan, foto, penerima; unik per sumber + langkah; tanpa hapus), `visit_report_items` (nama, jumlah numeric(12,2), satuan; tanpa hapus), kolom `visit_reports.owner_branch_id`, jenis riwayat surat jalan `PENDING_CLOSED`. Migrasi `hris` 0045: hak `logistics.returned_goods.receive` (Kepala Gudang), pengaturan `logistics.returned_goods_from` (2026-11-05) dan `logistics.pending_red_days` (3). Foto penerimaan dan foto retur dibuka lewat pintu foto trip (pemegang `logistics.trip.view` atau `logistics.returned_goods.receive`) dan tidak ikut dibuang mesin harian.

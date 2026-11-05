@@ -193,7 +193,11 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/uang-toko': '2026-11-05',
   '/logistik/laporan-toko': '2026-11-05',
   'fitur/cara-bayar-toko': '2026-11-05', // cara bayar + bukti transfer saat Terkirim, Lapor masalah di kunjungan
-  'fitur/titik-toko': '2026-11-04', // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
+  'fitur/titik-toko': '2026-11-04',
+  // LT2a Barang kembali + tertunda (tayang staging 2026-11-05)
+  '/logistik/barang-kembali': '2026-11-05',
+  '/logistik/surat-jalan/tertunda': '2026-11-05',
+  'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };
 
 function addDays(date: string, days: number): string {
