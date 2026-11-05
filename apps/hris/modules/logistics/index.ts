@@ -76,3 +76,13 @@ export {
 export { StorePaymentsScreen } from './ui/store-payments-screen';
 export { VisitReportsScreen } from './ui/visit-reports-screen';
 export { TripNotesPanel } from './ui/trip-notes-panel';
+export {
+  RESULT_LABELS, RETURN_ITEMS_MAX, cleanReceipt, cleanReturnItems, nextStep, pendingRed, quantityText, stepsNeeded,
+  type ReceiptResult, type ReceiptStep, type ReturnItem, type ReturnItemInput,
+} from './rules/returned-goods';
+export {
+  closePending, pendingNoteCounts, pendingNotesScreen, receiveGoods, returnedGoodsPhotoIds, returnedGoodsScreen, returnedGoodsWaiting,
+  type PendingRow, type ReturnedGoodsRow, type SourceKind,
+} from './server/returned-goods';
+export { ReturnedGoodsScreen } from './ui/returned-goods-screen';
+export { PendingNotesScreen } from './ui/pending-notes-screen';

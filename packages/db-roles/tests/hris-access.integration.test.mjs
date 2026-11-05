@@ -75,6 +75,8 @@ const ANSWER_KEY = {
     'logistics.store_point.decide': 'ALL',
     // LT1b-3 (spec LT1 §13.5)
     'logistics.store_payment.view': 'ALL',
+    // LT2a (spec LT1 §14.1)
+    'logistics.returned_goods.receive': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,

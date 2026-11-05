@@ -117,6 +117,7 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                     <li key={r.id} className="flex flex-wrap items-center gap-1">
                       <Badge tone={r.closed ? 'ok' : 'warn'}>{r.label}</Badge>
                       {r.note && <span>{r.note}</span>}
+                      {r.items.length > 0 && <span>{r.items.map((i) => `${i.name} ${i.quantity} ${i.unit}`).join(', ')}</span>}
                       <span className="text-ink-muted">· {r.by} {r.at}{r.closed ? ` · selesai: ${r.closeNote}` : ''}</span>
                       <a href={r.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a>
                     </li>
