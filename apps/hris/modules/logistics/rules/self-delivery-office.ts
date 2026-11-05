@@ -4,10 +4,32 @@ import type { IsoDate } from './trip';
 export type SelfDecision = 'RESEND' | 'DROP';
 export const SELF_DECISION_LABELS: Record<SelfDecision, string> = { RESEND: 'Kirim ulang', DROP: 'Batal kirim' };
 
-export type SelfEventKind = 'CLOSED' | 'HANDOVER' | 'RESENT' | 'DROPPED';
+export type SelfEventKind = 'CLOSED' | 'HANDOVER' | 'RESENT' | 'DROPPED' | 'PAYMENT_CORRECTED';
 export const SELF_EVENT_LABELS: Record<SelfEventKind, string> = {
   CLOSED: 'Ditutup kantor', HANDOVER: 'PJ dialihkan', RESENT: 'Gagal → Kirim ulang', DROPPED: 'Gagal → Batal kirim',
+  PAYMENT_CORRECTED: 'Cara bayar dikoreksi',
 };
+
+/**
+ * Siapa boleh mengoreksi cara bayar antar sendiri (spec LT1 §15.4 butir 2): PJ selama perjalanan berjalan (belum Foto 3);
+ * sesudahnya pemegang `logistics.self_delivery.manage` cabang itu, bukan PJ-nya. Mengembalikan pesan penolakan atau null.
+ */
+export function selfCorrectProblem(input: { running: boolean; isPj: boolean; canManage: boolean }): string | null {
+  if (input.running) return input.isPj ? null : 'Selama perjalanan berjalan, cara bayar dikoreksi PJ-nya sendiri.';
+  if (!input.canManage) return 'Sesudah Foto 3, cara bayar dikoreksi Kepala Toko cabang itu, Kepala Gudang, Pemilik, atau GM.';
+  if (input.isPj) return 'Cara bayar perjalanan yang Anda PJ-kan sendiri dikoreksi rekan atau atasan sesudah Foto 3.';
+  return null;
+}
+
+/**
+ * Tunai perjalanan sesudah koreksi cara bayar (spec LT1 §15.4 butir 2). Selama berjalan tunai belum dihitung (Foto 3).
+ * Bila tunai sudah diterima laci lalu jumlahnya berubah, penerimaan dibuka lagi supaya diterima ulang dengan jumlah baru.
+ */
+export function cashAfterCorrection(input: { running: boolean; cashBefore: number; cashAfter: number; received: boolean }):
+  { cash: number; reopen: boolean } {
+  if (input.running) return { cash: 0, reopen: false };
+  return { cash: input.cashAfter, reopen: input.received && input.cashAfter !== input.cashBefore };
+}
 
 /** Tab layar kantor. */
 export const OFFICE_TABS = ['RUNNING', 'LATE', 'FAILED', 'CASH', 'DONE'] as const;

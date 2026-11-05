@@ -10,10 +10,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const tripId = Number(params.get('trip'));
-  const stopId = params.get('stop') ? Number(params.get('stop')) : null;
+  // kind=report memakai ?report=<id laporan> (spec LT1 §15.4).
+  const stopParam = params.get('stop') ?? params.get('report');
+  const stopId = stopParam ? Number(stopParam) : null;
   const kind = params.get('kind') ?? '';
   const notFound = () => new NextResponse('Tidak ditemukan', { status: 404 });
-  if (!Number.isInteger(tripId) || tripId <= 0 || !['pickup', 'return', 'stop', 'proof'].includes(kind)) return notFound();
+  if (!Number.isInteger(tripId) || tripId <= 0 || !['pickup', 'return', 'stop', 'proof', 'report'].includes(kind)) return notFound();
   const session = await currentHrisSession();
   if (!session.ok) return new NextResponse('Perlu masuk', { status: 401 });
   const actor = await actorForSession(session.accountId, session.localUserId);

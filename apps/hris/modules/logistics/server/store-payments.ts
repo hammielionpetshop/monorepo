@@ -14,6 +14,7 @@ import { cleanReturnItems, quantityText, type ReturnItemInput } from '../rules/r
 import { addDays, reasonProblem, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames, type Executor } from './data';
 import { runningForCrew } from './driver-trip';
+import { canCorrectSelf } from './self-delivery-money';
 
 // Uang dan laporan di toko (spec LT1 §13.2, §13.5, LT1b-3). Piutang kasir dibaca lewat view logistics.pos_customer_debts.
 
@@ -133,18 +134,25 @@ async function decisionsOf(reportIds: number[], executor: Executor = db) {
     ? await executor.select().from(reportDecisions).where(inArray(reportDecisions.reportId, reportIds)).orderBy(reportDecisions.id)
     : [];
   const noteIds = [...new Set(rows.map((r) => r.noteId).filter((id): id is number => id != null))];
-  const [numbers, names] = await Promise.all([
+  const trxIds = [...new Set(rows.map((r) => r.transactionId).filter((id): id is number => id != null))];
+  const [numbers, trxNumbers, names] = await Promise.all([
     noteIds.length ? executor.execute<{ id: number; number: string }>(sql`select id, number from logistics.delivery_notes where id in (${ids(noteIds)})`) : [],
+    trxIds.length ? executor.execute<{ id: number; number: string }>(sql`
+      select distinct on (transaction_id) transaction_id as id, trx_number as number from logistics.self_trip_stops where transaction_id in (${ids(trxIds)})`) : [],
     accountNames(rows.flatMap((r) => [r.decidedByAccountId, ...(r.recordedByAccountId ? [r.recordedByAccountId] : [])]), executor),
   ]);
   const numberOf = new Map(numbers.map((n) => [Number(n.id), n.number]));
+  const trxNumberOf = new Map(trxNumbers.map((n) => [Number(n.id), n.number]));
   return (reportId: number): DecisionView | null => {
     const mine = rows.filter((r) => r.reportId === reportId);
     const r = mine.find((x) => !x.replacedAt);
     if (!r) return null;
+    // Laporan antar sendiri menunjuk nota kasir langsung (transaction_id); pilihannya memakai id itu juga (spec LT1 §15.4).
+    const noteId = r.noteId ?? r.transactionId;
     return {
-      id: r.id, decision: r.decision as Decision, label: DECISION_LABELS[r.decision as Decision], noteId: r.noteId,
-      noteNumber: r.noteId ? numberOf.get(r.noteId) ?? '-' : null, amount: r.amount, reason: r.reason as CutReason | null,
+      id: r.id, decision: r.decision as Decision, label: DECISION_LABELS[r.decision as Decision], noteId,
+      noteNumber: r.noteId ? numberOf.get(r.noteId) ?? '-' : r.transactionId ? trxNumberOf.get(r.transactionId) ?? '-' : null,
+      amount: r.amount, reason: r.reason as CutReason | null,
       reasonLabel: r.reason ? CUT_REASON_LABELS[r.reason as CutReason] : null, note: r.note, by: names.get(r.decidedByAccountId) ?? '-',
       on: wibDate(r.decidedAt), at: wibClock(r.decidedAt), changeReason: r.changeReason, changes: mine.length - 1,
       recorded: r.recordedAt ? { ref: r.recordedRef ?? '-', by: names.get(r.recordedByAccountId ?? 0) ?? '-', on: wibDate(r.recordedAt) } : null,
@@ -169,6 +177,57 @@ async function notesForDecision(executor: Executor, visitId: number, reportId: n
 }
 
 /**
+ * Nota kasir tujuan antar sendiri untuk keputusan potong nota (spec LT1 §15.4 butir 3): id = id transaksi kasir, nominal kasir
+ * sekarang (atau saat dibawa), potongan lain yang berlaku di nota itu di luar laporan ini.
+ */
+async function selfNotesForDecision(executor: Executor, stopId: number, reportId: number): Promise<NoteOption[]> {
+  const rows = await executor.execute<{ id: number; number: string; amount: number; cuts: number }>(sql`
+    select x.transaction_id as id, x.trx_number as number, coalesce(s.payable_amount, x.amount_at_start, 0)::int as amount,
+      (select coalesce(sum(c.amount), 0)::int from logistics.report_decisions c
+        where c.transaction_id = x.transaction_id and c.decision = 'CUT' and c.replaced_at is null and c.report_id <> ${reportId}) as cuts
+    from logistics.self_trip_stops x left join logistics.pos_courier_sales s on s.id = x.transaction_id
+    where x.id = ${stopId}`);
+  return rows.map((r) => ({ id: Number(r.id), number: r.number, amount: Number(r.amount), otherCuts: Number(r.cuts) }));
+}
+
+/** Pilihan nota untuk laporan truk (surat jalan) atau antar sendiri (nota kasir). */
+const notesFor = (executor: Executor, report: { id: number; visitId: number | null; selfStopId: number | null }) =>
+  report.visitId != null ? notesForDecision(executor, report.visitId, report.id) : selfNotesForDecision(executor, report.selfStopId!, report.id);
+
+type ReportPlace = { tripHref: string; tripNumber: string; store: string; photoUrl: string; source: string | null };
+
+/** Asal laporan: kunjungan trip truk atau tujuan antar sendiri (nomor perjalanan, nama tujuan, tautan, foto). */
+async function placesOf(reports: { id: number; visitId: number | null; selfStopId: number | null; tripId: number | null; selfTripId: number | null; photoFileId: string }[]) {
+  const visitIds = [...new Set(reports.map((r) => r.visitId).filter((id): id is number => id != null))];
+  const stopIds = [...new Set(reports.map((r) => r.selfStopId).filter((id): id is number => id != null))];
+  const [visits, stops] = await Promise.all([
+    visitIds.length ? db.execute<{ id: number; destination_name: string; trip_id: number; number: string }>(sql`
+      select v.id, v.destination_name, v.trip_id, t.number from logistics.trip_visits v join logistics.trips t on t.id = v.trip_id
+      where v.id in (${ids(visitIds)})`) : [],
+    stopIds.length ? db.execute<{ id: number; destination_name: string; trip_id: number; number: string; branch_id: number; branch: string | null }>(sql`
+      select x.id, x.destination_name, t.id as trip_id, t.number, t.branch_id, b.name as branch
+      from logistics.self_trip_stops x join logistics.self_trips t on t.id = x.trip_id left join hris.branches b on b.id = t.branch_id
+      where x.id in (${ids(stopIds)})`) : [],
+  ]);
+  const visitOf = new Map(visits.map((v) => [Number(v.id), v]));
+  const stopOf = new Map(stops.map((s) => [Number(s.id), s]));
+  return (r: (typeof reports)[number]): ReportPlace => {
+    if (r.visitId != null) {
+      const v = visitOf.get(r.visitId);
+      return {
+        tripHref: `/logistik/trip/${r.tripId}`, tripNumber: v?.number ?? '-', store: v?.destination_name ?? '-', source: null,
+        photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`,
+      };
+    }
+    const s = stopOf.get(r.selfStopId ?? 0);
+    return {
+      tripHref: `/logistik/antar-sendiri/kantor?tab=DONE${s ? `&cabang=${s.branch_id}` : ''}`, tripNumber: s?.number ?? '-', store: s?.destination_name ?? '-',
+      source: `Antar sendiri${s?.branch ? ` · ${s.branch}` : ''}`, photoUrl: `/api/logistics/self-photo?trip=${r.selfTripId}&kind=report&report=${r.id}`,
+    };
+  };
+}
+
+/**
  * Keputusan atas laporan toko (§14.2 butir 1): pemegang `logistics.note_cut.decide` (Finance; Pemilik/GM), bukan pelapornya.
  * Laporan ditutup dengan ringkasan keputusan. Ubah keputusan: alasan wajib dan hanya selama belum Sudah dicatat di kasir;
  * baris lama ditandai Diganti.
@@ -189,10 +248,11 @@ export async function decideVisitReport(
     const problem = reasonProblem(changeReason);
     if (problem) return fail(400, problem.replace('Alasan', 'Alasan ubah keputusan'));
   } else if (report.closedAt) return fail(409, 'Laporan ini sudah ditandai selesai sebelum ada keputusan potong nota.');
-  const notes = await notesForDecision(db, report.visitId, reportId);
+  const notes = await notesFor(db, report);
   const clean = cleanDecision(report.kind as ReportKind, input, notes);
   if (!clean.ok) return fail(400, clean.error);
   const v = clean.value;
+  const self = report.visitId == null;
   const number = notes.find((n) => n.id === v.noteId)?.number ?? '-';
   const tail = v.note ? `: ${v.note}` : '';
   const summary = v.decision === 'CUT' ? `Potong nota ${number} ${rupiah(v.amount ?? 0)} (${CUT_REASON_LABELS[v.reason!]})${tail}`
@@ -207,7 +267,7 @@ export async function decideVisitReport(
         if (!old) return fail(409, 'Keputusan ini baru saja berubah atau sudah dicatat di kasir. Muat ulang halaman.');
       }
       await tx.insert(reportDecisions).values({
-        reportId, decision: v.decision, noteId: v.noteId, amount: v.amount, reason: v.reason, note: v.note,
+        reportId, decision: v.decision, noteId: self ? null : v.noteId, transactionId: self ? v.noteId : null, amount: v.amount, reason: v.reason, note: v.note,
         decidedByAccountId: actor.accountId, decidedAt: now, changeReason,
       });
       await tx.update(visitReports).set({ closedAt: now, closedByAccountId: actor.accountId, closeNote: summary.slice(0, 500) })
@@ -327,7 +387,7 @@ export async function visitMoneyView(tripId: number, visitIds: number[], executo
       promiseDate: p.promiseDate, correctionReason: p.correctionReason,
     }])),
     reports: reports.map((r) => ({
-      visitId: r.visitId,
+      visitId: r.visitId!,
       view: {
         id: r.id, kind: r.kind as ReportKind, label: REPORT_LABELS[r.kind as ReportKind], note: r.note, carriedBack: r.carriedBack,
         photoUrl: photo(r.photoFileId), by: names.get(r.reportedByEmployeeId) ?? '-', at: wibClock(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote,
@@ -353,20 +413,70 @@ export async function moneyPhotoIds(tripId: number): Promise<string[]> {
   return [...payments, ...reports].map((r) => r.id).filter((id): id is string => !!id);
 }
 
+export type PaymentSource = 'TRUCK' | 'SELF';
+export type PaymentSourceFilter = 'ALL' | PaymentSource;
 export type StorePaymentRow = {
-  id: number; visitId: number; tripId: number; tripNumber: string; crew: string; store: string; customerId: number; notes: string[]; method: PaymentMethod; label: string;
-  bill: number; received: number; left: number; proofUrl: string | null; at: string;
+  key: string; source: PaymentSource; id: number;
+  /** Truk: kunjungan; antar sendiri: tujuan (stop). */
+  visitId: number | null; stopId: number | null;
+  tripId: number; tripHref: string; tripNumber: string; crew: string; branch: string | null; store: string; customerId: number | null; notes: string[];
+  method: PaymentMethod; label: string; bill: number; received: number; left: number; proofUrl: string | null; at: string;
   /** Janji bayar sisa; lewat = tanggal lewat dan piutang kasir nota kunjungan masih ada (§14.2 butir 5). */
-  promiseDate: IsoDate | null; overdue: boolean; correctionReason: string | null;
+  promiseDate: IsoDate | null; overdue: boolean; correctionReason: string | null; canCorrect: boolean;
+};
+export type PaymentTripSummary = {
+  key: string; source: PaymentSource; tripId: number; href: string; number: string; crew: string; cash: number; transfer: number; left: number; visits: number;
+  /** Antar sendiri: tunai sudah diterima laci cabang? (null = truk / belum Foto 3 / tanpa tunai). */
+  cashReceived: boolean | null; running: boolean;
 };
 
+/** Cara bayar antar sendiri pada tanggal mulai perjalanan (spec LT1 §15.4 butir 1). */
+async function selfPaymentRows(actor: Actor, date: IsoDate, branchId: number | null, today: IsoDate) {
+  const rows = await db.execute<{
+    id: number; stop_id: number; trip_id: number; number: string; branch_id: number; branch: string | null; employee_id: number; status: string;
+    cash_amount: number; cash_received_at: string | null; customer_id: number | null; store: string; trx_number: string; method: PaymentMethod;
+    bill_amount: number; received_amount: number; proof_photo_file_id: string | null; recorded_at: string; promise_date: string | null;
+    correction_reason: string | null; debt_left: number | null;
+  }>(sql`
+    select p.id, p.stop_id, p.trip_id, t.number, t.branch_id, b.name as branch, t.employee_id, t.status, t.cash_amount, t.cash_received_at,
+      p.customer_id, x.destination_name as store, x.trx_number, p.method, p.bill_amount, p.received_amount, p.proof_photo_file_id, p.recorded_at,
+      p.promise_date::text as promise_date, p.correction_reason,
+      (select coalesce(sum(d.remaining_amount), 0)::int from logistics.pos_customer_debts d where d.transaction_id = p.transaction_id and d.status <> 'PAID') as debt_left
+    from logistics.self_trip_payments p join logistics.self_trips t on t.id = p.trip_id join logistics.self_trip_stops x on x.id = p.stop_id
+    left join hris.branches b on b.id = t.branch_id
+    where (t.started_at at time zone 'Asia/Jakarta')::date = ${date}::date and p.replaced_at is null
+      ${branchId != null ? sql`and t.branch_id = ${branchId}` : sql``}
+    order by t.number, p.recorded_at`);
+  const names = rows.length ? await peopleNames() : new Map<number, string>();
+  const list: StorePaymentRow[] = rows.map((r) => {
+    const bill = Number(r.bill_amount);
+    const received = Number(r.received_amount);
+    return {
+      key: `SELF-${r.id}`, source: 'SELF', id: Number(r.id), visitId: null, stopId: Number(r.stop_id), tripId: Number(r.trip_id),
+      tripHref: `/logistik/antar-sendiri/kantor?tab=DONE&cabang=${r.branch_id}`, tripNumber: r.number, crew: names.get(Number(r.employee_id)) ?? '-',
+      branch: r.branch, store: r.store, customerId: r.customer_id != null ? Number(r.customer_id) : null, notes: [r.trx_number], method: r.method,
+      label: PAYMENT_LABELS[r.method], bill, received, left: leftToCollect(r.method, bill, received),
+      proofUrl: r.proof_photo_file_id ? `/api/logistics/self-photo?trip=${r.trip_id}&kind=proof&stop=${r.stop_id}` : null, at: wibClock(new Date(r.recorded_at)),
+      promiseDate: r.promise_date, overdue: promiseOverdue(r.promise_date, today, Number(r.debt_left ?? 0)), correctionReason: r.correction_reason,
+      canCorrect: bill > 0 && canCorrectSelf(actor, { status: r.status, employeeId: Number(r.employee_id), branchId: Number(r.branch_id) }),
+    };
+  });
+  const trips = new Map(rows.map((r) => [Number(r.trip_id), r]));
+  return { list, tripInfo: (id: number) => trips.get(id)! };
+}
+
 /**
- * Uang dari toko (§13.5 butir 6) untuk Finance: cara bayar per kunjungan pada tanggal trip, dan jumlah per trip.
+ * Uang dari toko (§13.5 butir 6) untuk Finance: cara bayar per kunjungan pada tanggal trip, dan jumlah per trip. Sejak LT3d
+ * juga cara bayar antar sendiri (tunai ke laci cabang, spec LT1 §15.4 butir 1); saringan sumber dan cabang (antar sendiri).
  * Hanya daftar; pencatatan ke kasir tetap diketik Finance (pemeriksaan uang Tahap 4).
  */
-export async function storePaymentsScreen(actor: Actor | null, date: IsoDate) {
+export async function storePaymentsScreen(
+  actor: Actor | null, date: IsoDate, filter: { source: PaymentSourceFilter; branchId: number | null } = { source: 'ALL', branchId: null },
+) {
   if (!actor || !can(actor, 'logistics.store_payment.view')) return null;
-  const rows = await db.execute<{
+  const today = wibDate(new Date());
+  const withTruck = filter.source !== 'SELF' && filter.branchId == null;
+  const [rows, self, branches] = await Promise.all([withTruck ? db.execute<{
     id: number; trip_id: number; number: string; customer_id: number; store: string | null; method: PaymentMethod; bill_amount: number;
     received_amount: number; proof_photo_file_id: string | null; recorded_at: string; notes: string | null; recorded_by_employee_id: number;
     visit_id: number; promise_date: string | null; correction_reason: string | null; debt_left: number | null;
@@ -379,8 +489,10 @@ export async function storePaymentsScreen(actor: Actor | null, date: IsoDate) {
         join logistics.pos_customer_debts d on d.transaction_id = n.doc_id and d.status <> 'PAID' where l.visit_id = p.visit_id) as debt_left
     from logistics.visit_payments p join logistics.trips t on t.id = p.trip_id join logistics.trip_visits v on v.id = p.visit_id
     where t.trip_date = ${date}::date and p.replaced_at is null
-    order by t.number, p.recorded_at`);
-  const today = wibDate(new Date());
+    order by t.number, p.recorded_at`) : Promise.resolve([]),
+  filter.source !== 'TRUCK' ? selfPaymentRows(actor, date, filter.branchId, today) : Promise.resolve(null),
+  db.execute<{ id: number; name: string }>(sql`select id, name from hris.branches where kasir_branch_id is not null order by name`),
+  ]);
   const tripIds = [...new Set(rows.map((r) => Number(r.trip_id)))];
   const [crewRows, names] = await Promise.all([
     db.execute<{ trip_id: number; employee_id: number; role: string }>(sql`
@@ -388,36 +500,58 @@ export async function storePaymentsScreen(actor: Actor | null, date: IsoDate) {
     peopleNames(),
   ]);
   const crewOf = (tripId: number) => crewRows.filter((c) => Number(c.trip_id) === tripId).map((c) => names.get(Number(c.employee_id)) ?? '-').join(', ');
-  const list: StorePaymentRow[] = rows.map((r) => {
+  const canCorrectTruck = can(actor, 'logistics.store_payment.correct');
+  const truck: StorePaymentRow[] = rows.map((r) => {
     const bill = Number(r.bill_amount);
     const received = Number(r.received_amount);
     return {
-      id: Number(r.id), visitId: Number(r.visit_id), tripId: Number(r.trip_id), tripNumber: r.number, crew: crewOf(Number(r.trip_id)), store: r.store ?? '-', customerId: Number(r.customer_id),
+      key: `TRUCK-${r.id}`, source: 'TRUCK', id: Number(r.id), visitId: Number(r.visit_id), stopId: null, tripId: Number(r.trip_id),
+      tripHref: `/logistik/trip/${r.trip_id}`, tripNumber: r.number, crew: crewOf(Number(r.trip_id)), branch: null, store: r.store ?? '-', customerId: Number(r.customer_id),
       notes: r.notes ? r.notes.split(', ') : [], method: r.method, label: PAYMENT_LABELS[r.method], bill, received, left: leftToCollect(r.method, bill, received),
       proofUrl: r.proof_photo_file_id ? `/api/logistics/photo?trip=${r.trip_id}&file=${r.proof_photo_file_id}` : null, at: wibClock(new Date(r.recorded_at)),
       promiseDate: r.promise_date, overdue: promiseOverdue(r.promise_date, today, Number(r.debt_left ?? 0)), correctionReason: r.correction_reason,
+      canCorrect: canCorrectTruck && bill > 0,
     };
   });
+  const selfRows = self?.list ?? [];
+  const list = [...truck, ...selfRows];
   const sum = (items: StorePaymentRow[], pick: (r: StorePaymentRow) => number) => Number(items.reduce((n, r) => n.plus(pick(r)), new Big(0)));
+  const cashOfRows = (items: StorePaymentRow[]) => sum(items.filter((r) => r.method === 'CASH' || r.method === 'PARTIAL'), (r) => r.received);
   const totalsOf = (items: StorePaymentRow[]) => ({
-    cash: sum(items.filter((r) => r.method === 'CASH' || r.method === 'PARTIAL'), (r) => r.received),
+    cash: cashOfRows(items),
     transfer: sum(items.filter((r) => r.method === 'TRANSFER'), (r) => r.received),
     left: sum(items, (r) => r.left),
     visits: items.length,
   });
-  return {
-    date, rows: list,
-    trips: tripIds.map((id) => {
-      const items = list.filter((r) => r.tripId === id);
-      return { tripId: id, number: items[0].tripNumber, crew: items[0].crew, ...totalsOf(items) };
+  const selfTripIds = [...new Set(selfRows.map((r) => r.tripId))];
+  const trips: PaymentTripSummary[] = [
+    ...tripIds.map((id) => {
+      const items = truck.filter((r) => r.tripId === id);
+      return {
+        key: `TRUCK-${id}`, source: 'TRUCK' as const, tripId: id, href: items[0].tripHref, number: items[0].tripNumber, crew: items[0].crew,
+        cashReceived: null, running: false, ...totalsOf(items),
+      };
     }),
-    totals: totalsOf(list),
-    canCorrect: can(actor, 'logistics.store_payment.correct'),
+    ...selfTripIds.map((id) => {
+      const items = selfRows.filter((r) => r.tripId === id);
+      const info = self!.tripInfo(id);
+      return {
+        key: `SELF-${id}`, source: 'SELF' as const, tripId: id, href: items[0].tripHref, number: items[0].tripNumber,
+        crew: `${items[0].crew}${items[0].branch ? ` · ${items[0].branch}` : ''}`, running: info.status === 'RUNNING',
+        cashReceived: info.status === 'RUNNING' || Number(info.cash_amount) === 0 ? null : !!info.cash_received_at, ...totalsOf(items),
+      };
+    }),
+  ];
+  return {
+    date, rows: list, trips, source: filter.source, branchId: filter.branchId,
+    branches: branches.map((b) => ({ id: Number(b.id), name: b.name })),
+    totals: { ...totalsOf(list), cashTruck: cashOfRows(truck), cashSelf: cashOfRows(selfRows) },
   };
 }
 
 export type ReportRow = VisitReportView & {
-  tripId: number; tripNumber: string; store: string; customerId: number; on: IsoDate; closedBy: string | null;
+  /** Tautan ke trip truk atau layar kantor antar sendiri; `source` = "Antar sendiri · cabang" untuk laporan antar sendiri. */
+  tripHref: string; tripNumber: string; store: string; source: string | null; customerId: number | null; on: IsoDate; closedBy: string | null;
   /** Nota kunjungan ini untuk dipilih saat memutuskan; `own` = laporan pembaca sendiri (tidak boleh ia putuskan). */
   noteOptions: NoteOption[]; own: boolean;
 };
@@ -431,10 +565,8 @@ export async function visitReportsScreen(actor: Actor | null) {
     peopleNames(),
   ]);
   const all = [...open, ...closed];
-  const [visits, closers] = await Promise.all([
-    all.length ? db.execute<{ id: number; destination_name: string; trip_id: number; number: string }>(sql`
-      select v.id, v.destination_name, v.trip_id, t.number from logistics.trip_visits v join logistics.trips t on t.id = v.trip_id
-      where v.id in (${ids([...new Set(all.map((r) => r.visitId))])})`) : [],
+  const [placeOf, closers] = await Promise.all([
+    placesOf(all),
     closed.length ? db.execute<{ account_id: number; name: string }>(sql`
       select l.account_id, e.name from auth.account_links l join hris.employees e on e.id = l.local_user_id
       where l.app_code = 'hris' and l.account_id in (${ids([...new Set(closed.map((r) => r.closedByAccountId!))])})`) : [],
@@ -443,16 +575,15 @@ export async function visitReportsScreen(actor: Actor | null) {
   const [itemsFor, decisionOf] = await Promise.all([itemsOf(all.filter((r) => r.kind === 'RETURN').map((r) => r.id)), decisionsOf(all.map((r) => r.id))]);
   // Pilihan nota hanya untuk laporan yang masih bisa diputuskan / diubah (belum dicatat di kasir).
   const decidable = canDecide ? all.filter((r) => !r.closedAt || (decisionOf(r.id) && !decisionOf(r.id)!.recorded)) : [];
-  const options = new Map(await Promise.all(decidable.map(async (r) => [r.id, await notesForDecision(db, r.visitId, r.id)] as const)));
-  const visitOf = new Map(visits.map((v) => [Number(v.id), v]));
+  const options = new Map(await Promise.all(decidable.map(async (r) => [r.id, await notesFor(db, r)] as const)));
   const closerOf = new Map(closers.map((c) => [Number(c.account_id), c.name]));
   const view = (r: typeof visitReports.$inferSelect): ReportRow => {
-    const v = visitOf.get(r.visitId);
+    const place = placeOf(r);
     return {
       id: r.id, kind: r.kind as ReportKind, label: REPORT_LABELS[r.kind as ReportKind], note: r.note, carriedBack: r.carriedBack,
-      photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`, by: names.get(r.reportedByEmployeeId) ?? '-', at: wibClock(r.reportedAt),
+      photoUrl: place.photoUrl, by: names.get(r.reportedByEmployeeId) ?? '-', at: wibClock(r.reportedAt),
       on: wibDate(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote, items: itemsFor(r.id), closedBy: r.closedByAccountId ? closerOf.get(r.closedByAccountId) ?? '-' : null,
-      tripId: r.tripId, tripNumber: v?.number ?? '-', store: v?.destination_name ?? '-', customerId: r.customerId,
+      tripHref: place.tripHref, tripNumber: place.tripNumber, store: place.store, source: place.source, customerId: r.customerId,
       decision: decisionOf(r.id), noteOptions: options.get(r.id) ?? [], own: r.reportedByEmployeeId === actor.personId,
     };
   };
@@ -468,8 +599,8 @@ export async function openReportCount(actor: Actor | null): Promise<number> {
 
 
 export type ToRecordRow = DecisionView & {
-  reportId: number; reportLabel: string; reportNote: string | null; photoUrl: string; tripId: number; tripNumber: string; store: string;
-  customerId: number; days: number; red: boolean;
+  reportId: number; reportLabel: string; reportNote: string | null; photoUrl: string; tripHref: string; tripNumber: string; store: string;
+  source: string | null; customerId: number | null; days: number; red: boolean;
 };
 
 /**
@@ -487,23 +618,22 @@ export async function toRecordScreen(actor: Actor | null) {
   ]);
   const reportIds = [...new Set([...waiting, ...done].map((d) => d.reportId))];
   const [reports, decisionOf] = await Promise.all([
-    reportIds.length ? db.execute<{ id: number; kind: ReportKind; note: string | null; photo_file_id: string; trip_id: number; number: string; store: string; customer_id: number }>(sql`
-      select r.id, r.kind, r.note, r.photo_file_id, r.trip_id, t.number, v.destination_name as store, r.customer_id
-      from logistics.visit_reports r join logistics.trip_visits v on v.id = r.visit_id join logistics.trips t on t.id = r.trip_id
-      where r.id in (${ids(reportIds)})`) : [],
+    reportIds.length ? db.select().from(visitReports).where(inArray(visitReports.id, reportIds)) : [],
     decisionsOf(reportIds),
   ]);
-  const reportOf = new Map(reports.map((r) => [Number(r.id), r]));
+  const placeOf = await placesOf(reports);
+  const reportOf = new Map(reports.map((r) => [r.id, r]));
   const today = wibDate(new Date());
   const view = (d: typeof reportDecisions.$inferSelect): ToRecordRow | null => {
     const decision = decisionOf(d.reportId);
     const r = reportOf.get(d.reportId);
     if (!decision || !r) return null;
+    const place = placeOf(r);
     const days = Math.max(0, Math.round((Date.parse(today) - Date.parse(decision.on)) / 86_400_000));
     return {
-      ...decision, reportId: d.reportId, reportLabel: REPORT_LABELS[r.kind], reportNote: r.note,
-      photoUrl: `/api/logistics/photo?trip=${r.trip_id}&file=${r.photo_file_id}`, tripId: Number(r.trip_id), tripNumber: r.number, store: r.store,
-      customerId: Number(r.customer_id), days, red: !decision.recorded && days > UNRECORDED_RED_DAYS,
+      ...decision, reportId: d.reportId, reportLabel: REPORT_LABELS[r.kind as ReportKind], reportNote: r.note,
+      photoUrl: place.photoUrl, tripHref: place.tripHref, tripNumber: place.tripNumber, store: place.store, source: place.source,
+      customerId: r.customerId, days, red: !decision.recorded && days > UNRECORDED_RED_DAYS,
     };
   };
   const clean = (rows: (ToRecordRow | null)[]) => rows.filter((r): r is ToRecordRow => !!r);

@@ -99,6 +99,13 @@
       "when": 1793858861271,
       "tag": "0013_lt3c_self_delivery_office",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793886460030,
+      "tag": "0014_lt3d_self_delivery_money",
+      "breakpoints": true
     }
   ]
 }

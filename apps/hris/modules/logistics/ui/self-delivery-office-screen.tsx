@@ -9,11 +9,20 @@ import { Field, Select, Textarea } from '@/components/ui/field';
 import { Alert, Card, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+import { rupiah } from '../rules/rates';
 import type { OfficeTab, SelfDecision } from '../rules/self-delivery-office';
 import type { SelfStopView } from '../server/self-delivery';
 import type { OfficeTripView, SelfDeliveryOfficeData } from '../server/self-delivery-office';
 import { photoForm } from './capture';
+import { PaymentCorrectButton } from './payment-correct';
 import { CashRow, TripSummary } from './self-delivery-screen';
+
+/** Peringatan koreksi sesudah Foto 3 (spec LT1 §15.4 butir 2): tunai yang berubah diterima ulang laci. */
+export function correctionCashNote(trip: { cash: number; cashReceived: { by: string; at: string } | null }): string {
+  return trip.cashReceived
+    ? `Tunai ${rupiah(trip.cash)} sudah diterima ${trip.cashReceived.by}. Bila koreksi mengubah jumlah tunai, penerimaan dibuka lagi dan laci harus menekan Sudah diterima ulang.`
+    : 'Bila koreksi mengubah jumlah tunai, tunai yang menunggu diterima laci ikut berubah.';
+}
 
 const API = '/api/logistics/self-delivery';
 const selectClass = 'min-h-9 rounded-lg border border-line bg-surface px-3 text-sm';
@@ -75,13 +84,23 @@ export function SelfDeliveryOfficeScreen({ data }: { data: SelfDeliveryOfficeDat
           {data.trips.map((trip) => (
             <div key={trip.id} className="space-y-2">
               <TripSummary trip={trip} showPj open={data.tab !== 'DONE'} stopExtra={(s) => (
-                s.status === 'FAILED' && !s.decision && trip.canDecide ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    <Button size="sm" onClick={() => setAsk({ kind: 'decide', stop: s, decision: 'RESEND' })}>Kirim ulang</Button>
-                    <Button size="sm" variant="danger" onClick={() => setAsk({ kind: 'decide', stop: s, decision: 'DROP' })}>Batal kirim</Button>
-                    {s.backofficeUrl && <a href={s.backofficeUrl} target="_blank" rel="noreferrer" className={buttonClass({ variant: 'ghost', size: 'sm' })}>Buka nota di BO</a>}
-                  </div>
-                ) : null
+                <>
+                  {s.status === 'FAILED' && !s.decision && trip.canDecide && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Button size="sm" onClick={() => setAsk({ kind: 'decide', stop: s, decision: 'RESEND' })}>Kirim ulang</Button>
+                      <Button size="sm" variant="danger" onClick={() => setAsk({ kind: 'decide', stop: s, decision: 'DROP' })}>Batal kirim</Button>
+                      {s.backofficeUrl && <a href={s.backofficeUrl} target="_blank" rel="noreferrer" className={buttonClass({ variant: 'ghost', size: 'sm' })}>Buka nota di BO</a>}
+                    </div>
+                  )}
+                  {s.payment && s.payment.bill > 0 && trip.canCorrect && (
+                    <div className="mt-1">
+                      <PaymentCorrectButton target={{
+                        visitId: null, selfStopId: s.id, tripId: trip.id, store: s.destination, bill: s.payment.bill, method: s.payment.method,
+                        received: s.payment.received, promiseDate: s.payment.promiseDate, hasProof: !!s.proofUrl, cashNote: correctionCashNote(trip),
+                      }} />
+                    </div>
+                  )}
+                </>
               )} />
               {trip.status === 'RUNNING' && trip.canManage && (
                 <div className="flex flex-wrap gap-2 pl-2">
