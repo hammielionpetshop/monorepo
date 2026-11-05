@@ -171,7 +171,7 @@ export default function StockShortfallListClient({ initialRows }: Props) {
               </span>
             </p>
             <p className="text-xs text-muted-foreground mb-4">
-              Gunakan ini HANYA kalau barangnya terbukti hilang/rusak (bukan sekadar telat input PO)
+              Gunakan ini HANYA kalau barangnya terbukti hilang/rusak (bukan sekadar telat input PO / terima kiriman)
               — angka stok TIDAK akan berubah, ini cuma menghentikan pengharapan pelunasan &amp;
               menghilangkannya dari daftar ini. Residual tetap tampil sebagai defisit write-off
               pada Ringkasan Stok sampai hasil recount/opname disetujui.
@@ -190,7 +190,7 @@ export default function StockShortfallListClient({ initialRows }: Props) {
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
                 maxLength={255}
-                placeholder="Jelaskan kenapa shortfall ini tidak akan pernah lunas dari PO..."
+                placeholder="Jelaskan kenapa shortfall ini tidak akan pernah lunas dari PO atau kiriman..."
                 className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background resize-none"
               />
             </div>

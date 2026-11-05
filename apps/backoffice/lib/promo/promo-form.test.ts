@@ -188,3 +188,34 @@ describe('kalimat daftar promo', () => {
     expect(promoPricePreview({ type: 'HARGA_JADI', value: 12000 }, 10000)).toBe('Rp 10.000 → Rp 10.000')
   })
 })
+
+describe('kelompok campur di form promo', () => {
+  const C = { productId: 3, uomId: 20 }
+  const D = { productId: 4, uomId: 40 }
+
+  it('anggota kelompok jadi syarat bernomor kelompok dengan jumlah minimal yang sama', () => {
+    const p = payloadOf(form({
+      shape: 'BELI_GRATIS', target: null,
+      conditionGroups: [{ members: [B, C], minQty: '3' }], rewards: [{ ...D, qty: '1' }],
+    }))
+    expect(p.conditions).toEqual([{ ...B, minQty: 3, groupNo: 1 }, { ...C, minQty: 3, groupNo: 1 }])
+  })
+
+  it('kelompok tanpa jumlah minimal atau kurang dari 2 barang ditolak', () => {
+    const base = { shape: 'BELI_GRATIS' as const, target: null, rewards: [{ ...D, qty: '1' }] }
+    expect(buildPromoPayload(form({ ...base, conditionGroups: [{ members: [B, C], minQty: '' }] }))).toEqual({ error: 'Isi jumlah minimal tiap kelompok campur' })
+    expect(buildPromoPayload(form({ ...base, conditionGroups: [{ members: [B], minQty: '3' }] }))).toEqual({ error: 'Kelompok campur harus berisi sekurangnya 2 barang' })
+  })
+
+  it('ringkasan promo menyebut campur dari semua anggotanya', () => {
+    const lines = describePromo({
+      kind: 'BELI_GRATIS', isMultiple: false, maxPerNote: null, quotaKind: null, quotaPerBranch: null, requireStock: false,
+      conditions: [
+        { ...B, minQty: 3, groupNo: 1, productName: 'Pasir 10L Lavender', uomCode: 'PCS' },
+        { ...C, minQty: 3, groupNo: 1, productName: 'Pasir 10L Apel', uomCode: 'PCS' },
+      ],
+      rewards: [{ ...D, type: 'GRATIS', value: 0, qty: 1, productName: 'Sekop', uomCode: 'PCS' }],
+    })
+    expect(lines[0]).toBe('Syarat: 3 PCS campur dari Pasir 10L Lavender / Pasir 10L Apel')
+  })
+})

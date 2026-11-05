@@ -159,7 +159,9 @@ export async function resolveBatchCostPerBase(
   return cost ? Math.round(cost.toNumber()) : 0
 }
 
-export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT' | 'VOID_REVERSAL'
+// TRANSFER_RECEIVING = terima kiriman antar cabang (Gudang = pemasok toko, keputusan owner 2026-11-05);
+// CLEANUP = pembersihan sekali jalan utang lama lewat migrasi 0051.
+export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT' | 'VOID_REVERSAL' | 'TRANSFER_RECEIVING' | 'CLEANUP'
 
 /**
  * Melunasi shortfall terbuka (FIFO, tertua dulu) untuk (productId, branchId) memakai qtyBase

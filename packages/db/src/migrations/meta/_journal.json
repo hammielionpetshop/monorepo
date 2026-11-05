@@ -358,6 +358,20 @@
       "when": 1793359523601,
       "tag": "0050_delivery_method",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793446000000,
+      "tag": "0051_bersihkan_utang_stok_oktober",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793447000000,
+      "tag": "0052_promo_condition_group",
+      "breakpoints": true
     }
   ]
 }

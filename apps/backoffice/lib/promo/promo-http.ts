@@ -34,7 +34,8 @@ export const newPromoSchema = z.object({
   quotaKind: z.enum(PROMO_QUOTA_KINDS).nullish(),
   quotaPerBranch: z.number().int().nullish(),
   requireStock: z.boolean().optional().default(false),
-  conditions: z.array(z.object({ ...item, minQty: z.number().int() })).max(20, 'Barang syarat paling banyak 20'),
+  // Kelompok campur bisa berisi puluhan rasa/aroma, jadi batas barang syarat lebih longgar.
+  conditions: z.array(z.object({ ...item, minQty: z.number().int(), groupNo: z.number().int().positive().nullish() })).max(100, 'Barang syarat paling banyak 100'),
   rewards: z.array(z.object({
     ...item, type: z.enum(PROMO_REWARD_TYPES), value: z.number().int(), qty: z.number().int().nullable(),
   })).max(20, 'Barang yang dipotong paling banyak 20'),

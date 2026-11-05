@@ -68,6 +68,8 @@ afterAll(async () => {
     await db.delete(productCostSyncs).where(eq(productCostSyncs.branchId, destinationBranchId))
     await db.delete(productUomCosts).where(eq(productUomCosts.branchId, destinationBranchId))
     await db.delete(auditLogs).where(eq(auditLogs.branchId, destinationBranchId))
+    await db.execute(sql`DELETE FROM petshop.stock_shortfall_clearings WHERE shortfall_id IN (SELECT id FROM petshop.stock_shortfalls WHERE branch_id = ${destinationBranchId})`)
+    await db.delete(stockShortfalls).where(eq(stockShortfalls.branchId, destinationBranchId))
     await db.delete(productStockBatches).where(eq(productStockBatches.branchId, destinationBranchId))
     await db.delete(productStocks).where(eq(productStocks.branchId, destinationBranchId))
     for (const id of transferIds) {
@@ -296,6 +298,43 @@ describe('FIFO PostgreSQL lokal', () => {
     await invariant(product.id, 1)
     const [settled] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, deficit.id))
     expect(settled.qtyRemaining).toBe(0)
+  })
+
+  it('terima kiriman melunasi utang stok cabang tujuan (Gudang = pemasok toko)', async () => {
+    const product = await fixture(10)
+    // Toko (cabang tujuan) menjual 2 sebelum kiriman diterima di sistem → stok −2, utang 2.
+    await db.transaction(async tx => {
+      const result = await StockService.deductStock(tx, destinationBranchId, product.id, uomId, 2, true)
+      await tx.insert(stockShortfalls).values({
+        productId: product.id, branchId: destinationBranchId, qtyShort: result.shortfallQty, qtyRemaining: result.shortfallQty,
+        costPricePerUnit: result.shortfallCostPricePerUnit ?? 0, sourceType: 'SALE',
+      })
+    })
+    const [debt] = await db.select().from(stockShortfalls)
+      .where(sql`${stockShortfalls.productId} = ${product.id} AND ${stockShortfalls.branchId} = ${destinationBranchId}`)
+    expect(debt.qtyRemaining).toBe(2)
+
+    const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
+    transferIds.push(transfer.id)
+    const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 5, costPriceAtTransfer: 300 }).returning()
+    const request = (action: string, pin?: string) => new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ownerPin: pin, deliveryMethod: 'TRUCK', items: [{ itemId: item.id, qty: 5 }] }) })
+    expect((await transferStatus(request('ship', '1234'), { params: Promise.resolve({ id: String(transfer.id) }) })).status).toBe(200)
+    expect((await transferStatus(request('receive'), { params: Promise.resolve({ id: String(transfer.id) }) })).status).toBe(200)
+
+    const [after] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, debt.id))
+    expect(after.qtyRemaining).toBe(0)
+    expect(after.closedAt).not.toBeNull()
+    const [clearing] = await db.select().from(stockShortfallClearings).where(eq(stockShortfallClearings.shortfallId, debt.id))
+    expect(clearing).toMatchObject({ qtyCleared: 2, referenceType: 'TRANSFER_RECEIVING', referenceId: transfer.id, costPriceAtClearing: 300 })
+
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COALESCE(SUM(qty_remaining), 0) FROM petshop.product_stock_batches WHERE product_id = ${product.id} AND branch_id = ${destinationBranchId}) AS batch,
+        (SELECT COALESCE(SUM(qty), 0) FROM petshop.product_stocks WHERE product_id = ${product.id} AND branch_id = ${destinationBranchId}) AS aggregate
+    `)
+    // Stok toko: −2 + 5 = 3, dan batch ikut 3 (2 dipakai melunasi utang, bukan batch hantu).
+    expect(Number(rows[0].aggregate)).toBe(3)
+    expect(Number(rows[0].batch)).toBe(3)
   })
 
   it('dua ship identik yang menunggu header hanya memotong FIFO sekali', async () => {
