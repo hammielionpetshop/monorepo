@@ -1177,6 +1177,15 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.store_payment.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'logistics.outside_review_from': {
+    label: 'Tinjau di luar titik mulai tanggal',
+    module: 'logistics',
+    explain: 'Kiriman Terkirim di luar titik toko sejak tanggal ini masuk daftar Di Luar Titik untuk ditinjau Wajar / Tidak wajar (spec LT1 §17.1).',
+    type: { kind: 'date' },
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.store.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'logistics.returned_goods_from': {
     label: 'Barang kembali mulai tanggal',
     module: 'logistics',

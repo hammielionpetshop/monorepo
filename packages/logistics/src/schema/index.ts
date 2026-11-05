@@ -1076,3 +1076,66 @@ export const moneyChecks = logisticsSchema.table(
     check('money_checks_voided', sql`(${t.voidedAt} is null) = (${t.voidedByAccountId} is null) and (${t.voidedAt} is null) = (${t.voidReason} is null)`),
   ],
 );
+
+/**
+ * Pengisian bensin (spec LT1 §17.1 butir 1–5): sumber uang keluar bensin yang nanti dibaca modul Keuangan lewat view
+ * `logistics.fuel_expenses`. Diisi Finance dari permintaan driver (`request_id`) atau tanpa permintaan (alasan wajib).
+ * Ubah = baris baru menunjuk `correction_of_id`, baris lama `replaced_at`; Batal = `voided_at`. Tidak dihapus.
+ */
+export const fuelFills = logisticsSchema.table(
+  'fuel_fills',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').references(() => tripEndReports.id),
+    vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id),
+    driverEmployeeId: integer('driver_employee_id').notNull(),
+    filledOn: date('filled_on', { mode: 'string' }).notNull(),
+    amount: integer('amount').notNull(),
+    receiptFileId: uuid('receipt_file_id').notNull(),
+    /** Alasan tanpa permintaan (mis. "Driver lupa minta"); wajib bila request_id kosong. */
+    noRequestReason: text('no_request_reason'),
+    /** Cabang HRIS yang dibebani (cabang garasi Logistik saat dicatat). */
+    chargeBranchId: integer('charge_branch_id'),
+    correctionOfId: integer('correction_of_id'),
+    correctionReason: text('correction_reason'),
+    recordedByAccountId: integer('recorded_by_account_id').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    replacedAt: timestamp('replaced_at', { withTimezone: true }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedByAccountId: integer('voided_by_account_id'),
+    voidReason: text('void_reason'),
+  },
+  (t) => [
+    uniqueIndex('fuel_fills_request_current').on(t.requestId).where(sql`${t.requestId} is not null and ${t.replacedAt} is null and ${t.voidedAt} is null`),
+    index('fuel_fills_filled_on_idx').on(t.filledOn),
+    index('fuel_fills_vehicle_idx').on(t.vehicleId),
+    check('fuel_fills_amount', sql`${t.amount} > 0`),
+    check('fuel_fills_request', sql`(${t.requestId} is null) = (${t.noRequestReason} is not null)`),
+    check('fuel_fills_correction', sql`(${t.correctionOfId} is null) = (${t.correctionReason} is null)`),
+    check('fuel_fills_voided', sql`(${t.voidedAt} is null) = (${t.voidedByAccountId} is null) and (${t.voidedAt} is null) = (${t.voidReason} is null)
+      and (${t.voidedAt} is null or ${t.replacedAt} is null)`),
+  ],
+);
+
+/**
+ * Tinjau kiriman di luar titik toko (spec LT1 §17.1 butir 9; LOG-142): satu per kunjungan truk Terkirim atau tujuan antar
+ * sendiri Terkirim. OK = Wajar, NOT_OK = Tidak wajar (alasan wajib). Tidak dihapus.
+ */
+export const outsidePointReviews = logisticsSchema.table(
+  'outside_point_reviews',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').references(() => tripVisits.id),
+    selfStopId: integer('self_stop_id').references(() => selfTripStops.id),
+    verdict: text('verdict').notNull(),
+    reason: text('reason'),
+    reviewedByAccountId: integer('reviewed_by_account_id').notNull(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('outside_point_reviews_visit').on(t.visitId).where(sql`${t.visitId} is not null`),
+    uniqueIndex('outside_point_reviews_self_stop').on(t.selfStopId).where(sql`${t.selfStopId} is not null`),
+    check('outside_point_reviews_target', sql`(${t.visitId} is null) <> (${t.selfStopId} is null)`),
+    check('outside_point_reviews_verdict', sql`${t.verdict} in ('OK', 'NOT_OK') and (${t.verdict} = 'OK' or ${t.reason} is not null)`),
+  ],
+);

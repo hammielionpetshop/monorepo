@@ -57,6 +57,10 @@ const ANSWER_KEY = {
     'logistics.note_cut.decide': 'ALL',
     // LT4a (spec LT1 §16.1)
     'logistics.money_check.do': 'ALL',
+    // LT3b (spec LT1 §15.2)
+    'logistics.self_delivery.view': 'ALL',
+    // LT5a (spec LT1 §17.1)
+    'logistics.fuel.record': 'ALL',
   },
   Marketing: {
     ...EVERY_EMPLOYEE,
@@ -64,6 +68,10 @@ const ANSWER_KEY = {
     'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL', 'logistics.store.manage': 'ALL',
     // LT3a (spec LT1 §15.1)
     'logistics.load_report.view': 'ALL',
+    // LT3b (spec LT1 §15.2)
+    'logistics.self_delivery.view': 'ALL',
+    // LT5a (spec LT1 §17.1)
+    'logistics.dashboard.view': 'ALL',
   },
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
@@ -87,6 +95,10 @@ const ANSWER_KEY = {
     'logistics.store_payment.correct': 'ALL',
     // LT3a (spec LT1 §15.1)
     'logistics.load_report.view': 'ALL',
+    // LT3b, LT3c (spec LT1 §15.2, §15.3)
+    'logistics.self_delivery.view': 'ALL', 'logistics.self_delivery.manage': 'ALL',
+    // LT5a (spec LT1 §17.1)
+    'logistics.dashboard.view': 'ALL', 'logistics.outside_point.review': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,
@@ -95,9 +107,12 @@ const ANSWER_KEY = {
     'attendance.assist.view': 'BRANCH', 'attendance.photo.view': 'BRANCH',
     // LT3a (spec LT1 §15.1)
     'logistics.load_report.create': 'BRANCH', 'logistics.load_report.view': 'BRANCH',
+    // LT3b, LT3c (spec LT1 §15.2, §15.3)
+    'logistics.self_delivery.run': 'BRANCH', 'logistics.self_delivery.cash_receive': 'BRANCH', 'logistics.self_delivery.view': 'BRANCH',
+    'logistics.self_delivery.manage': 'BRANCH',
   },
-  Kasir: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH' },
-  Pramuniaga: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH' },
+  Kasir: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH', 'logistics.self_delivery.run': 'BRANCH', 'logistics.self_delivery.cash_receive': 'BRANCH' },
+  Pramuniaga: { ...EVERY_EMPLOYEE, 'logistics.load_report.create': 'BRANCH', 'logistics.self_delivery.run': 'BRANCH' },
   Groomer: EVERY_EMPLOYEE,
   'Belum ditentukan': EVERY_EMPLOYEE,
 }

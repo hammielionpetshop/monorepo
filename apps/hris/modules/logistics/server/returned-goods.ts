@@ -145,6 +145,11 @@ export async function returnedGoodsScreen(actor: Actor | null) {
 /** Angka Beranda: barang kembali yang belum diterima (pemegang hak terima). */
 export async function returnedGoodsWaiting(actor: Actor | null): Promise<number> {
   if (!actor || !can(actor, 'logistics.returned_goods.receive')) return 0;
+  return countReturnedGoodsWaiting();
+}
+
+/** Hitung barang kembali belum diterima tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countReturnedGoodsWaiting(): Promise<number> {
   return (await rowsOf(await sources(null))).filter((r) => r.next != null).length;
 }
 
@@ -271,6 +276,11 @@ export async function pendingNotesScreen(actor: Actor | null) {
 /** Angka tab dan Beranda: jumlah tertunda dan yang merah. */
 export async function pendingNoteCounts(actor: Actor | null): Promise<{ total: number; red: number }> {
   if (!actor || !can(actor, 'logistics.delivery_note.view')) return { total: 0, red: 0 };
+  return countPendingNotes();
+}
+
+/** Hitung surat jalan tertunda (dan yang merah) tanpa pemeriksaan hak (Dashboard Logistik). */
+export async function countPendingNotes(): Promise<{ total: number; red: number }> {
   const today = wibDate(new Date());
   const [rows, redDays] = await Promise.all([pendingRows(null), settingOn<number>('logistics.pending_red_days', today)]);
   return { total: rows.length, red: rows.filter((r) => pendingRed(ageDays(wibDate(new Date(r.first_at)), today), Number(redDays))).length };

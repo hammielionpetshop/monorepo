@@ -337,3 +337,9 @@ export async function openTripPhoto(actor: Actor | null, tripId: number, fileId:
   return fileId;
 }
 
+
+/** Trip truk yang sedang Berjalan untuk Dashboard Logistik (spec LT1 §17.1 butir 7), tanpa pemeriksaan hak. */
+export async function runningTripsBoard(): Promise<TripCard[]> {
+  const running = await db.select().from(trips).where(eq(trips.status, 'RUNNING'));
+  return cards(running, new Date());
+}

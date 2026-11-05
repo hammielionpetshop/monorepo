@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, keepKasirChange, markReady, releaseVisit,
-  removeCrew, reopenNote, retryVisit, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
+  addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, createTrip, decideNote, dropShopping, keepKasirChange, markReady, releaseVisit,
+  removeCrew, reopenNote, retryVisit, reviewOutside, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -34,7 +34,8 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('retry_visit'), tripId: id, visitId: id }),
   z.object({ action: z.literal('decide_note'), noteId: id, decision: z.enum(['RESEND', 'DROP']), reason }),
   z.object({ action: z.literal('reopen_note'), noteId: id }),
-  z.object({ action: z.literal('close_fuel'), reportId: id }),
+  // LT5a (spec LT1 §17.1 butir 9): tinjau kiriman di luar titik toko.
+  z.object({ action: z.literal('review_outside'), kind: z.enum(['TRUCK', 'SELF']), targetId: id, verdict: z.enum(['OK', 'NOT_OK']), reason: reason.nullable().optional() }),
   z.object({ action: z.literal('close_condition'), reportId: id, note: z.string().max(300).nullable().optional() }),
   // LT2b (spec LT1 §14.2): keputusan potong nota atas laporan toko, lalu Sudah dicatat di kasir.
   z.object({
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
       case 'retry_visit': return retryVisit(actor, body.tripId, body.visitId);
       case 'decide_note': return decideNote(actor, body.noteId, body.decision, body.reason);
       case 'reopen_note': return reopenNote(actor, body.noteId);
-      case 'close_fuel': return closeFuel(actor, body.reportId);
+      case 'review_outside': return reviewOutside(actor, body.kind, body.targetId, body.verdict, body.reason ?? null);
       case 'close_condition': return closeCondition(actor, body.reportId, body.note ?? null);
       case 'decide_visit_report': return decideVisitReport(actor, body.reportId, body);
       case 'record_decision': return markDecisionRecorded(actor, body.decisionId, body.ref);
