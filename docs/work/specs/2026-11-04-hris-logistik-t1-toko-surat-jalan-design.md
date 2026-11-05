@@ -578,3 +578,19 @@ Arahan owner (2026-11-05): modul Keuangan ada di rancangan v3 (aturan `06-keuang
 **Data.** Migrasi `logistics` 0016: `fuel_fills` (+ view `fuel_expenses`, trigger tanpa hapus), `outside_point_reviews` (kunjungan truk atau tujuan antar sendiri, Wajar / Tidak wajar, alasan, peninjau; unik per kiriman; tanpa hapus). Migrasi `hris` 0051: hak `logistics.fuel.record` (Finance ALL), `logistics.dashboard.view` (Kepala Gudang ALL, Marketing ALL), `logistics.outside_point.review` (Kepala Gudang ALL); setting `logistics.outside_review_from` 2026-11-05.
 
 **Di luar LT5a:** Laporan Logistik (LT5b), pemasangan baris bensin ke Buku Kas / Pemeriksaan Keuangan (modul Keuangan), uang bensin yang diberikan sebelum isi.
+
+### 17.2 LT5b Laporan Logistik (owner "ok setuju, saran anda juga saya setuju" 2026-11-06)
+
+| No | Keputusan |
+|---|---|
+| 1 | **Menu Logistik › Laporan Logistik** (`/logistik/laporan`, LOG-81/145): hanya membaca, tanpa tombol pengubah dan tanpa tabel angka baru. Rentang = periode 26–25 (12 pilihan, bawaan periode berjalan) atau tanggal bebas paling panjang 3 bulan (lebih dari itu ditolak dengan pesan). |
+| 2 | **Dasar tanggal**: trip truk = tanggal trip (Berangkat), antar sendiri = tanggal mulai (WIB); retur dan laporan barang = tanggal dilaporkan; bensin = tanggal isi (`fuel_expenses.filled_on`); ritase = tanggal trip; mobil perlu perhatian = tanggal Laporan Pulang. Tulisan di atas laporan menjelaskan bedanya dengan laporan uang kasir/POS. |
+| 3 | **Enam tab**: Ringkasan; Per trip & perjalanan (satu baris per trip truk / antar sendiri, termasuk trip belanja saja); Per toko (nota Umum antar sendiri = satu baris "Umum", kunjungan PO Internal ke cabang tidak ikut); Per cabang pemilik nota (nota dihitung per cabang kasir asal; uang dicatat per kunjungan, kunjungan bernota beberapa cabang masuk baris **Campuran** — tidak dibagi tebakan); Per mobil; Per awak (kunjungan dihitung untuk setiap awak trip itu). |
+| 4 | **Uang**: tunai = Lunas cash + Bayar sebagian, transfer = Transfer, dari cara bayar yang berlaku. **Terperiksa** = baris `money_checks` berlaku (dilaporkan vs diterima); **Belum diperiksa** = sisa yang dilaporkan. Tempo / Bayar sebagian hanya banyaknya. **Tanpa piutang.** Kurang serah = tunai diterima < laporan, atas nama pembawa. |
+| 5 | **Ritase** dari `trip_wages` (tidak dibatalkan) sebagai banyaknya, tanpa rupiah; Ringkasan dan Per mobil menghitung baris driver, Per awak baris orangnya. Bensin "lupa minta" = pengisian tanpa permintaan atas nama driver. |
+| 6 | **Hak**: baru `logistics.report.view` (Kepala Gudang, Marketing, Finance ALL; Pemilik/GM lewat full_access). **Kepala Toko tidak** (owner). Bensin tampil untuk pemegang `logistics.vehicle_followup.manage` / `logistics.fuel.record`; kurang serah untuk pemegang `logistics.money_check.do` / `logistics.store_payment.view` — hasilnya **Marketing tanpa bensin dan kurang serah** (owner). |
+| 7 | **Unduh CSV** per tab (titik koma, BOM, baris judul + rentang + pembuat), dibuat server; tiap unduhan dicatat di `hris.audit_events` (entity `logistics_report`, action `DOWNLOAD`, tab + rentang). Format CSV (bukan .xlsx) seperti ekspor HRIS lain. |
+
+**Data.** Tanpa migrasi `logistics`. Migrasi `hris` 0052: hak `logistics.report.view`. Kode: `modules/logistics/rules/logistics-report.ts` (rentang, penjumlahan, CSV), `server/logistics-report.ts` (kueri baca), `ui/logistics-report-screen.tsx`, `/api/logistics/report`.
+
+**Di luar LT5b:** angka rupiah ritase/upah (ada di Ritase & slip), piutang, saringan per cabang/mobil di layar, unduh Excel .xlsx.

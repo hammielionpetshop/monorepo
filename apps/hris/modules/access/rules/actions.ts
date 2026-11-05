@@ -194,6 +194,7 @@ export const ACTIONS = {
   'logistics.fuel.record': { label: 'Bensin: isi nominal + foto struk permintaan driver, catat bensin tanpa permintaan, ubah dan batalkan', group: LOGISTICS },
   'logistics.dashboard.view': { label: 'Lihat Dashboard Logistik (berjalan sekarang, pengiriman, uang)', group: LOGISTICS },
   'logistics.outside_point.review': { label: 'Tinjau kiriman di luar titik toko: Wajar / Tidak wajar', group: LOGISTICS },
+  'logistics.report.view': { label: 'Lihat dan unduh Laporan Logistik (bensin dan kurang serah hanya untuk pemegang hak bensin / uang)', group: LOGISTICS },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
   'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },

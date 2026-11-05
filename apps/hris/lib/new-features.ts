@@ -217,6 +217,7 @@ export const NEW_FEATURES: Record<string, string> = {
   // LT5a Bensin + Dashboard + Di luar titik (tayang staging 2026-11-06)
   '/logistik/dashboard': '2026-11-06',
   '/logistik/di-luar-titik': '2026-11-06',
+  '/logistik/laporan': '2026-11-06', // LT5b Laporan Logistik (tayang staging 2026-11-06)
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 
