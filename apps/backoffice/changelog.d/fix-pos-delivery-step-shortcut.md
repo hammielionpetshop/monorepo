@@ -1,0 +1,2 @@
+### Fixed
+- **Tombol 1 / 2 / 3 di langkah "Barang ini bagaimana sampainya?" kini langsung jalan.** Sebelumnya, bila kursor masih tertinggal di kotak cari produk (mis. sesudah scan barcode lalu F10), menekan 1/2/3 tidak memilih apa-apa dan angkanya malah masuk ke kotak cari di belakang. Kini kursor dipindah ke langkah Pengiriman saat dibuka: 1 = Ambil sendiri, 2 = Dikirim kurir cabang, 3 = Dikirim truk Gudang. Mengetik nilai ongkir atau memilih pengantar di dalam langkah itu tidak terganggu.
