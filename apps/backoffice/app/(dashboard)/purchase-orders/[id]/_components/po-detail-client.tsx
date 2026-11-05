@@ -15,6 +15,10 @@ import { effectiveUnitCost, isPricePending } from '../../_components/po-item-def
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog';
 import { PO_STAGE_INFO, poStage } from '@/lib/po-stage';
 import { SupplierPaymentDialog } from '../../supplier-payables/_components/supplier-payment-dialog';
+import { NewBadge } from '@/components/ui/new-badge';
+import { POCancelDialog } from './po-cancel-dialog';
+
+const CANCELLABLE_STATUSES = ['APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
 
 const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 
@@ -60,6 +64,8 @@ interface PO {
   totalAmount: string;
   notes: string | null;
   rejectionNote: string | null;
+  /** Diisi untuk PO Dibatalkan lewat tombol Batalkan PO (dari audit log). */
+  cancellation: { reason: string; byName: string | null; at: string } | null;
   invoiceNumber: string | null;
   targetDeliveryDate: string | null;
   approvedAt: string | null;
@@ -99,6 +105,7 @@ export function PODetailClient({
   canEditInvoice,
   isNew,
   canPay,
+  canCancel,
   paymentMethods,
   supplierCreditBalance,
   today,
@@ -109,6 +116,8 @@ export function PODetailClient({
   canEditInvoice: boolean;
   isNew: boolean;
   canPay: boolean;
+  /** Hak po.approve — boleh Batalkan PO & Tutup Sisa PO. */
+  canCancel: boolean;
   paymentMethods: { id: number; name: string; type?: string }[];
   supplierCreditBalance: number;
   today: string;
@@ -128,6 +137,7 @@ export function PODetailClient({
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [printingLogId, setPrintingLogId] = useState<number | null>(null);
+  const [cancelPoOpen, setCancelPoOpen] = useState(false);
 
   const stage = poStage(po.status, po.pricePendingReceived);
   const statusInfo = PO_STAGE_INFO[stage];
@@ -447,6 +457,17 @@ export function PODetailClient({
             <p className="text-sm mt-0.5 text-destructive">{po.rejectionNote}</p>
           </div>
         )}
+
+        {po.cancellation && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-destructive">Alasan Pembatalan</p>
+            <p className="text-sm mt-0.5 text-destructive">{po.cancellation.reason}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Dibatalkan oleh {po.cancellation.byName ?? '-'} ·{' '}
+              {formatWIB(po.cancellation.at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        )}
       </div>
 
       {pricePendingCount > 0 && (
@@ -703,7 +724,42 @@ export function PODetailClient({
         {canMatchInvoice && pricePendingCount === 0 && (
           <div className="mt-4 pt-4 border-t border-border">{invoiceMatch}</div>
         )}
+
+        {canCancel && CANCELLABLE_STATUSES.includes(po.status) && (
+          <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {po.status === 'COMPLETED'
+                ? 'Salah input? PO Selesai bisa dibatalkan selama hutangnya belum dibayar dan barangnya belum terpakai (perlu PIN Owner).'
+                : 'Salah input atau tidak jadi pesan? PO ini bisa dibatalkan.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setCancelPoOpen(true)}
+              disabled={loading !== null}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+            >
+              Batalkan PO <NewBadge feature="fitur/batalkan-po" />
+            </button>
+          </div>
+        )}
       </div>
+
+      {cancelPoOpen && (
+        <POCancelDialog
+          poId={po.id}
+          poNumber={po.poNumber}
+          status={po.status}
+          branchName={po.branch.name}
+          supplierName={po.supplier.name}
+          hasReceivingInput={po.receivingLogs.length > 0}
+          onClose={() => setCancelPoOpen(false)}
+          onCancelled={(message) => {
+            setCancelPoOpen(false);
+            setSuccessMsg(message);
+            refresh();
+          }}
+        />
+      )}
 
       {confirmApproveReceiving && (
         <RequiredChoiceDialog

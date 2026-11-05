@@ -52,6 +52,7 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     actions: [
       { value: 'PO_RECEIVING', label: 'Penerimaan barang PO' },
       { value: 'PO_RECEIVING_REVERSED', label: 'Penerimaan PO dibatalkan' },
+      { value: 'PO_CANCELLED', label: 'PO dibatalkan' },
     ],
   },
   {
