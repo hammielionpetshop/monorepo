@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-05 04:03 -->
 ### Added
 
 - **Antar Sendiri** (menu Logistik › Antar Sendiri): nota kasir yang dipilih **Diantar kurir cabang** otomatis menjadi tugas antar. Nota yang pengantarnya di kasir adalah Anda tampil di **Untuk Anda**; nota kurir lain di cabang (pengantar orang lain atau belum dipasangkan) tetap bisa dibawa dan ditandai **pengantar beda dengan kasir**. Bonus ongkir tetap mengikuti pengantar di kasir.
