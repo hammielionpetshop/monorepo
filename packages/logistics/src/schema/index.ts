@@ -511,9 +511,13 @@ export const visitReports = logisticsSchema.table(
   'visit_reports',
   {
     id: serial('id').primaryKey(),
-    visitId: integer('visit_id').notNull().references(() => tripVisits.id),
-    tripId: integer('trip_id').notNull().references(() => trips.id),
-    customerId: integer('customer_id').notNull(),
+    /** Sumber: kunjungan trip truk (visit + trip), atau tujuan antar sendiri (self stop + self trip, spec LT1 §15.4). */
+    visitId: integer('visit_id').references(() => tripVisits.id),
+    tripId: integer('trip_id').references(() => trips.id),
+    selfStopId: integer('self_stop_id').references(() => selfTripStops.id),
+    selfTripId: integer('self_trip_id').references(() => selfTrips.id),
+    /** Kosong hanya untuk tujuan antar sendiri nota Umum. */
+    customerId: integer('customer_id'),
     /** WRONG_ITEM, SHORT, DAMAGED, PRICE (harga beda, LT2b), RETURN, OTHER. */
     kind: text('kind').notNull(),
     note: text('note'),
@@ -529,7 +533,10 @@ export const visitReports = logisticsSchema.table(
   },
   (t) => [
     index('visit_reports_visit_idx').on(t.visitId),
+    index('visit_reports_self_stop_idx').on(t.selfStopId),
     index('visit_reports_open_idx').on(t.closedAt),
+    check('visit_reports_source', sql`(${t.visitId} is not null and ${t.tripId} is not null and ${t.customerId} is not null and ${t.selfStopId} is null and ${t.selfTripId} is null)
+      or (${t.visitId} is null and ${t.tripId} is null and ${t.selfStopId} is not null and ${t.selfTripId} is not null)`),
     check('visit_reports_kind', sql`${t.kind} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'RETURN', 'OTHER') and (${t.kind} not in ('OTHER', 'PRICE') or ${t.note} is not null)`),
     check('visit_reports_carried', sql`${t.carriedBack} = (${t.kind} = 'RETURN')`),
     check('visit_reports_closed', sql`(${t.closedAt} is null) = (${t.closeNote} is null) and (${t.closedAt} is null) = (${t.closedByAccountId} is null)`),
@@ -706,6 +713,8 @@ export const reportDecisions = logisticsSchema.table(
     decision: text('decision').notNull(),
     /** Surat jalan nota yang dipotong / diretur (`delivery_notes.id`, jenis SALE). */
     noteId: integer('note_id').references(() => deliveryNotes.id),
+    /** Nota kasir laporan antar sendiri (`self_trip_stops.transaction_id`; spec LT1 §15.4); laporan truk memakai `note_id`. */
+    transactionId: integer('transaction_id'),
     amount: integer('amount'),
     /** WRONG_ITEM, SHORT, DAMAGED, PRICE, REJECTED, OTHER (hanya CUT). */
     reason: text('reason'),
@@ -726,7 +735,8 @@ export const reportDecisions = logisticsSchema.table(
     check('report_decisions_cut', sql`(${t.decision} = 'CUT') = (${t.amount} is not null and ${t.reason} is not null)
       and (${t.amount} is null or ${t.amount} > 0)
       and (${t.reason} is null or ${t.reason} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'REJECTED', 'OTHER'))
-      and (${t.decision} = 'NO_CUT' or ${t.noteId} is not null)
+      and (${t.decision} = 'NO_CUT' or ${t.noteId} is not null or ${t.transactionId} is not null)
+      and (${t.noteId} is null or ${t.transactionId} is null)
       and (${t.decision} <> 'NO_CUT' or ${t.note} is not null)`),
     check('report_decisions_recorded', sql`(${t.recordedAt} is null) = (${t.recordedByAccountId} is null) and (${t.recordedAt} is null) = (${t.recordedRef} is null)
       and (${t.recordedAt} is null or ${t.decision} <> 'NO_CUT')`),
@@ -937,15 +947,23 @@ export const selfTripEvents = logisticsSchema.table(
     reason: text('reason'),
     fromEmployeeId: integer('from_employee_id'),
     toEmployeeId: integer('to_employee_id'),
+    /**
+     * Koreksi cara bayar (PAYMENT_CORRECTED, spec LT1 §15.4): tunai perjalanan sebelum / sesudah, dan tunai yang sudah
+     * diterima laci saat dikoreksi (penerimaan itu dibuka lagi bila tunainya berubah).
+     */
+    cashBefore: integer('cash_before'),
+    cashAfter: integer('cash_after'),
+    cashReceivedBefore: integer('cash_received_before'),
     byEmployeeId: integer('by_employee_id').notNull(),
     byAccountId: integer('by_account_id').notNull(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('self_trip_events_trip_idx').on(t.tripId),
-    check('self_trip_events_kind', sql`${t.kind} in ('CLOSED', 'HANDOVER', 'RESENT', 'DROPPED')`),
+    check('self_trip_events_kind', sql`${t.kind} in ('CLOSED', 'HANDOVER', 'RESENT', 'DROPPED', 'PAYMENT_CORRECTED')`),
     check('self_trip_events_handover', sql`(${t.kind} = 'HANDOVER') = (${t.toEmployeeId} is not null and ${t.fromEmployeeId} is not null)`),
-    check('self_trip_events_stop', sql`(${t.kind} in ('RESENT', 'DROPPED')) = (${t.stopId} is not null)`),
+    check('self_trip_events_stop', sql`(${t.kind} in ('RESENT', 'DROPPED', 'PAYMENT_CORRECTED')) = (${t.stopId} is not null)`),
+    check('self_trip_events_cash', sql`(${t.kind} = 'PAYMENT_CORRECTED') = (${t.cashBefore} is not null and ${t.cashAfter} is not null)`),
   ],
 );
 
@@ -969,9 +987,13 @@ export const selfTripPayments = logisticsSchema.table(
     recordedByEmployeeId: integer('recorded_by_employee_id').notNull(),
     recordedByAccountId: integer('recorded_by_account_id').notNull(),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Koreksi salah tekan (spec LT1 §15.4): baris yang dikoreksi + alasan; baris lama ditandai Diganti. */
+    correctionOfId: integer('correction_of_id'),
+    correctionReason: text('correction_reason'),
+    replacedAt: timestamp('replaced_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('self_trip_payments_stop_unique').on(t.stopId),
+    uniqueIndex('self_trip_payments_stop_current').on(t.stopId).where(sql`${t.replacedAt} is null`),
     index('self_trip_payments_trip_idx').on(t.tripId),
     check('self_trip_payments_method', sql`${t.method} in ('NONE', 'CASH', 'TRANSFER', 'PARTIAL', 'TEMPO')`),
     check('self_trip_payments_amounts', sql`${t.billAmount} >= 0 and ${t.receivedAmount} >= 0 and (
@@ -982,5 +1004,6 @@ export const selfTripPayments = logisticsSchema.table(
     check('self_trip_payments_customer', sql`${t.method} = 'NONE' or ${t.customerId} is not null`),
     check('self_trip_payments_proof', sql`(${t.method} = 'TRANSFER') = (${t.proofPhotoFileId} is not null)`),
     check('self_trip_payments_promise', sql`(${t.promiseDate} is not null) = (${t.method} in ('PARTIAL', 'TEMPO'))`),
+    check('self_trip_payments_correction', sql`(${t.correctionOfId} is null) = (${t.correctionReason} is null)`),
   ],
 );

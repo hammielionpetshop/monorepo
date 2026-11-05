@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { selfTripEvents, selfTripPayments, selfTrips, selfTripStops } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, type Actor, type ServiceResult } from '@/modules/access';
@@ -11,6 +11,7 @@ import {
 import { addDays, wibDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames } from './data';
 import { branchAccounts, onDuty, openSales, tripViews, type SelfTripView } from './self-delivery';
+import { canCorrectSelf } from './self-delivery-money';
 
 // Antar sendiri sisi kantor (spec LT1 §15.3, LT3c): daftar per cabang, tutup perjalanan, alihkan PJ, keputusan Gagal,
 // tanda 23.59, pengantar kasir belum dipasangkan. Semua tindakan tercatat di self_trip_events (tidak dihapus).
@@ -112,6 +113,8 @@ export async function selfDeliveryOfficeScreen(actor: Actor | null, filter: { ta
       ...t,
       canManage: officeActorProblem({ allowed: can(actor, MANAGE, { branchId: t.branchId }), actorEmployeeId: actor.personId, pjEmployeeId: t.employeeId }) === null,
       canDecide: can(actor, MANAGE, { branchId: t.branchId }),
+      // Koreksi cara bayar sesudah Foto 3 (spec LT1 §15.4 butir 2); selama berjalan oleh PJ di HP-nya.
+      canCorrect: t.status !== 'RUNNING' && canCorrectSelf(actor, t),
       canCash: can(actor, CASH, { branchId: t.branchId }) && t.employeeId !== actor.personId,
       candidates: (candidates.get(t.branchId) ?? []).filter((c) => c.id !== t.employeeId),
     })),
@@ -144,7 +147,7 @@ export async function closeSelfTrip(actor: Actor | null, tripId: number, reason:
         doneAt: now, doneByEmployeeId: actor.personId,
       }).where(and(eq(selfTripStops.tripId, tripId), eq(selfTripStops.status, 'OPEN')));
       const payments = await tx.select({ method: selfTripPayments.method, receivedAmount: selfTripPayments.receivedAmount })
-        .from(selfTripPayments).where(eq(selfTripPayments.tripId, tripId));
+        .from(selfTripPayments).where(and(eq(selfTripPayments.tripId, tripId), isNull(selfTripPayments.replacedAt)));
       const cash = cashOf(payments);
       await tx.update(selfTrips).set({
         status: 'CLOSED', closedAt: now, closedByEmployeeId: actor.personId, closedByAccountId: actor.accountId, closeReason: clean.text, cashAmount: cash,

@@ -1,0 +1,7 @@
+<!-- tayang: 2026-11-05 21:00 -->
+### Added
+
+- **Uang dari Toko memuat antar sendiri**: cara bayar yang dicatat pengantar antar sendiri ikut tampil per tanggal, dengan saringan **Semua / Truk / Antar sendiri** dan saringan cabang. Kartu ringkasan memisahkan cash yang dibawa driver truk dan tunai antar sendiri yang masuk laci cabang; daftar per perjalanan menandai tunai sudah / belum diterima laci.
+- **Koreksi cara bayar antar sendiri** (salah tekan): selama perjalanan belum Foto 3 oleh PJ-nya sendiri dari halaman Antar Sendiri; sesudahnya oleh Kepala Toko cabang itu, Kepala Gudang, Pemilik, atau GM (bukan PJ-nya) dari Antar Sendiri · Kantor atau Uang dari Toko. Alasan wajib, Lunas transfer wajib bukti, Finance diberi tahu, dan koreksi tercatat di riwayat perjalanan.
+- Bila koreksi sesudah Foto 3 mengubah jumlah tunai yang **sudah diterima laci**, penerimaan dibuka lagi: perjalanan kembali ke tab Tunai belum diterima dengan jumlah baru dan rekan cabang menekan Sudah diterima ulang.
+- **Lapor masalah / retur dari tujuan antar sendiri**: sesudah Terkirim dan sebelum Foto 3, PJ memilih Barang salah / kurang / rusak / Harga beda / Retur (dibawa pulang) / Kendala lain + foto. Laporan masuk **Laporan Toko** bertanda "Antar sendiri · cabang", Finance memutuskan potong nota atas nota kasirnya, lalu masuk **Perlu dicatat di kasir** seperti laporan truk. Kepala Toko cabang itu ikut diberi tahu. Retur antar sendiri langsung dibawa PJ ke tokonya, tanpa langkah Barang Kembali.

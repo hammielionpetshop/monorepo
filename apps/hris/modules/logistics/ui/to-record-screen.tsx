@@ -25,8 +25,8 @@ function RecordCard({ row, onRecord }: { row: ToRecordRow; onRecord?: (row: ToRe
             {row.red && <Badge tone="danger">Lewat {row.days} hari</Badge>}
           </p>
           <p className="text-sm">
-            <Link href={`/logistik/toko/${row.customerId}`} className="underline">{row.store}</Link>
-            <span className="text-ink-muted"> · trip <Link href={`/logistik/trip/${row.tripId}`} className="underline">{row.tripNumber}</Link></span>
+            {row.customerId != null ? <Link href={`/logistik/toko/${row.customerId}`} className="underline">{row.store}</Link> : <span>{row.store}</span>}
+            <span className="text-ink-muted"> · {row.source ? `${row.source} · perjalanan` : 'trip'} <Link href={row.tripHref} className="underline">{row.tripNumber}</Link></span>
           </p>
           <p className="text-sm text-ink-muted">
             Laporan {row.reportLabel}{row.reportNote ? `: ${row.reportNote}` : ''} · <a href={row.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a>

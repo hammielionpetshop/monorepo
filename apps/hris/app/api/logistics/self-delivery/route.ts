@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  closeSelfTrip, decideSelfStop, finishSelfTrip, handoverSelfTrip, proposeFromSelfStop, receiveSelfCash, selfStopOutcome, startSelfTrip,
+  addSelfStopReport, closeSelfTrip, correctSelfPayment, decideSelfStop, finishSelfTrip, handoverSelfTrip, proposeFromSelfStop, receiveSelfCash,
+  selfStopOutcome, startSelfTrip,
 } from '@/modules/logistics';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,17 @@ const positive = (value: FormDataEntryValue | null) => {
 const coord = (value: FormDataEntryValue | null) => (value == null || value === '' ? null : Number(value));
 const text = (value: FormDataEntryValue | null | undefined, max: number) => (typeof value === 'string' ? value.slice(0, max) : null);
 const fileOf = (value: FormDataEntryValue | null) => (value instanceof File ? value : null);
-const OUTCOMES = { deliver: 'DELIVERED', tomorrow: 'TOMORROW', fail: 'FAILED' } as const;
+/** Rincian barang retur dikirim sebagai JSON di field `items` (sama dengan laporan kunjungan truk). */
+const itemsOf = (value: FormDataEntryValue | null) => {
+  if (typeof value !== 'string' || value.length > 20_000) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.slice(0, 50).map((i) => ({ name: text(i?.name, 200), quantity: text(String(i?.quantity ?? ''), 20), unit: text(i?.unit, 40) })) : null;
+  } catch {
+    return null;
+  }
+};
+const OUTCOMES ={ deliver: 'DELIVERED', tomorrow: 'TOMORROW', fail: 'FAILED' } as const;
 const bad = { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
 
 // Antar sendiri (spec LT1 §15.2): Mulai antar (Foto 1), hasil tujuan (Foto 2 + cara bayar), Kembali (Foto 3), terima tunai,
@@ -57,6 +68,20 @@ export async function POST(req: Request) {
     if (action === 'handover') {
       const toEmployeeId = positive(form.get('toEmployeeId'));
       return toEmployeeId ? handoverSelfTrip(actor, tripId, toEmployeeId, text(form.get('reason'), 400)) : bad;
+    }
+    // Uang & laporan antar sendiri (spec LT1 §15.4): koreksi cara bayar, Lapor masalah / retur dari tujuan.
+    if (action === 'correct_payment') {
+      const stopId = positive(form.get('stopId'));
+      if (!stopId) return bad;
+      return correctSelfPayment(actor, stopId, {
+        method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')), promiseDate: text(form.get('promiseDate'), 10),
+        reason: text(form.get('reason'), 600),
+      }, photo);
+    }
+    if (action === 'self_report') {
+      const stopId = positive(form.get('stopId'));
+      if (!stopId) return bad;
+      return addSelfStopReport(actor, tripId, stopId, { kind: text(form.get('kind'), 20), note: text(form.get('note'), 400), items: itemsOf(form.get('items')) }, photo);
     }
     if (action === 'store_point') {
       const stopId = positive(form.get('stopId'));
