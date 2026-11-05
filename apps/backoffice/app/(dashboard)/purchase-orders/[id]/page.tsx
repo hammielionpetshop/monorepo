@@ -14,7 +14,9 @@ import {
   supplierPayables,
   users,
   paymentMethods,
+  auditLogs,
   eq,
+  and,
   ne,
   asc,
   desc,
@@ -47,6 +49,7 @@ export default async function PODetailPage({
   const role = (payload as any)?.role ?? 'OWNER';
   const canEditInvoice = payload ? hasPermission(payload, 'po.financial') : false;
   const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
+  const canCancel = payload ? hasPermission(payload, 'po.approve') : false;
   const today = todayWibDate();
   let methods: { id: number; name: string }[] = [];
   let creditBalance = 0;
@@ -145,6 +148,30 @@ export default async function PODetailPage({
 
     if (!poRows[0]) return notFound();
 
+    let cancellation: { reason: string; byName: string | null; at: string } | null = null;
+    if (poRows[0].status === 'CANCELLED') {
+      const [audit] = await db
+        .select({ newData: auditLogs.newData, createdAt: auditLogs.createdAt, byName: users.name })
+        .from(auditLogs)
+        .leftJoin(users, eq(auditLogs.userId, users.id))
+        .where(and(
+          eq(auditLogs.tableName, 'purchase_orders'),
+          eq(auditLogs.recordId, String(poId)),
+          eq(auditLogs.action, 'PO_CANCELLED'),
+        ))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(1);
+      if (audit) {
+        let reason = '-';
+        try {
+          reason = JSON.parse(audit.newData ?? '{}').reason ?? '-';
+        } catch {
+          // Data audit lama yang bukan JSON — tampilkan tanda strip saja.
+        }
+        cancellation = { reason, byName: audit.byName, at: audit.createdAt.toISOString() };
+      }
+    }
+
     const row = poRows[0];
     const [lastCosts, pendingByPo, methodRows] = await Promise.all([
       loadLastCosts(row.branchId, itemRows),
@@ -160,6 +187,7 @@ export default async function PODetailPage({
     const pending = pendingByPo.get(poId);
     po = {
       ...row,
+      cancellation,
       supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
       branch: { id: row.branchId, name: row.branchName ?? '-' },
       items: itemRows.map((item) => ({
@@ -208,6 +236,7 @@ export default async function PODetailPage({
         canEditInvoice={canEditInvoice}
         isNew={baru === '1'}
         canPay={canPay}
+        canCancel={canCancel}
         paymentMethods={methods}
         supplierCreditBalance={creditBalance}
         today={today}
