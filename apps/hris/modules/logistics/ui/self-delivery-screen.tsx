@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonClass } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
@@ -133,9 +134,12 @@ export function SelfDeliveryScreen({ data }: { data: SelfDeliveryScreenData }) {
       )}
 
       {data.canView && (
-        <Card className="space-y-2">
-          <h2 className="font-semibold">Perjalanan antar sendiri cabang (7 hari)</h2>
-          {!data.branchTrips.length ? <p className="text-sm text-ink-muted">Belum ada.</p> : data.branchTrips.map((t) => <TripSummary key={t.id} trip={t} showPj />)}
+        <Card className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Antar sendiri cabang (kantor)</h2>
+            <p className="text-sm text-ink-muted">Perjalanan berjalan, belum kembali, Gagal perlu keputusan, tunai belum diterima.</p>
+          </div>
+          <Link href="/logistik/antar-sendiri/kantor" className={buttonClass({ variant: 'secondary' })}>Buka layar kantor</Link>
         </Card>
       )}
     </div>
@@ -190,15 +194,24 @@ function TaskList({ title, hint, tasks, picked, toggle }: { title: string; hint?
   );
 }
 
-function TripSummary({ trip, showPj = false }: { trip: SelfTripView; showPj?: boolean }) {
+export function TripSummary({ trip, showPj = false, open = false, stopExtra }: {
+  trip: SelfTripView; showPj?: boolean; open?: boolean; stopExtra?: (stop: SelfStopView) => React.ReactNode;
+}) {
   return (
-    <details className="rounded-lg border border-line p-2 text-sm">
+    <details className="rounded-lg border border-line p-2 text-sm" open={open}>
       <summary className="cursor-pointer">
         {trip.number}{showPj ? ` · ${trip.pj}` : ''} · {trip.statusLabel} · {trip.startedAt}{trip.returnedAt ? ` → ${trip.returnedAt.slice(11)}` : ''}
         {trip.cash > 0 && ` · tunai ${rupiah(trip.cash)}${trip.cashReceived ? ' diterima' : ''}`}
         {trip.cashLate && <Badge tone="danger">tunai belum diterima</Badge>}
+        {trip.late && <> <Badge tone="danger">belum kembali lewat 23.59</Badge></>}
       </summary>
       <div className="mt-2 space-y-2">
+        {trip.closed && <p className="text-xs">Ditutup kantor oleh {trip.closed.by}, {trip.closed.at}: {trip.closed.reason}</p>}
+        {trip.events.length > 0 && (
+          <ul className="space-y-0.5 text-xs text-ink-muted">
+            {trip.events.map((e, i) => <li key={i}>{e.at} · {e.label}: {e.text}</li>)}
+          </ul>
+        )}
         {trip.gapReason && <p className="text-xs">Selisih {trip.gapMinutes} menit: {trip.gapReason}</p>}
         {trip.cashReceived && <p className="text-xs">Tunai diterima {trip.cashReceived.by}, {trip.cashReceived.at}</p>}
         <div className="flex flex-wrap gap-2 text-xs">
@@ -212,6 +225,8 @@ function TripSummary({ trip, showPj = false }: { trip: SelfTripView; showPj?: bo
               {s.photoUrl && <a className="text-brand underline" href={s.photoUrl} target="_blank" rel="noreferrer">Foto 2</a>}
               {s.proofUrl && <a className="text-brand underline" href={s.proofUrl} target="_blank" rel="noreferrer">Bukti transfer</a>}
             </div>
+            {s.decision && <p className="text-xs">Keputusan: <b>{s.decision.label}</b>{s.decision.reason ? ` · ${s.decision.reason}` : ''} · {s.decision.at}</p>}
+            {stopExtra?.(s)}
           </div>
         ))}
       </div>
@@ -219,7 +234,7 @@ function TripSummary({ trip, showPj = false }: { trip: SelfTripView; showPj?: bo
   );
 }
 
-function CashRow({ trip }: { trip: SelfTripView }) {
+export function CashRow({ trip }: { trip: SelfTripView }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -235,7 +250,7 @@ function CashRow({ trip }: { trip: SelfTripView }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line p-2 text-sm">
       <span>
-        {trip.number} · {trip.pj} · kembali {trip.returnedAt} · <b className="tabular-nums">{rupiah(trip.cash)}</b>
+        {trip.number} · {trip.pj} · {trip.closed ? `ditutup kantor ${trip.closed.at}` : `kembali ${trip.returnedAt}`} · <b className="tabular-nums">{rupiah(trip.cash)}</b>
         {trip.cashLate && <> <Badge tone="danger">lewat hari</Badge></>}
       </span>
       <Button size="sm" loading={busy} onClick={receive}>Sudah diterima</Button>

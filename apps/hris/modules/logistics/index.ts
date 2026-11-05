@@ -101,3 +101,8 @@ export {
 } from './server/self-delivery';
 export { proposeFromSelfStop } from './server/store-points';
 export { SelfDeliveryScreen } from './ui/self-delivery-screen';
+export { OFFICE_TABS, officeTab, type OfficeTab } from './rules/self-delivery-office';
+export {
+  closeSelfTrip, decideSelfStop, handoverSelfTrip, selfDeliveryAttention, selfDeliveryOfficeScreen, type SelfDeliveryOfficeData,
+} from './server/self-delivery-office';
+export { SelfDeliveryOfficeScreen } from './ui/self-delivery-office-screen';

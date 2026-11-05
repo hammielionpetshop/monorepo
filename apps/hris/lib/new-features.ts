@@ -207,6 +207,9 @@ export const NEW_FEATURES: Record<string, string> = {
   // LT3b Antar sendiri (tayang staging 2026-11-05)
   '/logistik/antar-sendiri': '2026-11-05',
   'fitur/antar-sendiri-bonus': '2026-11-05', // tanda foto antar belum lengkap di bonus ongkir
+  // LT3c Antar sendiri kantor (tayang staging 2026-11-05)
+  '/logistik/antar-sendiri/kantor': '2026-11-05',
+  'fitur/beranda-antar-sendiri': '2026-11-05', // kartu Beranda: antar belum kembali, Gagal perlu keputusan, tunai belum diterima
   'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };
 

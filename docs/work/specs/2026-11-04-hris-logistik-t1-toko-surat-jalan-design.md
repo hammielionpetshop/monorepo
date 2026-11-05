@@ -461,7 +461,8 @@ Tahap 3 = laporan muat cabang + antar sendiri. Dipecah tiga, diuji berurutan:
 |---|---|---|
 | **LT3a Laporan Muat** | Bukti foto barang yang dimuat di Toko Pusat untuk menjawab komplain | Disetujui owner 2026-11-05 (§15.1) |
 | **LT3b Antar sendiri (HP pengantar)** | Nota Kurir cabang: Foto 1 ambil barang, Foto 2 + Terkirim / Kirim Besok / Gagal + cara bayar di tujuan, Foto 3 kembali | Disetujui owner 2026-11-05 (§15.2) |
-| **LT3c Antar sendiri (kantor)** | Daftar per cabang, tutup perjalanan dengan alasan, tanda 23.59, pengantar kasir belum dipasangkan | Menyusul LT3b |
+| **LT3c Antar sendiri (kantor)** | Daftar per cabang, tutup perjalanan dengan alasan, alihkan PJ, keputusan Gagal, tanda 23.59, pengantar kasir belum dipasangkan | Disetujui owner 2026-11-05 (§15.3) |
+| **LT3d Uang & laporan antar sendiri** | Uang antar sendiri di Uang dari Toko, koreksi cara bayar, Lapor masalah / retur dari tujuan antar sendiri | Disetujui owner 2026-11-05, menyusul LT3c |
 
 ### 15.1 LT3a Laporan Muat (owner 2026-11-05)
 
@@ -502,3 +503,19 @@ Ini mengganti bacaan LOG-37 s.d. 41 dan 105 s.d. 111 (laporan muat sebagai jalur
 | 11 | **Di luar LT3b** (LT3c / berikutnya): tutup perjalanan oleh kantor dengan alasan, alihkan PJ, keputusan Gagal, tanda belum kembali 23.59, pilih pengantar kantor, Lapor masalah / retur dari tujuan antar sendiri, koreksi cara bayar, masuknya uang antar sendiri ke Uang dari Toko, kartu Beranda tunai menunggu |
 
 **Data.** Migrasi `logistics` 0012: `self_trips`, `self_trip_stops` (unik per nota selama Belum/Terkirim/Gagal), `self_trip_payments`, kolom `store_points.self_stop_id`, view `pos_courier_sales` (nota kurir + pelanggan + alamat + pengantar kasir; baca saja), tanpa hapus. Migrasi `hris` 0048: pengaturan `logistics.self_delivery_from`, `logistics.self_stage_min_minutes`, `logistics.self_gap_minutes`; hak `logistics.self_delivery.run` / `.cash_receive` / `.view`. Halaman `/logistik/antar-sendiri`, API `/api/logistics/self-delivery` (POST aksi berfoto).
+
+### 15.3 LT3c Antar sendiri sisi kantor (owner "ok lanjutkan" 2026-11-05)
+
+**Keputusan owner.** "ok lanjutkan" atas usulan 9 butir, dipecah LT3c (butir 1–6, kantor) + LT3d (butir 7–9: uang antar sendiri di Uang dari Toko, koreksi cara bayar oleh Kepala Toko / Kepala Gudang, Lapor masalah / retur dari tujuan antar sendiri ke Laporan Toko). Di luar keduanya: pengantar dipilih kantor (PJ tetap pemotret Foto 1).
+
+| # | Aturan |
+|---|---|
+| 1 | **Layar kantor** `/logistik/antar-sendiri/kantor` (hak `logistics.self_delivery.view` atau `.manage`): tab Berjalan (hari ini), Belum kembali (RUNNING yang mulai sebelum hari ini), Gagal perlu keputusan, Tunai belum diterima (DONE/CLOSED, tunai > 0, belum diterima), Selesai (7 hari). Lingkup ALL (Kepala Gudang, Marketing, Finance, Pemilik/GM) bisa saring per cabang; BRANCH = cabang penempatan. Halaman pengantar tidak lagi memuat daftar cabang, gantinya tombol ke layar kantor |
+| 2 | **Tutup perjalanan** (LOG-110): hak baru `logistics.self_delivery.manage` (Kepala Toko BRANCH, Kepala Gudang ALL; Pemilik/GM lewat full_access), bukan PJ perjalanan itu, alasan 5–300 huruf. Status `CLOSED` (+ closed_at/by/reason). Tujuan OPEN → TOMORROW tanpa Foto 2 (`office_closed`, alasan "Ditutup kantor: …"), nota kembali ke daftar tugas. Tunai yang sudah dicatat = `cash_amount` dan tetap diterima laci (penerima diberi tahu). Absen Pulang PJ terbuka. Tanda ⚠ bonus tetap (LOG-109: ditutup kantor = foto tidak lengkap) |
+| 3 | **Alihkan PJ** (LOG-43, 108): aturan pelaku sama dengan butir 2, alasan wajib. PJ baru = karyawan aktif cabang itu yang jabatannya memegang `.run`, sudah absen masuk dan belum pulang, punya akun HRIS, tanpa perjalanan berjalan (indeks unik). Tujuan OPEN yang pengantar kasirnya bukan PJ baru → `courier_mismatch`. PJ lama dan baru diberi tahu |
+| 4 | **Keputusan Gagal**: pemegang `.manage` cabang itu (PJ sendiri boleh). Kirim ulang = `decision RESEND` (catatan boleh kosong), nota lepas dari indeks unik dan kembali ke daftar tugas (dihitung "pernah Kirim Besok"). Batal kirim = `DROP` alasan wajib, nota tidak diantar lagi; tautan "Buka nota di BO" untuk ubah cara kirim / batal di kasir. Pemberitahuan Gagal kini membuka tab Gagal perlu keputusan |
+| 5 | **Tanda 23.59 + Beranda**: kartu untuk pemegang `.view`/`.manage` sesuai lingkup — belum kembali, Gagal belum diputuskan, tunai belum diterima lewat hari (kembali/ditutup sebelum hari ini); kartu tunai menunggu diterima untuk pemegang `.cash_receive` cabang (bukan uangnya sendiri). Dihitung saat dibuka, tanpa job baru |
+| 6 | **Pengantar kasir belum dipasangkan** (LOG-108): nama pengantar kasir pada nota kurir yang menunggu diantar tanpa pasangan karyawan, per cabang, dengan tautan ke Pasangkan Groomer & Pengantar (pemegang `pos_groomer_link.manage` / `bonus.view`) |
+| 7 | **Riwayat**: tabel `self_trip_events` (CLOSED, HANDOVER, RESENT, DROPPED; tanpa hapus) tampil di rincian perjalanan |
+
+**Data.** Migrasi `logistics` 0013: `self_trips` status + `CLOSED` dan kolom closed_*; `self_trip_stops.office_closed`, `decision`, `decision_reason`, `decided_at`, `decided_by_account_id`; indeks `self_trip_stops_live` kini `OPEN/DELIVERED` atau `FAILED` yang bukan RESEND; tabel `self_trip_events`. Migrasi `hris` 0049: hak `logistics.self_delivery.manage`. Layanan `server/self-delivery-office.ts`, UI `ui/self-delivery-office-screen.tsx`, API tetap `/api/logistics/self-delivery` (aksi close/handover/decide).
