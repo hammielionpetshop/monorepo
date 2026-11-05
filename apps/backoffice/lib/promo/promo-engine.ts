@@ -58,8 +58,33 @@ const EXHAUSTIVE_PICK_LIMIT = 16
 export interface PromoCondition {
   productId: number
   uomId: number
-  /** Jumlah minimal barang ini untuk satu kali pakai promo. */
+  /** Jumlah minimal barang ini untuk satu kali pakai promo (kelompok: jumlah gabungan anggotanya). */
   minQty: number
+  /**
+   * Kelompok campur: syarat dengan nomor yang sama dihitung BERSAMA (qty semua anggota dijumlah)
+   * terhadap satu `minQty` — mis. pasir 10 L semua aroma, 3 pcs campur. Kosong = syarat biasa.
+   */
+  groupNo?: number | null
+}
+
+/** Syarat dikelompokkan: kelompok campur jadi satu unit; syarat biasa masing-masing satu unit. */
+export function conditionUnits(conditions: PromoCondition[]): PromoCondition[][] {
+  const units: PromoCondition[][] = []
+  const byGroup = new Map<number, PromoCondition[]>()
+  for (const c of conditions) {
+    if (c.groupNo == null) {
+      units.push([c])
+      continue
+    }
+    const group = byGroup.get(c.groupNo)
+    if (group) group.push(c)
+    else {
+      const fresh = [c]
+      byGroup.set(c.groupNo, fresh)
+      units.push(fresh)
+    }
+  }
+  return units
 }
 
 export interface PromoReward {
@@ -129,6 +154,13 @@ export function checkPromoRule(rule: Omit<PromoRule, 'id'>): string | null {
   if (rule.rewards.length === 0) return 'Promo harus punya sekurangnya satu barang yang dipotong'
   if (rule.conditions.some((c) => !isPositiveInt(c.minQty))) return 'Jumlah minimal barang syarat harus angka bulat lebih dari 0'
   if (hasDuplicateItem(rule.conditions)) return 'Barang syarat yang sama tidak boleh ditulis dua kali'
+  for (const unit of conditionUnits(rule.conditions)) {
+    if (unit[0]!.groupNo == null) continue
+    if (!isPositiveInt(unit[0]!.groupNo)) return 'Nomor kelompok campur tidak sah'
+    if (unit.length < 2) return 'Kelompok campur harus berisi sekurangnya 2 barang'
+    if (unit.some((c) => c.minQty !== unit[0]!.minQty)) return 'Jumlah minimal dalam satu kelompok campur harus sama'
+    if (unit.some((c) => c.uomId !== unit[0]!.uomId)) return 'Barang dalam satu kelompok campur harus bersatuan sama'
+  }
   if (hasDuplicateItem(rule.rewards)) return 'Barang yang dipotong tidak boleh ditulis dua kali'
   for (const reward of rule.rewards) {
     if (!PROMO_REWARD_TYPES.includes(reward.type)) return 'Cara potong tidak dikenal'
@@ -283,8 +315,10 @@ function remainingQuotaOf(rule: PromoRule, ctx: PromoContext): number {
 function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>, ctx: PromoContext): Candidate | null {
   const qtyOf = (key: string) => (groups.get(key) ?? []).reduce((acc, l) => acc + l.qty, 0)
   let possible = Infinity
-  for (const condition of rule.conditions) {
-    possible = Math.min(possible, Math.floor(qtyOf(itemKey(condition)) / condition.minQty))
+  for (const unit of conditionUnits(rule.conditions)) {
+    // Kelompok campur: qty semua anggotanya dijumlah (komposisi rasa/aroma bebas).
+    const qty = unit.reduce((acc, condition) => acc + qtyOf(itemKey(condition)), 0)
+    possible = Math.min(possible, Math.floor(qty / unit[0]!.minQty))
   }
   if (!Number.isFinite(possible) || possible < 1) return null
   let times = rule.isMultiple ? possible : 1

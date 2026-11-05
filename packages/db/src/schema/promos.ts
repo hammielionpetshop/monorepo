@@ -51,6 +51,9 @@ export const promoConditions = petshop.table('promo_conditions', {
   productId: integer('product_id').references(() => products.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   minQty: integer('min_qty').notNull(),
+  // Kelompok campur (migrasi 0052): barang dengan group_no sama dihitung bersama terhadap satu
+  // min_qty (mis. semua aroma pasir 10 L, 3 pcs campur). NULL = syarat biasa per barang.
+  groupNo: integer('group_no'),
 }, (t) => [
   unique('uq_promo_conditions_item').on(t.promoId, t.productId, t.uomId),
 ]);
