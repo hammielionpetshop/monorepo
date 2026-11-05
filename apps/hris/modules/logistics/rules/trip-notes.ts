@@ -74,3 +74,22 @@ export function kasirChange(
   }
   return null;
 }
+
+export type KasirChangeKind = 'CHANGED' | 'PENDING_CANCEL' | 'CANCELLED';
+
+/**
+ * Keadaan kasir yang perlu diberitahukan (spec LT1 §14.3): jenis + penanda unik. Penanda sama = sudah diberi tahu;
+ * diubah lagi di kasir (nominal/revisi lain, atau menunggu batal → batal) = penanda baru, diberi tahu lagi.
+ */
+export function kasirChangeKey(change: KasirChange, revision: number | null): { kind: KasirChangeKind; signature: string } | null {
+  if (!change) return null;
+  if (change.kind === 'cancelled') return change.pending ? { kind: 'PENDING_CANCEL', signature: 'PENDING_CANCEL' } : { kind: 'CANCELLED', signature: 'CANCELLED' };
+  return { kind: 'CHANGED', signature: `CHANGED:${change.to}:${revision ?? '-'}` };
+}
+
+/** Kalimat pemberitahuan / kartu: "TRX-1 berubah Rp 2.000.000 → Rp 1.500.000", "dikoreksi", "dibatalkan di kasir". */
+export function kasirChangeText(number: string, change: NonNullable<KasirChange>, money: (n: number) => string): string {
+  if (change.kind === 'cancelled') return `${number} ${change.pending ? 'menunggu batal' : 'dibatalkan'} di kasir`;
+  if (change.from === change.to) return `${number} dikoreksi di kasir (nominal tetap ${money(change.to)})`;
+  return `${number} berubah di kasir ${money(change.from)} → ${money(change.to)}`;
+}

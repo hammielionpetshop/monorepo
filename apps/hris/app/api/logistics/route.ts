@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, markReady, releaseVisit,
+  addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, keepKasirChange, markReady, releaseVisit,
   removeCrew, reopenNote, retryVisit, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
@@ -29,6 +29,8 @@ const bodySchema = z.discriminatedUnion('action', [
   // LT1b-2a (spec LT1 §13.3): Siap Kirim, Coba lagi, Perlu keputusan, tindak lanjut Laporan Pulang. Sampai Garasi pindah ke /upload (foto amper).
   z.object({ action: z.literal('ready'), tripId: id }),
   z.object({ action: z.literal('unready'), tripId: id }),
+  // LT2c (spec LT1 §14.3): Tetap antar nota yang berubah di kasir sesudah masuk trip.
+  z.object({ action: z.literal('keep_kasir_change'), tripId: id, noteId: id }),
   z.object({ action: z.literal('retry_visit'), tripId: id, visitId: id }),
   z.object({ action: z.literal('decide_note'), noteId: id, decision: z.enum(['RESEND', 'DROP']), reason }),
   z.object({ action: z.literal('reopen_note'), noteId: id }),
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
       case 'release_visit': return releaseVisit(actor, body.tripId, body.visitId, body.reason);
       case 'ready': return markReady(actor, body.tripId);
       case 'unready': return unmarkReady(actor, body.tripId);
+      case 'keep_kasir_change': return keepKasirChange(actor, body.tripId, body.noteId);
       case 'retry_visit': return retryVisit(actor, body.tripId, body.visitId);
       case 'decide_note': return decideNote(actor, body.noteId, body.decision, body.reason);
       case 'reopen_note': return reopenNote(actor, body.noteId);

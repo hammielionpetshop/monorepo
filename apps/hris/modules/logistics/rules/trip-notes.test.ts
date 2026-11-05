@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { queueOf } from './delivery-notes';
-import { kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits, tripNotesProblem, type PlannedNote } from './trip-notes';
+import { kasirChange, kasirChangeKey, kasirChangeText, noteKey, parseNoteKey, pickupOrigins, planVisits, tripNotesProblem, type PlannedNote } from './trip-notes';
 
 const note = (key: string, origin: number, customerId: number | null, branchId: number | null = null): PlannedNote => ({
   key: key as PlannedNote['key'], originBranchId: origin, origin: `Cabang ${origin}`, customerId, destinationBranchId: branchId,
@@ -61,5 +61,22 @@ describe('tab antrean dari status kasir + HRIS', () => {
     expect(queueOf('TRANSFER', 'FULLY_RECEIVED', 'ON_TRIP')).toEqual({ status: 'RECEIVED', pendingVoid: false });
     expect(queueOf('TRANSFER', 'CANCELLED', null)).toEqual({ status: 'CANCELLED', pendingVoid: false });
     expect(queueOf('TRANSFER', 'DRAFT', null)).toBeNull();
+  });
+});
+
+describe('kasirChangeKey / kasirChangeText (spec LT1 §14.3)', () => {
+  const money = (n: number) => `Rp${n}`;
+  it('penanda berbeda per nominal + revisi; batal dan menunggu batal terpisah', () => {
+    expect(kasirChangeKey(null, 2)).toBeNull();
+    expect(kasirChangeKey({ kind: 'changed', from: 100, to: 90 }, 2)).toEqual({ kind: 'CHANGED', signature: 'CHANGED:90:2' });
+    expect(kasirChangeKey({ kind: 'changed', from: 100, to: 90 }, 3)?.signature).toBe('CHANGED:90:3');
+    expect(kasirChangeKey({ kind: 'cancelled', pending: true }, 1)).toEqual({ kind: 'PENDING_CANCEL', signature: 'PENDING_CANCEL' });
+    expect(kasirChangeKey({ kind: 'cancelled', pending: false }, 1)).toEqual({ kind: 'CANCELLED', signature: 'CANCELLED' });
+  });
+  it('kalimat pemberitahuan', () => {
+    expect(kasirChangeText('TRX-1', { kind: 'changed', from: 100, to: 90 }, money)).toBe('TRX-1 berubah di kasir Rp100 → Rp90');
+    expect(kasirChangeText('TRX-1', { kind: 'changed', from: 100, to: 100 }, money)).toBe('TRX-1 dikoreksi di kasir (nominal tetap Rp100)');
+    expect(kasirChangeText('TRX-1', { kind: 'cancelled', pending: true }, money)).toBe('TRX-1 menunggu batal di kasir');
+    expect(kasirChangeText('TRX-1', { kind: 'cancelled', pending: false }, money)).toBe('TRX-1 dibatalkan di kasir');
   });
 });

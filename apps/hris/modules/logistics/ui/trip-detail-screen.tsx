@@ -37,7 +37,8 @@ type Props = {
 type Ask =
   | { kind: 'cancel' } | { kind: 'close' } | { kind: 'remove_crew'; crewId: number; name: string } | { kind: 'drop_shopping'; shoppingId: number; name: string }
   | { kind: 'cancel_wage'; wageId: number; name: string } | { kind: 'add_crew' } | { kind: 'add_shopping' }
-  | { kind: 'release_visit'; visitId: number; name: string } | { kind: 'ready' } | { kind: 'unready' } | null;
+  | { kind: 'release_visit'; visitId: number; name: string } | { kind: 'ready' } | { kind: 'unready' }
+  | { kind: 'keep_note'; noteId: number; name: string } | null;
 
 const SHOP_STATUS: Record<string, { label: string; tone: 'info' | 'ok' | 'danger' }> = {
   OPEN: { label: 'Belum', tone: 'info' }, DONE: { label: 'Selesai', tone: 'ok' }, DROPPED: { label: 'Tidak jadi', tone: 'danger' },
@@ -82,6 +83,7 @@ export function TripDetailScreen(props: Props) {
           case 'release_visit': return { action: 'release_visit', tripId, visitId: ask.visitId, reason };
           case 'ready': return { action: 'ready', tripId };
           case 'unready': return { action: 'unready', tripId };
+          case 'keep_note': return { action: 'keep_kasir_change', tripId, noteId: ask.noteId };
         }
       })());
     setBusy(false);
@@ -95,7 +97,7 @@ export function TripDetailScreen(props: Props) {
   const titles: Record<string, string> = {
     cancel: 'Batalkan trip', close: 'Tutup atas nama driver', remove_crew: 'Copot awak', drop_shopping: 'Supplier tidak jadi',
     cancel_wage: 'Batalkan ritase', add_crew: 'Tambah awak', add_shopping: 'Tambah supplier belanja', release_visit: 'Lepas dari trip',
-    ready: 'Siap Kirim', unready: 'Kembali ke Draft',
+    ready: 'Siap Kirim', unready: 'Kembali ke Draft', keep_note: 'Tetap antar',
   };
   const addList = ask?.kind === 'add_crew' ? (role === 'DRIVER' ? props.addOptions?.drivers : props.addOptions?.assistants) ?? [] : props.addOptions?.suppliers ?? [];
 
@@ -132,6 +134,7 @@ export function TripDetailScreen(props: Props) {
         <TripNotesPanel
           visits={props.delivery.visits} pickups={props.delivery.pickups} storeLinks
           onRelease={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? (v) => open({ kind: 'release_visit', visitId: v.id, name: v.destination }) : undefined}
+          onKeep={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? (v, n) => open({ kind: 'keep_note', noteId: n.noteId, name: `${n.number} · ${v.destination}` }) : undefined}
         />
       )}
 
@@ -235,6 +238,7 @@ export function TripDetailScreen(props: Props) {
           {ask?.kind === 'close' && <p>Untuk HP atau GPS driver yang bermasalah. Absen pulang awak = jam penutupan ini, ritase tetap dicatat sekali.</p>}
           {ask?.kind === 'remove_crew' && <p>Orang yang dicopot tidak mendapat ritase otomatis dari trip ini.</p>}
           {ask?.kind === 'release_visit' && <p>Semua surat jalan untuk tujuan ini kembali ke Menunggu dikirim dan bisa dimasukkan ke trip berikutnya.</p>}
+          {ask?.kind === 'keep_note' && <p>Nota tetap diantar dengan isi kasir yang baru. Tanda berubah di kasir menjadi abu-abu dan hilang dari Beranda. Bila nota diubah lagi di kasir, Anda diberi tahu lagi.</p>}
           {ask?.kind === 'ready' && <p>Trip muncul di Trip Saya driver dan kenek, dan baru bisa Berangkat sesudah ini. Untuk mengubah trip lagi, tekan Kembali ke Draft.</p>}
           {ask?.kind === 'unready' && <p>Trip hilang dari Trip Saya awak sampai ditandai Siap Kirim lagi.</p>}
           {ask?.kind === 'add_crew' && (

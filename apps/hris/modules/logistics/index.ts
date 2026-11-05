@@ -14,6 +14,7 @@ export {
   wagesScreen, type TripCard, type TripTab,
 } from './server/screens';
 export { runLogisticsDaily } from './server/jobs';
+export { kasirChangeAttention, keepKasirChange, runKasirCheck } from './server/kasir-changes';
 export {
   RATE_STATE_LABELS, amountFor, changeKind, dayLabel, earliestFrom, numbersProblem, pairLabel, rateOnDate, rupiah, sameNumbers,
   type RateChange, type RateNumbers, type RateRecord, type RateState,
