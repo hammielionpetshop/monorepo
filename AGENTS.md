@@ -15,6 +15,7 @@ larangan update langsung ke `main` tetap berlaku.
 ## Cakupan dan konvensi
 
 - Area utama: `apps/backoffice`; HRIS: `apps/hris` beserta package fondasinya; portal: `apps/order-web`. Kerjakan hanya domain yang diminta.
+- **Tanpa data ganda HRIS–POS (permintaan owner 2026-11-05):** bila data atau fitur sudah ada di POS/backoffice (piutang, pelunasan, daftar tagih, nota, pelanggan, ongkir, dan sejenisnya), HRIS membaca atau menautkan ke sana, tidak membuat salinan, daftar, atau pencatatan kedua. Sebelum mengusulkan fitur HRIS, periksa dulu apakah POS sudah memilikinya; bila spec/aturan HRIS lama meminta salinan seperti itu, sampaikan ke owner sebagai usul dibuang sebelum dikerjakan.
 - `apps/pos-desktop` dibekukan dan dikecualikan dari build/typecheck/lint/test umum. POS aktif ada di `apps/backoffice/app/pos/`. Sentuh desktop hanya atas permintaan owner.
 - Nama teknis memakai bahasa Inggris: file, folder, branch, variabel, fungsi, parameter, tipe, tabel/kolom, enum, route, dan env. Pesan error/log, label, komentar, deskripsi tes, dan dokumen memakai Bahasa Indonesia. Pengecualian nama hanya atas permintaan owner.
 - Saat menyentuh kode lama bernama Indonesia, perbarui nama lokal beserta pemakainya dalam lingkup pekerjaan. Jangan merapikan massal; nama tersimpan di DB/URL/API publik dan berkas magnet memerlukan pekerjaan tersendiri.
