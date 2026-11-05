@@ -5,7 +5,7 @@ import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { followupAttention, kasirChangeAttention, logisticsAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, unrecordedCounts } from '@/modules/logistics';
+import { followupAttention, kasirChangeAttention, logisticsAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, unrecordedCounts } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -52,6 +52,8 @@ export default async function HomePage() {
     hasAction(actor, 'logistics.delivery_note.decide') ? pendingNoteCounts(actor) : null,
     unrecordedCounts(actor),
     kasirChangeAttention(actor),
+    selfDeliveryAttention(actor),
+    selfCashWaitingCount(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -110,6 +112,11 @@ export default async function HomePage() {
   if (followup?.decide) mine.push({ key: 'notes-decide', title: `${followup.decide} surat jalan perlu keputusan`, detail: 'Kiriman gagal: Kirim ulang atau Batal', href: '/logistik/surat-jalan?tab=NEEDS_DECISION', tone: 'danger', badge: 'fitur/beranda-logistik-tindak-lanjut' });
   // Nota berubah / dibatalkan di kasir sesudah masuk trip (spec LT1 §14.3 butir 5).
   if (kasirChanged) mine.push({ key: 'kasir-changed', title: `${kasirChanged.count} nota berubah di kasir`, detail: 'Sudah di trip: Lepas atau Tetap antar', href: kasirChanged.tripId ? `/logistik/trip/${kasirChanged.tripId}` : '/logistik/surat-jalan?tab=ON_TRIP', tone: 'danger', badge: 'fitur/nota-berubah-kasir' });
+  // Antar sendiri (spec LT1 §15.3 butir 5): belum kembali lewat 23.59, Gagal belum diputuskan, tunai belum diterima laci.
+  if (selfAttention?.late) mine.push({ key: 'self-late', title: `${selfAttention.late} antar sendiri belum kembali`, detail: 'Lewat 23.59 hari mulainya: Tutup atau Alihkan PJ', href: '/logistik/antar-sendiri/kantor?tab=LATE', tone: 'danger', badge: 'fitur/beranda-antar-sendiri' });
+  if (selfAttention?.failed) mine.push({ key: 'self-failed', title: `${selfAttention.failed} antar sendiri Gagal perlu keputusan`, detail: 'Kirim ulang atau Batal kirim', href: '/logistik/antar-sendiri/kantor?tab=FAILED', tone: 'danger', badge: 'fitur/beranda-antar-sendiri' });
+  if (selfAttention?.cashLate) mine.push({ key: 'self-cash-late', title: `${selfAttention.cashLate} tunai antar sendiri belum diterima lewat hari`, href: '/logistik/antar-sendiri/kantor?tab=CASH', tone: 'danger', badge: 'fitur/beranda-antar-sendiri' });
+  if (selfCash) mine.push({ key: 'self-cash', title: `${selfCash} tunai antar sendiri menunggu diterima`, detail: 'Hitung, masukkan laci, lalu Sudah diterima', href: '/logistik/antar-sendiri', badge: 'fitur/beranda-antar-sendiri' });
   if (goodsWaiting) mine.push({ key: 'returned-goods', title: `${goodsWaiting} barang kembali belum diterima`, detail: 'Tidak terkirim dan retur yang ikut pulang di truk', href: '/logistik/barang-kembali', tone: 'danger', badge: '/logistik/barang-kembali' });
   if (pendingNotes?.red) mine.push({ key: 'pending-notes', title: `${pendingNotes.red} surat jalan tertunda terlalu lama`, detail: `Dari ${pendingNotes.total} yang tertunda`, href: '/logistik/surat-jalan/tertunda', tone: 'danger', badge: '/logistik/surat-jalan/tertunda' });
   if (openStoreReports) mine.push({ key: 'store-reports', title: `${openStoreReports} laporan toko belum diputuskan`, detail: 'Potong nota / Retur BO / Tidak dipotong', href: '/logistik/laporan-toko', tone: 'danger', badge: 'fitur/potong-nota' });

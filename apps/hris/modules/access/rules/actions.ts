@@ -189,6 +189,7 @@ export const ACTIONS = {
   'logistics.self_delivery.run': { label: 'Antar sendiri: bawa nota kurir cabang, Foto 1 / Foto 2 / Foto 3, cara bayar di tujuan', group: LOGISTICS },
   'logistics.self_delivery.cash_receive': { label: 'Terima tunai antar sendiri ke laci cabang (bukan uang yang dibawa sendiri)', group: LOGISTICS },
   'logistics.self_delivery.view': { label: 'Lihat perjalanan antar sendiri cabang dan fotonya', group: LOGISTICS },
+  'logistics.self_delivery.manage': { label: 'Antar sendiri kantor: tutup perjalanan, alihkan PJ, putuskan kiriman Gagal (alasan wajib)', group: LOGISTICS },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
   'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },
