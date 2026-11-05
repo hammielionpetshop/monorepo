@@ -5,7 +5,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Actor } from '@/modules/access';
 
-// LT1b-3 uang dan laporan di toko (spec LT1 §13.5) pada DB sintetis dengan stub kasir. Jalan bila ROLES_TEST_ADMIN_URL diisi.
+// LT1b-3 uang dan laporan di toko (spec LT1 §13.5) + LT2b potong nota, koreksi cara bayar, janji bayar (§14.2) pada DB sintetis dengan stub kasir. Jalan bila ROLES_TEST_ADMIN_URL diisi.
 vi.mock('@/modules/accounts', () => ({
   activeHrisAccounts: async (ids: number[]) => new Map(ids.map((id) => [id, id + 1000])),
 }));
@@ -121,7 +121,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
 
   const visitOf = async (destination: string) => (await lg.tripDetailScreen(await actorOf(ids.kg), tripId))!.delivery.visits
     .filter((v) => v.destination === destination).at(-1)!;
-  const deliver = async (destination: string, payment: { method?: string; partialAmount?: number } | null, proof: File | null = null) =>
+  const deliver = async (destination: string, payment: { method?: string; partialAmount?: number; promiseDate?: string } | null, proof: File | null = null) =>
     lg.processVisit(await actorOf(ids.driver), tripId, (await visitOf(destination)).id, { outcome: 'DELIVERED', point: GUDANG, payment }, jpeg(), proof);
 
   it('tagihan = sisa piutang kasir; Lunas transfer wajib bukti; salah isi tidak meninggalkan Terkirim setengah jadi', async () => {
@@ -141,13 +141,18 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
 
   it('bayar sebagian kurang dari tagihan; tempo; tagihan 0 dicatat Tidak ada tagihan', async () => {
     expect(await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 200000 })).toMatchObject({ ok: false, error: expect.stringContaining('Lunas cash') });
-    expect((await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 50000 })).ok).toBe(true);
-    expect((await deliver('Toko Depan', { method: 'TEMPO' })).ok).toBe(true);
+    // Janji bayar sisa wajib untuk Bayar sebagian / Tempo, besok s.d. 60 hari (§14.2 butir 5).
+    expect(await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 50000 })).toMatchObject({ ok: false, error: 'Isi tanggal janji bayar sisa.' });
+    expect(await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 50000, promiseDate: DAY })).toMatchObject({ ok: false, status: 400 });
+    expect(await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 50000, promiseDate: '2027-01-06' })).toMatchObject({ ok: false, status: 400 });
+    expect((await deliver('Toko Maju', { method: 'PARTIAL', partialAmount: 50000, promiseDate: '2026-11-13' })).ok).toBe(true);
+    expect((await deliver('Toko Depan', { method: 'TEMPO', promiseDate: '2026-11-20' })).ok).toBe(true);
     expect((await deliver('Toko Lunas', { method: 'CASH' })).ok).toBe(true);
-    const rows = await sql`select v.destination_name, p.method, p.bill_amount, p.received_amount from logistics.visit_payments p
+    const rows = await sql`select v.destination_name, p.method, p.bill_amount, p.received_amount, p.promise_date::text as promise from logistics.visit_payments p
       join logistics.trip_visits v on v.id = p.visit_id order by p.id`;
-    expect(rows.map((r) => [r.destination_name, r.method, r.bill_amount, r.received_amount])).toEqual([
-      ['Toko Sinar', 'TRANSFER', 150000, 150000], ['Toko Maju', 'PARTIAL', 200000, 50000], ['Toko Depan', 'TEMPO', 100000, 0], ['Toko Lunas', 'NONE', 0, 0],
+    expect(rows.map((r) => [r.destination_name, r.method, r.bill_amount, r.received_amount, r.promise])).toEqual([
+      ['Toko Sinar', 'TRANSFER', 150000, 150000, null], ['Toko Maju', 'PARTIAL', 200000, 50000, '2026-11-13'], ['Toko Depan', 'TEMPO', 100000, 0, '2026-11-20'],
+      ['Toko Lunas', 'NONE', 0, 0, null],
     ]);
     await expect(sql`delete from logistics.visit_payments`).rejects.toThrow();
   });
@@ -159,6 +164,8 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     expect(screen.trips).toHaveLength(1);
     expect(screen.trips[0].crew).toBe('Dedi, Eko');
     expect(screen.rows.find((r) => r.store === 'Toko Sinar')?.notes).toEqual(['TRX-A', 'TRX-B']);
+    expect(screen.rows.find((r) => r.store === 'Toko Maju')).toMatchObject({ promiseDate: '2026-11-13', overdue: false });
+    expect(screen.canCorrect).toBe(false);
   });
 
   it('Lapor masalah sesudah Terkirim: jenis baku + foto; retur dibawa pulang; kantor menutup dengan catatan', async () => {
@@ -171,16 +178,65 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     expect((await visitOf('Toko Maju')).reports.map((r) => [r.label, r.carriedBack])).toEqual([['Barang rusak', false], ['Retur (dibawa pulang)', true]]);
     const [told] = await sql`select title, link from hris.notifications where kind = 'logistics.visit_report' and recipient_account_id = ${ids.kg + 1000} order by id limit 1`;
     expect(told).toMatchObject({ title: 'Barang rusak: Toko Maju (trip TR-261106-1)', link: '/logistik/laporan-toko' });
-    expect(await lg.openReportCount(await actorOf(ids.kg))).toBe(2);
+    // Harga beda (§14.2 butir 2) wajib catatan harga yang diminta toko.
+    expect(await lg.addVisitReport(kenek, tripId, maju.id, { kind: 'PRICE' }, jpeg())).toMatchObject({ ok: false, status: 400 });
+    expect(await lg.openReportCount(await actorOf(ids.kg))).toBe(0);
+    expect(await lg.openReportCount(await actorOf(ids.finance))).toBe(2);
+  });
 
-    const kg = await actorOf(ids.kg);
-    const screen = (await lg.visitReportsScreen(kg))!;
-    expect(screen.open.map((r) => r.store)).toEqual(['Toko Maju', 'Toko Maju']);
-    expect(await lg.closeVisitReport(await actorOf(ids.driver), screen.open[0].id, 'Nota dipotong')).toMatchObject({ ok: false, status: 403 });
-    expect(await lg.closeVisitReport(kg, screen.open[0].id, 'ok')).toMatchObject({ ok: false, status: 400 });
-    expect((await lg.closeVisitReport(kg, screen.open[0].id, 'Nota dipotong Rp 20.000')).ok).toBe(true);
-    expect(await lg.closeVisitReport(kg, screen.open[0].id, 'Nota dipotong Rp 20.000')).toMatchObject({ ok: false, status: 409 });
-    expect((await lg.visitReportsScreen(kg))!.closed[0]).toMatchObject({ closeNote: 'Nota dipotong Rp 20.000', closed: true });
+  it('keputusan potong nota oleh Finance → Perlu dicatat di kasir → Sudah dicatat mengunci (§14.2 butir 1, 3)', async () => {
+    const finance = await actorOf(ids.finance);
+    const screen = (await lg.visitReportsScreen(finance))!;
+    expect(screen.canDecide).toBe(true);
+    const [damaged, ret] = screen.open;
+    expect(damaged.noteOptions).toEqual([{ id: expect.any(Number), number: 'TRX-C', amount: 300000, otherCuts: 0 }]);
+    const noteId = damaged.noteOptions[0].id;
+    expect(await lg.decideVisitReport(await actorOf(ids.kg), damaged.id, { decision: 'NO_CUT', note: 'tidak apa' })).toMatchObject({ ok: false, status: 403 });
+    expect(await lg.decideVisitReport(finance, damaged.id, { decision: 'CUT', noteId, amount: 400000, reason: 'DAMAGED' })).toMatchObject({ ok: false, status: 400 });
+    expect(await lg.decideVisitReport(finance, damaged.id, { decision: 'RETURN_BO', noteId })).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.decideVisitReport(finance, damaged.id, { decision: 'CUT', noteId, amount: 20000, reason: 'DAMAGED', note: '2 sak' })).ok).toBe(true);
+    // Ubah keputusan wajib alasan; potongan lain di nota yang sama ikut membatasi nominal.
+    expect(await lg.decideVisitReport(finance, damaged.id, { decision: 'CUT', noteId, amount: 25000, reason: 'DAMAGED' })).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.decideVisitReport(finance, damaged.id, { decision: 'CUT', noteId, amount: 25000, reason: 'DAMAGED', changeReason: 'salah ketik nominal' })).ok).toBe(true);
+    expect(await lg.decideVisitReport(finance, ret.id, { decision: 'CUT', noteId, amount: 280000, reason: 'OTHER', note: 'retur penuh' }))
+      .toMatchObject({ ok: false, error: expect.stringContaining('melebihi nota') });
+    expect((await lg.decideVisitReport(finance, ret.id, { decision: 'RETURN_BO', noteId })).ok).toBe(true);
+
+    const after = (await lg.visitReportsScreen(finance))!;
+    expect(after.open).toHaveLength(0);
+    expect(after.closed.find((r) => r.id === damaged.id)).toMatchObject({
+      closeNote: 'Potong nota TRX-C Rp25.000 (Barang rusak)', decision: { decision: 'CUT', amount: 25000, changes: 1, recorded: null },
+    });
+    expect(await lg.toRecordScreen(await actorOf(ids.kg))).toBeNull();
+    const list = (await lg.toRecordScreen(finance))!;
+    expect(list.waiting.map((r) => [r.label, r.noteNumber, r.amount])).toEqual([['Potong nota', 'TRX-C', 25000], ['Dicatat lewat Retur BO', 'TRX-C', null]]);
+    expect(await lg.unrecordedCounts(finance)).toEqual({ waiting: 2, red: 0 });
+    const cut = list.waiting[0];
+    expect(await lg.markDecisionRecorded(finance, cut.id, 'x')).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.markDecisionRecorded(finance, cut.id, 'Nota TRX-C dikurangi')).ok).toBe(true);
+    expect(await lg.markDecisionRecorded(finance, cut.id, 'Nota TRX-C dikurangi')).toMatchObject({ ok: false, status: 409 });
+    expect(await lg.decideVisitReport(finance, damaged.id, { decision: 'NO_CUT', note: 'batal potong', changeReason: 'salah putus' }))
+      .toMatchObject({ ok: false, status: 409 });
+    expect(await lg.unrecordedCounts(finance)).toEqual({ waiting: 1, red: 0 });
+    expect((await lg.toRecordScreen(finance))!.done[0]).toMatchObject({ recorded: { ref: 'Nota TRX-C dikurangi' } });
+    await expect(sql`delete from logistics.report_decisions`).rejects.toThrow();
+  });
+
+  it('koreksi cara bayar oleh awak selama trip berjalan; baris lama Diganti; Finance diberi tahu (§14.2 butir 4)', async () => {
+    const depan = await visitOf('Toko Depan');
+    const kenek = await actorOf(ids.kenek);
+    expect(await lg.correctPayment(await actorOf(ids.finance), depan.id, { method: 'CASH', reason: 'salah tekan' }, null)).toMatchObject({ ok: false, status: 403 });
+    expect(await lg.correctPayment(kenek, depan.id, { method: 'CASH', reason: 'x' }, null)).toMatchObject({ ok: false, status: 400 });
+    expect(await lg.correctPayment(kenek, depan.id, { method: 'TEMPO', promiseDate: '2026-11-20', reason: 'salah tekan' }, null))
+      .toMatchObject({ ok: false, error: 'Tidak ada yang berubah.' });
+    expect(await lg.correctPayment(kenek, depan.id, { method: 'TRANSFER', reason: 'salah tekan' }, null)).toMatchObject({ ok: false, error: 'Foto bukti transfer wajib.' });
+    expect((await lg.correctPayment(kenek, depan.id, { method: 'CASH', reason: 'salah tekan, bayar cash' }, null)).ok).toBe(true);
+    expect((await visitOf('Toko Depan')).payment).toMatchObject({ method: 'CASH', received: 100000, promiseDate: null, correctionReason: 'salah tekan, bayar cash' });
+    const screen = (await lg.storePaymentsScreen(await actorOf(ids.finance), DAY))!;
+    expect(screen.totals).toEqual({ cash: 150000, transfer: 150000, left: 150000, visits: 4 });
+    const [told] = await sql`select title from hris.notifications where kind = 'logistics.payment_corrected' and recipient_account_id = ${ids.finance + 1000}`;
+    expect(told.title).toBe('Cara bayar Toko Depan dikoreksi (trip TR-261106-1)');
+    expect((await sql`select count(*)::int as n from logistics.visit_payments where replaced_at is not null`)[0].n).toBe(1);
   });
 
   it('laporan hanya sesudah Terkirim dan selama trip Berjalan', async () => {
@@ -188,5 +244,14 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     const driver = await actorOf(ids.driver);
     expect((await lg.headHome(driver, tripId, jpeg(), null)).ok).toBe(true);
     expect(await lg.addVisitReport(driver, tripId, lunas.id, { kind: 'SHORT' }, jpeg())).toMatchObject({ ok: false, status: 409 });
+    // Sesudah Menuju Garasi awak tidak bisa mengoreksi; Kepala Gudang bisa (§14.2 butir 4).
+    const depan = await visitOf('Toko Depan');
+    expect(await lg.correctPayment(driver, depan.id, { method: 'TEMPO', promiseDate: '2026-11-20', reason: 'salah tekan' }, null)).toMatchObject({ ok: false, status: 403 });
+    expect((await lg.correctPayment(await actorOf(ids.kg), depan.id, { method: 'PARTIAL', partialAmount: 60000, promiseDate: '2026-11-13', reason: 'toko hanya bayar 60rb' }, null)).ok).toBe(true);
+    expect((await visitOf('Toko Depan')).payment).toMatchObject({ method: 'PARTIAL', received: 60000, left: 40000, promiseDate: '2026-11-13' });
+    // Lewat janji: tanggal lewat dan piutang kasir nota kunjungan masih ada (§14.2 butir 5).
+    vi.setSystemTime(new Date('2026-11-14T08:00:00+07:00'));
+    const late = (await lg.storePaymentsScreen(await actorOf(ids.finance), DAY))!;
+    expect(late.rows.filter((r) => r.overdue).map((r) => r.store).sort()).toEqual(['Toko Depan', 'Toko Maju']);
   });
 });
