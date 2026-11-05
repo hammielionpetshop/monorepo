@@ -10,6 +10,7 @@ import {
   type PromoFormItem, type PromoFormState, type PromoPayload,
 } from '@/lib/promo/promo-form'
 import type { BranchOption, PromoItemOption, PromoLoss } from './types'
+import { ConditionGroupEditor } from './condition-group-editor'
 
 const inputClass =
   'w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring'
@@ -238,7 +239,7 @@ export default function PromoFormDialog({
           {multiItem ? (
             <>
               <fieldset className="space-y-2">
-                <legend className={labelClass}>Barang syarat (semua harus ada di keranjang)</legend>
+                <legend className={labelClass}>Barang syarat (semua harus terpenuhi di keranjang)</legend>
                 {form.conditions.map((c, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="flex-1">{items.find((p) => p.productId === c.productId)?.name}</span>
@@ -258,6 +259,32 @@ export default function PromoFormDialog({
                   </div>
                 ))}
                 <ItemPicker items={items} value={null} onChange={(item) => item && set('conditions', [...form.conditions, { ...item, minQty: '1' }])} />
+                {form.conditionGroups.map((g, i) => (
+                  <ConditionGroupEditor
+                    key={i}
+                    index={i}
+                    items={items}
+                    value={g}
+                    usedProductIds={new Set([
+                      ...form.conditions.map((c) => c.productId),
+                      ...form.conditionGroups.filter((_, j) => j !== i).flatMap((x) => x.members.map((m) => m.productId)),
+                    ])}
+                    onChange={(next) => set('conditionGroups', form.conditionGroups.map((x, j) => (j === i ? next : x)))}
+                    onRemove={() => set('conditionGroups', form.conditionGroups.filter((_, j) => j !== i))}
+                  />
+                ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => set('conditionGroups', [...form.conditionGroups, { members: [], minQty: '' }])}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+                  >
+                    + Kelompok campur (rasa/aroma bebas) <NewBadge feature="fitur/promo-kelompok-campur" />
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    Mis. pasir 10 L semua aroma, minimal 3 pcs — komposisi aroma bebas, dihitung total.
+                  </span>
+                </div>
               </fieldset>
               <fieldset className="space-y-2">
                 <legend className={labelClass}>{gift ? 'Barang hadiah (gratis)' : 'Barang yang dipotong'}</legend>

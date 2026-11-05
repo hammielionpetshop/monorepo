@@ -115,7 +115,7 @@ export async function loadPromoRules(branchId: number, now: Date, executor: Exec
     quotaPerBranch: p.quotaPerBranch,
     requireStock: p.requireStock,
     isActive: p.isActive,
-    conditions: conditionRows.filter((c) => c.promoId === p.id).map((c) => ({ productId: c.productId, uomId: c.uomId, minQty: c.minQty })),
+    conditions: conditionRows.filter((c) => c.promoId === p.id).map((c) => ({ productId: c.productId, uomId: c.uomId, minQty: c.minQty, groupNo: c.groupNo })),
     rewards: rewardRows.filter((r) => r.promoId === p.id).map((r) => ({
       productId: r.productId, uomId: r.uomId, type: r.rewardType as PromoRule['rewards'][number]['type'], value: r.value, qty: r.qty,
     })),
@@ -228,7 +228,7 @@ export async function createPromo(input: NewPromoInput, actor: Actor, opts: { ac
       createdById: actor.userId,
     }).returning({ id: promos.id })
     await tx.insert(promoBranches).values(rule.branchIds.map((branchId) => ({ promoId: promo.id, branchId })))
-    await tx.insert(promoConditions).values(rule.conditions.map((c) => ({ promoId: promo.id, productId: c.productId, uomId: c.uomId, minQty: c.minQty })))
+    await tx.insert(promoConditions).values(rule.conditions.map((c) => ({ promoId: promo.id, productId: c.productId, uomId: c.uomId, minQty: c.minQty, groupNo: c.groupNo ?? null })))
     await tx.insert(promoRewards).values(rule.rewards.map((r) => ({
       promoId: promo.id, productId: r.productId, uomId: r.uomId, rewardType: r.type, value: r.value, qty: r.qty,
     })))
@@ -365,7 +365,7 @@ export async function listPromos(opts: { branchId?: number; now?: Date } = {}, e
       status: 'NONAKTIF',
       quotaUsage,
       conditions: conditionRows.filter((c) => c.row.promoId === promo.id).map((c) => ({
-        productId: c.row.productId, uomId: c.row.uomId, minQty: c.row.minQty, productName: c.productName, uomCode: c.uomCode,
+        productId: c.row.productId, uomId: c.row.uomId, minQty: c.row.minQty, groupNo: c.row.groupNo, productName: c.productName, uomCode: c.uomCode,
       })),
       rewards: rewardRows.filter((r) => r.row.promoId === promo.id).map((r) => ({
         productId: r.row.productId, uomId: r.row.uomId, type: r.row.rewardType as PromoRule['rewards'][number]['type'],

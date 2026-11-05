@@ -336,3 +336,44 @@ describe('pembuatan promo (P2b)', () => {
     expect(promoStatus({ ...base, endsAt: '2026-10-13T14:00:00+07:00' }, NOW)).toBe('BERAKHIR')
   })
 })
+
+describe('kelompok campur (rasa/aroma bebas)', () => {
+  // Pasir 10 L tiga aroma (A, B, C) satu kelompok, minimal 3 pcs campur → D gratis 1.
+  const D = { productId: 4, uomId: 10 }
+  const group = [{ ...A, minQty: 3, groupNo: 1 }, { ...B, minQty: 3, groupNo: 1 }, { ...C, minQty: 3, groupNo: 1 }]
+  const gift = rule({ kind: 'BELI_GRATIS', conditions: group, rewards: [{ ...D, type: 'GRATIS', value: 0, qty: 1 }] })
+  const prices = ctx({ rewardPrices: new Map([['4:10', 15000]]) })
+
+  it('qty semua aroma dijumlah: 1 + 1 + 1 memenuhi minimal 3', () => {
+    const result = applyPromos([line(A, 1, 90000), line(B, 1, 90000), line(C, 1, 90000)], [gift], prices)
+    expect(result.gifts).toEqual([expect.objectContaining({ productId: 4, qty: 1, amount: 15000 })])
+  })
+
+  it('total kurang dari minimal → tidak jalan', () => {
+    expect(applyPromos([line(A, 1, 90000), line(B, 1, 90000)], [gift], prices).total).toBe(0)
+  })
+
+  it('kelipatan memakai total kelompok: 4 + 2 = 6 pcs → 2 kali', () => {
+    const multiple = rule({ ...gift, isMultiple: true })
+    const result = applyPromos([line(A, 4, 90000), line(B, 2, 90000)], [multiple], prices)
+    expect(result.applied[0]!.times).toBe(2)
+    expect(result.gifts[0]!.qty).toBe(2)
+  })
+
+  it('kelompok + syarat biasa: dua-duanya harus terpenuhi', () => {
+    const both = rule({
+      kind: 'BUNDLING',
+      conditions: [{ ...A, minQty: 2, groupNo: 1 }, { ...B, minQty: 2, groupNo: 1 }, { ...C, minQty: 1 }],
+      rewards: [{ ...C, type: 'POTONG_PER_PCS', value: 5000, qty: 1 }],
+    })
+    expect(applyPromos([line(A, 1, 90000), line(B, 1, 90000)], [both], ctx()).total).toBe(0)
+    expect(applyPromos([line(A, 1, 90000), line(B, 1, 90000), line(C, 1, 20000)], [both], ctx()).total).toBe(5000)
+  })
+
+  it('bentuk kelompok diperiksa: minimal 2 anggota, jumlah minimal & satuan sama', () => {
+    expect(checkPromoRule(rule({ conditions: group }))).toBeNull()
+    expect(checkPromoRule(rule({ conditions: [{ ...A, minQty: 3, groupNo: 1 }] }))).toMatch(/sekurangnya 2/)
+    expect(checkPromoRule(rule({ conditions: [{ ...A, minQty: 3, groupNo: 1 }, { ...B, minQty: 2, groupNo: 1 }] }))).toMatch(/harus sama/)
+    expect(checkPromoRule(rule({ conditions: [{ ...A, minQty: 3, groupNo: 1 }, { productId: 2, uomId: 99, minQty: 3, groupNo: 1 }] }))).toMatch(/bersatuan sama/)
+  })
+})
