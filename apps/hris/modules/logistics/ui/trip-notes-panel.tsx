@@ -12,7 +12,7 @@ function ChangeBadge({ note }: { note: TripNoteView }) {
   return <Badge tone="warn">Berubah di kasir: {rupiah(note.change.from)} → {rupiah(note.change.to)}</Badge>;
 }
 
-export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY' | 'REPORT';
+export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY' | 'REPORT' | 'PAYMENT';
 export type PointAction = 'NEW' | 'CORRECTION';
 
 /**
@@ -109,6 +109,8 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                   {v.payment.bill > 0 && <span className="tabular-nums">diterima {rupiah(v.payment.received)} dari {rupiah(v.payment.bill)}</span>}
                   {v.payment.left > 0 && <span className="tabular-nums text-ink-muted">· sisa ditagih {rupiah(v.payment.left)}</span>}
                   {v.payment.proofUrl && <a href={v.payment.proofUrl} target="_blank" rel="noreferrer" className="underline">Bukti transfer</a>}
+                  {v.payment.promiseDate && <span className="tabular-nums">· janji bayar {v.payment.promiseDate}</span>}
+                  {v.payment.correctionReason && <span className="text-ink-muted">· dikoreksi: {v.payment.correctionReason}</span>}
                 </p>
               )}
               {v.reports.length > 0 && (
@@ -118,14 +120,20 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, 
                       <Badge tone={r.closed ? 'ok' : 'warn'}>{r.label}</Badge>
                       {r.note && <span>{r.note}</span>}
                       {r.items.length > 0 && <span>{r.items.map((i) => `${i.name} ${i.quantity} ${i.unit}`).join(', ')}</span>}
-                      <span className="text-ink-muted">· {r.by} {r.at}{r.closed ? ` · selesai: ${r.closeNote}` : ''}</span>
+                      <span className="text-ink-muted">· {r.by} {r.at}{r.closed ? ` · ${r.decision ? 'keputusan' : 'selesai'}: ${r.closeNote}` : ''}</span>
+                      {r.decision?.recorded && <Badge tone="ok">Sudah dicatat di kasir</Badge>}
                       <a href={r.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a>
                     </li>
                   ))}
                 </ul>
               )}
               {onVisit && v.status === 'DELIVERED' && v.customerId != null && (
-                <Button size="sm" variant="secondary" onClick={() => onVisit(v, 'REPORT')}>Lapor masalah</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => onVisit(v, 'REPORT')}>Lapor masalah</Button>
+                  {v.payment && v.payment.bill > 0 && (
+                    <Button size="sm" variant="ghost" onClick={() => onVisit(v, 'PAYMENT')}>Koreksi cara bayar</Button>
+                  )}
+                </div>
               )}
               {v.waitsForPickup.length > 0 && <p className="text-xs text-ink-muted">Menunggu barang diambil di {v.waitsForPickup.join(', ')}.</p>}
               <ul className="space-y-0.5 pl-2">

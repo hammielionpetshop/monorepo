@@ -1,0 +1,8 @@
+<!-- tayang: 2026-11-05 09:00 -->
+### Added
+
+- **Keputusan potong nota di Laporan Toko.** Finance (serta Pemilik dan GM) memutuskan setiap laporan toko dari driver dengan tombol **Putuskan**. Pilihannya: **Potong nota** (pilih nota, isi nominal dan alasan; nominal tidak bisa melebihi nota), **Dicatat lewat Retur BO** (khusus laporan Retur; nilainya diisi di Back Office), atau **Tidak dipotong** (catatan wajib). Pelapor tidak bisa memutuskan laporannya sendiri. Keputusan bisa diubah dengan alasan selama belum dicatat di kasir, dan riwayat lamanya tetap tersimpan.
+- **Perlu dicatat di kasir.** Menu baru untuk Finance berisi keputusan Potong nota dan Retur BO yang belum diketik di kasir, paling lama di atas. Keputusan yang lebih dari 3 hari ditandai merah. Sesudah mencatat di kasir, Finance menekan **Sudah dicatat** dan mengisi nomor retur atau keterangan; setelah itu keputusan terkunci. Ada kartu di Beranda bila masih ada yang belum dicatat.
+- **Janji bayar sisa.** Saat cara bayar **Bayar sebagian** atau **Tempo**, driver wajib mengisi tanggal janji bayar: bawaannya 7 hari, paling lama 60 hari. Tanggal ini tampil di Uang dari Toko dan kartu kunjungan. Yang sudah lewat janji dan piutangnya di kasir belum lunas ditandai **Lewat janji**.
+- **Koreksi cara bayar salah tekan.** Selama trip masih berjalan dan belum Menuju Garasi, awak bisa menekan **Koreksi cara bayar** di kartu toko. Sesudahnya, Kepala Gudang, Pemilik, atau GM mengoreksinya dari Uang dari Toko. Alasan wajib diisi, tagihannya tetap, dan Finance diberi tahu. Catatan lama tidak dihapus, hanya ditandai diganti.
+- **Lapor masalah › Harga beda.** Pilihan baru untuk driver bila toko meminta harga lain. Foto dan catatan harga yang diminta toko wajib diisi.

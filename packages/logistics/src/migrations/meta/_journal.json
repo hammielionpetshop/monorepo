@@ -64,6 +64,13 @@
       "when": 1793838167344,
       "tag": "0008_lt2a_returned_goods",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793840113900,
+      "tag": "0009_lt2b_note_cuts",
+      "breakpoints": true
     }
   ]
 }
