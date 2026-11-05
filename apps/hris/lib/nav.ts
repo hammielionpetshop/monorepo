@@ -95,6 +95,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/logistik/toko', label: 'Data Toko', icon: 'users', action: 'logistics.store.view' },
       { href: '/logistik/uang-toko', label: 'Uang dari Toko', icon: 'table', action: 'logistics.store_payment.view' },
       { href: '/logistik/laporan-toko', label: 'Laporan Toko', icon: 'list', action: 'logistics.delivery_note.view' },
+      { href: '/logistik/catat-kasir', label: 'Perlu dicatat di kasir', icon: 'list', action: 'logistics.note_cut.decide' },
       { href: '/logistik/barang-kembali', label: 'Barang Kembali', icon: 'truck', action: ['logistics.returned_goods.receive', 'logistics.trip.view'] },
       { href: '/logistik/bensin-mobil', label: 'Bensin & Mobil', icon: 'truck', action: 'logistics.vehicle_followup.manage' },
       { href: '/logistik/mobil-rute', label: 'Mobil & Rute', icon: 'list', action: ['logistics.fleet.manage', 'logistics.trip.view'] },

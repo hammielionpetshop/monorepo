@@ -70,10 +70,11 @@ export {
   type ChosenMethod, type PaymentMethod, type ReportKind,
 } from './rules/store-payments';
 export {
-  addVisitReport, closeVisitReport, openReportCount, storePaymentsScreen, visitReportsScreen, type ReportRow, type StorePaymentRow,
-  type VisitPaymentView, type VisitReportView,
+  addVisitReport, correctPayment, decideVisitReport, markDecisionRecorded, openReportCount, storePaymentsScreen, toRecordScreen, unrecordedCounts,
+  visitReportsScreen, type DecisionView, type ReportRow, type StorePaymentRow, type ToRecordRow, type VisitPaymentView, type VisitReportView,
 } from './server/store-payments';
 export { StorePaymentsScreen } from './ui/store-payments-screen';
+export { ToRecordScreen } from './ui/to-record-screen';
 export { VisitReportsScreen } from './ui/visit-reports-screen';
 export { TripNotesPanel } from './ui/trip-notes-panel';
 export {

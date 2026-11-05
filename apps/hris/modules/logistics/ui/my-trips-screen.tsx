@@ -11,12 +11,16 @@ import { postJson } from '@/lib/post-json';
 import { CONDITION_LABELS, VISIT_REASONS, type Condition, type VisitOutcome } from '../rules/driver-trip';
 import { RETURN_ITEMS_MAX, cleanReturnItems } from '../rules/returned-goods';
 import { rupiah } from '../rules/rates';
-import { CHOSEN_METHODS, PAYMENT_HINTS, PAYMENT_LABELS, REPORT_KINDS, cleanPayment, leftToCollect, type ChosenMethod, type ReportKind } from '../rules/store-payments';
+import {
+  CHOSEN_METHODS, PAYMENT_HINTS, PAYMENT_LABELS, REPORT_KINDS, cleanPayment, cleanPromise, leftToCollect, needsPromise, type ChosenMethod, type ReportKind,
+} from '../rules/store-payments';
+import { wibDate } from '../rules/trip';
 import type { EndReportPending } from '../server/driver-trip';
 import type { TripCard } from '../server/screens';
 import type { TripPickupView, TripVisitView } from '../server/trip-notes';
 import { TripNotesPanel, type PointAction, type VisitAction } from './trip-notes-panel';
 import { LiveCamera, photoForm, readLocation } from './capture';
+import { PaymentCorrectForm, PromiseField, defaultPromise } from './payment-correct';
 
 type Delivery = { visits: TripVisitView[]; pickups: TripPickupView[] };
 type Step =
@@ -29,6 +33,7 @@ type Step =
   | { kind: 'point'; tripId: number; visit: TripVisitView; pointKind: PointAction }
   | { kind: 'deliver'; tripId: number; visit: TripVisitView }
   | { kind: 'report'; tripId: number; visit: TripVisitView }
+  | { kind: 'payment'; tripId: number; visit: TripVisitView }
   | null;
 
 const OUTCOME_TITLES = { DELIVERED: 'Terkirim', TOMORROW: 'Kirim Besok', FAILED: 'Gagal' } as const;
@@ -87,6 +92,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   function onVisit(tripId: number, visit: TripVisitView, action: VisitAction) {
     if (action === 'RETRY') return void retry(tripId, visit);
     if (action === 'REPORT') return begin({ kind: 'report', tripId, visit });
+    if (action === 'PAYMENT') return begin({ kind: 'payment', tripId, visit });
     // Terkirim ke toko: foto barang → cara bayar → ringkasan (spec LT1 §13.5 butir 2).
     if (action === 'DELIVERED' && visit.customerId != null) return begin({ kind: 'deliver', tripId, visit });
     begin({ kind: 'visit', tripId, visit, outcome: action });
@@ -103,7 +109,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
 
   async function sendPhoto() {
-    if (!step || !photo || step.kind === 'point' || step.kind === 'deliver' || step.kind === 'report') return;
+    if (!step || !photo || step.kind === 'point' || step.kind === 'deliver' || step.kind === 'report' || step.kind === 'payment') return;
     setBusy(true);
     setError(null);
     const needsPoint = step.kind === 'depart' || step.kind === 'visit' || step.kind === 'arrive';
@@ -149,6 +155,20 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
   if (step?.kind === 'deliver') return <DeliverFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
   if (step?.kind === 'report') return <ReportFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
+  if (step?.kind === 'payment') {
+    const p = step.visit.payment;
+    if (!p) return <Card className="mx-auto max-w-md space-y-3"><p>Kunjungan ini belum punya cara bayar.</p><Button onClick={() => setStep(null)}>Kembali</Button></Card>;
+    // Koreksi cara bayar salah tekan oleh awak selama trip berjalan (spec LT1 §14.2 butir 4).
+    return (
+      <Card className="mx-auto max-w-md space-y-3">
+        <h2 className="font-semibold">Koreksi cara bayar: {step.visit.destination}</h2>
+        <PaymentCorrectForm
+          target={{ visitId: step.visit.id, tripId: step.tripId, store: step.visit.destination, bill: p.bill, method: p.method, received: p.received, promiseDate: p.promiseDate, hasProof: !!p.proofUrl }}
+          onDone={(saved) => { setStep(null); if (saved) router.refresh(); }}
+        />
+      </Card>
+    );
+  }
 
   if (step) {
     const reasons = step.kind === 'visit' && step.outcome !== 'DELIVERED' ? VISIT_REASONS[step.outcome] : null;
@@ -320,9 +340,12 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
   const [proof, setProof] = useState<Blob | null>(null);
   const [method, setMethod] = useState<ChosenMethod | null>(null);
   const [partial, setPartial] = useState('');
+  const [promise, setPromise] = useState(defaultPromise);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clean = cleanPayment(bill, method, partial ? Number(partial) : null);
+  // Janji bayar sisa wajib untuk Bayar sebagian / Tempo (spec LT1 §14.2 butir 5).
+  const promiseCheck = clean.ok ? cleanPromise(clean.method, promise, wibDate(new Date())) : null;
 
   async function send() {
     if (!photo || !clean.ok) return;
@@ -331,7 +354,7 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
     const point = await readLocation();
     const form = photoForm({
       action: 'deliver_visit', tripId: step.tripId, visitId: step.visit.id, payMethod: clean.method === 'NONE' ? null : clean.method,
-      partialAmount: clean.method === 'PARTIAL' ? clean.received : null, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy,
+      partialAmount: clean.method === 'PARTIAL' ? clean.received : null, promiseDate: needsPromise(clean.method) ? promise : null, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy,
     }, photo);
     if (clean.method === 'TRANSFER' && proof) form.append('proof', proof, 'bukti.jpg');
     const result = await postJson('/api/logistics/upload', form);
@@ -377,9 +400,11 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
             </Field>
           )}
           {method && !clean.ok && method === 'PARTIAL' && partial && <p className="text-xs text-danger-fg">{clean.error}</p>}
+          {method && needsPromise(method) && <PromiseField value={promise} onChange={setPromise} />}
+          {promiseCheck && !promiseCheck.ok && <p className="text-xs text-danger-fg">{promiseCheck.error}</p>}
           <div className="flex gap-2">
             <Button variant="secondary" className="min-h-12" onClick={() => setPage('PHOTO')}>Kembali</Button>
-            <Button block className="min-h-12" disabled={!clean.ok} onClick={() => setPage(method === 'TRANSFER' ? 'PROOF' : 'SUMMARY')}>Lanjut</Button>
+            <Button block className="min-h-12" disabled={!clean.ok || !promiseCheck?.ok} onClick={() => setPage(method === 'TRANSFER' ? 'PROOF' : 'SUMMARY')}>Lanjut</Button>
           </div>
         </>
       )}
@@ -407,8 +432,11 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
             {leftToCollect(clean.method, bill, clean.received) > 0 && (
               <div className="flex justify-between gap-2"><dt>Sisa ditagih kantor</dt><dd className="font-medium tabular-nums">{rupiah(leftToCollect(clean.method, bill, clean.received))}</dd></div>
             )}
+            {needsPromise(clean.method) && (
+              <div className="flex justify-between gap-2"><dt>Janji bayar sisa</dt><dd className="font-medium tabular-nums">{promise}</dd></div>
+            )}
           </dl>
-          <p className="text-xs text-ink-muted">Sesudah disimpan, cara bayar tidak bisa diubah dari HP. Bila ada barang salah, kurang, rusak, atau retur, tekan Lapor masalah di kartu toko.</p>
+          <p className="text-xs text-ink-muted">Salah tekan cara bayar bisa dikoreksi (alasan wajib) selama trip belum Menuju Garasi. Bila ada barang salah, kurang, rusak, atau retur, tekan Lapor masalah di kartu toko.</p>
           <div className="flex gap-2">
             <Button variant="secondary" className="min-h-12" disabled={busy} onClick={() => setPage(bill > 0 ? (method === 'TRANSFER' ? 'PROOF' : 'PAY') : 'PHOTO')}>Kembali</Button>
             <Button block className="min-h-12" loading={busy} onClick={send}>Simpan Terkirim</Button>
@@ -433,7 +461,7 @@ function ReportFlow({ step, onDone }: { step: Extract<Step, { kind: 'report' }>;
   const [error, setError] = useState<string | null>(null);
   // Retur wajib rincian barang + pemilik barang bila surat jalannya dari lebih dari satu cabang (spec LT1 §14.1 butir 2).
   const itemsOk = kind !== 'RETURN' || (cleanReturnItems(items).ok && (origins.length <= 1 || owner != null));
-  const ready = !!kind && (kind !== 'OTHER' || note.trim().length >= 5) && itemsOk;
+  const ready = !!kind && ((kind !== 'OTHER' && kind !== 'PRICE') || note.trim().length >= 5) && itemsOk;
   const setItem = (index: number, field: 'name' | 'quantity' | 'unit', value: string) =>
     setItems((list) => list.map((item, n) => (n === index ? { ...item, [field]: value } : item)));
 
@@ -491,7 +519,7 @@ function ReportFlow({ step, onDone }: { step: Extract<Step, { kind: 'report' }>;
           )}
         </div>
       )}
-      <Field id="report-note" label={kind === 'OTHER' ? 'Ceritakan kendalanya (wajib)' : kind === 'RETURN' ? 'Catatan (alasan retur)' : 'Catatan (barang apa, berapa)'}>
+      <Field id="report-note" label={kind === 'OTHER' ? 'Ceritakan kendalanya (wajib)' : kind === 'PRICE' ? 'Harga yang diminta toko (wajib)' : kind === 'RETURN' ? 'Catatan (alasan retur)' : 'Catatan (barang apa, berapa)'}>
         <Textarea id="report-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Contoh: 2 sak Royal 10 kg sobek" />
       </Field>
       {photo ? (
@@ -502,7 +530,7 @@ function ReportFlow({ step, onDone }: { step: Extract<Step, { kind: 'report' }>;
             <Button block className="min-h-12" loading={busy} disabled={!ready} onClick={send}>Kirim laporan</Button>
             <Button variant="secondary" className="min-h-12" disabled={busy} onClick={() => setPhoto(null)}>Ulangi</Button>
           </div>
-          {!ready && <p className="text-xs text-ink-muted">Pilih jenis laporan dulu (Kendala lain wajib cerita; Retur wajib nama, jumlah, dan satuan barang).</p>}
+          {!ready && <p className="text-xs text-ink-muted">Pilih jenis laporan dulu (Kendala lain wajib cerita; Harga beda wajib tulis harga yang diminta toko; Retur wajib nama, jumlah, dan satuan barang).</p>}
         </>
       ) : <LiveCamera onPhoto={setPhoto} onError={setError} label="Foto barangnya" />}
       <Button variant="ghost" block disabled={busy} onClick={() => onDone(false)}>Batal</Button>

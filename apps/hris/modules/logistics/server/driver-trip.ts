@@ -11,7 +11,7 @@ import {
 } from '../rules/driver-trip';
 import { contentProblem, reasonProblem, validPoint, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { rupiah } from '../rules/rates';
-import { cleanPayment } from '../rules/store-payments';
+import { cleanPayment, cleanPromise } from '../rules/store-payments';
 import { FORBIDDEN, accountsOf, fail, loadTrip, managerAccounts, peopleNames, type LoadedTrip } from './data';
 import { rateProblem } from './rates';
 import { distanceFromPoint } from './store-points';
@@ -134,6 +134,8 @@ export async function processVisit(
     const bill = (await openVisitBills([visitId])).get(visitId) ?? 0;
     const clean = cleanPayment(bill, input.payment?.method, input.payment?.partialAmount);
     if (!clean.ok) return fail(400, clean.error);
+    const promise = cleanPromise(clean.method, input.payment?.promiseDate, wibDate(new Date()));
+    if (!promise.ok) return fail(400, promise.error);
     if (clean.method === 'TRANSFER') {
       const proofUpload = await saveUpload(actor, proof);
       if (!proofUpload.ok) return fail(400, proofUpload.status === 400 ? `Bukti transfer: ${proofUpload.error}` : proofUpload.error);
@@ -158,7 +160,7 @@ export async function processVisit(
     const [trip] = await tx.select({ status: trips.status, heading: trips.headingHomeAt, number: trips.number }).from(trips).where(eq(trips.id, tripId)).for('update');
     if (trip.status !== 'RUNNING' || trip.heading) throw new VisitRollback(409, 'Trip ini sudah Menuju Garasi atau ditutup.');
     if (paying) {
-      const paid = await recordPayment(tx, { id: visitId, tripId, customerId: visit.customerId! }, input.payment ?? {}, proofId, me.personId, now);
+      const paid = await recordPayment(tx, { id: visitId, tripId, customerId: visit.customerId! }, input.payment ?? {}, proofId, { employeeId: me.personId, accountId: me.accountId }, now);
       if (!paid.ok) throw new VisitRollback(paid.status, paid.error);
     }
     const links = (await activeKeys(tx, tripId)).filter((k) => k.visitId === visitId);

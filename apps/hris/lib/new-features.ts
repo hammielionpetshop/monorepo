@@ -197,6 +197,10 @@ export const NEW_FEATURES: Record<string, string> = {
   // LT2a Barang kembali + tertunda (tayang staging 2026-11-05)
   '/logistik/barang-kembali': '2026-11-05',
   '/logistik/surat-jalan/tertunda': '2026-11-05',
+  // LT2b Potong nota + koreksi uang (tayang staging 2026-11-05)
+  '/logistik/catat-kasir': '2026-11-05',
+  'fitur/potong-nota': '2026-11-05', // keputusan Potong nota / Retur BO / Tidak dipotong di Laporan Toko, pilihan Harga beda di Lapor masalah
+  'fitur/janji-bayar': '2026-11-05', // janji bayar sisa saat Bayar sebagian / Tempo, koreksi cara bayar salah tekan
   'fitur/rincian-retur': '2026-11-05', // nama + jumlah + satuan barang retur di Lapor masalah // Pasang titik / Laporkan titik salah di kunjungan, tab Titik menunggu, kartu Titik toko, Buka peta, jarak Terkirim
 };
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addVisitReport, arriveTrip, closeByOffice, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, receiveGoods, sendEndReport,
+  addVisitReport, arriveTrip, closeByOffice, correctPayment, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, receiveGoods, sendEndReport,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       const proofValue = form.get('proof');
       return processVisit(actor, tripId, visitId, {
         outcome: OUTCOMES[action as keyof typeof OUTCOMES], reasonCode: text(form.get('reasonCode'), 40), note: text(form.get('note'), 300), point,
-        payment: { method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')) },
+        payment: { method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')), promiseDate: text(form.get('promiseDate'), 10) },
       }, photo, proofValue instanceof File ? proofValue : null);
     }
     if (action === 'store_point') {
@@ -60,6 +60,15 @@ export async function POST(req: Request) {
       const kind = form.get('kind');
       if (!visitId || (kind !== 'NEW' && kind !== 'CORRECTION')) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
       return proposeFromVisit(actor, tripId, visitId, { kind, reason: text(form.get('reason'), 400), point }, photo);
+    }
+    // Koreksi cara bayar salah tekan (spec LT1 §14.2 butir 4): awak selama trip berjalan, sesudahnya kantor. Foto = bukti transfer baru.
+    if (action === 'correct_payment') {
+      const visitId = positive(form.get('visitId'));
+      if (!visitId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      return correctPayment(actor, visitId, {
+        method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')), promiseDate: text(form.get('promiseDate'), 10),
+        reason: text(form.get('reason'), 500),
+      }, photo);
     }
     if (action === 'visit_report') {
       const visitId = positive(form.get('visitId'));

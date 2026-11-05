@@ -459,8 +459,9 @@ export const tripVisits = logisticsSchema.table(
 );
 
 /**
- * Cara bayar di toko saat Terkirim (spec LT1 §13.2, §13.5): satu per kunjungan, dicatat awak bersama Terkirim. Uang
- * disimpan rupiah bulat. Tidak diubah atau dihapus; koreksi lewat pemeriksaan uang (Tahap 4).
+ * Cara bayar di toko saat Terkirim (spec LT1 §13.2, §13.5): satu yang berlaku per kunjungan, dicatat awak bersama Terkirim. Uang
+ * disimpan rupiah bulat. Tidak dihapus; koreksi salah tekan (spec LT1 §14.2 butir 4) menulis baris baru dan menandai baris lama
+ * Diganti (`replaced_at`).
  */
 export const visitPayments = logisticsSchema.table(
   'visit_payments',
@@ -477,9 +478,16 @@ export const visitPayments = logisticsSchema.table(
     proofPhotoFileId: uuid('proof_photo_file_id'),
     recordedByEmployeeId: integer('recorded_by_employee_id').notNull(),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Janji bayar sisa (spec LT1 §14.2 butir 5; LOG-113): wajib untuk Bayar sebagian / Tempo sejak LT2b; baris lama kosong. */
+    promiseDate: date('promise_date', { mode: 'string' }),
+    /** Koreksi (§14.2 butir 4): baris yang dikoreksi + alasan; akun pengoreksi (awak atau kantor). */
+    correctionOfId: integer('correction_of_id'),
+    correctionReason: text('correction_reason'),
+    recordedByAccountId: integer('recorded_by_account_id'),
+    replacedAt: timestamp('replaced_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('visit_payments_visit_unique').on(t.visitId),
+    uniqueIndex('visit_payments_visit_current').on(t.visitId).where(sql`${t.replacedAt} is null`),
     index('visit_payments_trip_idx').on(t.tripId),
     check('visit_payments_method', sql`${t.method} in ('NONE', 'CASH', 'TRANSFER', 'PARTIAL', 'TEMPO')`),
     check('visit_payments_amounts', sql`${t.billAmount} >= 0 and ${t.receivedAmount} >= 0 and (
@@ -488,6 +496,8 @@ export const visitPayments = logisticsSchema.table(
       or (${t.method} = 'PARTIAL' and ${t.receivedAmount} > 0 and ${t.receivedAmount} < ${t.billAmount})
       or (${t.method} = 'TEMPO' and ${t.billAmount} > 0 and ${t.receivedAmount} = 0))`),
     check('visit_payments_proof', sql`(${t.method} = 'TRANSFER') = (${t.proofPhotoFileId} is not null)`),
+    check('visit_payments_promise', sql`${t.promiseDate} is null or ${t.method} in ('PARTIAL', 'TEMPO')`),
+    check('visit_payments_correction', sql`(${t.correctionOfId} is null) = (${t.correctionReason} is null)`),
   ],
 );
 
@@ -502,7 +512,7 @@ export const visitReports = logisticsSchema.table(
     visitId: integer('visit_id').notNull().references(() => tripVisits.id),
     tripId: integer('trip_id').notNull().references(() => trips.id),
     customerId: integer('customer_id').notNull(),
-    /** WRONG_ITEM, SHORT, DAMAGED, RETURN, OTHER. */
+    /** WRONG_ITEM, SHORT, DAMAGED, PRICE (harga beda, LT2b), RETURN, OTHER. */
     kind: text('kind').notNull(),
     note: text('note'),
     photoFileId: uuid('photo_file_id').notNull(),
@@ -518,7 +528,7 @@ export const visitReports = logisticsSchema.table(
   (t) => [
     index('visit_reports_visit_idx').on(t.visitId),
     index('visit_reports_open_idx').on(t.closedAt),
-    check('visit_reports_kind', sql`${t.kind} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'RETURN', 'OTHER') and (${t.kind} <> 'OTHER' or ${t.note} is not null)`),
+    check('visit_reports_kind', sql`${t.kind} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'RETURN', 'OTHER') and (${t.kind} not in ('OTHER', 'PRICE') or ${t.note} is not null)`),
     check('visit_reports_carried', sql`${t.carriedBack} = (${t.kind} = 'RETURN')`),
     check('visit_reports_closed', sql`(${t.closedAt} is null) = (${t.closeNote} is null) and (${t.closedAt} is null) = (${t.closedByAccountId} is null)`),
   ],
@@ -645,5 +655,47 @@ export const goodsReceipts = logisticsSchema.table(
     check('goods_receipts_source', sql`${t.sourceKind} in ('NOTE', 'RETURN')`),
     check('goods_receipts_step', sql`${t.step} in ('WAREHOUSE', 'OWNER')`),
     check('goods_receipts_result', sql`${t.result} in ('MATCH', 'MISMATCH') and (${t.result} = 'MATCH' or ${t.note} is not null)`),
+  ],
+);
+
+/**
+ * Keputusan potong nota atas laporan toko (spec LT1 §14.2 butir 1, 3): Potong nota (nota + nominal + alasan), Retur dicatat
+ * di Back Office (nilai tidak di HRIS), atau Tidak dipotong. Satu yang berlaku per laporan; ubah keputusan menulis baris baru
+ * dan menandai yang lama Diganti. Potong nota / Retur BO masuk daftar "Perlu dicatat di kasir" sampai Finance menandai Sudah
+ * dicatat (nomor referensi); sesudah itu terkunci. Tidak dihapus.
+ */
+export const reportDecisions = logisticsSchema.table(
+  'report_decisions',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => visitReports.id),
+    /** CUT = Potong nota, RETURN_BO = dicatat lewat Retur Back Office, NO_CUT = Tidak dipotong. */
+    decision: text('decision').notNull(),
+    /** Surat jalan nota yang dipotong / diretur (`delivery_notes.id`, jenis SALE). */
+    noteId: integer('note_id').references(() => deliveryNotes.id),
+    amount: integer('amount'),
+    /** WRONG_ITEM, SHORT, DAMAGED, PRICE, REJECTED, OTHER (hanya CUT). */
+    reason: text('reason'),
+    note: text('note'),
+    decidedByAccountId: integer('decided_by_account_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Ubah keputusan: alasan di baris baru; baris lama Diganti. */
+    changeReason: text('change_reason'),
+    replacedAt: timestamp('replaced_at', { withTimezone: true }),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }),
+    recordedByAccountId: integer('recorded_by_account_id'),
+    recordedRef: text('recorded_ref'),
+  },
+  (t) => [
+    uniqueIndex('report_decisions_current').on(t.reportId).where(sql`${t.replacedAt} is null`),
+    index('report_decisions_unrecorded_idx').on(t.recordedAt),
+    check('report_decisions_decision', sql`${t.decision} in ('CUT', 'RETURN_BO', 'NO_CUT')`),
+    check('report_decisions_cut', sql`(${t.decision} = 'CUT') = (${t.amount} is not null and ${t.reason} is not null)
+      and (${t.amount} is null or ${t.amount} > 0)
+      and (${t.reason} is null or ${t.reason} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'REJECTED', 'OTHER'))
+      and (${t.decision} = 'NO_CUT' or ${t.noteId} is not null)
+      and (${t.decision} <> 'NO_CUT' or ${t.note} is not null)`),
+    check('report_decisions_recorded', sql`(${t.recordedAt} is null) = (${t.recordedByAccountId} is null) and (${t.recordedAt} is null) = (${t.recordedRef} is null)
+      and (${t.recordedAt} is null or ${t.decision} <> 'NO_CUT')`),
   ],
 );
