@@ -2,6 +2,35 @@
 
 # Changelog
 
+## [1.107.113] - 2026-11-05
+
+### Added
+- **Grooming bisa ditahan: karcis dulu, nota menyusul.** Di tab Grooming › Terima Kucing ada tombol baru **Tahan**. Kucing langsung tercatat dan karcis 2 lembar (konsumen + groomer) tercetak dengan nomor `TAHAN-<nomor>/<urutan>`, tanpa membuat nota dan tanpa perlu shift terbuka.
+  - Tahanan tampil di **Sedang Dikerjakan** bertanda **BELUM ADA NOTA**, bisa dicari dengan nomor karcis TAHAN. Tombolnya: **Buat Nota** (Lunas / Tambah belanja / Bayar saat ambil), **Buat Nota & Ambil**, **Cetak karcis** (cetakan kedua bertanda CETAK ULANG), dan **Batalkan** (alasan wajib; tampil di Sudah Selesai sebagai "DIBATALKAN — TANPA NOTA").
+  - Kucing yang belum bernota tidak bisa ditandai diambil — notanya harus dibuat dulu.
+  - Harga dihitung saat nota dibuat (harga & golongan pelanggan hari itu). Isi nota harus sama dengan karcis; satu tahanan tidak bisa menjadi dua nota.
+  - Karcis tidak perlu dicetak ulang sesudah nota dibuat: grooming itu tetap memakai nomor karcis TAHAN-nya. Uang, shift, piutang, laporan, dan bonus groomer baru berjalan setelah nota dibuat.
+
+### Fixed
+- **Tombol 1 / 2 / 3 di langkah "Barang ini bagaimana sampainya?" kini langsung jalan.** Sebelumnya, bila kursor masih tertinggal di kotak cari produk (mis. sesudah scan barcode lalu F10), menekan 1/2/3 tidak memilih apa-apa dan angkanya malah masuk ke kotak cari di belakang. Kini kursor dipindah ke langkah Pengiriman saat dibuka: 1 = Ambil sendiri, 2 = Dikirim kurir cabang, 3 = Dikirim truk Gudang. Mengetik nilai ongkir atau memilih pengantar di dalam langkah itu tidak terganggu.
+
+## [1.107.112] - 2026-11-05
+
+### Added
+- **Kelompok campur di syarat promo** (Promo › Buat promo, bentuk Beli A–B lebih murah, Beli X gratis Y, dan Bundling): beberapa barang — mis. pasir 10 L semua aroma, atau makanan semua rasa — masuk satu kelompok dengan satu jumlah minimal. Qty semua anggota dijumlah, jadi pelanggan bebas mencampur aroma/rasa; begitu totalnya mencapai jumlah minimal, promo berjalan (kelipatan tetap mengikuti total kelompok). Hadiahnya tetap jenis yang sudah ada (gratis barang, potongan, harga jadi). Ada tombol **Tambah semua hasil** untuk memasukkan semua aroma sekaligus dari pencarian nama; semua anggota satu kelompok memakai satuan yang sama. Kelompok campur bisa digabung dengan syarat barang biasa. Barang syarat per promo kini sampai 100.
+
+### Changed
+- **Kiriman antar cabang (PO Internal) yang diterima kini melunasi utang stok cabang penerima**, sama seperti penerimaan PO supplier — Gudang adalah pemasok toko. Barang yang terjual saat stok sistem kosong (oversale) tidak lagi menumpuk di menu Utang Stok setiap kali kiriman Gudang diterima; HPP nota oversale dikoreksi memakai harga kiriman.
+
+### Fixed
+- **Pembersihan utang stok lama (sampai 31 Oktober 2026)** yang menumpuk karena kiriman Gudang dulu tidak melunasinya. Tidak ada data yang dihapus dan angka stok kasir tidak berubah: utang yang tertutup oleh stok yang sudah masuk dilunasi (tercatat sebagai pelunasan "Pembersihan"), sisanya — barang yang stok sistemnya memang minus — ditandai write-off dengan alasan pembersihan dan tetap tampil sebagai defisit sampai Stock Opname berikutnya. HPP nota bulan lalu tidak diubah. Utang sejak 1 November tetap terbuka dan lunas lewat kiriman/PO berikutnya.
+
+## [1.107.111] - 2026-11-05
+
+### Added
+- **Batalkan PO** di detail PO Supplier untuk PO berstatus Disetujui, Dalam Pengiriman, Diterima, dan Selesai — untuk PO yang salah input admin. Jendelanya berisi panduan: kapan dipakai, apa yang terjadi, langkah-langkah, dan alasan wajib diisi. PO yang dibatalkan tidak bisa dipakai lagi; alasan, nama pembatal, dan waktunya tampil di detail PO.
+- PO **Selesai** yang dibatalkan (wajib PIN Owner cabang PO): stok yang masuk dari PO itu ditarik dari batch milik PO itu sendiri dan tercatat di Mutasi Stok sebagai "Batal PO", hutang supplier ditandai Dihapus, dan pengembalian modal diusulkan di Tinjauan Modal. Pembatalan ditolak — dengan langkah yang harus dilakukan — bila hutangnya sudah dibayar, ada retur supplier untuk PO itu, atau barangnya sudah terpakai (terjual, dipindah, dipotong opname).
+
 ## [1.107.110] - 2026-11-04
 
 ### Added

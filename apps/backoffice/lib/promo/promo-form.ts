@@ -1,5 +1,5 @@
 import {
-  checkNewPromo, promoUnitPrice, PROMO_KIND_LABEL, PROMO_QUOTA_KIND_LABEL,
+  checkNewPromo, conditionUnits, promoUnitPrice, PROMO_KIND_LABEL, PROMO_QUOTA_KIND_LABEL,
   type PromoKind, type PromoQuotaKind, type PromoRule, type PromoRewardType,
 } from './promo-engine'
 
@@ -75,6 +75,8 @@ export interface PromoFormState {
   minQty: string
   /** Bentuk "beli A, B lebih murah". */
   conditions: (PromoFormItem & { minQty: string })[]
+  /** Kelompok campur: anggota (rasa/aroma) dihitung bersama terhadap satu jumlah minimal. */
+  conditionGroups: { members: PromoFormItem[]; minQty: string }[]
   rewards: (PromoFormItem & { qty: string })[]
   isMultiple: boolean
   maxPerNote: string
@@ -101,7 +103,7 @@ export interface PromoPayload {
   quotaKind: PromoQuotaKind | null
   quotaPerBranch: number | null
   requireStock: boolean
-  conditions: { productId: number; uomId: number; minQty: number }[]
+  conditions: { productId: number; uomId: number; minQty: number; groupNo?: number | null }[]
   rewards: { productId: number; uomId: number; type: PromoRewardType; value: number; qty: number | null }[]
   acceptLoss?: boolean
 }
@@ -124,6 +126,7 @@ export function emptyPromoForm(today: string, branchIds: number[]): PromoFormSta
     target: null,
     minQty: '',
     conditions: [],
+    conditionGroups: [],
     rewards: [],
     isMultiple: true,
     maxPerNote: '',
@@ -199,13 +202,19 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
   let maxPerNote: number | null = null
 
   if (usesConditionList(form.shape)) {
-    if (form.conditions.length === 0) return { error: 'Pilih sekurangnya satu barang syarat' }
+    if (form.conditions.length === 0 && form.conditionGroups.length === 0) return { error: 'Pilih sekurangnya satu barang syarat' }
     if (form.rewards.length === 0) return { error: gift ? 'Pilih sekurangnya satu barang hadiah gratis' : 'Pilih sekurangnya satu barang yang dipotong' }
     conditions = []
     for (const c of form.conditions) {
       const minQty = parseWholeNumber(c.minQty)
       if (!minQty) return { error: 'Isi jumlah minimal tiap barang syarat' }
       conditions.push({ productId: c.productId, uomId: c.uomId, minQty })
+    }
+    for (const [index, group] of form.conditionGroups.entries()) {
+      const minQty = parseWholeNumber(group.minQty)
+      if (!minQty) return { error: 'Isi jumlah minimal tiap kelompok campur' }
+      if (group.members.length < 2) return { error: 'Kelompok campur harus berisi sekurangnya 2 barang' }
+      for (const m of group.members) conditions.push({ productId: m.productId, uomId: m.uomId, minQty, groupNo: index + 1 })
     }
     rewards = []
     for (const r of form.rewards) {
@@ -304,7 +313,10 @@ export function describePromo(rule: DescribedRule): string[] {
     lines.push(...quotaStockLines(rule))
     return lines
   }
-  lines.push(`Syarat: ${rule.conditions.map((c) => `${c.minQty} pcs ${itemName(c)}`).join(' + ')}`)
+  const units = conditionUnits(rule.conditions) as DescribedRule['conditions'][]
+  lines.push(`Syarat: ${units.map((unit) => unit[0]!.groupNo == null
+    ? `${unit[0]!.minQty} pcs ${itemName(unit[0]!)}`
+    : `${unit[0]!.minQty} ${unit[0]!.uomCode} campur dari ${unit.map((c) => c.productName).join(' / ')}`).join(' + ')}`)
   for (const r of rule.rewards) {
     if (r.type === 'GRATIS') {
       lines.push(`Gratis: ${itemName(r)} — ${r.qty ?? 1} pcs tiap kali terpakai`)

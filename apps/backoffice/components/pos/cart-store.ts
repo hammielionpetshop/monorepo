@@ -44,7 +44,8 @@ export interface CartItem {
   ongkirFree?: boolean
   // Baris jasa dari tab Grooming (diteruskan apa adanya ke server oleh layar bayar):
   // kucing, groomer & kondisi; atau pengantar & alamat pada baris ongkir delivery.
-  grooming?: { petId: number; groomerId: number; condition: string }
+  // `holdId` = baris dari Grooming Ditahan yang sedang dibuatkan nota (server menutup tahanannya).
+  grooming?: { petId: number; groomerId: number; condition: string; holdId?: number }
   delivery?: { courierId: number; address?: string; freeShipping?: boolean }
   // Baris hadiah gratis (beli X gratis Y, P4d) yang DITAMBAHKAN otomatis oleh mesin promo — bukan
   // barang yang diketik kasir. Tidak pernah disimpan di keranjang (useCartStore): dibentuk ulang

@@ -62,6 +62,9 @@ const transactionSchema = z.object({
             petId: z.number().int().positive(),
             groomerId: z.number().int().positive(),
             condition: z.string().trim().min(1, 'Kondisi kucing wajib diisi').max(GROOMING_CONDITION_MAX, 'Kondisi kucing terlalu panjang'),
+            // Grooming Ditahan yang dibuatkan nota. WAJIB tercantum di sini — tanpa field ini Zod
+            // membuangnya dan tahanannya tidak pernah tertutup (lihat grooming-hold-service).
+            holdId: z.number().int().positive().optional().nullable(),
           })
           .optional(),
         // Baris ongkir: pengantar (wajib); alamat hanya untuk delivery grooming (tab Grooming).
