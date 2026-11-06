@@ -18,7 +18,9 @@ import { SupplierPaymentDialog } from '../../supplier-payables/_components/suppl
 import { NewBadge } from '@/components/ui/new-badge';
 import { POCancelDialog } from './po-cancel-dialog';
 import { PoUnloadingPanel, type PoAttachment, type PoUnloadingInfo } from './po-unloading-panel';
-import { PoDraftEditor } from './po-draft-editor';
+import { PoItemsEditor } from './po-items-editor';
+import { canEditPoItems } from '@/lib/services/po-item-edit-rules';
+import { CreatePODialog } from '../../_components/create-po-dialog';
 
 const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
 
@@ -116,12 +118,15 @@ export function PODetailClient({
   canPay,
   canCancel,
   canManage,
+  followUp,
   paymentMethods,
   supplierCreditBalance,
   today,
 }: {
   /** Hak po.manage — ubah isi Draft, tandai perubahan bongkaran sudah diperiksa. */
   canManage: boolean;
+  /** Pilihan supplier/cabang untuk "Buat PO Tambahan" — hanya terisi untuk PO Selesai. */
+  followUp: { suppliers: { id: number; name: string }[]; branches: { id: number; name: string }[] } | null;
   po: PO;
   currentUserId: number;
   role: string;
@@ -155,6 +160,7 @@ export function PODetailClient({
   const statusInfo = PO_STAGE_INFO[stage];
 
   const refresh = () => startRefresh(() => router.refresh());
+  const [showFollowUp, setShowFollowUp] = useState(false);
 
   useEffect(() => {
     if (!successMsg) return;
@@ -261,6 +267,7 @@ export function PODetailClient({
   };
 
   const canReceive = ['OWNER', 'GM'].includes(role);
+  const canEditItems = canManage && canEditPoItems(po.status, role);
   const totalReceived = po.items.reduce((s, i) => s + parseFloat(i.qtyReceived || '0'), 0);
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
   const printingLog = po.receivingLogs.find(log => log.id === printingLogId) ?? null;
@@ -505,11 +512,12 @@ export function PODetailClient({
         onReviewed={(message) => { setSuccessMsg(message); refresh(); }}
       />
 
-      {po.status === 'DRAFT' && canManage && (
-        <PoDraftEditor
-          key={po.items.map(i => `${i.id}:${i.qtyOrdered}:${i.unitCost}`).join(',')}
+      {canEditItems && (
+        <PoItemsEditor
+          key={`${po.status}|${po.items.map(i => `${i.id}:${i.qtyOrdered}:${i.unitCost}:${i.qtyReceived}`).join(',')}`}
           poId={po.id}
           branchId={po.branch.id}
+          status={po.status}
           initialItems={po.items.map(i => ({
             productId: i.productId,
             uomId: i.uomId,
@@ -518,6 +526,7 @@ export function PODetailClient({
             qty: String(parseFloat(i.qtyOrdered)),
             unitCost: Number(i.unitCost) > 0 ? String(parseFloat(i.unitCost)) : '',
             qtyUnloaded: i.qtyUnloaded,
+            qtyReceived: Number(i.qtyReceived) || 0,
           }))}
           onSaved={(message) => { setSuccessMsg(message); refresh(); }}
         />
@@ -627,6 +636,21 @@ export function PODetailClient({
             ))}
           </div>
         </div>
+      )}
+
+      {showFollowUp && followUp && (
+        <CreatePODialog
+          suppliers={followUp.suppliers}
+          branches={followUp.branches}
+          currentUserId={currentUserId}
+          role={role}
+          initial={{ supplierId: po.supplier.id, branchId: po.branch.id, notes: `PO Tambahan dari ${po.poNumber}`, title: 'Buat PO Tambahan' }}
+          onClose={() => setShowFollowUp(false)}
+          onSuccess={(newPoId) => {
+            setShowFollowUp(false);
+            router.push(`/purchase-orders/${newPoId}?baru=1`);
+          }}
+        />
       )}
 
       {/* Actions */}
@@ -759,6 +783,21 @@ export function PODetailClient({
           <p className="text-sm text-green-600 font-medium">
             Penerimaan telah disetujui. Stok sudah diperbarui.
           </p>
+        )}
+
+        {po.status === 'COMPLETED' && followUp && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              PO Selesai tidak bisa diubah isinya karena stok dan hutang sudah tercatat. Barang susulan atau yang lupa dimasukkan dibuat sebagai PO Tambahan.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFollowUp(true)}
+              className="px-4 py-2 border border-primary text-primary text-sm font-medium rounded-md hover:bg-primary/10 transition-colors"
+            >
+              Buat PO Tambahan <NewBadge feature="fitur/ubah-isi-po" />
+            </button>
+          </div>
         )}
 
         {stage === 'BELUM_HARGA' && (

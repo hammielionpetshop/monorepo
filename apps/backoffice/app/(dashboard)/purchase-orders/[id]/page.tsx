@@ -263,6 +263,20 @@ export default async function PODetailPage({
     error = 'Terjadi kesalahan saat mengambil data';
   }
 
+  // PO Selesai tidak bisa diubah isinya; barang susulan lewat PO Tambahan (spec 2026-11-06-po-edit-items).
+  let followUp: { suppliers: { id: number; name: string }[]; branches: { id: number; name: string }[] } | null = null;
+  if (!error && po?.status === 'COMPLETED' && canManage) {
+    try {
+      const [supplierRows, branchRows] = await Promise.all([
+        db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(eq(suppliers.isActive, true)).orderBy(suppliers.name),
+        db.select({ id: branches.id, name: branches.name }).from(branches).where(eq(branches.isActive, true)).orderBy(branches.name),
+      ]);
+      followUp = { suppliers: supplierRows, branches: branchRows };
+    } catch (e) {
+      console.error('PODetailPage PO Tambahan error:', e);
+    }
+  }
+
   if (error) {
     return (
       <div className="p-6">
@@ -284,6 +298,7 @@ export default async function PODetailPage({
         canPay={canPay}
         canCancel={canCancel}
         canManage={canManage}
+        followUp={followUp}
         paymentMethods={methods}
         supplierCreditBalance={creditBalance}
         today={today}
