@@ -73,6 +73,8 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // --- Purchase Order & Internal Transfer ---
   { code: 'po.manage', name: 'Kelola PO', description: 'Buat/ubah/hapus purchase order', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'po.approve', name: 'Approve PO', description: 'Approve PO & penerimaan barang', roles: ['OWNER', 'GM'] },
+  // Dipakai pintu internal HRIS (Laporan Bongkaran → Draft PO, ubah berat produk), spec 2026-11-06.
+  { code: 'po.unloading_sync', name: 'Draft PO dari Bongkaran', description: 'Membuat Draft PO dan mengubah berat produk dari Laporan Bongkaran HRIS (lewat pintu internal)', roles: ['OWNER', 'GM', 'GUDANG'] },
   { code: 'po.financial', name: 'Finansial PO', description: 'Ubah invoice/nilai finansial PO', roles: ['OWNER', 'GM'] },
   { code: 'internal_transfer.manage', name: 'Kelola Transfer Internal', description: 'Buat/ubah IBT', roles: ['OWNER', 'GM'] },
   { code: 'internal_transfer.approve', name: 'Approve Transfer Internal', description: 'Approve/batalkan IBT', roles: ['OWNER', 'GM', 'MANAGER'] },

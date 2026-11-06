@@ -23,9 +23,13 @@ interface POItem {
   invoiceUnitCost: number | null;
   /** Modal terakhir satuan ini di cabang PO (Manajemen Harga). */
   lastCost: number | null;
+  /** Jumlah hitungan Kepala Gudang di Laporan Bongkaran yang belum dipakai penerimaan; null = tidak ada. */
+  unloadedPrefill: number | null;
 }
 
 interface PO {
+  /** Nomor Laporan Bongkaran yang mengisi jumlah terima; null = tidak ada. */
+  unloadingNumber: string | null;
   id: number;
   poNumber: string;
   status: string;
@@ -48,11 +52,12 @@ const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 export function ReceivePOClient({ po }: { po: PO }) {
   const router = useRouter();
   // Qty & harga sengaja mulai KOSONG: dulu qty terisi otomatis = qty pesan dan tidak pernah
-  // diubah (131 dari 131 item), jadi barang tidak benar-benar dihitung saat datang.
+  // diubah (131 dari 131 item), jadi barang tidak benar-benar dihitung saat datang. Pengecualian:
+  // jumlah dari Laporan Bongkaran adalah hitungan nyata Kepala Gudang (keputusan owner 2026-11-06).
   const [receivingItems, setReceivingItems] = useState<ReceivingItemState[]>(
     po.items.map(item => ({
       poItemId: item.id,
-      qtyReceived: '',
+      qtyReceived: item.unloadedPrefill != null ? String(item.unloadedPrefill) : '',
       qtyDamaged: '',
       unitPrice: item.invoiceUnitCost && item.invoiceUnitCost > 0 ? String(item.invoiceUnitCost) : '',
       expiryDate: '',
@@ -185,6 +190,12 @@ export function ReceivePOClient({ po }: { po: PO }) {
           {po.supplier.name} · {po.branch.name}
         </p>
       </div>
+
+      {po.unloadingNumber && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-foreground">
+          Jumlah terima terisi dari Laporan Bongkaran <span className="font-mono font-medium">{po.unloadingNumber}</span> (hitungan Kepala Gudang). Periksa dan ubah bila berbeda.
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
