@@ -1,6 +1,6 @@
 # Spec — Bongkaran → Draft PO, Berat Satu Sumber (POS), Foto Surat Jalan ke PO
 
-Tanggal: 2026-11-06 · Status: **rancangan — menunggu ok owner atas §9 (butir baru)**. Alur dan keputusan 1–6 + A/B sudah disetujui owner 2026-11-06 ("ok kerjakan sesuai saran").
+Tanggal: 2026-11-06 · Status: **disetujui owner 2026-11-06** ("ok", §9 butir 1–7 sesuai saran). Alur dan keputusan 1–6 + A/B sudah disetujui owner 2026-11-06 ("ok kerjakan sesuai saran").
 Dasar: spec L8 Bongkaran (`2026-11-04-hris-l8-bongkaran-design.md`, lolos uji 4 Nov), PO Supplier backoffice (`app/api/bo/purchase-orders/**`, `lib/po-stage.ts`), pintu internal HRIS→backoffice (`app/api/internal/hris/*`, `lib/internal-gate.ts`, HRIS `modules/accounts/server/backoffice.ts`).
 Aturan: HRIS tidak menulis tabel `petshop`; semua tulisan ke POS lewat pintu internal backoffice. Tanpa data ganda HRIS–POS (AGENTS.md).
 
