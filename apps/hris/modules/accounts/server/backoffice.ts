@@ -49,6 +49,40 @@ async function callBackoffice<T>(method: 'GET' | 'POST', path: string, body?: un
   }
 }
 
+/**
+ * Pintu internal backoffice dengan Idempotency-Key, isi JSON atau FormData (foto). Dipakai Laporan Bongkaran → Draft PO
+ * dan ubah berat produk (spec 2026-11-06). Pelaku = sesi yang sedang login; hak kasirnya diperiksa backoffice.
+ */
+export async function callBackofficeInternal<T>(path: string, body: FormData | unknown, idempotencyKey: string): Promise<Called<T>> {
+  const base = process.env.BACKOFFICE_INTERNAL_URL;
+  const key = process.env.HRIS_INTERNAL_KEY;
+  if (!base || !key) return { ok: false, error: 'Sambungan ke kasir belum dikonfigurasi di server HRIS (BACKOFFICE_INTERNAL_URL, HRIS_INTERNAL_KEY).' };
+  const token = await readSessionToken();
+  if (!token) return { ok: false, error: 'Sesi tidak valid, silakan login kembali.' };
+  const isForm = body instanceof FormData;
+  try {
+    const res = await fetch(new URL(path, base), {
+      method: 'POST',
+      headers: {
+        ...(isForm ? {} : { 'content-type': 'application/json' }),
+        'x-internal-key': key, 'x-actor-session': token, 'idempotency-key': idempotencyKey,
+      },
+      body: isForm ? body : JSON.stringify(body),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (res.status === 404) {
+      const text = await res.text();
+      return { ok: false, error: text ? safeError(text) : 'Pintu kasir tidak tersedia (backoffice belum mode akun pusat atau kunci layanan tidak cocok).' };
+    }
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return { ok: false, error: data?.error ?? `Kasir menolak permintaan (${res.status}).` };
+    return { ok: true, data: data as T };
+  } catch {
+    return { ok: false, error: 'Kasir (backoffice) tidak dapat dihubungi. Coba kirim ulang sebentar lagi.' };
+  }
+}
+
 function safeError(text: string): string {
   try {
     return JSON.parse(text).error ?? 'Data tidak ditemukan di backoffice.';
