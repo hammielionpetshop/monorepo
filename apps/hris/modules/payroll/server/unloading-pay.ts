@@ -20,7 +20,7 @@ import {
 } from '../rules/unloading-pay';
 import { accountNames } from './data';
 import {
-  accountsWith, announceActive, canViewUnloading, checkUnloading, itemsOf, reportFlags, sharesOf, unloadingFormScreen, writeVersion, type UnloadingInput,
+  accountsWith, announceActive, canViewUnloading, checkUnloading, initialSyncStatus, itemsOf, reportFlags, sharesOf, unloadingFormScreen, writeVersion, type UnloadingInput,
 } from './unloading';
 
 // Bayar Bongkaran L8b (spec L8 §3.4–3.5; DRV-47 s.d. 53, 111 s.d. 120).
@@ -334,6 +334,14 @@ export async function correctionPreview(actor: Actor | null, reportId: number, i
   });
 }
 
+/** Status kirim ke kasir sesudah koreksi: versi baru perlu dikirim lagi bila pernah terkirim atau ada barang kasir. */
+function nextSyncStatus(report: typeof unloadingReports.$inferSelect, checked: Parameters<typeof initialSyncStatus>[0]) {
+  const fresh = initialSyncStatus(checked);
+  if (fresh === 'WAITING_APPROVAL' && report.draftApprovedAt) return 'PENDING';
+  if (fresh === 'NONE' && report.poSyncedVersion != null) return 'PENDING';
+  return fresh;
+}
+
 export async function correctUnloading(actor: Actor | null, reportId: number, input: CorrectInput, announce: ChangeAnnounce, now: Date = new Date()): Promise<ServiceResult<{ message: string }>> {
   const reason = reasonOf(input.reason);
   if (reason.length < MIN_REASON) return fail(400, `Alasan koreksi paling sedikit ${MIN_REASON} huruf.`);
@@ -342,7 +350,8 @@ export async function correctUnloading(actor: Actor | null, reportId: number, in
     if (!report) return fail(404, 'Laporan tidak ditemukan.');
     const rights = correctionRights(actor, report);
     if (rights) return fail(403, rights);
-    const checked = await checkUnloading(tx, actor!, input, now, true, { id: report.id, createdOn: report.createdOn });
+    // Asal barang tidak berubah lewat koreksi (PO yang dicocokkan tetap; Draft PO tetap satu per laporan).
+    const checked = await checkUnloading(tx, actor!, { ...input, source: report.source, poId: report.poId }, now, true, { id: report.id, createdOn: report.createdOn });
     if ('ok' in checked) return checked;
     const next = new Map(checked.participants.map((p) => [p.key, { name: p.name, amount: checked.result.shares.find((s) => s.key === p.key)!.amount }]));
     const effect = await correctionEffect(tx, report, next);
@@ -356,6 +365,7 @@ export async function correctUnloading(actor: Actor | null, reportId: number, in
       version, workDate: checked.workDate, supplierId: checked.supplierId, supplierName: checked.supplierName, rate: checked.rate,
       totalKg: checked.result.totalKg, totalPay: checked.result.totalPay, similarToId: checked.similarConfirmedId,
       noDeliveryNoteReason: checked.photoIds.length ? checked.noDeliveryNoteReason : report.noDeliveryNoteReason,
+      poMismatch: checked.poMismatch, poSyncStatus: nextSyncStatus(report, checked),
       ...(report.question && !report.answeredAt ? { answer: `Dikoreksi: ${reason}`, answeredAt: now } : {}),
     }).where(eq(unloadingReports.id, report.id));
     const money = await applyEffect(tx, actor!, report, version, effect);
@@ -381,7 +391,10 @@ export async function cancelUnloading(actor: Actor | null, reportId: number, rea
     const effect = await correctionEffect(tx, report, new Map());
     const money = await applyEffect(tx, actor!, report, report.version, effect);
     await tx.update(unloadingShares).set({ status: 'CANCELLED' }).where(and(eq(unloadingShares.reportId, report.id), eq(unloadingShares.status, 'ACTIVE')));
-    await tx.update(unloadingReports).set({ status: 'CANCELLED', cancelledAt: now, cancelledByAccountId: actor!.accountId, cancelReason: reason }).where(eq(unloadingReports.id, report.id));
+    await tx.update(unloadingReports).set({
+      status: 'CANCELLED', cancelledAt: now, cancelledByAccountId: actor!.accountId, cancelReason: reason,
+      poSyncStatus: report.poSyncedVersion == null ? 'NONE' : 'PENDING',
+    }).where(eq(unloadingReports.id, report.id));
     await notifyChanged(tx, actor!, report, effect.rows, reason, true);
     if (report.status === 'PAID') await announce(tx, actor!.accountId, { what: `membatalkan ${report.number} yang sudah dibayar (${rupiah(report.totalPay)})`, link: reportLink(report.id), entity: 'unloading_report', entityId: report.id });
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'unloading_report', entityId: report.id, action: 'unloading_report.cancel', before: { status: report.status }, after: { status: 'CANCELLED', ...money }, reason });

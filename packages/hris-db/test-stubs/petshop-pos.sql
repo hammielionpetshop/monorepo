@@ -53,3 +53,11 @@ CREATE TABLE IF NOT EXISTS petshop.customer_debts (
   id serial PRIMARY KEY, customer_id integer NOT NULL, transaction_id integer, total_amount integer NOT NULL, paid_amount integer NOT NULL DEFAULT 0,
   remaining_amount integer NOT NULL, status varchar(20) NOT NULL DEFAULT 'UNPAID'
 );
+-- Bongkaran → Draft PO (migrasi hris 0053): PO supplier untuk view pos_purchase_orders, pos_purchase_order_items.
+CREATE TABLE IF NOT EXISTS petshop.purchase_orders (
+  id serial PRIMARY KEY, po_number varchar(50) NOT NULL, po_type varchar(20) NOT NULL DEFAULT 'EXTERNAL', supplier_id integer,
+  status varchar(30) NOT NULL DEFAULT 'PENDING_APPROVAL', created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS petshop.purchase_order_items (
+  id serial PRIMARY KEY, po_id integer NOT NULL, product_id integer NOT NULL, uom_id integer NOT NULL, qty_ordered integer NOT NULL, qty_received integer NOT NULL DEFAULT 0
+);

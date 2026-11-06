@@ -1194,8 +1194,24 @@ export const unloadingReports = hrisSchema.table(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelledByAccountId: integer('cancelled_by_account_id'),
     cancelReason: text('cancel_reason'),
+    /** Asal barang (spec 2026-11-06 bongkaran → Draft PO): PO yang ada, atau barang datang dulu → Draft PO di POS. */
+    source: text('source').notNull().default('ARRIVED_FIRST'),
+    poId: integer('po_id'),
+    poNumber: text('po_number'),
+    /** Pilihan "Dari PO yang ada": jumlah dibongkar berbeda dengan PO (tanda "Selisih dengan PO"). */
+    poMismatch: boolean('po_mismatch').notNull().default(false),
+    /** NONE tidak ada yang dikirim · WAITING_APPROVAL tanpa surat jalan menunggu Pemilik/GM · PENDING · SYNCED · FAILED. */
+    poSyncStatus: text('po_sync_status').notNull().default('NONE'),
+    poSyncError: text('po_sync_error'),
+    poSyncedVersion: integer('po_synced_version'),
+    poSyncedAt: timestamp('po_synced_at', { withTimezone: true }),
+    draftApprovedByAccountId: integer('draft_approved_by_account_id'),
+    draftApprovedAt: timestamp('draft_approved_at', { withTimezone: true }),
   },
   (t) => [
+    check('unloading_reports_source', sql`${t.source} in ('PO', 'ARRIVED_FIRST')`),
+    check('unloading_reports_po_sync', sql`${t.poSyncStatus} in ('NONE', 'WAITING_APPROVAL', 'PENDING', 'SYNCED', 'FAILED')`),
+    check('unloading_reports_po_source', sql`${t.source} <> 'PO' or ${t.poId} is not null`),
     uniqueIndex('unloading_reports_number_unique').on(t.number),
     uniqueIndex('unloading_reports_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     index('unloading_reports_work_date_idx').on(t.workDate),
@@ -1280,6 +1296,9 @@ export const unloadingItems = hrisSchema.table(
     linkedProductName: text('linked_product_name'),
     linkedByAccountId: integer('linked_by_account_id'),
     linkedAt: timestamp('linked_at', { withTimezone: true }),
+    /** Pilihan "Dari PO yang ada": baris PO kasir yang dicocokkan + sisa jumlah PO saat itu (pembanding selisih). */
+    poItemId: integer('po_item_id'),
+    poQty: numeric('po_qty', { precision: 12, scale: 3 }),
   },
   (t) => [
     index('unloading_items_report_idx').on(t.reportId, t.version),

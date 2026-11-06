@@ -10,6 +10,7 @@ import { Field, Input, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
+import { NewBadge } from '@/components/ui/new-badge';
 import { postJson } from '@/lib/post-json';
 import { longDate, rupiah } from '../rules/salary';
 import { kgText, type UnloadingStatus } from '../rules/unloading';
@@ -145,10 +146,16 @@ type Detail = {
   id: number; number: string; status: UnloadingStatus; statusLabel: string; workDate: string; supplierName: string; createdBy: string; createdAt: string;
   rate: number; totalKg: string; totalPay: number; version: number; requestId: number | null; lateReason: string | null; costBranch: string | null;
   flags: { label: string; explain: string }[];
-  items: { id: number; name: string; uomName: string | null; quantity: string | null; weightKg: string | null; lineKg: string; other: boolean; otherReason: string | null; linkedName: string | null; weightFlagged: boolean }[];
+  items: { id: number; name: string; uomName: string | null; quantity: string | null; weightKg: string | null; lineKg: string; other: boolean; otherReason: string | null; linkedName: string | null; weightFlagged: boolean; poQty: string | null; poDiff: string | null }[];
+  po: PoBox;
   shares: { id: number; name: string; casual: boolean; amount: number; plusOne: boolean; status: string; look: { status: string | null; done: boolean } | null }[];
   photos: { id: number; kind: string }[];
   history: { at: string; text: string }[];
+};
+
+type PoBox = {
+  source: 'PO' | 'ARRIVED_FIRST'; number: string | null; syncStatus: 'NONE' | 'WAITING_APPROVAL' | 'PENDING' | 'SYNCED' | 'FAILED'; syncLabel: string; error: string | null;
+  synced: { at: string; version: number | null } | null; stale: boolean; canSend: boolean; canApproveDraft: boolean; draftApprovedBy: string | null;
 };
 
 const timeText = (iso: string) => new Date(iso).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' });
@@ -167,6 +174,7 @@ export function UnloadingDetailScreen({ data }: { data: Detail }) {
           <ul className="space-y-1 text-sm">{data.flags.map((f) => <li key={f.label}><Badge tone="warn">{f.label}</Badge> <span className="text-ink-muted">{f.explain}</span></li>)}</ul>
         )}
       </Card>
+      <PoCard id={data.id} po={data.po} />
       <Card className="space-y-2">
         <h2 className="font-semibold">Barang</h2>
         <DataList
@@ -175,6 +183,11 @@ export function UnloadingDetailScreen({ data }: { data: Detail }) {
           columns={[
             { key: 'name', header: 'Barang', primary: true, render: (r) => <span>{r.name} {r.other && <Badge tone="warn">Barang lain</Badge>}{r.weightFlagged && <Badge tone="warn">Berat berubah</Badge>}</span> },
             { key: 'qty', header: 'Jumlah', render: (r) => (r.quantity ? `${kgText(r.quantity)} ${r.uomName}` : '-') },
+            ...(data.po.source === 'PO' ? [{
+              key: 'po', header: 'Sisa PO / Selisih', render: (r: Detail['items'][number]) => (r.poQty == null
+                ? (r.other ? '-' : <Badge tone="warn">Di luar PO</Badge>)
+                : <span className="tabular-nums">{kgText(r.poQty)}{r.poDiff && Number(r.poDiff) !== 0 ? <Badge tone="warn">{Number(r.poDiff) > 0 ? '+' : ''}{kgText(r.poDiff)}</Badge> : ' · sama'}</span>),
+            }] : []),
             { key: 'weight', header: 'Berat per satuan', render: (r) => (r.weightKg ? `${kgText(r.weightKg)} kg` : '-') },
             { key: 'kg', header: 'Kg', render: (r) => <span className="tabular-nums">{kgText(r.lineKg)}</span> },
             { key: 'note', header: 'Keterangan', render: (r) => (r.other ? `${r.otherReason ?? ''}${r.linkedName ? ` · dipasangkan ke ${r.linkedName}` : ''}` : '') },
@@ -217,7 +230,7 @@ type Change = {
   id: number; productName: string; uomName: string; fromKg: string | null; toKg: string; percent: string | null; reason: string | null; by: string; at: string;
   report: { id: number; number: string } | null; flagged: boolean; reviewed: { by: string; note: string | null } | null;
 };
-type WeightRow = { productId: number; uomId: number; productName: string; uomName: string; kg: string; by: string; on: string; used: number; history: Change[] };
+type WeightRow = { productId: number; uomId: number; productName: string; uomName: string; kg: string | null; by: string; on: string | null; used: number; history: Change[] };
 
 /** DRV-L14 Berat per Satuan: Semua berat (+ riwayat, Ubah berat) dan Berat berubah (Sudah dilihat). */
 export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, weights, changed }: {
@@ -236,11 +249,11 @@ export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, 
         <DataList
           rows={weights}
           rowKey={(r) => `${r.productId}:${r.uomId}`}
-          empty="Belum ada berat tersimpan. Berat diisi saat bongkaran pertama."
+          empty="Belum ada barang yang pernah dibongkar."
           columns={[
             { key: 'name', header: 'Produk', primary: true, render: (r) => `${r.productName} · ${r.uomName}` },
-            { key: 'kg', header: 'Berat', render: (r) => `${kgText(r.kg)} kg` },
-            { key: 'by', header: 'Diisi', render: (r) => `${r.by}, ${longDate(r.on)}` },
+            { key: 'kg', header: 'Berat (Master Produk kasir)', render: (r) => (r.kg ? `${kgText(r.kg)} kg` : 'Belum diisi') },
+            { key: 'by', header: 'Diisi', render: (r) => (r.on ? `${r.by}, ${longDate(r.on)}` : r.by) },
             { key: 'used', header: 'Dipakai', render: (r) => `${r.used} laporan` },
             {
               key: 'history', header: 'Riwayat', render: (r) => (
@@ -267,7 +280,7 @@ export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, 
           ]}
         />
       )}
-      <p className="text-sm text-ink-muted">Berat baru hanya berlaku untuk laporan sesudahnya; laporan lama memakai salinan beratnya sendiri. Perubahan di atas ambang ditandai untuk Pemilik dan GM, tanpa menahan laporan atau pembayaran.</p>
+      <p className="text-sm text-ink-muted">Berat disimpan di Master Produk kasir (satu sumber; dipakai juga Bulk Sale). Berat yang diubah langsung di Master Produk tampil tanpa riwayat di sini. Berat baru hanya berlaku untuk laporan sesudahnya; laporan lama memakai salinan beratnya sendiri. Perubahan di atas ambang ditandai untuk Pemilik dan GM, tanpa menahan laporan atau pembayaran.</p>
       {edit && <WeightDialog row={edit} onClose={() => setEdit(null)} />}
       {review && <ReviewDialog title="Sudah dilihat" text={`${review.productName}: ${changeText(review)}`} body={{ kind: 'weight_review', id: review.id }} onClose={() => setReview(null)} />}
     </div>
@@ -277,7 +290,7 @@ export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, 
 function WeightDialog({ row, onClose }: { row: WeightRow; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
-  const [kg, setKg] = useState(row.kg);
+  const [kg, setKg] = useState(row.kg ?? '');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -350,5 +363,42 @@ export function UnloadingLookScreen({ rows, canReview }: { rows: LookRow[]; canR
       <p className="text-sm text-ink-muted">Bagian upahnya tetap dibayar (DRV-44). Bila status hari itu keliru, betulkan di Kehadiran.</p>
       {target && <ReviewDialog title="Sudah dilihat" text={`${target.name} tercatat ${target.status} ${longDate(target.workDate)} dan ikut bongkaran ${target.number}.`} body={{ kind: 'look_review', id: target.id }} onClose={() => setTarget(null)} />}
     </div>
+  );
+}
+
+/** Kotak PO di Rincian (spec 2026-11-06 §4.3): asal barang, status kirim ke kasir, Kirim ulang, Setujui buat Draft PO. */
+function PoCard({ id, po }: { id: number; po: PoBox }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function act(kind: 'po_sync' | 'draft_approve') {
+    setBusy(kind);
+    setError(null);
+    const result = await postJson('/api/unloading', { kind, id });
+    setBusy(null);
+    if (!result.ok) return setError(result.error ?? 'Gagal mengirim ke kasir.');
+    toast(typeof result.data?.message === 'string' ? result.data.message : 'Terkirim ke kasir.', 'ok');
+    router.refresh();
+  }
+  const tone = po.syncStatus === 'SYNCED' ? 'ok' : po.syncStatus === 'FAILED' || po.syncStatus === 'WAITING_APPROVAL' ? 'warn' : 'info';
+  return (
+    <Card className="space-y-2">
+      <h2 className="flex flex-wrap items-center gap-2 font-semibold">PO di kasir <NewBadge feature="fitur/bongkaran-draft-po" /></h2>
+      <p className="text-sm">
+        {po.source === 'PO' ? <>Dari PO yang ada: <b>{po.number ?? '-'}</b></> : <>Barang datang dulu{po.number ? <> → Draft <b>{po.number}</b></> : ' → Draft PO dibuat di kasir'}</>}
+      </p>
+      <p className="flex flex-wrap items-center gap-2 text-sm"><Badge tone={tone}>{po.syncLabel}</Badge>
+        {po.synced && <span className="text-ink-muted">versi {po.synced.version} · {timeText(po.synced.at)}</span>}
+        {po.stale && <Badge tone="warn">Versi terbaru belum terkirim</Badge>}
+      </p>
+      {po.draftApprovedBy && <p className="text-sm text-ink-muted">Draft PO tanpa surat jalan disetujui {po.draftApprovedBy}.</p>}
+      {po.syncStatus === 'FAILED' && po.error && <Alert tone="danger">{po.error}</Alert>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        {po.canSend && <Button size="sm" loading={busy === 'po_sync'} onClick={() => act('po_sync')}>{po.syncStatus === 'FAILED' ? 'Kirim ulang ke kasir' : 'Kirim ke kasir'}</Button>}
+        {po.canApproveDraft && <Button size="sm" loading={busy === 'draft_approve'} onClick={() => act('draft_approve')}>Setujui buat Draft PO</Button>}
+      </div>
+    </Card>
   );
 }

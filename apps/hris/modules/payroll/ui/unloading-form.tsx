@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -15,11 +16,17 @@ import { kgText } from '../rules/unloading';
 type Candidate = { key: string; employeeId: number | null; casualWorkerId: number | null; name: string; detail: string; order: number };
 type Unit = {
   productId: number; sku: string | null; name: string; uomId: number; uomName: string; isBase: boolean;
-  weight: { kg: string; by: string; on: string } | null; suggestedKg: string | null;
+  /** Berat di Master Produk kasir (satu sumber); null = wajib diisi. */
+  weight: { kg: string } | null;
 };
+type PoLine = { poItemId: number; remaining: string; productId: number; uomId: number; sku: string | null; name: string; uomName: string; isBase: boolean; weight: { kg: string } | null };
+type PoOption = { id: number; number: string; status: string; createdAt: string; lines: PoLine[] };
+type Source = 'ARRIVED_FIRST' | 'PO';
 type ProductRow = {
   key: string; productId: number; uomId: number; name: string; uomName: string; quantity: string;
   currentKg: string | null; currentNote: string | null; weightKg: string; editWeight: boolean; weightReason: string;
+  /** Pilihan "Dari PO yang ada": sisa jumlah di PO (pembanding selisih); null = di luar PO. */
+  poQty?: string | null;
 };
 type OtherRow = { key: string; other: true; name: string; kg: string; reason: string };
 type Row = ProductRow | OtherRow;
@@ -55,6 +62,9 @@ export function UnloadingForm(props: {
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(1);
+  const [source, setSource] = useState<Source>('ARRIVED_FIRST');
+  const [poId, setPoId] = useState<number | null>(null);
+  const [orders, setOrders] = useState<PoOption[] | null>(null);
   const [supplierId, setSupplierId] = useState(correction ? String(correction.initial.supplierId) : '');
   const [supplierQuery, setSupplierQuery] = useState('');
   const [lateReason, setLateReason] = useState('');
@@ -81,6 +91,7 @@ export function UnloadingForm(props: {
       if (draft && draft.workDate === workDate) {
         setSupplierId(draft.supplierId ?? ''); setLateReason(draft.lateReason ?? ''); setRows(draft.rows ?? []); setPeople(draft.people ?? []);
         setNoNote(!!draft.noNote); setNoNoteReason(draft.noNoteReason ?? '');
+        setSource(draft.source === 'PO' ? 'PO' : 'ARRIVED_FIRST'); setPoId(draft.poId ?? null);
         if (draft.extraCandidates) setCandidates((list) => [...list, ...draft.extraCandidates.filter((c: Candidate) => !list.some((x) => x.key === c.key))]);
       }
     } catch { /* isian lama rusak: abaikan */ }
@@ -90,9 +101,29 @@ export function UnloadingForm(props: {
     if (!restored.current) return;
     try {
       const extraCandidates = candidates.filter((c) => !props.candidates.some((x) => x.key === c.key));
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ workDate, supplierId, lateReason, rows, people, noNote, noNoteReason, extraCandidates }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ workDate, supplierId, lateReason, rows, people, noNote, noNoteReason, extraCandidates, source, poId }));
     } catch { /* penyimpanan perangkat penuh atau dimatikan */ }
-  }, [workDate, supplierId, lateReason, rows, people, noNote, noNoteReason, candidates, props.candidates]);
+  }, [workDate, supplierId, lateReason, rows, people, noNote, noNoteReason, candidates, props.candidates, source, poId]);
+
+  // PO supplier yang bisa dicocokkan (pilihan "Dari PO yang ada").
+  useEffect(() => {
+    if (correction || source !== 'PO' || !supplierId) { setOrders(null); return; }
+    let live = true;
+    fetch(`/api/unloading/purchase-orders?supplierId=${supplierId}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null)
+      .then((res) => { if (live) setOrders(res?.orders ?? []); });
+    return () => { live = false; };
+  }, [source, supplierId, correction]);
+
+  function choosePo(order: PoOption) {
+    setPoId(order.id);
+    // Barang + jumlah terisi dari sisa PO; Kepala Gudang mencocokkan dengan yang benar-benar dibongkar.
+    setRows(order.lines.map((l) => ({
+      key: `${l.productId}:${l.uomId}`, productId: l.productId, uomId: l.uomId, name: l.name, uomName: l.uomName,
+      quantity: String(Number(l.remaining)), poQty: l.remaining,
+      currentKg: l.weight?.kg ?? null, currentNote: l.weight ? 'dari Master Produk kasir' : null,
+      weightKg: l.weight?.kg ?? '', editWeight: !l.weight, weightReason: '',
+    })));
+  }
 
   const supplier = props.suppliers.find((s) => String(s.id) === supplierId);
   const runningKg = rows.reduce((sum, row) => sum + (isOther(row) ? num(row.kg) || 0 : (num(row.quantity) || 0) * (num(row.weightKg) || 0)), 0);
@@ -104,12 +135,14 @@ export function UnloadingForm(props: {
         ? { productId: null, name: row.name, kg: row.kg, reason: row.reason }
         : { productId: row.productId, uomId: row.uomId, quantity: row.quantity, weightKg: row.weightKg || null, weightReason: row.editWeight ? row.weightReason : null })),
       participants: people, photoIds: [] as string[], noDeliveryNoteReason: noNote ? noNoteReason : null,
+      source, poId: source === 'PO' ? poId : null,
     };
   }
 
   function check(): string | null {
     if (step === 1) {
       if (!supplierId) return 'Pilih supplier.';
+      if (!correction && source === 'PO' && !poId) return 'Pilih PO yang barangnya datang, atau pilih "Barang datang dulu".';
       if (late && lateReason.trim().length < minReason) return `Tulis alasan laporan terlambat (paling sedikit ${minReason} huruf).`;
     }
     if (step === 2) {
@@ -121,6 +154,7 @@ export function UnloadingForm(props: {
           continue;
         }
         if (!(num(row.quantity) > 0)) return `Isi jumlah ${row.name}.`;
+        if (!Number.isInteger(num(row.quantity))) return `Jumlah ${row.name} harus bilangan bulat (PO kasir memakai jumlah bulat).`;
         if (!(num(row.weightKg) > 0)) return `Isi berat per ${row.uomName} untuk ${row.name}.`;
         if (row.editWeight && row.currentKg && num(row.weightKg) !== num(row.currentKg) && row.weightReason.trim().length < minReason) return `Tulis alasan mengubah berat ${row.name} (paling sedikit ${minReason} huruf).`;
         if (num(row.weightKg) > props.heavyKg && !window.confirm(`Betul ${kgText(row.weightKg)} kg per ${row.uomName} untuk ${row.name}?`)) return 'Periksa lagi beratnya.';
@@ -209,12 +243,39 @@ export function UnloadingForm(props: {
           )}
           <Field id="ub-sq" label="Cari supplier"><Input id="ub-sq" value={supplierQuery} onChange={(e) => setSupplierQuery(e.target.value)} placeholder="Ketik nama supplier" /></Field>
           <Field id="ub-supplier" label="Supplier" hint="Dari daftar supplier kasir. Supplier baru dibuat di backoffice.">
-            <Select id="ub-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+            <Select id="ub-supplier" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPoId(null); }}>
               <option value="">Pilih supplier</option>
               {props.suppliers.filter((s) => !supplierQuery || s.name.toLowerCase().includes(supplierQuery.toLowerCase()) || String(s.id) === supplierId)
                 .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
           </Field>
+          {!correction && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-sm font-medium">Asal barang <NewBadge feature="fitur/bongkaran-draft-po" /></p>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="radio" name="ub-source" checked={source === 'ARRIVED_FIRST'} onChange={() => { setSource('ARRIVED_FIRST'); setPoId(null); }} />
+                <span><b>Barang datang dulu</b> (PO belum dibuat) — Draft PO otomatis dibuat di kasir; kantor memeriksa, mengisi harga, dan menerima barang.</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="radio" name="ub-source" checked={source === 'PO'} onChange={() => setSource('PO')} />
+                <span><b>Dari PO yang ada</b> — barang dan jumlah terisi dari PO; cocokkan dengan yang dibongkar.</span>
+              </label>
+              {source === 'PO' && supplierId && (
+                orders == null ? <p className="text-sm text-ink-muted">Memuat PO…</p>
+                  : orders.length === 0 ? <Alert tone="warn">Tidak ada PO supplier ini yang menunggu barang. Pilih «Barang datang dulu».</Alert>
+                    : (
+                      <ul className="divide-y divide-line rounded-card border border-line text-sm">
+                        {orders.map((o) => (
+                          <li key={o.id} className="flex items-center justify-between gap-2 p-2">
+                            <span><b>{o.number}</b> <span className="text-ink-muted">· {o.lines.length} barang · {longDate(o.createdAt.slice(0, 10))}</span></span>
+                            <Button size="sm" variant={poId === o.id ? 'primary' : 'secondary'} onClick={() => choosePo(o)}>{poId === o.id ? 'Dipilih' : 'Pilih'}</Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+              )}
+            </div>
+          )}
         </div>
       )}
       {step === 2 && <ItemsStep rows={rows} setRows={setRows} minReason={minReason} searchMin={props.searchMin} otherSearchMin={props.otherSearchMin} runningKg={runningKg} />}
@@ -275,7 +336,10 @@ export function UnloadingForm(props: {
               <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={similarOk} onChange={(e) => setSimilarOk(e.target.checked)} /> Ini bongkaran lain</label>
             </Alert>
           )}
-          <p className="text-ink-muted">Laporan Bongkaran bukan penerimaan stok; stok tetap diurus kasir. {preview.late && !props.direct ? 'Laporan ini menunggu persetujuan Pemilik atau GM.' : 'Langsung berlaku; Finance diberi tahu untuk membayar.'}</p>
+          <p className="text-ink-muted">{source === 'PO'
+            ? `Jumlah dibongkar dicatat di ${orders?.find((o) => o.id === poId)?.number ?? 'PO'}; stok masuk saat kantor Terima Barang.`
+            : noNote ? 'Tanpa surat jalan: Draft PO di kasir dibuat sesudah Pemilik atau GM menyetujui.' : 'Draft PO dibuat otomatis di kasir; stok masuk sesudah kantor memeriksa dan menerima barang.'}</p>
+          <p className="text-ink-muted"> {preview.late && !props.direct ? 'Laporan ini menunggu persetujuan Pemilik atau GM.' : 'Langsung berlaku; Finance diberi tahu untuk membayar.'}</p>
         </div>
       )}
       {error && <Alert tone="danger">{error}</Alert>}
@@ -321,8 +385,8 @@ function ItemsStep({ rows, setRows, minReason, searchMin, otherSearchMin, runnin
     const key = `${unit.productId}:${unit.uomId}`;
     setRows((list) => (list.some((r) => r.key === key) ? list : [...list, {
       key, productId: unit.productId, uomId: unit.uomId, name: unit.name, uomName: unit.uomName, quantity: '',
-      currentKg: unit.weight?.kg ?? null, currentNote: unit.weight ? `diisi ${unit.weight.by} ${longDate(unit.weight.on)}` : null,
-      weightKg: unit.weight?.kg ?? unit.suggestedKg ?? '', editWeight: !unit.weight, weightReason: '',
+      currentKg: unit.weight?.kg ?? null, currentNote: unit.weight ? 'dari Master Produk kasir' : null,
+      weightKg: unit.weight?.kg ?? '', editWeight: !unit.weight, weightReason: '', poQty: null,
     }]));
     setQuery('');
   }
@@ -375,9 +439,11 @@ function ItemsStep({ rows, setRows, minReason, searchMin, otherSearchMin, runnin
             </div>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
-              <Field id={`q-${row.key}`} label={`Jumlah (${row.uomName})`}><Input id={`q-${row.key}`} inputMode="decimal" value={row.quantity} onChange={(e) => update(row.key, { quantity: e.target.value })} /></Field>
+              <Field id={`q-${row.key}`} label={`Jumlah (${row.uomName})`} hint={row.poQty != null ? `Sisa di PO: ${kgText(row.poQty)}${num(row.quantity) !== Number(row.poQty) && num(row.quantity) > 0 ? ' · selisih dengan PO' : ''}` : undefined}>
+                <Input id={`q-${row.key}`} inputMode="numeric" value={row.quantity} onChange={(e) => update(row.key, { quantity: e.target.value })} />
+              </Field>
               {row.editWeight ? (
-                <Field id={`w-${row.key}`} label={`Berat per ${row.uomName} (kg)`} hint={row.currentKg ? `Sekarang ${kgText(row.currentKg)} kg; berlaku untuk laporan ini dan sesudahnya.` : 'Belum ada berat: isi sekali, tersimpan untuk bongkaran berikutnya.'}>
+                <Field id={`w-${row.key}`} label={`Berat per ${row.uomName} (kg)`} hint={row.currentKg ? `Sekarang ${kgText(row.currentKg)} kg; berat baru disimpan di Master Produk kasir.` : 'Belum ada berat di Master Produk kasir: isi sekali, tersimpan di kasir untuk bongkaran berikutnya.'}>
                   <Input id={`w-${row.key}`} inputMode="decimal" value={row.weightKg} onChange={(e) => update(row.key, { weightKg: e.target.value })} />
                 </Field>
               ) : (
