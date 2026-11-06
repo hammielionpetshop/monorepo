@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePermission } from '@/lib/authz';
-import { db, purchaseOrders, purchaseOrderItems, auditLogs, eq, and } from '@/lib/db';
+import { db } from '@/lib/db';
 import { serviceProductMessage } from '@/lib/service-product-guard';
+import { editPoItems, PoItemEditError } from '@/lib/services/po-item-edit';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,13 +13,13 @@ const schema = z.object({
     uomId: z.number().int().positive(),
     qtyOrdered: z.number().int().positive('Jumlah harus lebih dari 0'),
     unitCost: z.number().int().nonnegative('Harga tidak boleh minus'),
-  })).min(1, 'Draft PO minimal berisi satu barang'),
+  })).min(1, 'PO minimal berisi satu barang'),
 });
 
 /**
- * Ubah isi Draft PO (tambah/hapus barang, jumlah, harga) — hanya status DRAFT, belum menyentuh stok
- * atau hutang (keputusan owner 2026-11-06 butir 4). Jumlah bongkaran (`qty_unloaded`) per produk +
- * satuan dipertahankan sebagai pembanding.
+ * Ubah isi PO (tambah/hapus barang, jumlah, harga) selama penerimaan belum disetujui.
+ * Draft bongkaran: pemegang po.manage (keputusan owner 2026-11-06 butir 4). Status lain: hanya
+ * OWNER/GM; PO yang sudah disetujui kembali ke Menunggu Persetujuan (spec 2026-11-06-po-edit-items).
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requirePermission('po.manage');
@@ -30,41 +31,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 });
   const { items } = parsed.data;
-  if (new Set(items.map((i) => `${i.productId}:${i.uomId}`)).size !== items.length) {
-    return NextResponse.json({ error: 'Produk + satuan yang sama muncul dua kali' }, { status: 400 });
-  }
   const serviceMessage = await serviceProductMessage(items.map((i) => i.productId));
   if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
-  const where = payload.branchScope === 'ALL'
-    ? eq(purchaseOrders.id, poId)
-    : and(eq(purchaseOrders.id, poId), eq(purchaseOrders.branchId, payload.branchId));
-
   try {
-    const result = await db.transaction(async (tx) => {
-      const [po] = await tx.select({ id: purchaseOrders.id, status: purchaseOrders.status }).from(purchaseOrders).where(where).for('update').limit(1);
-      if (!po) return { status: 404, error: 'Purchase Order tidak ditemukan' } as const;
-      if (po.status !== 'DRAFT') return { status: 409, error: 'Isi PO hanya bisa diubah selama masih Draft' } as const;
-      const old = await tx.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId));
-      const unloaded = new Map(old.map((o) => [`${o.productId}:${o.uomId}`, o.qtyUnloaded]));
-      await tx.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId));
-      await tx.insert(purchaseOrderItems).values(items.map((i) => ({
-        poId, productId: i.productId, uomId: i.uomId, qtyOrdered: i.qtyOrdered, qtyReceived: 0, qtyDamaged: 0,
-        unitCost: i.unitCost, qtyUnloaded: unloaded.get(`${i.productId}:${i.uomId}`) ?? null,
-      })));
-      const total = items.reduce((sum, i) => sum + i.qtyOrdered * i.unitCost, 0);
-      await tx.update(purchaseOrders).set({ totalAmount: total, updatedAt: new Date() }).where(eq(purchaseOrders.id, poId));
-      await tx.insert(auditLogs).values({
-        userId: payload.userId, action: 'PO_DRAFT_ITEMS_UPDATED', tableName: 'purchase_orders', recordId: String(poId),
-        oldData: JSON.stringify(old.map((o) => ({ productId: o.productId, uomId: o.uomId, qtyOrdered: o.qtyOrdered, unitCost: o.unitCost }))),
-        newData: JSON.stringify(items),
-      });
-      return { status: 200, total } as const;
-    });
-    if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
-    return NextResponse.json({ success: true, totalAmount: result.total });
+    const result = await db.transaction((tx) => editPoItems(tx, {
+      poId,
+      items,
+      actor: { userId: payload.userId, role: payload.role ?? '', branchScope: payload.branchScope ?? 'OWN', branchId: payload.branchId },
+    }));
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    console.error('Ubah isi Draft PO gagal:', error);
-    return NextResponse.json({ error: 'Gagal mengubah isi Draft PO' }, { status: 500 });
+    if (error instanceof PoItemEditError) return NextResponse.json({ error: error.message }, { status: error.status });
+    console.error('Ubah isi PO gagal:', error);
+    return NextResponse.json({ error: 'Gagal mengubah isi PO' }, { status: 500 });
   }
 }
