@@ -17,13 +17,19 @@ import { PO_STAGE_INFO, poStage } from '@/lib/po-stage';
 import { SupplierPaymentDialog } from '../../supplier-payables/_components/supplier-payment-dialog';
 import { NewBadge } from '@/components/ui/new-badge';
 import { POCancelDialog } from './po-cancel-dialog';
+import { PoUnloadingPanel, type PoAttachment, type PoUnloadingInfo } from './po-unloading-panel';
+import { PoDraftEditor } from './po-draft-editor';
 
-const CANCELLABLE_STATUSES = ['APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
+const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
 
 const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 
 interface POItem {
   id: number;
+  productId: number;
+  uomId: number;
+  /** Jumlah dari Laporan Bongkaran HRIS (pembanding, bukan stok). */
+  qtyUnloaded: number | null;
   productName: string | null;
   productSku: string | null;
   uomCode: string | null;
@@ -66,6 +72,9 @@ interface PO {
   rejectionNote: string | null;
   /** Diisi untuk PO Dibatalkan lewat tombol Batalkan PO (dari audit log). */
   cancellation: { reason: string; byName: string | null; at: string } | null;
+  /** Tautan Laporan Bongkaran HRIS (Draft dari bongkaran / PO yang dicocokkan). */
+  unloading: PoUnloadingInfo | null;
+  attachments: PoAttachment[];
   invoiceNumber: string | null;
   targetDeliveryDate: string | null;
   approvedAt: string | null;
@@ -106,10 +115,13 @@ export function PODetailClient({
   isNew,
   canPay,
   canCancel,
+  canManage,
   paymentMethods,
   supplierCreditBalance,
   today,
 }: {
+  /** Hak po.manage — ubah isi Draft, tandai perubahan bongkaran sudah diperiksa. */
+  canManage: boolean;
   po: PO;
   currentUserId: number;
   role: string;
@@ -484,6 +496,33 @@ export function PODetailClient({
         </div>
       )}
 
+      <PoUnloadingPanel
+        poId={po.id}
+        unloading={po.unloading}
+        attachments={po.attachments}
+        items={po.items}
+        canReview={canManage}
+        onReviewed={(message) => { setSuccessMsg(message); refresh(); }}
+      />
+
+      {po.status === 'DRAFT' && canManage && (
+        <PoDraftEditor
+          key={po.items.map(i => `${i.id}:${i.qtyOrdered}:${i.unitCost}`).join(',')}
+          poId={po.id}
+          branchId={po.branch.id}
+          initialItems={po.items.map(i => ({
+            productId: i.productId,
+            uomId: i.uomId,
+            productName: i.productName ?? '-',
+            uomCode: i.uomCode ?? '',
+            qty: String(parseFloat(i.qtyOrdered)),
+            unitCost: Number(i.unitCost) > 0 ? String(parseFloat(i.unitCost)) : '',
+            qtyUnloaded: i.qtyUnloaded,
+          }))}
+          onSaved={(message) => { setSuccessMsg(message); refresh(); }}
+        />
+      )}
+
       {/* Items */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
@@ -594,8 +633,13 @@ export function PODetailClient({
       <div className="bg-card border border-border rounded-lg p-6 print:hidden">
         <h2 className="font-medium text-foreground mb-4">Aksi</h2>
 
-        {po.status === 'PENDING_APPROVAL' && (
+        {(po.status === 'PENDING_APPROVAL' || po.status === 'DRAFT') && (
           <div className="space-y-3">
+            {po.status === 'DRAFT' && (
+              <p className="text-xs text-muted-foreground">
+                Draft belum mengubah stok. Simpan isi Draft dulu bila ada perubahan, lalu setujui; sesudah itu terima barang seperti PO biasa.
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={handleApprove}
@@ -604,13 +648,15 @@ export function PODetailClient({
               >
                 {loading === 'approve' ? 'Memproses...' : 'Setujui PO'}
               </button>
-              <button
-                onClick={() => setShowRejectForm(!showRejectForm)}
-                disabled={loading !== null}
-                className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-              >
-                Tolak PO
-              </button>
+              {po.status === 'PENDING_APPROVAL' && (
+                <button
+                  onClick={() => setShowRejectForm(!showRejectForm)}
+                  disabled={loading !== null}
+                  className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                >
+                  Tolak PO
+                </button>
+              )}
             </div>
             {showRejectForm && (
               <div className="space-y-2 pt-2">

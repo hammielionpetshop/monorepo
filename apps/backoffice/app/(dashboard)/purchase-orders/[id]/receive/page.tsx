@@ -1,7 +1,10 @@
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, products, unitsOfMeasure, eq } from '@/lib/db';
+import {
+  db, purchaseOrders, purchaseOrderItems, purchaseOrderUnloadings, poReceivingLogs, suppliers, branches, products, unitsOfMeasure,
+  eq, and, desc, inArray,
+} from '@/lib/db';
 import { ReceivePOClient } from './_components/receive-po-client';
 import { loadLastCosts, lastCostKey } from '@/lib/po-last-cost';
 
@@ -53,6 +56,7 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
         qtyDamaged: purchaseOrderItems.qtyDamaged,
         unitCost: purchaseOrderItems.unitCost,
         invoiceUnitCost: purchaseOrderItems.invoiceUnitCost,
+        qtyUnloaded: purchaseOrderItems.qtyUnloaded,
       })
       .from(purchaseOrderItems)
       .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
@@ -68,7 +72,24 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
     redirect(`/purchase-orders/${poId}`);
   }
 
-  const lastCosts = await loadLastCosts(row.branchId, itemRows);
+  const [lastCosts, [lastUnloading], [lastReceiving]] = await Promise.all([
+    loadLastCosts(row.branchId, itemRows),
+    db
+      .select({ reportNumber: purchaseOrderUnloadings.reportNumber, createdAt: purchaseOrderUnloadings.createdAt })
+      .from(purchaseOrderUnloadings)
+      .where(and(eq(purchaseOrderUnloadings.poId, poId), inArray(purchaseOrderUnloadings.action, ['CREATED', 'REPLACED', 'MATCHED'])))
+      .orderBy(desc(purchaseOrderUnloadings.id))
+      .limit(1),
+    db
+      .select({ receivedAt: poReceivingLogs.receivedAt })
+      .from(poReceivingLogs)
+      .where(eq(poReceivingLogs.poId, poId))
+      .orderBy(desc(poReceivingLogs.receivedAt))
+      .limit(1),
+  ]);
+  // Jumlah bongkaran hanya mengisi penerimaan pertama sesudah laporan itu dikirim; penerimaan
+  // berikutnya kembali kosong supaya tidak dihitung dua kali.
+  const unloadingFresh = lastUnloading && (!lastReceiving || lastReceiving.receivedAt < lastUnloading.createdAt);
 
   const po = {
     id: row.id,
@@ -77,9 +98,13 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
     totalAmount: row.totalAmount,
     supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
     branch: { id: row.branchId, name: row.branchName ?? '-' },
-    items: itemRows.map((item) => ({
+    unloadingNumber: unloadingFresh ? lastUnloading.reportNumber : null,
+    items: itemRows.map(({ qtyUnloaded, ...item }) => ({
       ...item,
       lastCost: lastCosts.get(lastCostKey(item.productId, item.uomId)) ?? null,
+      unloadedPrefill: unloadingFresh && qtyUnloaded != null
+        ? Math.max(Math.min(qtyUnloaded, item.qtyOrdered - item.qtyReceived), 0)
+        : null,
     })),
   };
 

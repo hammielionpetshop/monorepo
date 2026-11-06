@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/db', () => ({ db: {}, users: {}, roles: {}, eq: () => null }));
+vi.mock('@/lib/db', () => ({ db: {}, users: {}, roles: {}, permissions: {}, rolePermissions: {}, eq: () => null, and: () => null }));
 vi.mock('@/lib/central-auth', () => ({
   getAuthMode: () => (process.env.BO_AUTH_MODE === 'central' ? 'central' : 'legacy'),
   getAuthSql: () => ({}),

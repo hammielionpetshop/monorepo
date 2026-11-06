@@ -15,6 +15,8 @@ import {
   users,
   paymentMethods,
   auditLogs,
+  purchaseOrderUnloadings,
+  purchaseOrderAttachments,
   eq,
   and,
   ne,
@@ -50,6 +52,7 @@ export default async function PODetailPage({
   const canEditInvoice = payload ? hasPermission(payload, 'po.financial') : false;
   const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
   const canCancel = payload ? hasPermission(payload, 'po.approve') : false;
+  const canManage = payload ? hasPermission(payload, 'po.manage') : false;
   const today = todayWibDate();
   let methods: { id: number; name: string }[] = [];
   let creditBalance = 0;
@@ -98,6 +101,7 @@ export default async function PODetailPage({
           qtyDamaged: purchaseOrderItems.qtyDamaged,
           unitCost: purchaseOrderItems.unitCost,
           invoiceUnitCost: purchaseOrderItems.invoiceUnitCost,
+          qtyUnloaded: purchaseOrderItems.qtyUnloaded,
         })
         .from(purchaseOrderItems)
         .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
@@ -172,6 +176,46 @@ export default async function PODetailPage({
       }
     }
 
+    const [unloadingRows, attachmentRows] = await Promise.all([
+      db
+        .select({
+          reportNumber: purchaseOrderUnloadings.reportNumber,
+          reportVersion: purchaseOrderUnloadings.reportVersion,
+          kind: purchaseOrderUnloadings.kind,
+          action: purchaseOrderUnloadings.action,
+          createdAt: purchaseOrderUnloadings.createdAt,
+          changedAfterApprovalAt: purchaseOrderUnloadings.changedAfterApprovalAt,
+          reviewedAt: purchaseOrderUnloadings.reviewedAt,
+          reviewNote: purchaseOrderUnloadings.reviewNote,
+          reviewedByName: users.name,
+        })
+        .from(purchaseOrderUnloadings)
+        .leftJoin(users, eq(purchaseOrderUnloadings.reviewedById, users.id))
+        .where(eq(purchaseOrderUnloadings.poId, poId))
+        .orderBy(asc(purchaseOrderUnloadings.id)),
+      db
+        .select({ id: purchaseOrderAttachments.id, url: purchaseOrderAttachments.url, kind: purchaseOrderAttachments.kind })
+        .from(purchaseOrderAttachments)
+        .where(eq(purchaseOrderAttachments.poId, poId))
+        .orderBy(asc(purchaseOrderAttachments.id)),
+    ]);
+    const lastReviewed = unloadingRows
+      .filter((u) => u.reviewedAt)
+      .sort((a, b) => b.reviewedAt!.getTime() - a.reviewedAt!.getTime())[0];
+    const unloading = unloadingRows.length
+      ? {
+          reportNumber: unloadingRows[0].reportNumber,
+          kind: unloadingRows[0].kind,
+          latestVersion: Math.max(...unloadingRows.map((u) => u.reportVersion)),
+          pendingReview: unloadingRows
+            .filter((u) => u.changedAfterApprovalAt && !u.reviewedAt)
+            .map((u) => ({ version: u.reportVersion, action: u.action, at: u.createdAt.toISOString() })),
+          lastReview: lastReviewed
+            ? { at: lastReviewed.reviewedAt!.toISOString(), note: lastReviewed.reviewNote, byName: lastReviewed.reviewedByName }
+            : null,
+        }
+      : null;
+
     const row = poRows[0];
     const [lastCosts, pendingByPo, methodRows] = await Promise.all([
       loadLastCosts(row.branchId, itemRows),
@@ -188,6 +232,8 @@ export default async function PODetailPage({
     po = {
       ...row,
       cancellation,
+      unloading,
+      attachments: attachmentRows,
       supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
       branch: { id: row.branchId, name: row.branchName ?? '-' },
       items: itemRows.map((item) => ({
@@ -237,6 +283,7 @@ export default async function PODetailPage({
         isNew={baru === '1'}
         canPay={canPay}
         canCancel={canCancel}
+        canManage={canManage}
         paymentMethods={methods}
         supplierCreditBalance={creditBalance}
         today={today}

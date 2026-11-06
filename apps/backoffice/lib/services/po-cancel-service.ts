@@ -23,7 +23,7 @@ import { lockProductStocks } from './stock-lock'
 import { proposeCostReversalForPO } from './cost-sync-service'
 
 /** Status PO yang belum menyentuh stok/hutang — batal cukup mengganti status. */
-export const OPEN_CANCELLABLE_STATUSES = ['APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'] as const
+export const OPEN_CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'] as const
 
 /** Retur supplier yang masih hidup (belum ditolak/ditarik/dibatalkan) mengikat stok & tagihan PO. */
 const ACTIVE_RETURN_STATUSES = ['PENDING', 'APPROVED']
