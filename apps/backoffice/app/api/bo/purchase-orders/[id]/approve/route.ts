@@ -45,6 +45,14 @@ export async function PATCH(
       );
     }
 
+    // Hanya rencana (Draft / Menunggu persetujuan) yang bisa disetujui; dulu status tidak diperiksa.
+    if (po.status !== "DRAFT" && po.status !== "PENDING_APPROVAL") {
+      return NextResponse.json(
+        { error: "Purchase Order ini sudah tidak menunggu persetujuan" },
+        { status: 409 },
+      );
+    }
+
     const totalAmount = Number(po.totalAmount);
 
     if (totalAmount >= OWNER_APPROVAL_THRESHOLD && payload.role !== "OWNER") {
@@ -66,8 +74,15 @@ export async function PATCH(
         notes: notes ?? po.notes,
         updatedAt: new Date(),
       })
-      .where(poWhere)
+      .where(and(poWhere, eq(purchaseOrders.status, po.status)))
       .returning();
+
+    if (!updatedPO) {
+      return NextResponse.json(
+        { error: "Purchase Order baru saja berubah, muat ulang halaman" },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json(updatedPO);
   } catch (error) {
