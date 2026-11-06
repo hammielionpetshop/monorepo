@@ -48,6 +48,10 @@ interface PO {
   payable?: PoPayableSummary | null
   /** Nama barang di PO ini (unik) — dasar pencarian nama produk. */
   productNames?: string[]
+  /** Nomor Laporan Bongkaran HRIS yang tertaut (Draft dari bongkaran / PO yang dicocokkan). */
+  unloadingNumber?: string | null
+  /** Laporan bongkaran berubah sesudah PO lewat Draft dan belum diperiksa. */
+  unloadingNeedsReview?: boolean
 }
 
 interface Supplier { id: number; name: string }
@@ -100,6 +104,16 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
         return (
           <div>
             <span className="font-mono font-medium text-foreground">{row.original.poNumber}</span>
+            {row.original.unloadingNumber && (
+              <span className="block text-xs text-muted-foreground">
+                {row.original.status === 'DRAFT' ? 'Draft · ' : ''}dari bongkaran {row.original.unloadingNumber}
+              </span>
+            )}
+            {row.original.unloadingNeedsReview && (
+              <span className="mt-0.5 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                Bongkaran berubah, periksa
+              </span>
+            )}
             {matches && matches.length > 0 && (
               <span className="block text-xs text-muted-foreground" title={matches.join(', ')}>
                 cocok: {summarizeMatches(matches)}

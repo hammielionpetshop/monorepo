@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean, text, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { suppliers, unitsOfMeasure } from './master';
@@ -44,7 +44,43 @@ export const purchaseOrderItems = petshop.table('purchase_order_items', {
   unitCost: integer('unit_cost').notNull(),
   invoiceUnitCost: integer('invoice_unit_cost'),
   expiryDate: timestamp('expiry_date'),
+  // Jumlah dari Laporan Bongkaran HRIS terakhir; pengisi form Terima Barang, bukan stok.
+  qtyUnloaded: integer('qty_unloaded'),
 });
+
+// Tautan PO ↔ Laporan Bongkaran HRIS, satu baris per kiriman (versi laporan). Spec 2026-11-06.
+export const purchaseOrderUnloadings = petshop.table('purchase_order_unloadings', {
+  id: serial('id').primaryKey(),
+  poId: integer('po_id').references(() => purchaseOrders.id),
+  hrisReportId: integer('hris_report_id').notNull(),
+  reportNumber: varchar('report_number', { length: 30 }).notNull(),
+  reportVersion: integer('report_version').notNull(),
+  kind: varchar('kind', { length: 10 }).notNull(), // DRAFT, MATCHED
+  action: varchar('action', { length: 20 }).notNull(), // CREATED, REPLACED, MATCHED, CANCELLED, FLAGGED, NONE
+  idempotencyKey: varchar('idempotency_key', { length: 120 }).notNull().unique('uq_purchase_order_unloadings_key'),
+  changedAfterApprovalAt: timestamp('changed_after_approval_at'),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewedById: integer('reviewed_by_id').references(() => users.id),
+  reviewNote: text('review_note'),
+  createdById: integer('created_by_id').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_purchase_order_unloadings_report').on(t.hrisReportId, t.id),
+  index('idx_purchase_order_unloadings_po').on(t.poId, t.id),
+]);
+
+export const purchaseOrderAttachments = petshop.table('purchase_order_attachments', {
+  id: serial('id').primaryKey(),
+  poId: integer('po_id').references(() => purchaseOrders.id).notNull(),
+  url: text('url').notNull(),
+  kind: varchar('kind', { length: 20 }).notNull(), // DELIVERY_NOTE, GOODS
+  source: varchar('source', { length: 10 }).default('HRIS').notNull(),
+  hrisReportId: integer('hris_report_id'),
+  hrisFileId: varchar('hris_file_id', { length: 64 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('uq_purchase_order_attachments_file').on(t.poId, t.hrisFileId),
+]);
 
 export const poReceivingLogs = petshop.table('po_receiving_logs', {
   id: serial('id').primaryKey(),
