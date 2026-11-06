@@ -127,8 +127,9 @@ export { WageKindsScreen } from './ui/wage-kinds-screen';
 export {
   canViewUnloading, casualLastJoined, changeWeight, createUnloading, linkOtherItem, openUnloadingPhoto, previewUnloading, reviewUnloadingDay, reviewWeightChange,
   searchProducts, unloadingAttention, unloadingDetailScreen, unloadingFormScreen, unloadingLateHandler, unloadingListScreen, unloadingLookScreen, unloadingNeedsApproval,
-  weightsScreen, UNLOADING_TAB_LABELS, type ProductUnit, type UnloadingInput, type UnloadingTab,
+  purchaseOrdersForSupplier, weightsScreen, UNLOADING_TAB_LABELS, type ProductUnit, type UnloadingInput, type UnloadingTab,
 } from './server/unloading';
+export { approveUnloadingDraft, syncUnloadingToPos, PO_SYNC_LABELS, type PoSyncStatus } from './server/unloading-sync';
 export { UNLOADING_STATUS_LABELS, type UnloadingStatus } from './rules/unloading';
 export { UnloadingForm } from './ui/unloading-form';
 export { UnloadingDetailScreen, UnloadingListScreen, UnloadingLookScreen, UnloadingWeightsScreen } from './ui/unloading-screens';

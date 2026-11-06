@@ -6,7 +6,7 @@ import { announceToOwners } from '@/lib/owner-notify';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import type { ServiceResult } from '@/modules/access';
 import {
-  answerUnloading, askUnloading, cancelUnloading, cancelUnloadingPayment, changeWeight, correctUnloading, correctionPreview, createUnloading, decideOverpayment,
+  answerUnloading, approveUnloadingDraft, askUnloading, syncUnloadingToPos, cancelUnloading, cancelUnloadingPayment, changeWeight, correctUnloading, correctionPreview, createUnloading, decideOverpayment,
   linkOtherItem, payUnloading, previewUnloading, receiveOverpaymentRefund, reviewUnloadingDay, reviewWeightChange, unloadingNeedsApproval,
 } from '@/modules/payroll';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -23,6 +23,8 @@ const report = z.object({
   workDate: z.string().max(10), supplierId: id, lateReason: z.string().max(500).nullable().optional(), similarConfirmedId: id.nullable().optional(),
   items: z.array(item).min(1).max(80), participants: z.array(z.string().regex(/^[EC]\d+$/)).min(1).max(60),
   photoIds: z.array(z.string().max(64)).max(5), noDeliveryNoteReason: z.string().max(500).nullable().optional(),
+  // Asal barang (spec 2026-11-06): PO yang ada, atau barang datang dulu → Draft PO di kasir.
+  source: z.enum(['PO', 'ARRIVED_FIRST']).optional(), poId: id.nullable().optional(),
 });
 const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('preview'), report }),
@@ -42,10 +44,23 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('correct_preview'), id, report, reason: z.string().max(500).optional(), applyWeights: z.boolean().optional() }),
   z.object({ kind: z.literal('correct'), id, report, reason: z.string().max(500), applyWeights: z.boolean().optional() }),
   z.object({ kind: z.literal('cancel'), id, reason: z.string().max(500) }),
+  z.object({ kind: z.literal('po_sync'), id }),
+  z.object({ kind: z.literal('draft_approve'), id }),
   z.object({ kind: z.literal('cancel_payment'), id, reason: z.string().max(500) }),
   z.object({ kind: z.literal('overpay_decide'), id, decision: z.enum(['COLLECT', 'WRITE_OFF']), reason: z.string().max(500) }),
   z.object({ kind: z.literal('overpay_refund'), id, amount: z.number().int(), sourceId: id, moneyDate: z.string().max(10), dateReason: z.string().max(500).nullable().optional() }),
 ]);
+
+/**
+ * Sesudah laporan tersimpan, kirim ke kasir (Draft PO / PO yang ada / batal). Gagal kirim tidak membatalkan laporan:
+ * pesannya ditambahkan dan Rincian menampilkan tombol Kirim ulang (spec 2026-11-06 §4.2).
+ */
+async function withPosSync<T extends { message?: string }>(actor: Parameters<typeof syncUnloadingToPos>[0], reportId: number, result: ServiceResult<T>) {
+  if (!result.ok) return respond(result);
+  const synced = await syncUnloadingToPos(actor, reportId);
+  const note = synced.ok ? synced.data.message : synced.error;
+  return NextResponse.json({ ok: true, ...result.data, message: [result.data.message, note].filter(Boolean).join(' '), posSyncFailed: !synced.ok });
+}
 
 function respond<T>(result: ServiceResult<T>) {
   return result.ok ? NextResponse.json({ ok: true, ...result.data }) : NextResponse.json({ error: result.error }, { status: result.status });
@@ -70,7 +85,8 @@ export async function POST(req: Request) {
           ? NextResponse.json({ ...result.data, ok: true, late: true, message: REQUEST_TYPES.unloading_late.submittedMessage })
           : NextResponse.json({ error: result.error }, { status: result.status });
       }
-      return respond(await createUnloading(actor, body.report, announceToOwners));
+      const created = await createUnloading(actor, body.report, announceToOwners);
+      return created.ok ? withPosSync(actor, created.data.id, created) : respond(created);
     }
     case 'weight_change': return respond(await changeWeight(actor, body, announceToOwners));
     case 'weight_review': return respond(await reviewWeightChange(actor, body.id, body.note));
@@ -80,8 +96,10 @@ export async function POST(req: Request) {
     case 'ask': return respond(await askUnloading(actor, body.id, body.question));
     case 'answer': return respond(await answerUnloading(actor, body.id, body.answer));
     case 'correct_preview': return respond(await correctionPreview(actor, body.id, { ...body.report, reason: body.reason ?? '', applyWeights: body.applyWeights }));
-    case 'correct': return respond(await correctUnloading(actor, body.id, { ...body.report, reason: body.reason, applyWeights: body.applyWeights }, announceToOwners));
-    case 'cancel': return respond(await cancelUnloading(actor, body.id, body.reason, announceToOwners));
+    case 'correct': return withPosSync(actor, body.id, await correctUnloading(actor, body.id, { ...body.report, reason: body.reason, applyWeights: body.applyWeights }, announceToOwners));
+    case 'cancel': return withPosSync(actor, body.id, await cancelUnloading(actor, body.id, body.reason, announceToOwners));
+    case 'po_sync': return respond(await syncUnloadingToPos(actor, body.id));
+    case 'draft_approve': return respond(await approveUnloadingDraft(actor, body.id));
     case 'cancel_payment': return respond(await cancelUnloadingPayment(actor, body.id, body.reason, announceToOwners));
     case 'overpay_decide': return respond(await decideOverpayment(actor, body.id, body.decision, body.reason));
     case 'overpay_refund': return respond(await receiveOverpaymentRefund(actor, body.id, body));

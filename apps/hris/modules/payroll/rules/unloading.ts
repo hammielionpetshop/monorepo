@@ -18,10 +18,10 @@ export const UNLOADING_STATUS_LABELS: Record<UnloadingStatus, string> = {
   PENDING: 'Menunggu persetujuan', ACTIVE: 'Berlaku · belum dibayar', REJECTED: 'Ditolak', WITHDRAWN: 'Ditarik', PAID: 'Dibayar', CANCELLED: 'Dibatalkan',
 };
 
-export type UnloadingFlag = 'CREATOR_JOINED' | 'OTHER_ITEM' | 'WEIGHT_CHANGED' | 'NO_DELIVERY_NOTE' | 'BACKDATED' | 'SIMILAR' | 'CORRECTED' | 'ASKED';
+export type UnloadingFlag = 'CREATOR_JOINED' | 'OTHER_ITEM' | 'WEIGHT_CHANGED' | 'NO_DELIVERY_NOTE' | 'BACKDATED' | 'SIMILAR' | 'CORRECTED' | 'ASKED' | 'PO_DIFF';
 export const UNLOADING_FLAG_LABELS: Record<UnloadingFlag, string> = {
   CREATOR_JOINED: 'Pembuat ikut jadi peserta', OTHER_ITEM: 'Barang lain', WEIGHT_CHANGED: 'Berat berubah', NO_DELIVERY_NOTE: 'Tanpa surat jalan',
-  BACKDATED: 'Tanggal mundur', SIMILAR: 'Serupa', CORRECTED: 'Dikoreksi', ASKED: 'Ditanyakan Finance',
+  BACKDATED: 'Tanggal mundur', SIMILAR: 'Serupa', CORRECTED: 'Dikoreksi', ASKED: 'Ditanyakan Finance', PO_DIFF: 'Selisih dengan PO',
 };
 
 /** Status hari yang membuat baris upah bertanda Perlu dilihat untuk HR (DRV-107). */
@@ -136,4 +136,19 @@ export function gramsToKg(grams: number | null): string | null {
 /** Nomor laporan `LB-YYYYMMDD-urut` (spec v3 §3.3). */
 export function reportNumber(workDate: IsoDate, sequence: number): string {
   return `LB-${workDate.replace(/-/g, '')}-${String(sequence).padStart(2, '0')}`;
+}
+
+/** PO kasir memakai jumlah bulat: barang produk kasir di bongkaran wajib bulat (spec 2026-11-06 §9 butir 1). */
+export function isWholeQuantity(quantity: string): boolean {
+  return new Big(quantity).mod(1).eq(0);
+}
+
+/** kg (3 desimal) → gram bulat untuk berat POS; kg HRIS 3 desimal = gram tanpa pembulatan. */
+export function kgToGrams(kg: string): number {
+  return Number(new Big(kg).times(1000).round(0, Big.roundHalfUp).toFixed(0));
+}
+
+/** Selisih jumlah dibongkar dengan sisa PO; null = baris di luar PO. */
+export function poDifference(quantity: string, poQty: string | null): string | null {
+  return poQty == null ? null : new Big(quantity).minus(poQty).toFixed(3);
 }

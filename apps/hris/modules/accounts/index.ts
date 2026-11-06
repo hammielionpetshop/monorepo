@@ -10,6 +10,7 @@ export {
 export {
   createRecoveryCodeFor, finishRecoveryWithCode, finishRecoveryWithTicket, purgeRecovery, verifyRecovery, type RecoveryVerifyResult,
 } from './server/recovery';
+export { callBackofficeInternal } from './server/backoffice';
 export { EmployeeAccountCard } from './ui/employee-account-card';
 export { AccountsScreen } from './ui/accounts-screen';
 export { LoginHistoryScreen } from './ui/login-history-screen';

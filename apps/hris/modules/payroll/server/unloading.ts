@@ -1,11 +1,11 @@
 import Big from 'big.js';
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import {
-  unloadingItems, unloadingPhotos, unloadingReportVersions, unloadingReports, unloadingShares, unloadingUnitWeights, unloadingWeightChanges,
+  unloadingItems, unloadingPhotos, unloadingReportVersions, unloadingReports, unloadingShares, unloadingWeightChanges,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
-import { activeHrisAccounts } from '@/modules/accounts';
+import { activeHrisAccounts, callBackofficeInternal } from '@/modules/accounts';
 import { dayStatusesOf } from '@/modules/attendance';
 import { listCasualWorkers, todayWib } from '@/modules/employees';
 import { filesUploadedBy } from '@/modules/files';
@@ -15,10 +15,11 @@ import { settingOn } from '@/modules/settings';
 import { addDays, longDate, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import {
   DAY_STATUS_LABELS, FREQUENT_DAYS, HEAVY_WEIGHT_KG, MAX_PHOTOS, MIN_REASON, OTHER_SEARCH_MIN, SEARCH_MIN, UNLOADING_FLAG_LABELS, UNLOADING_STATUS_LABELS,
-  computeUnloading, gramsToKg, kgText, needsLook, parseDecimal3, reportNumber, weightChangePercent, weightFlagged, workDateCheck,
+  computeUnloading, gramsToKg, isWholeQuantity, kgText, kgToGrams, poDifference, needsLook, parseDecimal3, reportNumber, weightChangePercent, weightFlagged, workDateCheck,
   type ItemInput, type ParticipantInput, type UnloadingFlag, type UnloadingStatus,
 } from '../rules/unloading';
 import { accountNames, loadPeriodPeople } from './data';
+import { PO_SYNC_LABELS, type PoSyncStatus } from './unloading-sync';
 
 // Laporan Bongkaran L8a (spec L8 §3.1–3.3; DRV-31 s.d. 46, 101 s.d. 110).
 
@@ -42,13 +43,9 @@ type UnitRow = { product_id: number; sku: string | null; name: string; uom_id: n
 
 export type ProductUnit = {
   productId: number; sku: string | null; name: string; uomId: number; uomName: string; isBase: boolean;
-  /** Berat HRIS yang berlaku (tampil sebagai tulisan), atau null = wajib diisi. */
-  weight: { kg: string; by: string; on: IsoDate } | null;
-  /** Berat dari kasir (gram per satuan), saran isian saja (spec L8 §9 butir 3). */
-  suggestedKg: string | null;
+  /** Berat per satuan di Master Produk kasir — satu sumber (spec 2026-11-06), atau null = wajib diisi. */
+  weight: { kg: string } | null;
 };
-
-const wibDate = (at: Date) => new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
 
 async function unitsByIds(executor: typeof db | Tx, productIds: number[]): Promise<UnitRow[]> {
   if (!productIds.length) return [];
@@ -59,11 +56,7 @@ async function unitsByIds(executor: typeof db | Tx, productIds: number[]): Promi
     order by p.name, u.is_base desc, u.uom_name`);
 }
 
-async function weightsFor(executor: typeof db | Tx, productIds: number[]) {
-  if (!productIds.length) return new Map<string, typeof unloadingUnitWeights.$inferSelect>();
-  const rows = await executor.select().from(unloadingUnitWeights).where(inArray(unloadingUnitWeights.productId, productIds));
-  return new Map(rows.map((r) => [`${r.productId}:${r.uomId}`, r]));
-}
+const posKg = (u: UnitRow) => gramsToKg(u.weight_gram == null ? null : Number(u.weight_gram));
 
 /** Cari barang ≥ 2 huruf (nama atau kode) di daftar produk kasir; Barang lain yang sudah dipasangkan menjadi saran (DRV-34). */
 export async function searchProducts(actor: Actor | null, query: string): Promise<ServiceResult<{ units: ProductUnit[]; allowOther: boolean }>> {
@@ -79,17 +72,16 @@ export async function searchProducts(actor: Actor | null, query: string): Promis
       where p.active and i.product_name ilike ${like}
     ) x order by name limit 25`);
   const ids = found.map((r) => Number(r.id));
-  const [units, weights, names] = await Promise.all([unitsByIds(db, ids), weightsFor(db, ids), accountNames()]);
+  const units = await unitsByIds(db, ids);
   return {
     ok: true,
     data: {
       allowOther: q.length >= OTHER_SEARCH_MIN && ids.length === 0,
       units: units.map((u) => {
-        const w = weights.get(`${u.product_id}:${u.uom_id}`);
+        const kg = posKg(u);
         return {
           productId: Number(u.product_id), sku: u.sku, name: u.name, uomId: Number(u.uom_id), uomName: u.uom_name, isBase: !!u.is_base,
-          weight: w ? { kg: new Big(w.weightKg).toFixed(3), by: names.get(w.updatedByAccountId) ?? '-', on: wibDate(w.updatedAt) } : null,
-          suggestedKg: w ? null : gramsToKg(u.weight_gram == null ? null : Number(u.weight_gram)),
+          weight: kg ? { kg } : null,
         };
       }),
     },
@@ -146,10 +138,12 @@ export async function unloadingFormScreen(actor: Actor | null, dateInput: string
 export type UnloadingInput = {
   workDate: unknown; supplierId: unknown; lateReason?: unknown; similarConfirmedId?: unknown;
   items: unknown; participants: unknown; photoIds: unknown; noDeliveryNoteReason?: unknown;
+  /** Asal barang: 'PO' = dari PO yang ada (poId wajib), selain itu barang datang dulu → Draft PO. */
+  source?: unknown; poId?: unknown;
 };
 
 export type CheckedItem =
-  | { kind: 'PRODUCT'; productId: number; uomId: number; productName: string; uomName: string; quantity: string; weightKg: string; fromKg: string | null; weightReason: string | null; flagged: boolean }
+  | { kind: 'PRODUCT'; productId: number; uomId: number; productName: string; uomName: string; quantity: string; weightKg: string; fromKg: string | null; weightReason: string | null; flagged: boolean; poItemId: number | null; poQty: string | null }
   | { kind: 'OTHER'; productName: string; kg: string; reason: string };
 
 export type Checked = {
@@ -157,6 +151,7 @@ export type Checked = {
   items: CheckedItem[]; participants: Candidate[]; photoIds: string[]; noDeliveryNoteReason: string | null;
   result: ReturnType<typeof computeUnloading>; similar: { id: number; number: string } | null; similarConfirmedId: number | null;
   costBranchId: number | null;
+  source: 'PO' | 'ARRIVED_FIRST'; po: { id: number; number: string } | null; poMismatch: boolean;
 };
 
 const reasonOf = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -184,11 +179,21 @@ export async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Un
   const supplier = (await suppliers()).find((s) => s.id === Number(input.supplierId) && s.active);
   if (!supplier) return fail(400, 'Pilih supplier dari daftar supplier kasir.');
 
+  const source: 'PO' | 'ARRIVED_FIRST' = input.source === 'PO' ? 'PO' : 'ARRIVED_FIRST';
+  let po: { id: number; number: string } | null = null;
+  let poLines: PoLine[] = [];
+  if (source === 'PO') {
+    const found = await openPurchaseOrder(tx, Number(input.poId));
+    if (!found || found.supplierId !== supplier.id) return fail(400, 'Pilih PO supplier ini yang sudah disetujui dan belum selesai diterima.');
+    po = { id: found.id, number: found.number };
+    poLines = found.lines;
+  }
+
   const rawItems = Array.isArray(input.items) ? input.items as Record<string, unknown>[] : [];
   if (!rawItems.length) return fail(400, 'Isi paling sedikit satu barang.');
   if (rawItems.length > 80) return fail(400, 'Paling banyak 80 baris barang per laporan.');
   const productIds = [...new Set(rawItems.filter((i) => i.productId != null).map((i) => Number(i.productId)))];
-  const [units, weights] = await Promise.all([unitsByIds(tx, productIds), weightsFor(tx, productIds)]);
+  const units = await unitsByIds(tx, productIds);
   const flagPercent = Number(await settingOn<number>('payroll.unloading_weight_flag_percent', today) ?? 10);
   const seen = new Set<string>();
   const items: CheckedItem[] = [];
@@ -210,8 +215,8 @@ export async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Un
     seen.add(key);
     const quantity = parseDecimal3(raw.quantity);
     if (!quantity) return fail(400, `Jumlah ${unit.name} harus lebih dari 0 (paling banyak 3 angka di belakang koma).`);
-    const current = weights.get(key);
-    const currentKg = current ? new Big(current.weightKg).toFixed(3) : null;
+    if (!isWholeQuantity(quantity)) return fail(400, `Jumlah ${unit.name} harus bilangan bulat (PO kasir memakai jumlah bulat).`);
+    const currentKg = posKg(unit);
     const typed = raw.weightKg == null || raw.weightKg === '' ? null : parseDecimal3(raw.weightKg);
     if (raw.weightKg != null && raw.weightKg !== '' && !typed) return fail(400, `Berat per ${unit.uom_name} ${unit.name} harus kg lebih dari 0 (paling banyak 3 angka di belakang koma).`);
     const weightKg = typed ?? currentKg;
@@ -222,8 +227,10 @@ export async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Un
     items.push({
       kind: 'PRODUCT', productId: Number(unit.product_id), uomId: Number(unit.uom_id), productName: unit.name, uomName: unit.uom_name, quantity, weightKg,
       fromKg: currentKg, weightReason, flagged: changed && weightFlagged(currentKg, weightKg, flagPercent),
+      ...poMatch(poLines, Number(unit.product_id), Number(unit.uom_id)),
     });
   }
+  const poMismatch = source === 'PO' && poDiffers(items, poLines);
 
   const rawPeople = Array.isArray(input.participants) ? input.participants as unknown[] : [];
   const keys = rawPeople.map((p) => String(p));
@@ -267,11 +274,66 @@ export async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Un
   return {
     workDate, late: dateCheck.late, lateReason, supplierId: supplier.id, supplierName: supplier.name, rate: Number(rate), items, participants, photoIds,
     noDeliveryNoteReason, result, similar: similarRow ?? null, similarConfirmedId: similarRow && similarConfirmedId === similarRow.id ? similarRow.id : null,
-    costBranchId: costBranch ? Number(costBranch) : null,
+    costBranchId: costBranch ? Number(costBranch) : null, source, po, poMismatch,
   };
 }
 
-function flagsOf(checked: Pick<Checked, 'items' | 'participants' | 'noDeliveryNoteReason' | 'similarConfirmedId' | 'workDate'>, creatorKey: string, createdOn: IsoDate): UnloadingFlag[] {
+// ---- PO kasir (pilihan "Dari PO yang ada", spec 2026-11-06 §1) ----
+
+type PoLine = { id: number; productId: number; uomId: number; remaining: string };
+
+/** PO supplier yang bisa dicocokkan (view `hris.pos_purchase_orders`), dengan sisa jumlah tiap barisnya. */
+export async function openPurchaseOrder(executor: typeof db | Tx, poId: number) {
+  if (!Number.isInteger(poId) || poId <= 0) return null;
+  const [head] = await executor.execute<{ id: number; po_number: string; supplier_id: number }>(sql`
+    select id, po_number, supplier_id from hris.pos_purchase_orders where id = ${poId}`);
+  if (!head) return null;
+  const lines = await executor.execute<{ id: number; product_id: number; uom_id: number; remaining: number }>(sql`
+    select id, product_id, uom_id, greatest(qty_ordered - qty_received, 0) as remaining from hris.pos_purchase_order_items where po_id = ${poId} order by id`);
+  return {
+    id: Number(head.id), number: head.po_number, supplierId: Number(head.supplier_id),
+    lines: lines.map((l) => ({ id: Number(l.id), productId: Number(l.product_id), uomId: Number(l.uom_id), remaining: new Big(l.remaining).toFixed(3) })),
+  };
+}
+
+function poMatch(lines: PoLine[], productId: number, uomId: number): { poItemId: number | null; poQty: string | null } {
+  const line = lines.find((l) => l.productId === productId && l.uomId === uomId);
+  return line ? { poItemId: line.id, poQty: line.remaining } : { poItemId: null, poQty: null };
+}
+
+/** Selisih dengan PO: jumlah beda, barang di luar PO, atau barang PO yang bersisa tapi tidak dibongkar (DRV-39/106). */
+export function poDiffers(items: CheckedItem[], lines: PoLine[]): boolean {
+  const products = items.filter((i): i is Extract<CheckedItem, { kind: 'PRODUCT' }> => i.kind === 'PRODUCT');
+  if (items.some((i) => i.kind === 'OTHER')) return true;
+  if (products.some((i) => i.poItemId == null || !new Big(i.quantity).eq(i.poQty ?? '0'))) return true;
+  return lines.some((l) => new Big(l.remaining).gt(0) && !products.some((i) => i.poItemId === l.id));
+}
+
+/** PO supplier untuk langkah Asal barang di Laporan Baru. */
+export async function purchaseOrdersForSupplier(actor: Actor | null, supplierId: number) {
+  if (!canCreate(actor)) return fail(403, 'Anda tidak berhak membuat Laporan Bongkaran.');
+  const heads = await db.execute<{ id: number; po_number: string; status: string; created_at: string }>(sql`
+    select id, po_number, status, created_at::text from hris.pos_purchase_orders where supplier_id = ${supplierId} order by created_at desc limit 30`);
+  const orders = [];
+  for (const h of heads) {
+    const po = await openPurchaseOrder(db, Number(h.id));
+    if (!po) continue;
+    const units = await unitsByIds(db, [...new Set(po.lines.map((l) => l.productId))]);
+    const lines = po.lines.filter((l) => new Big(l.remaining).gt(0)).flatMap((l) => {
+      const u = units.find((x) => Number(x.product_id) === l.productId && Number(x.uom_id) === l.uomId);
+      if (!u) return [];
+      const kg = posKg(u);
+      return [{
+        poItemId: l.id, remaining: l.remaining, productId: l.productId, uomId: l.uomId, sku: u.sku, name: u.name, uomName: u.uom_name,
+        isBase: !!u.is_base, weight: kg ? { kg } : null,
+      }];
+    });
+    if (lines.length) orders.push({ id: po.id, number: po.number, status: h.status, createdAt: h.created_at, lines });
+  }
+  return { ok: true as const, data: { orders } };
+}
+
+function flagsOf(checked: Pick<Checked, 'items' | 'participants' | 'noDeliveryNoteReason' | 'similarConfirmedId' | 'workDate' | 'poMismatch'>, creatorKey: string, createdOn: IsoDate): UnloadingFlag[] {
   const flags: UnloadingFlag[] = [];
   if (checked.participants.some((p) => p.key === creatorKey)) flags.push('CREATOR_JOINED');
   if (checked.items.some((i) => i.kind === 'OTHER')) flags.push('OTHER_ITEM');
@@ -279,6 +341,7 @@ function flagsOf(checked: Pick<Checked, 'items' | 'participants' | 'noDeliveryNo
   if (checked.noDeliveryNoteReason) flags.push('NO_DELIVERY_NOTE');
   if (checked.workDate !== createdOn) flags.push('BACKDATED');
   if (checked.similarConfirmedId) flags.push('SIMILAR');
+  if (checked.poMismatch) flags.push('PO_DIFF');
   return flags;
 }
 
@@ -310,18 +373,15 @@ async function nextNumber(tx: Tx, workDate: IsoDate): Promise<string> {
   return reportNumber(workDate, Number(n) + 1);
 }
 
-/** Simpan berat baru / berubah + riwayatnya (DRV-32, 33, 105). */
+/**
+ * Catat berat baru / berubah (DRV-32, 33, 105). Beratnya sendiri disimpan di POS (satu sumber, spec 2026-11-06): dikirim
+ * bersama sinkron laporan (`syncUnloadingToPos`) atau langsung dari layar Berat; riwayat HRIS tetap di sini.
+ */
 export async function saveWeights(tx: Tx, actor: Actor, items: CheckedItem[], reportId: number | null) {
   for (const item of items) {
     if (item.kind !== 'PRODUCT') continue;
-    const [current] = await tx.select().from(unloadingUnitWeights).where(and(eq(unloadingUnitWeights.productId, item.productId), eq(unloadingUnitWeights.uomId, item.uomId))).for('update');
-    const currentKg = current ? new Big(current.weightKg).toFixed(3) : null;
+    const currentKg = item.fromKg;
     if (currentKg === item.weightKg) continue;
-    if (current) {
-      await tx.update(unloadingUnitWeights).set({ weightKg: item.weightKg, updatedByAccountId: actor.accountId, updatedAt: new Date() }).where(eq(unloadingUnitWeights.id, current.id));
-    } else {
-      await tx.insert(unloadingUnitWeights).values({ productId: item.productId, uomId: item.uomId, weightKg: item.weightKg, updatedByAccountId: actor.accountId });
-    }
     await tx.insert(unloadingWeightChanges).values({
       productId: item.productId, uomId: item.uomId, productName: item.productName, uomName: item.uomName, fromKg: currentKg, toKg: item.weightKg,
       changePercent: currentKg ? weightChangePercent(currentKg, item.weightKg) : null, reason: currentKg ? item.weightReason : null,
@@ -341,6 +401,13 @@ async function dayStatuses(participants: Candidate[], workDate: IsoDate): Promis
   return out;
 }
 
+/** Status kirim ke POS saat laporan dibuat: tanpa surat jalan (barang datang dulu) menunggu Pemilik/GM (keputusan A). */
+export function initialSyncStatus(checked: Pick<Checked, 'source' | 'items' | 'noDeliveryNoteReason'>): 'NONE' | 'WAITING_APPROVAL' | 'PENDING' {
+  if (checked.source === 'ARRIVED_FIRST' && !checked.items.some((i) => i.kind === 'PRODUCT')) return 'NONE';
+  if (checked.source === 'ARRIVED_FIRST' && checked.noDeliveryNoteReason) return 'WAITING_APPROVAL';
+  return 'PENDING';
+}
+
 async function insertReport(tx: Tx, actor: Actor, checked: Checked, status: 'ACTIVE' | 'PENDING', requestId: number | null, now: Date): Promise<{ id: number; number: string }> {
   const number = await nextNumber(tx, checked.workDate);
   const active = status === 'ACTIVE';
@@ -350,6 +417,8 @@ async function insertReport(tx: Tx, actor: Actor, checked: Checked, status: 'ACT
     lateReason: checked.lateReason, requestId, similarToId: checked.similarConfirmedId, noDeliveryNoteReason: checked.noDeliveryNoteReason,
     createdByAccountId: actor.accountId, createdByEmployeeId: actor.personId, createdOn: todayWib(now),
     activatedAt: active ? now : null, activatedByAccountId: active ? actor.accountId : null,
+    source: checked.source, poId: checked.po?.id ?? null, poNumber: checked.po?.number ?? null, poMismatch: checked.poMismatch,
+    poSyncStatus: initialSyncStatus(checked),
   }).returning({ id: unloadingReports.id });
   const kind = checked.noDeliveryNoteReason ? 'GOODS' : 'DELIVERY_NOTE';
   await writeVersion(tx, actor, report.id, 1, checked, status, null, true, checked.photoIds.map((fileId) => ({ fileId, kind })));
@@ -369,6 +438,7 @@ export async function writeVersion(
     ? {
       reportId, version, productId: item.productId, uomId: item.uomId, productName: item.productName, uomName: item.uomName,
       quantity: item.quantity, weightKg: item.weightKg, lineKg: checked.result.lineKg[index], weightFlagged: item.flagged,
+      poItemId: item.poItemId, poQty: item.poQty,
     }
     : { reportId, version, productName: item.productName, lineKg: checked.result.lineKg[index], otherReason: item.reason })));
   if (applyWeights) await saveWeights(tx, actor, checked.items, reportId);
@@ -575,6 +645,7 @@ export async function reportFlags(reports: ReportRow[]): Promise<Map<number, Unl
     if (r.similarToId) flags.push('SIMILAR');
     if (r.version > 1) flags.push('CORRECTED');
     if (r.question && !r.answeredAt) flags.push('ASKED');
+    if (r.poMismatch) flags.push('PO_DIFF');
     out.set(r.id, flags);
   }
   return out;
@@ -677,6 +748,7 @@ export async function unloadingDetailScreen(actor: Actor | null, id: number) {
     SIMILAR: `Dikonfirmasi bongkaran lain, bukan dobel dari ${similar?.number ?? '-'}.`,
     CORRECTED: `Dikoreksi ${report.version - 1} kali.`,
     ASKED: 'Ditanyakan Finance sebelum membayar.',
+    PO_DIFF: `Jumlah dibongkar berbeda dengan ${report.poNumber ?? 'PO'} (lihat kolom Selisih).`,
   };
   return {
     id: report.id, number: report.number, status: report.status as UnloadingStatus, statusLabel: UNLOADING_STATUS_LABELS[report.status as UnloadingStatus],
@@ -687,7 +759,17 @@ export async function unloadingDetailScreen(actor: Actor | null, id: number) {
     items: items.map((i) => ({
       id: i.id, name: i.productName, uomName: i.uomName, quantity: i.quantity, weightKg: i.weightKg, lineKg: i.lineKg, other: i.productId == null,
       otherReason: i.otherReason, linkedName: i.linkedProductName, weightFlagged: i.weightFlagged,
+      poQty: report.source === 'PO' ? i.poQty : null, poDiff: report.source === 'PO' && i.quantity ? poDifference(i.quantity, i.poQty) : null,
     })),
+    po: {
+      source: report.source as 'PO' | 'ARRIVED_FIRST', number: report.poNumber, syncStatus: report.poSyncStatus as PoSyncStatus,
+      syncLabel: PO_SYNC_LABELS[report.poSyncStatus as PoSyncStatus], error: report.poSyncError,
+      synced: report.poSyncedAt ? { at: report.poSyncedAt.toISOString(), version: report.poSyncedVersion } : null,
+      stale: report.poSyncedVersion != null && report.poSyncedVersion !== report.version,
+      canSend: (hasAction(actor, 'unloading.create') || !!actor!.fullAccess) && ['PENDING', 'FAILED'].includes(report.poSyncStatus) && ['ACTIVE', 'PAID', 'CANCELLED'].includes(report.status),
+      canApproveDraft: !!actor!.fullAccess && report.poSyncStatus === 'WAITING_APPROVAL' && report.createdByAccountId !== actor!.accountId && report.status !== 'CANCELLED',
+      draftApprovedBy: report.draftApprovedAt ? names.get(report.draftApprovedByAccountId ?? 0) ?? '-' : null,
+    },
     shares: shares.map((s) => ({
       id: s.id, name: s.name, casual: s.casualWorkerId != null, amount: s.amount, plusOne: s.plusOne, status: s.status,
       look: s.needsLook ? { status: DAY_STATUS_LABELS[s.dayStatus ?? ''] ?? s.dayStatus, done: !!s.lookedAt } : null,
@@ -716,8 +798,7 @@ export type WeightTab = 'ALL' | 'CHANGED';
 export async function weightsScreen(actor: Actor | null, tabInput: string | null) {
   if (!canViewUnloading(actor)) return null;
   const tab: WeightTab = tabInput === 'CHANGED' ? 'CHANGED' : 'ALL';
-  const [weights, changes, names, used] = await Promise.all([
-    db.select().from(unloadingUnitWeights).orderBy(asc(unloadingUnitWeights.productId)),
+  const [changes, names, used] = await Promise.all([
     db.select().from(unloadingWeightChanges).orderBy(desc(unloadingWeightChanges.createdAt), desc(unloadingWeightChanges.id)),
     accountNames(),
     db.execute<{ product_id: number; uom_id: number; n: number }>(sql`
@@ -735,37 +816,59 @@ export async function weightsScreen(actor: Actor | null, tabInput: string | null
   return {
     tab, canEdit: canCreate(actor), canReview: hasAction(actor, 'unloading.weight_review'),
     changedCount: changes.filter((c) => c.flagged && !c.reviewedAt).length,
-    weights: weights.map((w) => {
-      const history = changes.filter((c) => c.productId === w.productId && c.uomId === w.uomId);
-      const name = history[history.length - 1];
-      return {
-        productId: w.productId, uomId: w.uomId, productName: history[0]?.productName ?? name?.productName ?? `Produk #${w.productId}`, uomName: history[0]?.uomName ?? '-',
-        kg: new Big(w.weightKg).toFixed(3), by: names.get(w.updatedByAccountId) ?? '-', on: wibDate(w.updatedAt),
-        used: Number(used.find((u) => Number(u.product_id) === w.productId && Number(u.uom_id) === w.uomId)?.n ?? 0),
-        history: history.map(label),
-      };
-    }).sort((a, b) => a.productName.localeCompare(b.productName, 'id')),
+    // Berat dibaca dari Master Produk kasir (satu sumber, spec 2026-11-06) untuk barang yang pernah dibongkar atau berriwayat.
+    weights: await posWeightRows(changes, used, (history) => {
+      const last = history[0];
+      return { by: last ? names.get(last.createdByAccountId) ?? '-' : 'Master Produk', on: last ? wibDate(last.createdAt) : null, history: history.map(label) };
+    }),
     changed: changes.filter((c) => c.flagged && !c.reviewedAt).map(label),
   };
 }
 
 /** Ubah berat di luar laporan (Berat per Satuan): berlaku untuk laporan sesudahnya; alasan wajib (DRV-33, 105). */
+const wibDate = (at: Date) => new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+
+async function posWeightRows<T extends object>(
+  changes: (typeof unloadingWeightChanges.$inferSelect)[], used: { product_id: number; uom_id: number; n: number }[],
+  extra: (history: (typeof unloadingWeightChanges.$inferSelect)[]) => T,
+) {
+  const keys = new Map<string, { productId: number; uomId: number }>();
+  for (const c of changes) keys.set(`${c.productId}:${c.uomId}`, { productId: c.productId, uomId: c.uomId });
+  for (const u of used) keys.set(`${u.product_id}:${u.uom_id}`, { productId: Number(u.product_id), uomId: Number(u.uom_id) });
+  const units = await unitsByIds(db, [...new Set([...keys.values()].map((k) => k.productId))]);
+  return [...keys.values()].flatMap((k) => {
+    const unit = units.find((u) => Number(u.product_id) === k.productId && Number(u.uom_id) === k.uomId);
+    if (!unit) return [];
+    const history = changes.filter((c) => c.productId === k.productId && c.uomId === k.uomId);
+    return [{
+      productId: k.productId, uomId: k.uomId, productName: unit.name, uomName: unit.uom_name, kg: posKg(unit),
+      used: Number(used.find((u) => Number(u.product_id) === k.productId && Number(u.uom_id) === k.uomId)?.n ?? 0),
+      ...extra(history),
+    }];
+  }).sort((a, b) => a.productName.localeCompare(b.productName, 'id'));
+}
+
 export async function changeWeight(actor: Actor | null, input: { productId: unknown; uomId: unknown; weightKg: unknown; reason: unknown }, announce: ChangeAnnounce, now: Date = new Date()): Promise<ServiceResult<object>> {
   if (!canCreate(actor)) return fail(403, 'Anda tidak berhak mengubah berat per satuan.');
   const weightKg = parseDecimal3(input.weightKg);
   if (!weightKg) return fail(400, 'Berat harus kg lebih dari 0 (paling banyak 3 angka di belakang koma).');
   const reason = reasonOf(input.reason);
   if (reason.length < MIN_REASON) return fail(400, `Alasan paling sedikit ${MIN_REASON} huruf.`);
+  const [unit] = await unitsByIds(db, [Number(input.productId)]).then((rows) => rows.filter((u) => Number(u.uom_id) === Number(input.uomId)));
+  if (!unit) return fail(404, 'Produk atau satuan tidak ada di daftar kasir.');
+  const currentKg = posKg(unit);
+  if (currentKg === weightKg) return fail(400, 'Beratnya sama dengan yang berlaku.');
+  // Berat satu sumber = POS: simpan dulu di kasir; riwayat HRIS ditulis sesudah kasir menerima (spec 2026-11-06 §4.2).
+  const gram = kgToGrams(weightKg);
+  const sent = await callBackofficeInternal('/api/internal/hris/product-weights', {
+    productId: Number(unit.product_id), uomId: Number(unit.uom_id), gram, expectedGram: currentKg ? kgToGrams(currentKg) : null,
+  }, `weight:${unit.product_id}:${unit.uom_id}:${gram}:${now.getTime()}`);
+  if (!sent.ok) return fail(409, `Berat belum tersimpan di kasir: ${sent.error}`);
   return db.transaction(async (tx) => {
-    const [unit] = await unitsByIds(tx, [Number(input.productId)]).then((rows) => rows.filter((u) => Number(u.uom_id) === Number(input.uomId)));
-    if (!unit) return fail(404, 'Produk atau satuan tidak ada di daftar kasir.');
-    const [current] = await tx.select().from(unloadingUnitWeights).where(and(eq(unloadingUnitWeights.productId, Number(unit.product_id)), eq(unloadingUnitWeights.uomId, Number(unit.uom_id))));
-    const currentKg = current ? new Big(current.weightKg).toFixed(3) : null;
-    if (currentKg === weightKg) return fail(400, 'Beratnya sama dengan yang berlaku.');
     const flagPercent = Number(await settingOn<number>('payroll.unloading_weight_flag_percent', todayWib(now)) ?? 10);
     const item: CheckedItem = {
       kind: 'PRODUCT', productId: Number(unit.product_id), uomId: Number(unit.uom_id), productName: unit.name, uomName: unit.uom_name, quantity: '1.000', weightKg,
-      fromKg: currentKg, weightReason: reason, flagged: weightFlagged(currentKg, weightKg, flagPercent),
+      fromKg: currentKg, weightReason: reason, flagged: weightFlagged(currentKg, weightKg, flagPercent), poItemId: null, poQty: null,
     };
     await saveWeights(tx, actor!, [item], null);
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'unloading_weight', entityId: Number(unit.product_id), action: 'unloading_weight.change', before: { kg: currentKg }, after: { kg: weightKg, uomId: unit.uom_id }, reason });
