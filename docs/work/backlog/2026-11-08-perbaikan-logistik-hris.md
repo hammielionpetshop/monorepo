@@ -77,7 +77,7 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 | Butir | Status | Catatan |
 |---|---|---|
 | A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
-| B3 | **Spec disetujui — dikerjakan** | Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (di `dev_hris`), disetujui owner 2026-11-08: bagi dengan kenek (bawaan driver penuh), tombol Sudah diganti tunai (Finance) + Tidak dipotong (Pemilik/GM), nominal boleh diturunkan, orang mingguan di form Potongan Lain. Branch `feat/hris-b3-short-handover`, migrasi hris `0054`. |
+| B3 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (disetujui owner 2026-11-08). `feat/hris-b3-short-handover` `c6094423`, dev_hris `2570643d`, migrasi hris `0054`; tes unit 7 + integrasi Terima Uang 6 (termasuk skenario B3) lulus, Potongan Lain / slip mingguan / denda driver lulus; klaim dilepas. Langkah uji: bagian **Uji B3** di bawah. Rilis HRIS ikut jadwal rilis HRIS (belum produksi). |
 | A2 | Belum dimulai | — |
 | A1 | Belum dimulai | — |
 | B1+B2 | Belum dimulai | — |
@@ -98,3 +98,23 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
    backoffice: Surat Jalan A4 memuat baris "Cara kirim".
 
 Tanpa printer: gambar struk/surat jalan (kirim WA) memuat baris yang sama.
+
+## Uji B3 (staging HRIS `hris.staginghml.my.id`)
+
+Butuh satu trip truk berawak driver + kenek yang uang tunainya diperiksa **Tidak cocok** (kurang) di
+Logistik › Terima Uang.
+
+1. **Finance** › Terima Uang › tab **Selisih**: bagian **Kurang serah** memuat toko itu, tanda
+   ⚠️ Belum ditindaklanjuti, nota dan angkanya. Lebih serah / transfer kurang ada di "Selisih lain".
+2. **Sudah diganti tunai** sebagian (mis. 5.000) → tercatat, "Sisa belum ditindaklanjuti" berkurang.
+   Nominal di atas sisa ditolak.
+3. Masuk sebagai **HR**: menu Terima Uang hanya tab Selisih; Beranda memuat kartu "kurang serah belum
+   ditindaklanjuti"; HR mendapat pemberitahuan saat kurang serah baru diperiksa.
+4. HR › **Jadikan Potongan Lain**: terisi driver, jenis "Kurang serah uang toko", sisa, alasan. Coba
+   **Bagi dengan kenek** → **Bagi rata** → Kirim usulan. Potongan Lain memuat 2 usulan (driver & kenek),
+   tanda kurang serah 🕓 menunggu pengesahan.
+5. **Pemilik/GM** › Persetujuan: sahkan / tolak usulan. Ditolak → kurang serah kembali ⚠️ dan bisa
+   diajukan ulang. Disahkan → ✅, cicilan muncul di slip mingguan driver/kenek.
+6. Finance › **Batalkan pemeriksaan** toko itu selama ada potongan/ganti tunai → ditolak dengan pesan.
+7. Kurang serah lain: Pemilik/GM › **Tidak dipotong** (alasan) → tanda "Tidak dipotong".
+8. Potongan Lain biasa (Gaji › Potongan Lain › Ajukan): driver/kenek kini bisa dipilih.
