@@ -76,8 +76,8 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 
 | Butir | Status | Catatan |
 |---|---|---|
-| A3 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. Sesudah lolos: PR rilis ke `main`. |
-| B3 | Belum dimulai | — |
+| A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
+| B3 | **Spec disetujui — dikerjakan** | Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (di `dev_hris`), disetujui owner 2026-11-08: bagi dengan kenek (bawaan driver penuh), tombol Sudah diganti tunai (Finance) + Tidak dipotong (Pemilik/GM), nominal boleh diturunkan, orang mingguan di form Potongan Lain. Branch `feat/hris-b3-short-handover`, migrasi hris `0054`. |
 | A2 | Belum dimulai | — |
 | A1 | Belum dimulai | — |
 | B1+B2 | Belum dimulai | — |
