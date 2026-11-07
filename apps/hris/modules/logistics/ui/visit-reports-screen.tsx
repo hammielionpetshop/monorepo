@@ -13,6 +13,7 @@ import { postJson } from '@/lib/post-json';
 import { rupiah } from '../rules/rates';
 import { CUT_REASONS, DECISION_LABELS, cleanDecision, cutReasonOf, type CutReason, type Decision } from '../rules/store-payments';
 import type { ReportRow } from '../server/store-payments';
+import { KasirSeenBadge } from './kasir-seen';
 
 function DecisionLine({ row }: { row: ReportRow }) {
   const d = row.decision;
@@ -30,6 +31,7 @@ function DecisionLine({ row }: { row: ReportRow }) {
       <p className="text-xs text-ink-muted">
         {d.by} · {d.on} {d.at}{d.changes > 0 ? ` · diubah ${d.changes}× (${d.changeReason})` : ''}
         {d.recorded ? ` · dicatat ${d.recorded.by} ${d.recorded.on}: ${d.recorded.ref}` : ''}
+        {d.kasir && <span className="ml-1"><KasirSeenBadge kasir={d.kasir} /></span>}
       </p>
     </div>
   );

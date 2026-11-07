@@ -134,6 +134,13 @@
       "when": 1794081667609,
       "tag": "0018_a1_store_deposits",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794082229024,
+      "tag": "0019_b12_pos_sale_returns",
+      "breakpoints": true
     }
   ]
 }
