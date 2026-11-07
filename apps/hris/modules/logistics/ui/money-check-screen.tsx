@@ -1,10 +1,14 @@
 import Link from 'next/link';
+import { NewBadge } from '@/components/ui/new-badge';
 import { buttonClass } from '@/components/ui/button';
 import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import type { PosStatus } from '../rules/money-checks';
 import { rupiah } from '../rules/rates';
+import type { ShortState } from '../rules/short-handovers';
 import type { CheckSource, MoneyCheckTab, MoneyPaymentView } from '../server/money-checks';
+import type { ShortHandoverView } from '../server/short-handovers';
 import { MoneyCheckButton, MoneyCheckVoidButton } from './money-check-actions';
+import { ShortSettleButton, ShortSettlementVoidButton } from './short-handover-actions';
 
 const TABS: { key: MoneyCheckTab; label: string }[] = [
   { key: 'WAITING', label: 'Belum diperiksa' }, { key: 'DONE', label: 'Sudah diperiksa' }, { key: 'DIFF', label: 'Selisih' },
@@ -18,6 +22,64 @@ type Diff = {
   id: number; number: string; store: string; tripNumber: string; tripHref: string; kind: 'CASH' | 'TRANSFER'; label: string; difference: number;
   note: string | null; person: string | null; on: string;
 };
+
+const SHORT_TONES: Record<ShortState, 'info' | 'ok' | 'warn' | 'danger'> = { OPEN: 'warn', PENDING: 'info', DONE: 'ok', WAIVED: 'info' };
+const SHORT_ICONS: Record<ShortState, string> = { OPEN: '⚠️', PENDING: '🕓', DONE: '✅', WAIVED: '—' };
+const DEDUCTION_LABELS: Record<string, string> = {
+  PENDING: 'menunggu pengesahan', ACTIVE: 'berjalan', REJECTED: 'ditolak', CANCELLED: 'dibatalkan', WAIVED: 'ditiadakan (keberatan)',
+};
+
+/** Satu kurang serah (spec B3 butir 4): nota, tindak lanjut, sisa, dan tombolnya. */
+function ShortCard({ v }: { v: ShortHandoverView }) {
+  const s = v.summary;
+  const target = { source: v.source, paymentId: v.paymentId, store: v.store, left: s.left };
+  return (
+    <li className="space-y-2 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <span className="inline-flex flex-col">
+          <span><b>{v.store}</b> · <Link href={v.tripHref} className="underline">{v.tripNumber}</Link></span>
+          <span className="text-xs text-ink-muted">Diperiksa {v.on} · atas nama {v.person}</span>
+        </span>
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <Badge tone={v.red ? 'danger' : SHORT_TONES[v.state]}>{SHORT_ICONS[v.state]} {v.stateLabel}{v.red ? ` · ${v.days} hari` : ''}</Badge>
+          <span className="tabular-nums font-semibold">−{rupiah(s.total)}</span>
+        </span>
+      </div>
+      <ul className="space-y-1 text-xs text-ink-muted">
+        {v.lines.map((l, i) => (
+          <li key={i}>{l.number}: lapor {rupiah(l.reported)}, diterima {rupiah(l.actual)}{l.note ? ` · ${l.note}` : ''}</li>
+        ))}
+      </ul>
+      {(v.deductions.length > 0 || v.settlements.length > 0) && (
+        <ul className="space-y-1 text-sm">
+          {v.deductions.map((d) => (
+            <li key={`d${d.id}`} className="flex flex-wrap items-center gap-2">
+              <span>Potongan Lain {d.name} <b className="tabular-nums">{rupiah(d.amount)}</b> · {DEDUCTION_LABELS[d.status] ?? d.status}</span>
+              <Link href="/potongan/lain" className="text-xs underline">Buka</Link>
+            </li>
+          ))}
+          {v.settlements.map((x) => (
+            <li key={`s${x.id}`} className="flex flex-wrap items-center gap-2">
+              <span>{x.label}{x.amount != null ? <> <b className="tabular-nums">{rupiah(x.amount)}</b></> : null} · {x.note} · {x.by} {x.on} {x.at}</span>
+              {x.proofUrl && <a href={x.proofUrl} target="_blank" rel="noreferrer" className="text-xs underline">Foto bukti</a>}
+              {x.canVoid && <ShortSettlementVoidButton id={x.id} label={x.label} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {s.left > 0 && s.left !== s.total && <p className="text-sm">Sisa belum ditindaklanjuti: <b className="tabular-nums">{rupiah(s.left)}</b></p>}
+      {v.selfProblem ? <p className="text-xs text-ink-muted">{v.selfProblem}</p> : (
+        <div className="flex flex-wrap gap-2">
+          {v.canPropose && (
+            <Link href={`/potongan/lain/ajukan?kurang-serah=${v.source}-${v.paymentId}`} className={buttonClass({ size: 'sm' })}>Jadikan Potongan Lain</Link>
+          )}
+          {v.canReplace && <ShortSettleButton target={target} kind="CASH_REPLACED" />}
+          {v.canWaive && <ShortSettleButton target={target} kind="WAIVED" />}
+        </div>
+      )}
+    </li>
+  );
+}
 
 function PaymentCard({ p, tab }: { p: MoneyPaymentView; tab: MoneyCheckTab }) {
   return (
@@ -83,14 +145,15 @@ function PaymentCard({ p, tab }: { p: MoneyPaymentView; tab: MoneyCheckTab }) {
  * Terima Uang (spec LT1 §16.1): Finance memeriksa uang trip truk dan antar sendiri per nota. Selisih tunai = kurang serah atas
  * nama pembawa; transfer kurang tetap piutang toko. Pelunasan tetap di BO (Bayar per nota); HRIS hanya menandai sudah masuk POS.
  */
-export function MoneyCheckScreen({ tab, source, from, redDays, trips, diffs, canCheck }: {
-  tab: MoneyCheckTab; source: 'ALL' | CheckSource; from: string; redDays: number; trips: Group[]; diffs: Diff[]; canCheck: boolean;
+export function MoneyCheckScreen({ tab, source, from, redDays, trips, diffs, shorts, canCheck, onlyDiff }: {
+  tab: MoneyCheckTab; source: 'ALL' | CheckSource; from: string; redDays: number; trips: Group[]; diffs: Diff[]; shorts: ShortHandoverView[];
+  canCheck: boolean; onlyDiff: boolean;
 }) {
   const href = (t: MoneyCheckTab, s: 'ALL' | CheckSource) => `/logistik/terima-uang?tab=${t}${s !== 'ALL' ? `&sumber=${s}` : ''}`;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !onlyDiff || t.key === 'DIFF').map((t) => (
           <Link key={t.key} href={href(t.key, source)} className={buttonClass({ variant: tab === t.key ? 'primary' : 'secondary', size: 'sm' })}>{t.label}</Link>
         ))}
         <span className="mx-1 text-ink-muted">·</span>
@@ -104,11 +167,24 @@ export function MoneyCheckScreen({ tab, source, from, redDays, trips, diffs, can
           pelunasan POS cocok. Daftar sejak {from}; lebih dari {redDays} hari ditandai merah.{!canCheck && ' Anda hanya bisa melihat.'}
         </Alert>
       )}
+      {tab === 'DIFF' && (
+        <Card className="space-y-2">
+          <h2 className="flex items-center gap-2 font-semibold">Kurang serah <NewBadge feature="fitur/kurang-serah-tindak-lanjut" /></h2>
+          <p className="text-xs text-ink-muted">
+            Tunai yang kurang dari laporan, atas nama pembawa uang. Tindak lanjut: <b>Jadikan Potongan Lain</b> (HR mengajukan, Pemilik/GM mengesahkan;
+            bisa dibagi dengan kenek), <b>Sudah diganti tunai</b> (Finance), atau <b>Tidak dipotong</b> (Pemilik/GM). Gaji tidak dipotong otomatis.
+            Yang belum ditindaklanjuti tetap tampil sampai diurus; lebih dari {redDays} hari ditandai merah.
+          </p>
+          {shorts.length
+            ? <ul className="divide-y divide-line">{shorts.map((v) => <ShortCard key={v.key} v={v} />)}</ul>
+            : <p className="text-sm text-ink-muted">Tidak ada kurang serah.</p>}
+        </Card>
+      )}
       {tab === 'DIFF' ? (
         diffs.length ? (
           <Card className="space-y-2">
-            <h2 className="font-semibold">Selisih 60 hari terakhir</h2>
-            <p className="text-xs text-ink-muted">Kurang serah = bahan Potongan Lain HR (tidak memotong gaji otomatis). Lebih serah diputuskan Finance. Transfer kurang tetap ditagih ke toko.</p>
+            <h2 className="font-semibold">Selisih lain 60 hari terakhir</h2>
+            <p className="text-xs text-ink-muted">Lebih serah diputuskan Finance. Transfer kurang tetap ditagih ke toko.</p>
             <ul className="divide-y divide-line text-sm">
               {diffs.map((d) => (
                 <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -124,7 +200,7 @@ export function MoneyCheckScreen({ tab, source, from, redDays, trips, diffs, can
               ))}
             </ul>
           </Card>
-        ) : <EmptyState title="Tidak ada selisih">Semua uang yang diperiksa 60 hari terakhir cocok.</EmptyState>
+        ) : <EmptyState title="Tidak ada selisih lain">Tidak ada lebih serah atau transfer kurang 60 hari terakhir.</EmptyState>
       ) : trips.length ? (
         trips.map((g) => (
           <Card key={g.key} className="space-y-1">

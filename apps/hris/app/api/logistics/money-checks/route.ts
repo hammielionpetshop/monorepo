@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
-import { saveMoneyCheck, voidMoneyCheck } from '@/modules/logistics';
+import { recordShortSettlement, saveMoneyCheck, voidMoneyCheck, voidShortSettlement } from '@/modules/logistics';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +15,12 @@ const bodySchema = z.discriminatedUnion('action', [
     lines: z.array(z.object({ transactionId: id, reported: money, actual: money, note: z.string().max(300).nullable().optional() })).min(1).max(30),
   }),
   z.object({ action: z.literal('void'), source, paymentId: id, reason: z.string().max(500) }),
+  // B3: tindak lanjut kurang serah selain Potongan Lain.
+  z.object({
+    action: z.literal('settle'), source, paymentId: id, kind: z.enum(['CASH_REPLACED', 'WAIVED']), amount: money.nullable(),
+    note: z.string().max(500), proofFileId: z.string().max(64).nullable(),
+  }),
+  z.object({ action: z.literal('settle_void'), id, reason: z.string().max(500) }),
 ]);
 
 // Terima Uang (spec LT1 §16.1): simpan pemeriksaan per nota satu cara bayar, atau batalkan pemeriksaannya.
@@ -29,6 +35,10 @@ export async function POST(req: Request) {
   const body = parsed.data;
   const result = body.action === 'check'
     ? await saveMoneyCheck(actor, { source: body.source, paymentId: body.paymentId, lines: body.lines })
-    : await voidMoneyCheck(actor, { source: body.source, paymentId: body.paymentId, reason: body.reason });
+    : body.action === 'void'
+      ? await voidMoneyCheck(actor, { source: body.source, paymentId: body.paymentId, reason: body.reason })
+      : body.action === 'settle'
+        ? await recordShortSettlement(actor, body)
+        : await voidShortSettlement(actor, { id: body.id, reason: body.reason });
   return result.ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: result.error }, { status: result.status });
 }

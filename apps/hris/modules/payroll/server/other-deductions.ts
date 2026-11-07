@@ -17,6 +17,7 @@ import { slipLinesFor } from './payslip';
 import { slippedSourceKeys } from './slip-state';
 import { accountNames, canSeeSalary, loadPayrollPeople, type PayrollPerson } from './data';
 import { endFineIn, fineObjectionSubject } from './driver-fines';
+import { canProposeShort, cleanShares, lockShortHandover, shortHandoverContext } from '@/modules/logistics';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
@@ -76,12 +77,19 @@ export async function saveDeductionType(actor: Actor | null, input: { id?: numbe
 
 // ---- Potongan Lain (GAJ-80) ----
 
-type OtherInput = { employeeId: unknown; typeId: unknown; amount: unknown; reason: unknown; installments: unknown; attachmentId: unknown };
-type CheckedOther = { person: PayrollPerson; typeId: number; typeName: string; amount: number; reason: string; installments: number; attachmentId: string | null };
+type OtherInput = {
+  employeeId: unknown; typeId: unknown; amount: unknown; reason: unknown; installments: unknown; attachmentId: unknown;
+  /** Asal kurang serah Terima Uang (spec B3); kosong untuk Potongan Lain biasa. */
+  moneyCheckSource?: unknown; moneyCheckPaymentId?: unknown;
+};
+type MoneyCheckLink = { moneyCheckSource: 'TRUCK' | 'SELF'; moneyCheckPaymentId: number } | { moneyCheckSource: null; moneyCheckPaymentId: null };
+type CheckedOther = {
+  person: PayrollPerson; typeId: number; typeName: string; amount: number; reason: string; installments: number; attachmentId: string | null; link: MoneyCheckLink;
+};
 
 async function checkOther(tx: Tx, actor: Actor, input: OtherInput, today: IsoDate): Promise<CheckedOther | Fail> {
-  const person = (await loadPayrollPeople(today)).find((p) => p.id === Number(input.employeeId));
-  if (!person || !canSeeSalary(actor, person)) return fail(404, 'Orang ini tidak ditemukan di daftar gaji bulanan.');
+  const person = (await loadPayrollPeople(today, { includeWeekly: true })).find((p) => p.id === Number(input.employeeId));
+  if (!person || !canSeeSalary(actor, person)) return fail(404, 'Orang ini tidak ditemukan di daftar gaji.');
   if (person.id === actor.personId) return fail(403, 'Potongan Lain untuk diri sendiri tidak bisa diajukan.');
   if (isOwnerOrGm(person)) return fail(400, 'Pemilik dan GM tidak dikenai potongan (GAJ-09).');
   const [type] = await tx.select().from(otherDeductionTypes).where(eq(otherDeductionTypes.id, Number(input.typeId)));
@@ -96,7 +104,19 @@ async function checkOther(tx: Tx, actor: Actor, input: OtherInput, today: IsoDat
   if (installments > amount) return fail(400, 'Nominal terlalu kecil untuk dicicil sebanyak itu.');
   const attachmentId = input.attachmentId ? String(input.attachmentId) : null;
   if (attachmentId && !(await filesUploadedBy(tx, actor.accountId, [attachmentId])).length) return fail(400, 'Lampiran tidak ditemukan. Unggah ulang fotonya.');
-  return { person, typeId: type.id, typeName: type.name, amount, reason, installments, attachmentId };
+  let link: MoneyCheckLink = { moneyCheckSource: null, moneyCheckPaymentId: null };
+  if (input.moneyCheckSource != null || input.moneyCheckPaymentId != null) {
+    const source = input.moneyCheckSource === 'TRUCK' || input.moneyCheckSource === 'SELF' ? input.moneyCheckSource : null;
+    const paymentId = Number(input.moneyCheckPaymentId);
+    if (!source || !Number.isInteger(paymentId) || paymentId <= 0) return fail(400, 'Asal kurang serah tidak valid.');
+    // Dikunci per cara bayar sampai transaksi selesai: dua pengajuan bersamaan tidak melebihi sisa kurang serah (spec B3 butir 5).
+    const state = await lockShortHandover(tx, { source, paymentId });
+    if (!state) return fail(404, 'Kurang serah ini tidak ditemukan atau pemeriksaan Terima Uangnya sudah dibatalkan.');
+    if (!state.crewIds.includes(person.id)) return fail(400, 'Potongan kurang serah hanya untuk awak trip / pembawa uangnya.');
+    if (amount > state.summary.left) return fail(400, `Nominal paling banyak sisa kurang serah ${rupiah(state.summary.left)}.`);
+    link = { moneyCheckSource: source, moneyCheckPaymentId: paymentId };
+  }
+  return { person, typeId: type.id, typeName: type.name, amount, reason, installments, attachmentId, link };
 }
 
 async function startDeduction(tx: Tx, row: { id: number; employeeId: number; amount: number; installments: number; reason: string }, typeName: string, actorAccountId: number, now: Date) {
@@ -124,7 +144,7 @@ export async function recordOtherDirect(actor: Actor | null, input: OtherInput, 
     const [row] = await tx.insert(otherDeductions).values({
       employeeId: checked.person.id, typeId: checked.typeId, amount: checked.amount, reason: checked.reason, installments: checked.installments,
       attachmentFileId: checked.attachmentId, status: 'ACTIVE', recordedByAccountId: actor.accountId, recordedByEmployeeId: actor.personId,
-      approvedByAccountId: actor.accountId, approvedAt: now,
+      approvedByAccountId: actor.accountId, approvedAt: now, ...checked.link,
     }).returning({ id: otherDeductions.id });
     await startDeduction(tx, { id: row.id, employeeId: checked.person.id, amount: checked.amount, installments: checked.installments, reason: checked.reason }, checked.typeName, actor.accountId, now);
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_deduction', entityId: row.id, action: 'other_deduction.create', before: null, after: { employeeId: checked.person.id, amount: checked.amount, installments: checked.installments } });
@@ -140,7 +160,7 @@ async function loadOther(executor: typeof db | Tx, by: { id?: number; requestId?
 }
 
 const typeNameOf = async (typeId: number) => (await db.select({ name: otherDeductionTypes.name }).from(otherDeductionTypes).where(eq(otherDeductionTypes.id, typeId)))[0]?.name ?? 'Potongan Lain';
-const personNameOf = async (id: number) => (await loadPayrollPeople()).find((p) => p.id === id)?.name ?? `#${id}`;
+const personNameOf = async (id: number) => (await loadPayrollPeople(todayWib(), { includeWeekly: true })).find((p) => p.id === id)?.name ?? `#${id}`;
 
 export function otherDeductionHandler(announce: ChangeAnnounce): RequestHandler {
   return {
@@ -159,6 +179,7 @@ export function otherDeductionHandler(announce: ChangeAnnounce): RequestHandler 
             await saveTx.insert(otherDeductions).values({
               employeeId: checked.person.id, typeId: checked.typeId, amount: checked.amount, reason: checked.reason, installments: checked.installments,
               attachmentFileId: checked.attachmentId, status: 'PENDING', requestId, recordedByAccountId: actor.accountId, recordedByEmployeeId: actor.personId,
+              ...checked.link,
             });
           },
         },
@@ -198,7 +219,10 @@ export function otherDeductionHandler(announce: ChangeAnnounce): RequestHandler 
     },
     async resubmitValues(requestId) {
       const row = await loadOther(db, { requestId });
-      return row ? { employeeId: row.employeeId, typeId: row.typeId, amount: row.amount, reason: row.reason, installments: row.installments } : null;
+      return row ? {
+        employeeId: row.employeeId, typeId: row.typeId, amount: row.amount, reason: row.reason, installments: row.installments,
+        ...(row.moneyCheckPaymentId != null ? { moneyCheckSource: row.moneyCheckSource, moneyCheckPaymentId: row.moneyCheckPaymentId } : {}),
+      } : null;
     },
   };
 }
@@ -299,7 +323,7 @@ export async function rescheduleOther(actor: Actor | null, id: number, input: { 
 export async function otherDeductionsScreen(actor: Actor | null, input: { status: OtherStatus | null; branchId: number | null }, now: Date = new Date()) {
   if (!hasAction(actor, 'other_deduction.view') && !hasAction(actor, 'deduction.approve')) return null;
   const today = todayWib(now);
-  const people = (await loadPayrollPeople(today)).filter((p) => canSeeSalary(actor, p) || actor?.fullAccess);
+  const people = (await loadPayrollPeople(today, { includeWeekly: true })).filter((p) => canSeeSalary(actor, p) || actor?.fullAccess);
   const [rows, types, names] = await Promise.all([
     db.select().from(otherDeductions).orderBy(desc(otherDeductions.createdAt)),
     db.select().from(otherDeductionTypes).orderBy(asc(otherDeductionTypes.sortOrder)),
@@ -342,12 +366,63 @@ export async function otherDeductionsScreen(actor: Actor | null, input: { status
 export async function otherDeductionFormScreen(actor: Actor | null, now: Date = new Date()) {
   if (!hasAction(actor, 'other_deduction.propose') && !hasAction(actor, 'deduction.approve')) return null;
   const today = todayWib(now);
-  const people = (await loadPayrollPeople(today)).filter((p) => (canSeeSalary(actor, p) || actor?.fullAccess) && p.id !== actor?.personId && !isOwnerOrGm(p));
+  const people = (await loadPayrollPeople(today, { includeWeekly: true })).filter((p) => (canSeeSalary(actor, p) || actor?.fullAccess) && p.id !== actor?.personId && !isOwnerOrGm(p));
   const types = (await db.select().from(otherDeductionTypes).where(eq(otherDeductionTypes.active, true)).orderBy(asc(otherDeductionTypes.sortOrder)));
   return {
     people: people.map((p) => ({ id: p.id, name: p.name, branchName: p.branchName })), types: types.map((t) => ({ id: t.id, name: t.name })),
     maxInstallments: Number(await settingOn<number>('payroll.other_deduction_max_installments', today)),
     firstPeriod: await firstPeriod(today), direct: !!actor?.fullAccess,
+  };
+}
+
+/** Form Jadikan Potongan Lain dari kurang serah Terima Uang (spec B3 butir 2): awak, sisa, alasan, jenis Kurang serah terpilih. */
+export async function shortDeductionFormScreen(actor: Actor | null, key: { source: 'TRUCK' | 'SELF'; paymentId: number }, now: Date = new Date()) {
+  const base = await otherDeductionFormScreen(actor, now);
+  const short = base && await shortHandoverContext(actor, key);
+  if (!base || !short) return null;
+  const allowed = new Set(base.people.map((p) => p.id));
+  const preset = base.types.find((t) => t.name.trim().toLowerCase() === 'kurang serah uang toko') ?? null;
+  return { ...base, short: { ...short, crew: short.crew.map((c) => ({ ...c, selectable: allowed.has(c.id) })), presetTypeId: preset?.id ?? null } };
+}
+
+type ShortDeductionInput = {
+  source: 'TRUCK' | 'SELF'; paymentId: number; typeId: number; reason: string; installments: number; attachmentId: string | null;
+  shares: { employeeId: number; amount: number }[];
+};
+type SubmitOne = (fields: Record<string, unknown>, attachmentIds: string[]) => Promise<ServiceResult<unknown>>;
+
+/**
+ * Jadikan kurang serah Potongan Lain (spec B3, keputusan owner A): satu orang atau dibagi dengan awak lain; tiap bagian = satu
+ * Potongan Lain sendiri (pengesahan dan keberatan masing-masing). HR mengajukan, Pemilik/GM langsung berjalan. Sisa dan awak
+ * diperiksa lagi per bagian di dalam transaksi berkunci (checkOther).
+ */
+export async function otherFromShortHandover(actor: Actor | null, input: ShortDeductionInput, announce: ChangeAnnounce, submitOne: SubmitOne): Promise<ServiceResult<{ message: string }>> {
+  if (!actor || !canProposeShort(actor)) return fail(403, 'Hanya HR, Pemilik, atau GM yang menjadikan kurang serah Potongan Lain.');
+  const short = await shortHandoverContext(actor, { source: input.source, paymentId: input.paymentId });
+  if (!short) return fail(404, 'Kurang serah ini tidak ditemukan atau pemeriksaan Terima Uangnya sudah dibatalkan.');
+  const clean = cleanShares(input.shares, short.crew.map((c) => c.id), short.left);
+  if (!clean.ok) return fail(400, clean.error);
+  const nameOf = (id: number) => short.crew.find((c) => c.id === id)?.name ?? `#${id}`;
+  const reason = String(input.reason ?? '').trim();
+  const split = clean.shares.length > 1 ? ` Dibagi: ${clean.shares.map((x) => `${nameOf(x.employeeId)} ${rupiah(x.amount)}`).join(', ')}.` : '';
+  const done: string[] = [];
+  for (const [i, share] of clean.shares.entries()) {
+    const fields = {
+      employeeId: share.employeeId, typeId: input.typeId, amount: share.amount, reason: `${reason}${split}`, installments: input.installments,
+      attachmentId: i === 0 ? input.attachmentId : null, moneyCheckSource: input.source, moneyCheckPaymentId: input.paymentId,
+    };
+    const result = actor.fullAccess
+      ? await recordOtherDirect(actor, fields, announce)
+      : await submitOne(fields, i === 0 && input.attachmentId ? [input.attachmentId] : []);
+    if (!result.ok) {
+      const prefix = done.length ? `Bagian ${done.join(', ')} sudah tersimpan; bagian ${nameOf(share.employeeId)} gagal: ` : '';
+      return fail(result.status === 502 ? 409 : result.status, prefix + result.error);
+    }
+    done.push(nameOf(share.employeeId));
+  }
+  return {
+    ok: true,
+    data: { message: actor.fullAccess ? `Potongan Lain berjalan untuk ${done.join(', ')}. Orangnya diberi tahu.` : `Usulan Potongan Lain terkirim untuk ${done.join(', ')}; menunggu pengesahan Pemilik atau GM.` },
   };
 }
 

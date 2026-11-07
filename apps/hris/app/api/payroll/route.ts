@@ -12,7 +12,7 @@ import {
   approveApproval, cancelLoss, cancelManual, linkPosUser, manualCandidates, previewLoss, proposeNow, recordLossDirect, recordManualDirect, reviewApproval,
   saveOfficePercent, unlinkPosUser,
 } from '@/modules/payroll';
-import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
+import { cancelOther, otherFromShortHandover, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
 import { closeSlips, reopenSlip, writeOffOther, writeOffReceivable } from '@/modules/payroll';
@@ -54,6 +54,11 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('manual_cancel'), id, reason }),
   // L4c-2: Potongan Lain, Jenis Potongan Lain, Keberatan Potongan (spec L4c §3.5, §3.6).
   z.object({ kind: z.literal('other_record'), employeeId: id, typeId: id, amount: z.number().int(), reason, installments: z.number().int(), attachmentId: z.string().max(64).nullable() }),
+  // B3: kurang serah Terima Uang → Potongan Lain, satu bagian per orang (bagi dengan kenek).
+  z.object({
+    kind: z.literal('other_from_short'), source: z.enum(['TRUCK', 'SELF']), paymentId: id, typeId: id, reason, installments: z.number().int(),
+    attachmentId: z.string().max(64).nullable(), shares: z.array(z.object({ employeeId: id, amount: z.number().int() })).min(1).max(5),
+  }),
   z.object({ kind: z.literal('other_cancel'), id, reason }),
   z.object({ kind: z.literal('other_reschedule'), id, installments: z.number().int(), reason }),
   z.object({ kind: z.literal('other_type_save'), id: id.optional(), name: z.string().max(100), active: z.boolean().optional() }),
@@ -163,6 +168,10 @@ export async function POST(req: Request) {
       const fields = { employeeId: body.employeeId, typeId: body.typeId, amount: body.amount, reason: body.reason, installments: body.installments, attachmentId: body.attachmentId };
       if (actor?.fullAccess) return respond(await recordOtherDirect(actor, fields, announceToOwners));
       return submit(actor, 'other_deduction', fields, body.attachmentId ? [body.attachmentId] : []);
+    }
+    case 'other_from_short': {
+      const one = (fields: Record<string, unknown>, attachmentIds: string[]) => submitRequest(actor, 'other_deduction', REQUEST_HANDLERS.other_deduction, { fields, attachmentIds });
+      return respond(await otherFromShortHandover(actor, body, announceToOwners, one));
     }
     case 'other_cancel': return respond(await cancelOther(actor, body.id, body.reason, announceToOwners));
     case 'other_reschedule': return respond(await rescheduleOther(actor, body.id, body, announceToOwners));
