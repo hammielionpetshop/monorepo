@@ -78,8 +78,8 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 |---|---|---|
 | A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
 | B3 | **Lolos uji owner** | Lolos uji owner di deployment staging `8582f86b` (run `42406407964`; owner: "ok sudah saya check", 2026-11-08; skenario tidak dirinci). HRIS belum produksi; ikut rilis HRIS. Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (disetujui owner 2026-11-08). `feat/hris-b3-short-handover` `c6094423`, dev_hris `2570643d`, migrasi hris `0054`; tes unit 7 + integrasi Terima Uang 6 (termasuk skenario B3) lulus, Potongan Lain / slip mingguan / denda driver lulus; klaim dilepas. Langkah uji: bagian **Uji B3** di bawah. Rilis HRIS ikut jadwal rilis HRIS (belum produksi). |
-| A2 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-jemput-retur-design.md`](../specs/2026-11-08-jemput-retur-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a2-return-pickup` `76bcb8c3`, dev_hris `891f839f`; migrasi logistics `0017`, hris `0055`. Tes integrasi jemput retur 4 + Barang Kembali, Laporan Toko, trip, Trip Saya, antar sendiri, Terima Uang (55 tes) lulus; typecheck lulus. Langkah uji: bagian **Uji A2** di bawah. HRIS belum produksi; ikut rilis HRIS. |
-| A1 | Antre sesi malam | Sesudah A2. |
+| A2 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-jemput-retur-design.md`](../specs/2026-11-08-jemput-retur-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a2-return-pickup` `76bcb8c3`, dev_hris `891f839f`; migrasi logistics `0017`, hris `0055`. Tes integrasi jemput retur 4 + Barang Kembali, Laporan Toko, trip, Trip Saya, antar sendiri, Terima Uang (55 tes) lulus; typecheck lulus. Deploy staging run `42408818634` sukses (staging `3758618f`). Langkah uji: bagian **Uji A2** di bawah. HRIS belum produksi; ikut rilis HRIS. |
+| A1 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-titipan-toko-design.md`](../specs/2026-11-08-titipan-toko-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a1-store-deposit` `5aa7b001`, dev_hris `5d1e6c4b`; migrasi logistics `0018` (tanpa migrasi hris; hak memakai `logistics.money_check.do`). Tes integrasi titipan 2 + uang toko, Terima Uang, Trip Saya, jemput retur, antar sendiri (26 tes) lulus; typecheck lulus. **Di luar:** antar sendiri dan titipan lewat transfer belum bisa dititipkan. Langkah uji: bagian **Uji A1** di bawah. |
 | B1+B2 | Antre sesi malam | Sesudah A1. |
 | C | Antre sesi malam | Sesudah B1+B2. |
 
@@ -98,6 +98,19 @@ tidak disentuh. Jawaban owner:
   "Lunas + titip" = toko bayar lebih dari tagihan; "Titip saja" = toko menyerahkan uang tanpa tagihan di
   kunjungan itu. Titipan boleh **dikembalikan tunai** ke toko (alasan wajib).
 - **B2** saat Sudah dicatat untuk Retur BO, nomor retur **wajib ada** di kasir (dicek), nilainya ditampilkan.
+
+## Uji A1 (staging HRIS `hris.staginghml.my.id`)
+
+1. **Driver** › Trip Saya › Terkirim ke toko bertagihan › cara bayar **Lunas + titip** → ketik seluruh uang tunai (lebih
+   dari tagihan) → ringkasan menampilkan "Titipan toko Rp…"; Simpan baru aktif sesudah mencentang "Benar, toko
+   menitipkan kelebihannya".
+2. Toko tanpa tagihan (lunas di kasir) › ringkasan › centang **Toko menitipkan uang (Titip saja)** → isi nominal.
+3. Sesudah Menuju Garasi: **Finance** › Terima Uang › bagian **Titipan toko menunggu diperiksa** → Cocok (atau ketik
+   angka lain + catatan). Sebelum Menuju Garasi tertulis "Menunggu trip Menuju Garasi".
+4. Logistik › **Titipan Toko**: saldo toko itu bertambah. **Pakai untuk nota** (pilih nota berpiutang, nominal) →
+   muncul di **Perlu dicatat di kasir › Pakai titipan toko** → catat Pelunasan Piutang di kasir → Sudah dicatat.
+   Nominal di atas saldo / sisa piutang ditolak.
+5. **Kembalikan tunai** (alasan) mengurangi saldo; **Batalkan** pemakaian yang belum dicatat / pengembalian mengembalikan saldo.
 
 ## Uji A2 (staging HRIS `hris.staginghml.my.id`)
 
