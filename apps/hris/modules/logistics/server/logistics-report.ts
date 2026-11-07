@@ -85,9 +85,10 @@ export async function loadReportFacts(range: ReportRange): Promise<ReportFacts> 
       select vehicle_id, vehicle_name || ' (' || vehicle_plate || ')' as vehicle, driver_employee_id, amount, with_request
       from logistics.fuel_expenses where filled_on between ${range.from}::date and ${range.to}::date`),
     db.execute<{ trip_key: string; customer_id: Num | null; destination: string; kind: string }>(sql`
-      select coalesce('T' || r.trip_id, 'S' || r.self_trip_id) as trip_key, r.customer_id, coalesce(v.destination_name, st.destination_name, '-') as destination, r.kind
+      select coalesce('T' || r.trip_id, 'S' || r.self_trip_id) as trip_key, r.customer_id, coalesce(v.destination_name, st.destination_name, pc.name, '-') as destination, r.kind
       from logistics.visit_reports r
       left join logistics.trip_visits v on v.id = r.visit_id
+      left join logistics.pos_customers pc on pc.id = r.customer_id and r.return_pickup_id is not null
       left join logistics.self_trip_stops st on st.id = r.self_stop_id
       where (r.reported_at at time zone 'Asia/Jakarta')::date between ${range.from}::date and ${range.to}::date`),
     db.execute<{ vehicle_id: Num }>(sql`

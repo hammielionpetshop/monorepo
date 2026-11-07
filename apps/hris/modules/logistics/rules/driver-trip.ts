@@ -55,10 +55,11 @@ export function visitReason(outcome: VisitOutcome, code: string, note: string | 
  * Menuju Garasi (§13.3 butir 3, 4): foto bak kosong hanya bila semua kunjungan, ambil barang, dan belanja beres.
  * Selesai lebih awal melewatinya dengan alasan. Mengembalikan pesan berisi yang tersisa, atau null.
  */
-export function headHomeProblem(left: { visits: number; pickups: string[]; shopping: string[] }): string | null {
+export function headHomeProblem(left: { visits: number; pickups: string[]; shopping: string[]; returns?: string[] }): string | null {
   const parts = [
     left.visits ? `${left.visits} kunjungan` : null,
     ...left.pickups.map((p) => `ambil barang di ${p}`),
+    ...(left.returns ?? []).map((r) => `jemput retur di ${r}`),
     ...left.shopping.map((s) => `belanja ${s}`),
   ].filter((p): p is string => !!p);
   if (!parts.length) return null;

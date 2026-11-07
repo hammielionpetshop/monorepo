@@ -208,14 +208,25 @@ async function selfNotesForDecision(executor: Executor, stopId: number, reportId
 }
 
 /** Pilihan nota untuk laporan truk (surat jalan) atau antar sendiri (nota kasir). */
-const notesFor = (executor: Executor, report: { id: number; visitId: number | null; selfStopId: number | null }) =>
-  report.visitId != null ? notesForDecision(executor, report.visitId, report.id) : selfNotesForDecision(executor, report.selfStopId!, report.id);
+const notesFor = async (executor: Executor, report: { id: number; visitId: number | null; selfStopId: number | null; returnPickupId: number | null }): Promise<NoteOption[]> =>
+  report.returnPickupId != null ? [] // Jemput retur (A2): tanpa nota trip; Retur BO tanpa nota.
+    : report.visitId != null ? notesForDecision(executor, report.visitId, report.id) : selfNotesForDecision(executor, report.selfStopId!, report.id);
 
 type ReportPlace = { tripHref: string; tripNumber: string; store: string; photoUrl: string; source: string | null };
 
 /** Asal laporan: kunjungan trip truk atau tujuan antar sendiri (nomor perjalanan, nama tujuan, tautan, foto). */
-async function placesOf(reports: { id: number; visitId: number | null; selfStopId: number | null; tripId: number | null; selfTripId: number | null; photoFileId: string }[]) {
+async function placesOf(reports: {
+  id: number; visitId: number | null; selfStopId: number | null; tripId: number | null; selfTripId: number | null; photoFileId: string;
+  returnPickupId: number | null; customerId: number | null;
+}[]) {
   const visitIds = [...new Set(reports.map((r) => r.visitId).filter((id): id is number => id != null))];
+  const pickupReports = reports.filter((r) => r.returnPickupId != null);
+  const [pickupTrips, pickupStores] = await Promise.all([
+    pickupReports.length ? db.execute<{ id: number; number: string }>(sql`select id, number from logistics.trips where id in (${ids([...new Set(pickupReports.map((r) => r.tripId!))])})`) : [],
+    pickupReports.length ? db.execute<{ id: number; name: string }>(sql`select id, name from logistics.pos_customers where id in (${ids([...new Set(pickupReports.map((r) => r.customerId!))])})`) : [],
+  ]);
+  const pickupTripOf = new Map(pickupTrips.map((t) => [Number(t.id), t.number]));
+  const pickupStoreOf = new Map(pickupStores.map((c) => [Number(c.id), c.name]));
   const stopIds = [...new Set(reports.map((r) => r.selfStopId).filter((id): id is number => id != null))];
   const [visits, stops] = await Promise.all([
     visitIds.length ? db.execute<{ id: number; destination_name: string; trip_id: number; number: string }>(sql`
@@ -229,6 +240,12 @@ async function placesOf(reports: { id: number; visitId: number | null; selfStopI
   const visitOf = new Map(visits.map((v) => [Number(v.id), v]));
   const stopOf = new Map(stops.map((s) => [Number(s.id), s]));
   return (r: (typeof reports)[number]): ReportPlace => {
+    if (r.returnPickupId != null) {
+      return {
+        tripHref: `/logistik/trip/${r.tripId}`, tripNumber: pickupTripOf.get(r.tripId ?? 0) ?? '-', store: pickupStoreOf.get(r.customerId ?? 0) ?? '-',
+        source: 'Jemput retur', photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`,
+      };
+    }
     if (r.visitId != null) {
       const v = visitOf.get(r.visitId);
       return {
@@ -266,14 +283,14 @@ export async function decideVisitReport(
     if (problem) return fail(400, problem.replace('Alasan', 'Alasan ubah keputusan'));
   } else if (report.closedAt) return fail(409, 'Laporan ini sudah ditandai selesai sebelum ada keputusan potong nota.');
   const notes = await notesFor(db, report);
-  const clean = cleanDecision(report.kind as ReportKind, input, notes);
+  const clean = cleanDecision(report.kind as ReportKind, input, notes, { noteOptional: report.returnPickupId != null });
   if (!clean.ok) return fail(400, clean.error);
   const v = clean.value;
   const self = report.visitId == null;
   const number = notes.find((n) => n.id === v.noteId)?.number ?? '-';
   const tail = v.note ? `: ${v.note}` : '';
   const summary = v.decision === 'CUT' ? `Potong nota ${number} ${rupiah(v.amount ?? 0)} (${CUT_REASON_LABELS[v.reason!]})${tail}`
-    : v.decision === 'RETURN_BO' ? `Dicatat lewat Retur BO (${number})${tail}` : `Tidak dipotong${tail}`;
+    : v.decision === 'RETURN_BO' ? `Dicatat lewat Retur BO${v.noteId ? ` (${number})` : ''}${tail}` : `Tidak dipotong${tail}`;
   try {
     return await db.transaction(async (tx) => {
       const now = new Date();
@@ -572,6 +589,8 @@ export type ReportRow = VisitReportView & {
   tripHref: string; tripNumber: string; store: string; source: string | null; customerId: number | null; on: IsoDate; closedBy: string | null;
   /** Nota kunjungan ini untuk dipilih saat memutuskan; `own` = laporan pembaca sendiri (tidak boleh ia putuskan). */
   noteOptions: NoteOption[]; own: boolean;
+  /** Laporan dari tugas jemput retur (A2): Retur BO tanpa nota. */
+  pickup: boolean;
 };
 
 /** Laporan Toko (§13.5 butir 5): yang masih terbuka (paling lama di atas) dan 30 terakhir yang sudah selesai. */
@@ -603,6 +622,7 @@ export async function visitReportsScreen(actor: Actor | null) {
       on: wibDate(r.reportedAt), closed: !!r.closedAt, closeNote: r.closeNote, items: itemsFor(r.id), closedBy: r.closedByAccountId ? closerOf.get(r.closedByAccountId) ?? '-' : null,
       tripHref: place.tripHref, tripNumber: place.tripNumber, store: place.store, source: place.source, customerId: r.customerId,
       decision: decisionOf(r.id), noteOptions: options.get(r.id) ?? [], own: r.reportedByEmployeeId === actor.personId,
+      pickup: r.returnPickupId != null,
     };
   };
   return { open: open.map(view), closed: closed.map(view), canDecide };

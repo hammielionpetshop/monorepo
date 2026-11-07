@@ -57,13 +57,14 @@ async function sources(filter: { kind: SourceKind; id: number } | null, executor
       order by t.finished_at, l.id`) : [],
     !filter || filter.kind === 'RETURN' ? executor.execute<{
       source_id: number; trip_id: number; number: string; trip_date: string; finished_at: string; destination_name: string;
-      owner_branch_id: number | null; note: string | null; photo_file_id: string;
+      owner_branch_id: number | null; note: string | null; photo_file_id: string; pickup: boolean;
     }>(sql`
-      select r.id as source_id, t.id as trip_id, t.number, t.trip_date::text as trip_date, t.finished_at, v.destination_name,
-        r.owner_branch_id, r.note, r.photo_file_id
+      select r.id as source_id, t.id as trip_id, t.number, t.trip_date::text as trip_date, t.finished_at,
+        coalesce(v.destination_name, c.name, '-') as destination_name, r.owner_branch_id, r.note, r.photo_file_id, r.return_pickup_id is not null as pickup
       from logistics.visit_reports r
       join logistics.trips t on t.id = r.trip_id and t.status = 'DONE' and t.finished_at >= ${fromAt}::timestamptz
-      join logistics.trip_visits v on v.id = r.visit_id
+      left join logistics.trip_visits v on v.id = r.visit_id
+      left join logistics.pos_customers c on c.id = r.customer_id
       where r.kind = 'RETURN' ${filter ? sql`and r.id = ${filter.id}` : sql``}
       order by t.finished_at, r.id`) : [],
   ]);
@@ -79,7 +80,7 @@ async function sources(filter: { kind: SourceKind; id: number } | null, executor
     })),
     ...returns.map((r): SourceRow => ({
       kind: 'RETURN', sourceId: Number(r.source_id), tripId: Number(r.trip_id), tripNumber: r.number, tripDate: r.trip_date, finishedAt: new Date(r.finished_at),
-      destination: r.destination_name, ownerBranchId: r.owner_branch_id == null ? null : Number(r.owner_branch_id), what: 'Retur dibawa pulang',
+      destination: r.destination_name, ownerBranchId: r.owner_branch_id == null ? null : Number(r.owner_branch_id), what: r.pickup ? 'Jemput retur' : 'Retur dibawa pulang',
       detail: r.note, reportPhoto: photoUrl(Number(r.trip_id), r.photo_file_id),
       items: items.filter((i) => Number(i.report_id) === Number(r.source_id)).map((i) => ({ name: i.name, quantity: quantityText(i.quantity), unit: i.unit })),
     })),
