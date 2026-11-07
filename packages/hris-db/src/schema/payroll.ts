@@ -384,9 +384,14 @@ export const otherDeductions = hrisSchema.table(
     writtenOffAt: timestamp('written_off_at', { withTimezone: true }),
     writtenOffByAccountId: integer('written_off_by_account_id'),
     writeOffReason: text('write_off_reason'),
+    /** Asal kurang serah Terima Uang (B3): cara bayar `TRUCK` (logistics.visit_payments) / `SELF` (logistics.self_trip_payments). */
+    moneyCheckSource: text('money_check_source'),
+    moneyCheckPaymentId: integer('money_check_payment_id'),
   },
   (t) => [
     index('other_deductions_employee_idx').on(t.employeeId),
+    index('other_deductions_money_check_idx').on(t.moneyCheckSource, t.moneyCheckPaymentId).where(sql`${t.moneyCheckPaymentId} is not null`),
+    check('other_deductions_money_check_pair', sql`(${t.moneyCheckSource} is null) = (${t.moneyCheckPaymentId} is null) and (${t.moneyCheckSource} is null or ${t.moneyCheckSource} in ('TRUCK', 'SELF'))`),
     check('other_deductions_write_off_complete', sql`(${t.writtenOffAt} is null) = (${t.writeOffReason} is null)`),
     uniqueIndex('other_deductions_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     check('other_deductions_amount_positive', sql`${t.amount} > 0`),
@@ -395,6 +400,34 @@ export const otherDeductions = hrisSchema.table(
     check('other_deductions_not_self', sql`${t.employeeId} <> ${t.recordedByEmployeeId}`),
     check('other_deductions_active_approved', sql`${t.status}::text not in ('ACTIVE', 'WAIVED') or ${t.approvedAt} is not null`),
     check('other_deductions_cancel_complete', sql`(${t.status}::text in ('CANCELLED', 'WAIVED')) = (${t.cancelReason} is not null)`),
+  ],
+);
+
+// Tindak lanjut kurang serah Terima Uang selain Potongan Lain (B3): CASH_REPLACED = sudah diganti tunai (Finance, nominal),
+// WAIVED = tidak dipotong (Pemilik/GM, alasan). Tidak dihapus; salah catat dibatalkan beralasan.
+export const shortHandoverSettlements = hrisSchema.table(
+  'short_handover_settlements',
+  {
+    id: serial('id').primaryKey(),
+    source: text('source').notNull(),
+    paymentId: integer('payment_id').notNull(),
+    kind: text('kind').notNull(),
+    amount: integer('amount'),
+    proofFileId: uuid('proof_file_id').references(() => files.id),
+    note: text('note').notNull(),
+    recordedByAccountId: integer('recorded_by_account_id').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedByAccountId: integer('voided_by_account_id'),
+    voidReason: text('void_reason'),
+  },
+  (t) => [
+    index('short_handover_settlements_payment_idx').on(t.source, t.paymentId),
+    uniqueIndex('short_handover_settlements_waived_current').on(t.source, t.paymentId).where(sql`${t.kind} = 'WAIVED' and ${t.voidedAt} is null`),
+    check('short_handover_settlements_source', sql`${t.source} in ('TRUCK', 'SELF')`),
+    check('short_handover_settlements_kind', sql`(${t.kind} = 'CASH_REPLACED' and ${t.amount} > 0) or (${t.kind} = 'WAIVED' and ${t.amount} is null)`),
+    check('short_handover_settlements_note_not_blank', sql`btrim(${t.note}) <> ''`),
+    check('short_handover_settlements_void_complete', sql`(${t.voidedAt} is null) = (${t.voidReason} is null)`),
   ],
 );
 

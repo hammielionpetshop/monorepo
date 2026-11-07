@@ -219,6 +219,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/dashboard': '2026-11-06',
   '/logistik/di-luar-titik': '2026-11-06',
   '/logistik/laporan': '2026-11-06', // LT5b Laporan Logistik (tayang staging 2026-11-06)
+  'fitur/kurang-serah-tindak-lanjut': '2026-11-08', // B3 kurang serah → Potongan Lain / ganti tunai / tidak dipotong (tayang staging 2026-11-08)
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 

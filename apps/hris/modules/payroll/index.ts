@@ -40,7 +40,7 @@ export { ManualShortageForm } from './ui/manual-shortage-form';
 export { CashierLinksScreen } from './ui/cashier-links-screen';
 export {
   cancelOther, deductionObjectionHandler, deductionTypesScreen, deductionsOf, deductionsTabScreen, objectionFormScreen, otherDeductionFormScreen,
-  otherDeductionHandler, otherDeductionsScreen, recordOtherDirect, rescheduleOther, saveDeductionType, writeOffOther, OTHER_STATUS_LABELS, type OtherStatus,
+  otherDeductionHandler, otherDeductionsScreen, otherFromShortHandover, recordOtherDirect, shortDeductionFormScreen, rescheduleOther, saveDeductionType, writeOffOther, OTHER_STATUS_LABELS, type OtherStatus,
 } from './server/other-deductions';
 export { OtherDeductionsScreen } from './ui/other-deductions-screen';
 export { OtherDeductionForm } from './ui/other-deduction-form';
