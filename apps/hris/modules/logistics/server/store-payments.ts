@@ -1,12 +1,12 @@
 import Big from 'big.js';
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { reportDecisions, trips, tripVisits, visitNoteBills, visitPayments, visitReportItems, visitReports } from '@petshop/logistics';
+import { reportDecisions, storeDeposits, trips, tripVisits, visitNoteBills, visitPayments, visitReportItems, visitReports } from '@petshop/logistics';
 import { db } from '@/lib/db';
 import { can, listEmployeesWithAnyAction, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { saveUpload } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import {
-  CUT_REASON_LABELS, DECISION_LABELS, PAYMENT_LABELS, REPORT_LABELS, UNRECORDED_RED_DAYS, billOf, cleanDecision, cleanPayment, cleanPromise, cleanRecordedRef,
+  CUT_REASON_LABELS, DECISION_LABELS, PAYMENT_LABELS, REPORT_LABELS, UNRECORDED_RED_DAYS, billOf, cleanDecision, cleanDeposit, cleanPayment, cleanPromise, cleanRecordedRef,
   cleanReport, leftToCollect, promiseOverdue, type CutReason, type Decision, type DecisionInput, type PaymentMethod, type ReportKind,
 } from '../rules/store-payments';
 import { rupiah } from '../rules/rates';
@@ -51,7 +51,11 @@ async function openNoteBills(visitId: number, executor: Executor) {
   return rows.map((r) => ({ noteId: Number(r.note_id), transactionId: Number(r.doc_id), bill: Math.max(0, Math.round(Number(r.remaining_amount))) }));
 }
 
-export type PaymentInput = { method?: string | null; partialAmount?: number | null; promiseDate?: string | null };
+export type PaymentInput = {
+  method?: string | null; partialAmount?: number | null; promiseDate?: string | null;
+  /** Titipan toko (A1): kelebihan uang tunai di atas tagihan (Lunas + titip) atau uang tanpa tagihan (Titip saja). */
+  depositAmount?: number | null;
+};
 
 /**
  * Catat cara bayar bersama Terkirim (§13.5 butir 2, 3). Dipanggil processVisit di dalam transaksinya, sebelum tautan
@@ -68,6 +72,14 @@ export async function recordPayment(
   // Janji bayar sisa (§14.2 butir 5) untuk Bayar sebagian / Tempo.
   const promise = cleanPromise(clean.method, input.promiseDate, wibDate(now));
   if (!promise.ok) return { ok: false, status: 400, error: promise.error };
+  const deposit = cleanDeposit(bill, clean.method, input.depositAmount);
+  if (!deposit.ok) return { ok: false, status: 400, error: deposit.error };
+  if (deposit.amount > 0) {
+    await tx.insert(storeDeposits).values({
+      customerId: visit.customerId, kind: 'IN', amount: deposit.amount, visitId: visit.id, tripId: visit.tripId,
+      createdByEmployeeId: by.employeeId, createdByAccountId: by.accountId, createdAt: now,
+    });
+  }
   await tx.insert(visitPayments).values({
     visitId: visit.id, tripId: visit.tripId, customerId: visit.customerId, method: clean.method, billAmount: bill, receivedAmount: clean.received,
     proofPhotoFileId: clean.method === 'TRANSFER' ? proofFileId : null, recordedByEmployeeId: by.employeeId, recordedByAccountId: by.accountId,

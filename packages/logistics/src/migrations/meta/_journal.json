@@ -127,6 +127,13 @@
       "when": 1794080663599,
       "tag": "0017_a2_return_pickups",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794081667609,
+      "tag": "0018_a1_store_deposits",
+      "breakpoints": true
     }
   ]
 }

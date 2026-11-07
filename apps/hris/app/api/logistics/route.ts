@@ -6,6 +6,7 @@ import {
   addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, createTrip, decideNote, dropShopping, keepKasirChange, markReady, releaseVisit,
   removeCrew, reopenNote, retryVisit, reviewOutside, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
   assignReturnPickup, cancelReturnPickup, createReturnPickup, releaseReturnPickup,
+  checkDeposit, recordDepositUse, refundDeposit, applyDeposit, voidDeposit,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -67,6 +68,12 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel_return_pickup'), id, reason }),
   z.object({ action: z.literal('assign_return_pickup'), id, tripId: id }),
   z.object({ action: z.literal('release_return_pickup'), id, reason }),
+  // A1: titipan toko.
+  z.object({ action: z.literal('check_deposit'), id, actual: z.number().int().min(0).max(1_000_000_000), note: z.string().max(500).nullable().optional() }),
+  z.object({ action: z.literal('use_deposit'), customerId: id, transactionId: id, amount: z.number().int() }),
+  z.object({ action: z.literal('refund_deposit'), customerId: id, amount: z.number().int(), reason }),
+  z.object({ action: z.literal('void_deposit'), id, reason }),
+  z.object({ action: z.literal('record_deposit_use'), id, ref: z.string().max(200) }),
 ]);
 
 // Logistik Minimal (spec L6 §3). Hak diperiksa di layanan per tindakan; aksi berfoto lewat /api/logistics/upload.
@@ -113,6 +120,11 @@ export async function POST(req: Request) {
       case 'cancel_return_pickup': return cancelReturnPickup(actor, body.id, body.reason);
       case 'assign_return_pickup': return assignReturnPickup(actor, body.id, body.tripId);
       case 'release_return_pickup': return releaseReturnPickup(actor, body.id, body.reason);
+      case 'check_deposit': return checkDeposit(actor, body.id, body);
+      case 'use_deposit': return applyDeposit(actor, body);
+      case 'refund_deposit': return refundDeposit(actor, body);
+      case 'void_deposit': return voidDeposit(actor, body.id, body.reason);
+      case 'record_deposit_use': return recordDepositUse(actor, body.id, body.ref);
     }
   })();
   if (result.ok && actor) {
