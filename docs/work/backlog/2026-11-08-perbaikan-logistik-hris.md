@@ -78,7 +78,7 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 |---|---|---|
 | A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
 | B3 | **Lolos uji owner** | Lolos uji owner di deployment staging `8582f86b` (run `42406407964`; owner: "ok sudah saya check", 2026-11-08; skenario tidak dirinci). HRIS belum produksi; ikut rilis HRIS. Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (disetujui owner 2026-11-08). `feat/hris-b3-short-handover` `c6094423`, dev_hris `2570643d`, migrasi hris `0054`; tes unit 7 + integrasi Terima Uang 6 (termasuk skenario B3) lulus, Potongan Lain / slip mingguan / denda driver lulus; klaim dilepas. Langkah uji: bagian **Uji B3** di bawah. Rilis HRIS ikut jadwal rilis HRIS (belum produksi). |
-| A2 | Dikerjakan (sesi malam) | Keputusan owner di bagian **Sesi malam 2026-11-08**; spec ditulis di branch `feat/hris-a2-return-pickup`. |
+| A2 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-jemput-retur-design.md`](../specs/2026-11-08-jemput-retur-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a2-return-pickup` `76bcb8c3`, dev_hris `891f839f`; migrasi logistics `0017`, hris `0055`. Tes integrasi jemput retur 4 + Barang Kembali, Laporan Toko, trip, Trip Saya, antar sendiri, Terima Uang (55 tes) lulus; typecheck lulus. Langkah uji: bagian **Uji A2** di bawah. HRIS belum produksi; ikut rilis HRIS. |
 | A1 | Antre sesi malam | Sesudah A2. |
 | B1+B2 | Antre sesi malam | Sesudah A1. |
 | C | Antre sesi malam | Sesudah B1+B2. |
@@ -98,6 +98,22 @@ tidak disentuh. Jawaban owner:
   "Lunas + titip" = toko bayar lebih dari tagihan; "Titip saja" = toko menyerahkan uang tanpa tagihan di
   kunjungan itu. Titipan boleh **dikembalikan tunai** ke toko (alasan wajib).
 - **B2** saat Sudah dicatat untuk Retur BO, nomor retur **wajib ada** di kasir (dicek), nilainya ditampilkan.
+
+## Uji A2 (staging HRIS `hris.staginghml.my.id`)
+
+1. **Finance / Marketing / Kepala Gudang** › Logistik › **Jemput Retur** › cari toko, isi alasan (+ perkiraan barang),
+   Simpan. Membuat tugas kedua untuk toko yang sama ditolak.
+2. **Kepala Gudang** › Buat trip: bagian **Jemput retur** di form memuat tugas itu → centang, simpan. Atau dari halaman
+   Jemput Retur › pilih trip › **Masukkan ke trip** (trip berjalan: awak dapat pemberitahuan). Coba juga toko yang
+   tidak punya surat jalan di trip itu.
+3. Rincian trip memuat bagian Jemput retur; **Lepas dari trip** (alasan) mengembalikannya ke Menunggu.
+4. **Driver** › Trip Saya (trip berjalan): Menuju Garasi biasa tertahan "jemput retur di …". Tekan **Diambil** → isi
+   barang + foto → simpan. Tugas lain: **Kirim Besok** (alasan + foto) → kembali Menunggu "dicoba ×1".
+   **Tidak ada barang** → pembuat tugas diberi tahu.
+5. Sesudah Sampai Garasi: **Barang Kembali** memuat "Jemput retur" toko itu dengan rinciannya; terima seperti biasa.
+6. **Finance** › Laporan Toko: laporan bertanda "Jemput retur" → hanya Retur BO / Tidak dipotong, tanpa pilih nota →
+   muncul di **Perlu dicatat di kasir**.
+7. Trip berjalan yang membawa tugas lalu **Selesai lebih awal** / ditutup kantor → tugas kembali Menunggu (riwayat "Terlewat").
 
 ## Uji A3 (staging backoffice `bo.staginghml.my.id`)
 
