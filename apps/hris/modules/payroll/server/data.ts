@@ -101,14 +101,15 @@ export async function positionFlags(positionIds: number[], today: IsoDate) {
   return flags;
 }
 
-export async function loadPayrollPeople(today: IsoDate = todayWib()): Promise<PayrollPerson[]> {
+export async function loadPayrollPeople(today: IsoDate = todayWib(), options: { includeWeekly?: boolean } = {}): Promise<PayrollPerson[]> {
   const [people, org] = await Promise.all([listPeopleForModules(), getOrgLookup()]);
   const periodStart = periodStartOf(today);
   const flags = await positionFlags(people.map((p) => p.positionId), today);
   return people
     // Aktif hari ini, atau berhenti di periode berjalan (slip terakhirnya masih dibuat, GAJ-02).
     .filter((p) => p.activeToday || (p.lastStatus?.kind === 'DEACTIVATE' && p.lastStatus.effectiveOn >= periodStart))
-    .filter((p) => flags.get(p.positionId)?.monthly)
+    // Bawaan berslip bulanan; `includeWeekly` ikut memuat yang berslip mingguan (driver, kenek), mis. Potongan Lain (spec B3).
+    .filter((p) => options.includeWeekly || flags.get(p.positionId)?.monthly)
     .map((p) => {
       const position = org.positions.find((pos) => pos.id === p.positionId);
       const name = position?.name.trim().toLowerCase() ?? '';

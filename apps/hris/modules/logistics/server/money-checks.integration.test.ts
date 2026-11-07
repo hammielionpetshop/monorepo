@@ -21,7 +21,7 @@ const jpeg = () => new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]
 let admin: postgres.Sql;
 let sql: postgres.Sql;
 let actorOf: (employeeId: number) => Promise<Actor>;
-let ids: Record<'kg' | 'driver' | 'kenek' | 'finance', number>;
+let ids: Record<'kg' | 'driver' | 'kenek' | 'finance' | 'hr' | 'owner', number>;
 let lg: typeof import('@/modules/logistics');
 const pos: Record<string, number> = {};
 let tripId = 0;
@@ -67,7 +67,7 @@ describe.skipIf(!ADMIN_URL)('LT4a: Terima Uang', () => {
     };
     ids = {
       kg: await person('Kepala Gudang Uji', 'Kepala Gudang'), driver: await person('Dedi', 'Driver'), kenek: await person('Eko', 'Kenek'),
-      finance: await person('Fina', 'Finance'),
+      finance: await person('Fina', 'Finance'), hr: await person('Hana', 'HR'), owner: await person('Pak Bos', 'Pemilik'),
     };
     for (const [position, duty] of [['Driver', 'DRIVE'], ['Kenek', 'ASSIST']]) {
       await sql`insert into hris.setting_values (key, target_kind, target_id, value, effective_from, status, reason)
@@ -198,9 +198,69 @@ describe.skipIf(!ADMIN_URL)('LT4a: Terima Uang', () => {
     expect((await payment('Toko Maju', 'DONE')).notes[0].pos?.status).toBe('GONE');
     expect((await payment('Toko Depan', 'DONE')).notes[0].pos?.status).toBe('NONE');
     const diff = await screen('DIFF');
-    expect(diff.diffs.map((d) => [d.number, d.label, d.difference, d.person])).toEqual([
-      ['TRX-D', 'Transfer kurang (tetap piutang toko)', -100000, null], ['TRX-C', 'Kurang serah', -20000, 'Dedi'],
+    // B3: kurang serah tunai tampil sendiri beserta tindak lanjutnya; Selisih lain hanya transfer kurang / lebih serah.
+    expect(diff.diffs.map((d) => [d.number, d.label, d.difference, d.person])).toEqual([['TRX-D', 'Transfer kurang (tetap piutang toko)', -100000, null]]);
+    expect(diff.shorts.map((v) => [v.store, v.person, v.summary.total, v.state])).toEqual([['Toko Maju', 'Dedi', 20000, 'OPEN']]);
+  });
+
+  it('B3 kurang serah: HR melihat Selisih, ganti tunai, Potongan Lain dibagi driver/kenek, kunci batal pemeriksaan', async () => {
+    const { otherFromShortHandover } = await import('@/modules/payroll');
+    const { submitRequest } = await import('@/modules/requests');
+    const { REQUEST_HANDLERS } = await import('@/lib/request-handlers');
+    const announce = async () => {};
+    const hr = await actorOf(ids.hr);
+    const finance = await actorOf(ids.finance);
+    const owner = await actorOf(ids.owner);
+    const [told] = await sql`select title from hris.notifications where kind = 'logistics.cash_short' and recipient_account_id = ${ids.hr + 1000}`;
+    expect(told?.title).toContain('Toko Maju');
+
+    // HR hanya tab Selisih; driver tidak melihat Terima Uang.
+    const hrScreen = (await lg.moneyCheckScreen(hr, 'WAITING'))!;
+    expect(hrScreen).toMatchObject({ tab: 'DIFF', onlyDiff: true });
+    const short = hrScreen.shorts[0];
+    expect(short).toMatchObject({ canPropose: true, canReplace: false, canWaive: false, summary: { left: 20000 } });
+    const key = { source: short.source, paymentId: short.paymentId };
+    expect(await lg.shortHandoverAttention(hr)).toEqual({ open: 1, red: 0, left: 20000 });
+
+    // Ganti tunai: hanya Finance, paling banyak sisa.
+    expect(await lg.recordShortSettlement(hr, { ...key, kind: 'CASH_REPLACED', amount: 5000, note: 'ganti tunai', proofFileId: null })).toMatchObject({ ok: false, status: 403 });
+    expect(await lg.recordShortSettlement(finance, { ...key, kind: 'CASH_REPLACED', amount: 30000, note: 'ganti tunai', proofFileId: null })).toMatchObject({ ok: false, status: 400 });
+    expect((await lg.recordShortSettlement(finance, { ...key, kind: 'CASH_REPLACED', amount: 5000, note: 'driver ganti 5 ribu', proofFileId: null })).ok).toBe(true);
+
+    // Potongan Lain dari kurang serah: dibagi driver + kenek, tiap bagian usulan sendiri, tidak melebihi sisa 15 ribu.
+    const form = (await import('@/modules/payroll')).shortDeductionFormScreen;
+    const ctx = (await form(hr, key))!;
+    expect(ctx.short).toMatchObject({ left: 15000, presetTypeId: expect.any(Number) });
+    expect(ctx.short.crew.map((c) => [c.name, c.role, c.selectable])).toEqual([['Dedi', 'Driver', true], ['Eko', 'Kenek', true]]);
+    const submitOne = (fields: Record<string, unknown>, attachmentIds: string[]) => submitRequest(hr, 'other_deduction', REQUEST_HANDLERS.other_deduction, { fields, attachmentIds });
+    const base = { ...key, typeId: ctx.short.presetTypeId!, reason: ctx.short.reason, installments: 1, attachmentId: null };
+    expect(await otherFromShortHandover(hr, { ...base, shares: [{ employeeId: ids.driver, amount: 10000 }, { employeeId: ids.kenek, amount: 6000 }] }, announce, submitOne))
+      .toMatchObject({ ok: false, status: 400 });
+    expect(await otherFromShortHandover(hr, { ...base, shares: [{ employeeId: ids.finance, amount: 1000 }] }, announce, submitOne)).toMatchObject({ ok: false, status: 400 });
+    expect((await otherFromShortHandover(hr, { ...base, shares: [{ employeeId: ids.driver, amount: 10000 }, { employeeId: ids.kenek, amount: 5000 }] }, announce, submitOne)).ok).toBe(true);
+    const made = await sql`select employee_id, amount, status, money_check_source, money_check_payment_id from hris.other_deductions order by id`;
+    expect(made.map((r) => [r.employee_id, r.amount, r.status, r.money_check_source, r.money_check_payment_id])).toEqual([
+      [ids.driver, 10000, 'PENDING', 'TRUCK', key.paymentId], [ids.kenek, 5000, 'PENDING', 'TRUCK', key.paymentId],
     ]);
+    // Sisa habis: pengajuan berikutnya ditolak; Tidak dipotong ditolak selama ada usulan menunggu.
+    expect(await otherFromShortHandover(hr, { ...base, shares: [{ employeeId: ids.driver, amount: 1000 }] }, announce, submitOne)).toMatchObject({ ok: false, status: 400 });
+    expect(await lg.recordShortSettlement(owner, { ...key, kind: 'WAIVED', amount: null, note: 'dimaafkan', proofFileId: null })).toMatchObject({ ok: false, status: 409 });
+    const pending = (await lg.moneyCheckScreen(finance, 'DIFF'))!.shorts[0];
+    expect(pending).toMatchObject({ state: 'PENDING', summary: { replaced: 5000, pending: 15000, left: 0 } });
+
+    // Pemeriksaan Terima Uang tidak bisa dibatalkan selama kurang serahnya ditindaklanjuti.
+    expect(await lg.voidMoneyCheck(finance, { ...key, reason: 'salah periksa' })).toMatchObject({ ok: false, status: 409 });
+
+    // Usulan ditolak → sisa terbuka lagi; Pemilik menyatakan Tidak dipotong.
+    await sql`update hris.other_deductions set status = 'REJECTED' where money_check_payment_id = ${key.paymentId}`;
+    expect((await lg.recordShortSettlement(owner, { ...key, kind: 'WAIVED', amount: null, note: 'dimaafkan, uang receh', proofFileId: null })).ok).toBe(true);
+    expect((await lg.moneyCheckScreen(finance, 'DIFF'))!.shorts[0]).toMatchObject({ state: 'WAIVED', summary: { left: 0 } });
+    expect(await lg.shortHandoverAttention(hr)).toEqual({ open: 0, red: 0, left: 0 });
+
+    // Bersihkan untuk tes berikutnya: batalkan kedua catatan (beralasan), pemeriksaan boleh dibatalkan lagi.
+    const settled = (await lg.moneyCheckScreen(owner, 'DIFF'))!.shorts[0].settlements;
+    for (const x of settled) expect((await lg.voidShortSettlement(owner, { id: x.id, reason: 'uji dibersihkan' })).ok).toBe(true);
+    expect((await lg.moneyCheckScreen(finance, 'DIFF'))!.shorts[0]).toMatchObject({ state: 'OPEN', summary: { left: 20000 } });
   });
 
   it('cara bayar yang sudah diperiksa terkunci; batal pemeriksaan membukanya lagi', async () => {

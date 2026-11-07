@@ -12,6 +12,7 @@ import { rupiah } from '../rules/rates';
 import { PAYMENT_LABELS, type PaymentMethod } from '../rules/store-payments';
 import { addDays, reasonProblem, wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, accountsOf, fail, isUniqueViolation, peopleNames, type Executor } from './data';
+import { canProposeShort, shortHandoverViews, shortHandoverVoidBlock, type ShortHandoverView } from './short-handovers';
 
 // Terima Uang (spec LT1 §16.1, LT4a): Finance memeriksa uang trip truk dan antar sendiri per nota. Piutang tetap milik kasir;
 // HRIS hanya membaca `logistics.pos_customer_debts` untuk tanda pelunasan POS (tanpa data ganda).
@@ -115,6 +116,14 @@ async function loadPayments(since: IsoDate, only: { truck?: number[]; self?: num
   ];
 }
 
+/** Cara bayar tertentu (berapa pun umurnya), untuk kurang serah (spec B3). */
+export async function paymentsFor(...keys: { source: CheckSource; paymentId: number }[]) {
+  if (!keys.length) return [];
+  return loadPayments('2000-01-01', {
+    truck: keys.filter((k) => k.source === 'TRUCK').map((k) => k.paymentId), self: keys.filter((k) => k.source === 'SELF').map((k) => k.paymentId),
+  });
+}
+
 type CheckRow = typeof moneyChecks.$inferSelect;
 
 async function currentChecks(payments: RawPayment[]): Promise<CheckRow[]> {
@@ -165,8 +174,12 @@ export type MoneyCheckTab = 'WAITING' | 'DONE' | 'DIFF';
  * Layar Terima Uang (§16.1): Belum diperiksa (paling lama di atas), Sudah diperiksa (30 hari, tanda POS), Selisih (kurang /
  * lebih serah 60 hari). Pemegang `logistics.money_check.do` memeriksa; pemegang Uang dari Toko hanya melihat.
  */
-export async function moneyCheckScreen(actor: Actor | null, tab: MoneyCheckTab, source: 'ALL' | CheckSource = 'ALL') {
-  if (!actor || !(can(actor, DO) || can(actor, 'logistics.store_payment.view'))) return null;
+export async function moneyCheckScreen(actor: Actor | null, tabInput: MoneyCheckTab, source: 'ALL' | CheckSource = 'ALL') {
+  if (!actor) return null;
+  const fullView = can(actor, DO) || can(actor, 'logistics.store_payment.view');
+  // HR (pengusul Potongan Lain) hanya melihat tab Selisih untuk menindaklanjuti kurang serah (spec B3 butir 7).
+  if (!fullView && !canProposeShort(actor)) return null;
+  const tab: MoneyCheckTab = fullView ? tabInput : 'DIFF';
   const today = wibDate(new Date());
   const from = String(await settingOn<string>('logistics.money_check_from', today));
   const back = addDays(today, tab === 'DIFF' ? -60 : -30);
@@ -230,8 +243,14 @@ export async function moneyCheckScreen(actor: Actor | null, tab: MoneyCheckTab, 
     if (!groups.has(key)) groups.set(key, { key, source: p.source, tripId: p.tripId, number: p.tripNumber, href: p.tripHref, crew: p.crew, branch: p.branch, payments: [] });
     groups.get(key)!.payments.push(p);
   }
-  const diffs = tab === 'DIFF' ? differences(checks.filter((c) => c.actualAmount !== c.reportedAmount), all, names) : [];
-  return { tab, source, from, redDays: CHECK_RED_DAYS, trips: [...groups.values()], diffs, canCheck };
+  // Kurang serah tunai tampil sendiri per cara bayar beserta tindak lanjutnya; di sini hanya lebih serah dan transfer kurang.
+  const diffs = tab === 'DIFF'
+    ? differences(checks.filter((c) => c.actualAmount !== c.reportedAmount && !(c.kind === 'CASH' && c.actualAmount < c.reportedAmount)), all, names)
+    : [];
+  const shorts: ShortHandoverView[] = tab === 'DIFF'
+    ? (await shortHandoverViews(actor)).filter((v) => source === 'ALL' || v.source === source)
+    : [];
+  return { tab, source, from, redDays: CHECK_RED_DAYS, trips: [...groups.values()], diffs, shorts, canCheck, onlyDiff: !fullView };
 }
 
 /** Selisih per nota (§16.1 butir 4–6): kurang serah tunai atas nama pembawa, lebih serah, transfer kurang (piutang toko). */
@@ -288,10 +307,10 @@ export async function saveMoneyCheck(
       const short = clean.lines.filter((l) => kind === 'CASH' && l.difference < 0);
       if (short.length && p.carrierId != null) {
         const total = short.reduce((n, l) => n - l.difference, 0);
-        const owners = await accountsOf(await listEmployeesWithAnyAction(['logistics.wage.manage']));
+        const owners = await accountsOf(await listEmployeesWithAnyAction(['logistics.wage.manage', 'other_deduction.propose']));
         await notify(tx, [...new Set([...(await accountsOf([p.carrierId])), ...owners])], {
           kind: 'logistics.cash_short', title: `Kurang serah ${rupiah(total)}: ${p.store} (${p.tripNumber})`,
-          body: `${short.map((l) => `${l.number}: lapor ${rupiah(l.reported)}, diterima ${rupiah(l.actual)}`).join('; ')}. Bahan Potongan Lain HR, tidak memotong gaji otomatis.`,
+          body: `${short.map((l) => `${l.number}: lapor ${rupiah(l.reported)}, diterima ${rupiah(l.actual)}`).join('; ')}. Tindak lanjut di tab Selisih (Potongan Lain lewat pengesahan, ganti tunai, atau tidak dipotong); gaji tidak dipotong otomatis.`,
           link: '/logistik/terima-uang?tab=DIFF', entity: 'money_check', entityId: p.paymentId,
         }, actor.accountId);
       }
@@ -318,6 +337,8 @@ export async function voidMoneyCheck(actor: Actor | null, input: { source: Check
     fullAccess: actor.fullAccess, own: rows[0].checkedByAccountId === actor.accountId, daysSince: daysBetween(wibDate(rows[0].checkedAt), wibDate(new Date())),
   });
   if (problem) return fail(403, problem);
+  const block = await shortHandoverVoidBlock(db, { source: input.source, paymentId: input.paymentId });
+  if (block) return fail(409, block);
   const done = await db.update(moneyChecks).set({ voidedAt: new Date(), voidedByAccountId: actor.accountId, voidReason: reason })
     .where(and(inArray(moneyChecks.id, rows.map((r) => r.id)), isNull(moneyChecks.voidedAt))).returning({ id: moneyChecks.id });
   return done.length === rows.length ? { ok: true, data: undefined } : fail(409, 'Pemeriksaan ini baru saja berubah. Muat ulang halaman.');
