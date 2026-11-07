@@ -6,7 +6,7 @@ import { getAuth } from '@/lib/authz'
 import {
   db, transactions, transactionItems, transactionPayments, transactionEdits,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
-  productUomConversions, returns, returnItems,
+  productUomConversions, returns, returnItems, interBranchTransfers,
   eq, and, inArray, asc, desc, sql, isNull,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
@@ -59,12 +59,15 @@ export async function GET(
         saleType: transactions.saleType,
         sourceIbtId: transactions.sourceIbtId,
         deliveryMethod: transactions.deliveryMethod,
+        // Nota hasil PO Internal: cara kirimnya milik PO Internal (dicetak di struk/surat jalan).
+        transferDeliveryMethod: interBranchTransfers.deliveryMethod,
         createdAt: transactions.createdAt,
       })
       .from(transactions)
       .leftJoin(branches, eq(transactions.branchId, branches.id))
       .leftJoin(users, eq(transactions.cashierId, users.id))
       .leftJoin(customers, eq(transactions.customerId, customers.id))
+      .leftJoin(interBranchTransfers, eq(transactions.sourceIbtId, interBranchTransfers.id))
       .where(and(...branchConditions))
       .limit(1)
 

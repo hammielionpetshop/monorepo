@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DeliveryMethodError,
   deliveryChangeProblem,
+  deliveryPrintLine,
   parseDeliverySettings,
   resolveSaleDeliveryMethod,
   resolveTransferDeliveryMethod,
@@ -119,5 +120,22 @@ describe('pengaturan', () => {
   it('truk paling depan di cabang Gudang', () => {
     expect(saleDeliveryOrder(true)[0]).toBe('TRUCK')
     expect(saleDeliveryOrder(false)[0]).toBe('PICKUP')
+  })
+})
+
+describe('deliveryPrintLine', () => {
+  it('nota: truk tebal huruf besar, kurir biasa, ambil sendiri & kosong tidak dicetak', () => {
+    expect(deliveryPrintLine({ saleMethod: 'TRUCK' })).toEqual({ text: 'DIKIRIM TRUK GUDANG', bold: true })
+    expect(deliveryPrintLine({ saleMethod: 'BRANCH_COURIER' })).toEqual({ text: 'Diantar kurir cabang', bold: false })
+    expect(deliveryPrintLine({ saleMethod: 'PICKUP' })).toBeNull()
+    expect(deliveryPrintLine({ saleMethod: null })).toBeNull()
+    expect(deliveryPrintLine({})).toBeNull()
+  })
+
+  it('nota PO Internal memakai cara kirim PO Internal', () => {
+    expect(deliveryPrintLine({ fromTransfer: true, transferMethod: 'TRUCK' })).toEqual({ text: 'DIKIRIM TRUK GUDANG', bold: true })
+    expect(deliveryPrintLine({ fromTransfer: true, transferMethod: 'SELF' })).toEqual({ text: 'Kirim sendiri', bold: false })
+    expect(deliveryPrintLine({ fromTransfer: true, transferMethod: null })).toBeNull()
+    expect(deliveryPrintLine({ fromTransfer: true, saleMethod: 'TRUCK' })).toBeNull()
   })
 })

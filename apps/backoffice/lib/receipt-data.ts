@@ -11,6 +11,7 @@ import type { CartItem } from '@/components/pos/cart-store'
 import type { ReceiptPrintData } from '@/lib/qz-receipt'
 import { receiptOngkirMark } from '@/lib/ongkir'
 import { manualDiscountPercentLabel } from '@/lib/manual-discount'
+import type { DeliveryPrintLine } from '@/lib/delivery-method'
 
 /**
  * Potongan promo satu baris untuk struk (P2e): nama promo + jumlah potongannya. Dipakai
@@ -41,6 +42,8 @@ export interface ReceiptSource {
   isReprint?: boolean
   isVoided?: boolean
   payments?: { name: string; amount: string }[]
+  /** Cara kirim tercetak (lihat `deliveryPrintLine`). Absen/null = tidak dicetak. */
+  delivery?: DeliveryPrintLine | null
 }
 
 /** Nilai uang di seluruh POS berupa string integer rupiah; yang tak terbaca dianggap nol. */
@@ -116,5 +119,6 @@ export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
     payments: src.payments?.map((p) => ({ name: p.name, amount: toNumber(p.amount) })),
     isReprint: src.isReprint,
     isVoided: src.isVoided,
+    delivery: src.delivery ?? null,
   }
 }

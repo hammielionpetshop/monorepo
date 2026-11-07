@@ -13,6 +13,7 @@ import {
   paymentMethods,
   shifts,
   customers,
+  interBranchTransfers,
   eq,
   and,
   asc,
@@ -30,6 +31,7 @@ import TransactionHistoryClient from '@/components/pos/transaction-history-clien
 import { freeShippingOfItemSql } from '@/lib/ongkir-server'
 import { promoNameOfItemSql } from '@/lib/promo/promo-server'
 import { manualDiscountPercentOfItemSql } from '@/lib/manual-discount-server'
+import { deliveryPrintLine, type DeliveryPrintLine } from '@/lib/delivery-method'
 
 export interface TransactionListItem {
   id: number
@@ -78,6 +80,8 @@ export interface TransactionPaymentDetail {
 export interface TransactionWithDetails extends TransactionListItem {
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
+  /** Cara kirim terbaru untuk cetak ulang struk (nota PO Internal: dari PO Internal-nya). */
+  delivery?: DeliveryPrintLine | null
 }
 
 interface DbTransactionRow {
@@ -284,7 +288,7 @@ export default async function HistoryPage({
 
   const txIds = txList.map((t) => t.id)
 
-  const [allItems, allPayments, twinRows] = await Promise.all([
+  const [allItems, allPayments, twinRows, deliveryRows] = await Promise.all([
     txIds.length > 0
       ? db
           .select({
@@ -334,7 +338,26 @@ export default async function HistoryPage({
     txIds.length > 0
       ? (db.execute(doubleInputTwinsQuery(txIds)) as unknown as Promise<{ id: number; twin_trx_number: string }[]>)
       : Promise.resolve([]),
+    txIds.length > 0
+      ? db
+          .select({
+            id: transactions.id,
+            sourceIbtId: transactions.sourceIbtId,
+            saleMethod: transactions.deliveryMethod,
+            transferMethod: interBranchTransfers.deliveryMethod,
+          })
+          .from(transactions)
+          .leftJoin(interBranchTransfers, eq(transactions.sourceIbtId, interBranchTransfers.id))
+          .where(inArray(transactions.id, txIds))
+      : Promise.resolve([]),
   ])
+
+  const deliveryByTxId = new Map(
+    deliveryRows.map((r) => [
+      r.id,
+      deliveryPrintLine({ fromTransfer: r.sourceIbtId != null, saleMethod: r.saleMethod, transferMethod: r.transferMethod }),
+    ]),
+  )
 
   const twinsByTxId = new Map<number, string[]>()
   for (const t of twinRows) {
@@ -388,6 +411,7 @@ export default async function HistoryPage({
     items: itemsByTxId.get(tx.id) ?? [],
     payments: paymentsByTxId.get(tx.id) ?? [],
     doubleInputTwins: twinsByTxId.get(tx.id) ?? [],
+    delivery: deliveryByTxId.get(tx.id) ?? null,
   }))
 
   return (
