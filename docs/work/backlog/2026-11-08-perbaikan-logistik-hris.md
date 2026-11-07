@@ -5,13 +5,41 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 (ada di `dev_hris` dan `staging`). Alur development tetap mengikuti `AGENTS.md`
 (spec → persetujuan owner → klaim → implementasi → staging → uji owner → rilis).
 
-## Cara kerja yang diminta owner
+## Panduan owner (komputer mana pun)
 
-- Satu butir per sesi chat. Sesi dibuka dengan kata kunci **"lanjutkan perbaikan HRIS"**:
-  ambil butir pertama yang belum selesai di tabel status, kerjakan hanya butir itu.
-- Beri tahu owner dengan jelas setiap tahap selesai (spec siap disetujui, tayang staging,
-  lolos uji owner/terintegrasi). Sesudah butir selesai, perbarui tabel status di berkas ini
-  dan minta owner melanjutkan di chat baru. Jangan mulai butir berikutnya di sesi yang sama.
+1. Buka terminal di folder repo, jalankan `git fetch` lalu `git pull` di branch yang sedang
+   dipakai (biasanya `main`).
+2. Buka Claude Code di folder repo, ketik: **lanjutkan perbaikan HRIS**
+3. Ikuti tahapnya; Claude memberi tahu tiap tahap selesai:
+
+   | Tahap | Claude | Owner |
+   |---|---|---|
+   | Spec | menelusuri kode, menulis rancangan | jawab "ok kerjakan" atau koreksi |
+   | Kerja | klaim → kode → tes → gabung & push staging | tunggu kabar "tayang staging" |
+   | Uji | memberi langkah uji singkat | coba di `bo.staginghml.my.id` / `hris.staginghml.my.id`, laporkan hasil |
+   | Rilis | menyiapkan PR rilis ke `main` | beri izin rilis |
+
+4. Satu chat = satu butir. Sesudah butir selesai, buka chat baru dan ketik kata kunci yang sama.
+5. Hasil uji boleh dilaporkan dari komputer mana pun, di chat baru sekalipun
+   (contoh: "A3 sudah saya uji, aman"). Claude mencatatnya di tabel status berkas ini.
+
+## Panduan agent (saat menerima "lanjutkan perbaikan HRIS")
+
+- Fetch, lalu baca **berkas ini versi `origin/staging`** (versi terbaru tabel status; versi
+  `main` bisa tertinggal). Ambil butir pertama di tabel status yang belum **Selesai**:
+  - status **Belum dimulai** → mulai dari spec; tunggu persetujuan owner.
+  - status **Tayang staging — menunggu uji owner** → berikan langkah uji di kolom Catatan,
+    tunggu hasil owner; bila lolos, siapkan PR rilis ke `main` sesuai `AGENTS.md`.
+  - jangan mulai butir berikutnya di sesi yang sama.
+- Ikuti `AGENTS.md` penuh (klaim dipublikasikan sebelum implementasi, HRIS dari
+  `origin/dev_hris`, backoffice dari `origin/main`, merge lokal, satu push per batch).
+- Setiap ganti tahap, perbarui tabel status di berkas ini lewat branch dokumentasi yang
+  digabung lokal ke `staging` (bersama batch pekerjaannya bila ada). Workflow staging
+  mengabaikan `docs/**`, jadi push dokumen saja tidak men-deploy ulang.
+- Beri tahu owner dengan jelas tahap yang selesai; sesudah butir selesai, minta owner
+  melanjutkan di chat baru.
+- Komputer baru: identitas git bisa belum diatur. Tanyakan owner sebelum memakai identitas
+  penulis untuk commit.
 
 ## Urutan dan isi
 
@@ -48,9 +76,25 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 
 | Butir | Status | Catatan |
 |---|---|---|
-| A3 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md) (di branch `feat/print-delivery-method`); commit `a9778ca7`, staging `b9fc6309` (2026-11-08); klaim dilepas. Sesudah lolos uji: PR rilis ke `main`. |
+| A3 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. Sesudah lolos: PR rilis ke `main`. |
 | B3 | Belum dimulai | — |
 | A2 | Belum dimulai | — |
 | A1 | Belum dimulai | — |
 | B1+B2 | Belum dimulai | — |
 | C | Belum dimulai | — |
+
+## Uji A3 (staging backoffice `bo.staginghml.my.id`)
+
+1. POS: nota berpelanggan, pilih **Dikirim truk Gudang**, bayar, cetak struk → di bawah
+   pelanggan tercetak **DIKIRIM TRUK GUDANG** (tebal).
+2. Nota **Diantar kurir cabang** (pengantar + ongkir) → "Diantar kurir cabang" (biasa).
+3. Nota **Ambil sendiri** → tidak ada baris cara kirim.
+4. Backoffice Riwayat Transaksi: nota langkah 1 → **Ubah cara kirim** ke Ambil sendiri →
+   cetak ulang → baris truk hilang.
+5. Surat jalan (detail transaksi / Bulk Sale, Truk Gudang) → baris
+   **Kirim : DIKIRIM TRUK GUDANG** (tebal) di bawah Kepada/Staf.
+6. PO Internal di kasir: **Kirim Sekarang** dengan Truk Gudang, lalu cetak struk/surat jalan →
+   memuat DIKIRIM TRUK GUDANG ("Kirim sendiri" bila pilihannya itu). Detail PO Internal
+   backoffice: Surat Jalan A4 memuat baris "Cara kirim".
+
+Tanpa printer: gambar struk/surat jalan (kirim WA) memuat baris yang sama.
