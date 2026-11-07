@@ -2,7 +2,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { PageHeader } from '@/components/ui/surface';
 import { requirePageAction } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
-import { ToRecordScreen, toRecordScreen } from '@/modules/logistics';
+import { DepositUsesToRecord, ToRecordScreen, depositUsesToRecord, toRecordScreen } from '@/modules/logistics';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function ToRecordPage() {
   const actor = await requirePageAction('logistics.note_cut.decide');
   if (!actor) return <NoAccess />;
-  const data = await toRecordScreen(actor);
+  const [data, deposits] = await Promise.all([toRecordScreen(actor), depositUsesToRecord(actor)]);
   if (!data) return <NoAccess />;
   return (
     <>
@@ -19,6 +19,7 @@ export default async function ToRecordPage() {
         description="Keputusan Potong nota dan Retur BO dari Laporan Toko yang belum dicatat di kasir."
         actions={<NewBadge feature="/logistik/catat-kasir" />}
       />
+      {deposits && <div className="mb-4"><DepositUsesToRecord {...deposits} /></div>}
       <ToRecordScreen {...data} />
     </>
   );

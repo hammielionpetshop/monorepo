@@ -136,3 +136,31 @@ export function cleanRecordedRef(value: string | null | undefined): { ok: true; 
 
 /** Hari tunggu sebelum keputusan belum dicatat di kasir ditandai merah di Beranda (§14.2 butir 3). */
 export const UNRECORDED_RED_DAYS = 3;
+
+/** Batas atas uang titipan sekali kunjungan (salah ketik nol berlebih). */
+export const DEPOSIT_MAX = 100_000_000;
+
+/**
+ * Titipan toko saat Terkirim (A1): Lunas + titip (Lunas cash dengan uang tunai > tagihan) atau Titip saja (tagihan 0).
+ * Mengembalikan nominal titipan (0 = tanpa titipan), atau pesan salah.
+ */
+export function cleanDeposit(bill: number, method: PaymentMethod, deposit: number | null | undefined):
+  { ok: true; amount: number } | { ok: false; error: string } {
+  if (deposit == null || deposit === 0) return { ok: true, amount: 0 };
+  if (!Number.isInteger(deposit) || deposit < 0) return { ok: false, error: 'Nominal titipan harus rupiah bulat.' };
+  if (deposit > DEPOSIT_MAX) return { ok: false, error: 'Nominal titipan terlalu besar. Periksa lagi angkanya.' };
+  if (method !== 'CASH' && !(method === 'NONE' && bill === 0)) return { ok: false, error: 'Titipan hanya untuk Lunas cash (lebih bayar) atau kunjungan tanpa tagihan.' };
+  return { ok: true, amount: deposit };
+}
+
+export type DepositKind = 'IN' | 'USE' | 'REFUND';
+export const DEPOSIT_KIND_LABELS: Record<DepositKind, string> = { IN: 'Titipan masuk', USE: 'Dipakai untuk nota', REFUND: 'Dikembalikan tunai' };
+
+/** Saldo titipan: titipan diperiksa (angka sebenarnya) − pemakaian − pengembalian yang tidak batal (big.js). */
+export function depositBalance(rows: { kind: DepositKind; amount: number; actualAmount: number | null; voided: boolean }[]): number {
+  return Number(rows.reduce((sum, r) => {
+    if (r.voided) return sum;
+    if (r.kind === 'IN') return r.actualAmount == null ? sum : sum.plus(r.actualAmount);
+    return sum.minus(r.amount);
+  }, new Big(0)));
+}

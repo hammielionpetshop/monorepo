@@ -2,7 +2,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
-import { MoneyCheckScreen, moneyCheckScreen, type CheckSource, type MoneyCheckTab } from '@/modules/logistics';
+import { DepositChecks, MoneyCheckScreen, moneyCheckScreen, pendingDeposits, type CheckSource, type MoneyCheckTab } from '@/modules/logistics';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ export default async function MoneyCheckPage({ searchParams }: { searchParams: P
   const q = await searchParams;
   const tab = TABS.includes(q.tab as MoneyCheckTab) ? (q.tab as MoneyCheckTab) : 'WAITING';
   const source = SOURCES.includes(q.sumber as CheckSource) ? (q.sumber as 'ALL' | CheckSource) : 'ALL';
-  const data = await moneyCheckScreen(actor, tab, source);
+  const [data, deposits] = await Promise.all([moneyCheckScreen(actor, tab, source), pendingDeposits(actor)]);
   if (!data) return <NoAccess />;
   return (
     <>
@@ -24,6 +24,7 @@ export default async function MoneyCheckPage({ searchParams }: { searchParams: P
         description="Periksa uang trip truk dan antar sendiri per nota (Cocok / Tidak cocok). Pelunasan tetap dicatat di BO; HRIS menandai yang sudah masuk POS."
         actions={<NewBadge feature="/logistik/terima-uang" />}
       />
+      {deposits && tab === 'WAITING' && <div className="mb-4"><DepositChecks {...deposits} /></div>}
       <MoneyCheckScreen {...data} />
     </>
   );

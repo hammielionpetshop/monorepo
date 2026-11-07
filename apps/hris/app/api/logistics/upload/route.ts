@@ -52,7 +52,10 @@ export async function POST(req: Request) {
       const proofValue = form.get('proof');
       return processVisit(actor, tripId, visitId, {
         outcome: OUTCOMES[action as keyof typeof OUTCOMES], reasonCode: text(form.get('reasonCode'), 40), note: text(form.get('note'), 300), point,
-        payment: { method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')), promiseDate: text(form.get('promiseDate'), 10) },
+        payment: {
+          method: text(form.get('payMethod'), 20), partialAmount: coord(form.get('partialAmount')), promiseDate: text(form.get('promiseDate'), 10),
+          depositAmount: coord(form.get('depositAmount')),
+        },
       }, photo, proofValue instanceof File ? proofValue : null);
     }
     if (action === 'store_point') {
