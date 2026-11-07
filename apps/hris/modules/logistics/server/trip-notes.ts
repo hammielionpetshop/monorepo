@@ -14,6 +14,7 @@ import { outsidePoint } from '../rules/store-points';
 import { FORBIDDEN, fail, peopleNames, type Executor } from './data';
 import { pointsOf, type ApprovedPoint } from './store-points';
 import { moneyPhotoIds, openVisitBills, visitMoneyView, type VisitPaymentView, type VisitReportView } from './store-payments';
+import { returnPickupPhotoIds, returnPickupsOnClose, tripReturnPickupsView, type ReturnPickupView } from './return-pickups';
 
 // Surat jalan di trip (spec LT1 §3.3–3.5, LT1b-1). Data kasir dibaca lewat view logistics.pos_* (migrasi logistics 0003);
 // status HRIS di logistics.delivery_notes (migrasi 0004).
@@ -231,6 +232,7 @@ export async function releaseAllOnCancel(tx: Tx, tripId: number, reason: string,
   await tx.update(tripPickups).set({ status: 'DROPPED', reason: 'Trip dibatalkan', closedAt: now })
     .where(and(eq(tripPickups.tripId, tripId), eq(tripPickups.status, 'OPEN')));
   await reshapeTrip(tx, tripId, accountId, `Trip dibatalkan: ${reason}`, now);
+  await returnPickupsOnClose(tx, tripId, { kind: 'RELEASED', reason: `Trip dibatalkan: ${reason}`, accountId, now });
 }
 
 /**
@@ -252,6 +254,8 @@ export async function settleOnClose(
   }
   await tx.update(tripPickups).set({ status: 'NOT_READY', reason: options.reason ?? 'Belum diambil saat trip ditutup', closedAt: now })
     .where(and(eq(tripPickups.tripId, tripId), eq(tripPickups.status, 'OPEN')));
+  // Tugas jemput retur yang belum dikerjakan kembali Menunggu bertanda terlewat (A2).
+  await returnPickupsOnClose(tx, tripId, { kind: 'MISSED', reason, accountId, employeeId: options.employeeId, now });
 }
 
 /** Lepas kunjungan yang belum diproses (spec LT1 §3.4): kantor, alasan wajib; surat jalannya kembali Menunggu. */
@@ -324,7 +328,7 @@ export type TripVisitView = {
 export type TripPickupView = { id: number; origin: string; status: PickupStatus; statusLabel: string; reason: string | null; photoUrl: string | null; noteCount: number };
 
 /** Isi surat jalan trip untuk rincian trip dan Trip Saya. */
-export async function tripNotesView(tripId: number, executor: Executor = db): Promise<{ visits: TripVisitView[]; pickups: TripPickupView[] }> {
+export async function tripNotesView(tripId: number, executor: Executor = db): Promise<{ visits: TripVisitView[]; pickups: TripPickupView[]; returns: ReturnPickupView[] }> {
   const [visits, pickups, links] = await Promise.all([
     executor.select().from(tripVisits).where(eq(tripVisits.tripId, tripId)).orderBy(tripVisits.id),
     executor.select().from(tripPickups).where(eq(tripPickups.tripId, tripId)).orderBy(tripPickups.id),
@@ -332,6 +336,7 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       .innerJoin(tripVisits, eq(tripVisits.id, tripVisitNotes.visitId)).innerJoin(deliveryNotes, eq(deliveryNotes.id, tripVisitNotes.noteId))
       .where(eq(tripVisits.tripId, tripId)).orderBy(tripVisitNotes.id),
   ]);
+  const returns = await tripReturnPickupsView(tripId, executor);
   const [live, keptRows] = await Promise.all([
     liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor),
     executor.execute<{ note_id: number; signature: string }>(sql`
@@ -399,6 +404,7 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       photoUrl: p.photoFileId ? `/api/logistics/photo?trip=${tripId}&file=${p.photoFileId}` : null,
       noteCount: links.filter((l) => l.active && l.note.originBranchId === p.originBranchId).length,
     })),
+    returns,
   };
 }
 
@@ -413,5 +419,5 @@ export async function pickupPhotoIds(tripId: number): Promise<string[]> {
     db.select({ id: tripPickups.photoFileId }).from(tripPickups).where(eq(tripPickups.tripId, tripId)),
     db.select({ id: tripVisits.photoFileId }).from(tripVisits).where(eq(tripVisits.tripId, tripId)),
   ]);
-  return [...[...pickups, ...visits].map((r) => r.id).filter((id): id is string => !!id), ...await moneyPhotoIds(tripId)];
+  return [...[...pickups, ...visits].map((r) => r.id).filter((id): id is string => !!id), ...await moneyPhotoIds(tripId), ...await returnPickupPhotoIds(tripId)];
 }

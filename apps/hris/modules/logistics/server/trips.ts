@@ -15,6 +15,7 @@ import {
   type LoadedTrip,
 } from './data';
 import { rateProblem } from './rates';
+import { PickupConflict, syncDraftPickups } from './return-pickups';
 import { TripNotesConflict, checkNoteKeys, releaseAllOnCancel, settleOnClose, syncDraftNotes, type LiveNote } from './trip-notes';
 import { tripNotesProblem } from '../rules/trip-notes';
 
@@ -22,6 +23,8 @@ export type TripInput = {
   vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number; assistantIds: number[];
   /** Surat jalan yang dicentang (spec LT1 §3.4); kosong = trip tanpa surat jalan (masa peralihan). */
   noteKeys?: string[];
+  /** Tugas jemput retur yang dicentang (A2); tidak dikirim = tidak diubah. */
+  pickupIds?: number[];
 };
 
 /** Jalankan isi transaksi; bentrok surat jalan di tengah jalan membatalkan seluruh perubahan dengan pesan 409. */
@@ -29,7 +32,7 @@ async function withNotes<T>(run: () => Promise<ServiceResult<T>>): Promise<Servi
   try {
     return await run();
   } catch (error) {
-    if (error instanceof TripNotesConflict) return fail(409, error.message);
+    if (error instanceof TripNotesConflict || error instanceof PickupConflict) return fail(409, error.message);
     if (isUniqueViolation(error, 'trip_visit_notes_one_open')) return fail(409, 'Salah satu surat jalan baru saja dimasukkan ke trip lain. Muat ulang halaman.');
     throw error;
   }
@@ -132,6 +135,10 @@ export async function createTrip(actor: Actor | null, input: TripInput): Promise
       await tx.insert(tripShopping).values(input.shoppingRouteIds.map((routeId) => ({ tripId: trip.id, routeId, addedByAccountId: actor.accountId })));
     }
     if (picked.notes.length) await syncDraftNotes(tx, trip.id, picked.notes, actor.accountId);
+    if (input.pickupIds?.length) {
+      if (!input.routeId) throw new PickupConflict('Trip yang membawa tugas jemput retur wajib punya rute kirim.');
+      await syncDraftPickups(tx, trip.id, input.pickupIds, actor.accountId);
+    }
     await tellAssigned(tx, trip.id, [{ employeeId: input.driverId, role: 'DRIVER' }, ...input.assistantIds.map((employeeId) => ({ employeeId, role: 'ASSISTANT' as const }))], actor.accountId);
     return trip.id;
   });
@@ -153,6 +160,10 @@ export async function updateDraft(actor: Actor | null, id: number, input: TripIn
     if (loaded.trip.status !== 'DRAFT') return fail(409, 'Trip sudah berangkat atau ditutup; ubah awak dan supplier lewat rincian trip.');
     if (loaded.trip.readyAt) return fail(409, 'Trip sudah Siap Kirim. Tekan Kembali ke Draft dulu untuk mengubahnya.');
     await syncDraftNotes(tx, id, picked.notes, actor.accountId);
+    if (input.pickupIds) {
+      if (!input.routeId && input.pickupIds.length) throw new PickupConflict('Trip yang membawa tugas jemput retur wajib punya rute kirim.');
+      await syncDraftPickups(tx, id, input.pickupIds, actor.accountId);
+    }
     const now = new Date();
     await tx.update(trips).set({ vehicleId: input.vehicleId, routeId: input.routeId, updatedAt: now }).where(eq(trips.id, id));
     const wanted = crewRows(id, input, actor.accountId);

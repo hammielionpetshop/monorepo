@@ -21,8 +21,11 @@ import { TripNotesPanel, type PointAction, type VisitAction } from './trip-notes
 import { LiveCamera, photoForm, readLocation } from './capture';
 import { PaymentCorrectForm, PromiseField, defaultPromise } from './payment-correct';
 import { ReportForm } from './report-form';
+import { PickupFlow, TripReturnPickups } from './return-pickups-ui';
+import type { PickupOutcome } from '../rules/return-pickups';
+import type { ReturnPickupView } from '../server/return-pickups';
 
-type Delivery = { visits: TripVisitView[]; pickups: TripPickupView[] };
+type Delivery = { visits: TripVisitView[]; pickups: TripPickupView[]; returns: ReturnPickupView[] };
 type Step =
   | { kind: 'depart'; tripId: number }
   | { kind: 'shop'; tripId: number; shoppingId: number; name: string }
@@ -34,6 +37,7 @@ type Step =
   | { kind: 'deliver'; tripId: number; visit: TripVisitView }
   | { kind: 'report'; tripId: number; visit: TripVisitView }
   | { kind: 'payment'; tripId: number; visit: TripVisitView }
+  | { kind: 'returnPickup'; tripId: number; pickup: ReturnPickupView; outcome: PickupOutcome }
   | null;
 
 const OUTCOME_TITLES = { DELIVERED: 'Terkirim', TOMORROW: 'Kirim Besok', FAILED: 'Gagal' } as const;
@@ -48,6 +52,7 @@ function leftovers(card: TripCard, delivery: Delivery | undefined): string[] {
   return [
     visits ? `${visits} kunjungan` : null,
     ...(delivery?.pickups.filter((p) => p.status === 'OPEN').map((p) => `ambil barang di ${p.origin}`) ?? []),
+    ...(delivery?.returns.filter((p) => p.status === 'ON_TRIP' && p.tripId === card.id).map((p) => `jemput retur di ${p.store}`) ?? []),
     ...card.shopping.filter((s) => s.status === 'OPEN').map((s) => `belanja ${s.name}`),
   ].filter((x): x is string => !!x);
 }
@@ -60,7 +65,10 @@ function goingBack(delivery: Delivery | undefined): TripVisitView[] {
 
 /** Retur yang dibawa pulang dari laporan kunjungan (spec LT1 §13.5 butir 4). */
 function returnsOf(delivery: Delivery | undefined): string[] {
-  return delivery?.visits.flatMap((v) => v.reports.filter((r) => r.carriedBack).map((r) => `${v.destination}: retur${r.note ? ` (${r.note})` : ''}`)) ?? [];
+  return [
+    ...(delivery?.visits.flatMap((v) => v.reports.filter((r) => r.carriedBack).map((r) => `${v.destination}: retur${r.note ? ` (${r.note})` : ''}`)) ?? []),
+    ...(delivery?.returns.filter((p) => p.status === 'PICKED').map((p) => `${p.store}: jemput retur (${p.items.map((i) => `${i.name} ${i.quantity} ${i.unit}`).join(', ')})`) ?? []),
+  ];
 }
 
 /**
@@ -109,7 +117,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
 
   async function sendPhoto() {
-    if (!step || !photo || step.kind === 'point' || step.kind === 'deliver' || step.kind === 'report' || step.kind === 'payment') return;
+    if (!step || !photo || step.kind === 'point' || step.kind === 'deliver' || step.kind === 'report' || step.kind === 'payment' || step.kind === 'returnPickup') return;
     setBusy(true);
     setError(null);
     const needsPoint = step.kind === 'depart' || step.kind === 'visit' || step.kind === 'arrive';
@@ -155,6 +163,9 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
   if (step?.kind === 'deliver') return <DeliverFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
   if (step?.kind === 'report') return <ReportFlow step={step} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
+  if (step?.kind === 'returnPickup') {
+    return <PickupFlow tripId={step.tripId} pickup={step.pickup} outcome={step.outcome} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
+  }
   if (step?.kind === 'payment') {
     const p = step.visit.payment;
     if (!p) return <Card className="mx-auto max-w-md space-y-3"><p>Kunjungan ini belum punya cara bayar.</p><Button onClick={() => setStep(null)}>Kembali</Button></Card>;
@@ -298,6 +309,10 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
                 onVisit={t.phase === 'RUNNING' ? (v, action) => onVisit(t.id, v, action) : undefined}
                 onPoint={t.phase === 'RUNNING' ? (v, pointKind) => begin({ kind: 'point', tripId: t.id, visit: v, pointKind }) : undefined}
               />
+            )}
+            {d && (
+              <TripReturnPickups tripId={t.id} returns={d.returns}
+                onAction={t.phase === 'RUNNING' ? (p, outcome) => begin({ kind: 'returnPickup', tripId: t.id, pickup: p, outcome }) : undefined} />
             )}
             {t.phase === 'READY' && <Button block className="min-h-12" onClick={() => begin({ kind: 'depart', tripId: t.id })}>Berangkat</Button>}
             {t.phase === 'RUNNING' && (left.length ? (

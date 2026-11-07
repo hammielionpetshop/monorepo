@@ -24,6 +24,11 @@ export {
   unratedPairs, type RateInput, type RateRow, type RitaseRow,
 } from './server/rates';
 export { RatesScreen } from './ui/rates-screen';
+export {
+  assignReturnPickup, cancelReturnPickup, createReturnPickup, processReturnPickup, releaseReturnPickup, returnPickupsScreen, searchPickupStores,
+  waitingPickupCount, type ReturnPickupView,
+} from './server/return-pickups';
+export { ReturnPickupsScreen } from './ui/return-pickups-ui';
 export { TripsScreen } from './ui/trips-screen';
 export { TripForm } from './ui/trip-form';
 export { TripDetailScreen } from './ui/trip-detail-screen';

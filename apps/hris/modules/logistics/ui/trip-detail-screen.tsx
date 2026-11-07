@@ -15,11 +15,13 @@ import type { TripPickupView, TripVisitView } from '../server/trip-notes';
 import { TripNotesPanel } from './trip-notes-panel';
 import { LiveCamera, photoForm } from './capture';
 import { TripCardView } from './trip-card';
+import { ReasonDialog, TripReturnPickups } from './return-pickups-ui';
+import type { ReturnPickupView } from '../server/return-pickups';
 
 type Option = { id: number; name: string };
 type Props = {
   card: TripCard;
-  delivery: { visits: TripVisitView[]; pickups: TripPickupView[] };
+  delivery: { visits: TripVisitView[]; pickups: TripPickupView[]; returns: ReturnPickupView[] };
   allCrew: { id: number; name: string; roleLabel: string; removed: boolean; removeReason: string | null; addedAfter: boolean; addedAt: string; removedAt: string | null }[];
   shopping: { id: number; name: string; status: string; doneAt: string | null; dropReason: string | null; receiptUrl: string | null }[];
   crewPhotoUrl: string | null;
@@ -56,6 +58,18 @@ export function TripDetailScreen(props: Props) {
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState<ReturnPickupView | null>(null);
+
+  async function releasePickup(reason: string) {
+    if (!releasing) return;
+    setBusy(true);
+    const result = await postJson('/api/logistics', { action: 'release_return_pickup', id: releasing.id, reason });
+    setBusy(false);
+    setReleasing(null);
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
+    toast(`${releasing.store} kembali Menunggu.`, 'ok');
+    router.refresh();
+  }
 
   function open(next: Ask) {
     setAsk(next);
@@ -136,6 +150,14 @@ export function TripDetailScreen(props: Props) {
           onRelease={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? (v) => open({ kind: 'release_visit', visitId: v.id, name: v.destination }) : undefined}
           onKeep={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? (v, n) => open({ kind: 'keep_note', noteId: n.noteId, name: `${n.number} · ${v.destination}` }) : undefined}
         />
+      )}
+
+      {props.delivery.returns.length > 0 && (
+        <Card>
+          <TripReturnPickups tripId={card.id} returns={props.delivery.returns}
+            onRelease={props.canManage && (card.status === 'RUNNING' || card.status === 'DRAFT') ? setReleasing : undefined} />
+          <ReasonDialog open={!!releasing} title={`Lepas ${releasing?.store ?? ''} dari trip`} busy={busy} onClose={() => setReleasing(null)} onSubmit={releasePickup} />
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">

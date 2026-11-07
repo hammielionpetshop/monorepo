@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean, check, date, doublePrecision, index, integer, numeric, pgSchema, serial, text, timestamp, uniqueIndex, uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 // Logistik Minimal (spec HRIS L6 §2, PRD 08). Tanpa foreign key ke schema lain (PRD 01 §2): id karyawan, akun,
@@ -516,6 +517,8 @@ export const visitReports = logisticsSchema.table(
     tripId: integer('trip_id').references(() => trips.id),
     selfStopId: integer('self_stop_id').references(() => selfTripStops.id),
     selfTripId: integer('self_trip_id').references(() => selfTrips.id),
+    /** Tugas jemput retur (A2, spec 2026-11-08-jemput-retur): laporan Retur dari tugas jemput, `trip_id` tanpa `visit_id`. */
+    returnPickupId: integer('return_pickup_id').references((): AnyPgColumn => returnPickups.id),
     /** Kosong hanya untuk tujuan antar sendiri nota Umum. */
     customerId: integer('customer_id'),
     /** WRONG_ITEM, SHORT, DAMAGED, PRICE (harga beda, LT2b), RETURN, OTHER. */
@@ -535,8 +538,11 @@ export const visitReports = logisticsSchema.table(
     index('visit_reports_visit_idx').on(t.visitId),
     index('visit_reports_self_stop_idx').on(t.selfStopId),
     index('visit_reports_open_idx').on(t.closedAt),
-    check('visit_reports_source', sql`(${t.visitId} is not null and ${t.tripId} is not null and ${t.customerId} is not null and ${t.selfStopId} is null and ${t.selfTripId} is null)
-      or (${t.visitId} is null and ${t.tripId} is null and ${t.selfStopId} is not null and ${t.selfTripId} is not null)`),
+    index('visit_reports_return_pickup_idx').on(t.returnPickupId),
+    check('visit_reports_source', sql`(${t.visitId} is not null and ${t.tripId} is not null and ${t.customerId} is not null and ${t.selfStopId} is null and ${t.selfTripId} is null and ${t.returnPickupId} is null)
+      or (${t.visitId} is null and ${t.tripId} is null and ${t.selfStopId} is not null and ${t.selfTripId} is not null and ${t.returnPickupId} is null)
+      or (${t.visitId} is null and ${t.tripId} is not null and ${t.customerId} is not null and ${t.selfStopId} is null and ${t.selfTripId} is null
+        and ${t.returnPickupId} is not null and ${t.kind} = 'RETURN')`),
     check('visit_reports_kind', sql`${t.kind} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'RETURN', 'OTHER') and (${t.kind} not in ('OTHER', 'PRICE') or ${t.note} is not null)`),
     check('visit_reports_carried', sql`${t.carriedBack} = (${t.kind} = 'RETURN')`),
     check('visit_reports_closed', sql`(${t.closedAt} is null) = (${t.closeNote} is null) and (${t.closedAt} is null) = (${t.closedByAccountId} is null)`),
@@ -735,7 +741,7 @@ export const reportDecisions = logisticsSchema.table(
     check('report_decisions_cut', sql`(${t.decision} = 'CUT') = (${t.amount} is not null and ${t.reason} is not null)
       and (${t.amount} is null or ${t.amount} > 0)
       and (${t.reason} is null or ${t.reason} in ('WRONG_ITEM', 'SHORT', 'DAMAGED', 'PRICE', 'REJECTED', 'OTHER'))
-      and (${t.decision} = 'NO_CUT' or ${t.noteId} is not null or ${t.transactionId} is not null)
+      and (${t.decision} <> 'CUT' or ${t.noteId} is not null or ${t.transactionId} is not null)
       and (${t.noteId} is null or ${t.transactionId} is null)
       and (${t.decision} <> 'NO_CUT' or ${t.note} is not null)`),
     check('report_decisions_recorded', sql`(${t.recordedAt} is null) = (${t.recordedByAccountId} is null) and (${t.recordedAt} is null) = (${t.recordedRef} is null)
@@ -1137,5 +1143,72 @@ export const outsidePointReviews = logisticsSchema.table(
     uniqueIndex('outside_point_reviews_self_stop').on(t.selfStopId).where(sql`${t.selfStopId} is not null`),
     check('outside_point_reviews_target', sql`(${t.visitId} is null) <> (${t.selfStopId} is null)`),
     check('outside_point_reviews_verdict', sql`${t.verdict} in ('OK', 'NOT_OK') and (${t.verdict} = 'OK' or ${t.reason} is not null)`),
+  ],
+);
+
+/**
+ * Tugas jemput retur (A2, spec docs/work/specs/2026-11-08-jemput-retur-design.md): dibuat kantor, dimasukkan ke trip, lalu
+ * dikerjakan awak: Diambil (laporan Retur + rincian → Barang Kembali), Tidak ada barang, atau Kirim Besok (kembali Menunggu).
+ * Satu tugas terbuka per toko. Keadaan sekarang di sini; riwayat + foto di `return_pickup_events`. Tidak dihapus.
+ */
+export const returnPickups = logisticsSchema.table(
+  'return_pickups',
+  {
+    id: serial('id').primaryKey(),
+    customerId: integer('customer_id').notNull(),
+    /** Cabang kasir pemilik barang retur (bawaan Gudang). */
+    ownerBranchId: integer('owner_branch_id').notNull(),
+    reason: text('reason').notNull(),
+    estimate: text('estimate'),
+    /** WAITING (Menunggu), ON_TRIP (Di trip), PICKED (Diambil), NO_GOODS (Tidak ada barang), CANCELLED (Dibatalkan). */
+    status: text('status').notNull().default('WAITING'),
+    /** Trip yang sedang / terakhir membawa tugas ini. */
+    tripId: integer('trip_id').references(() => trips.id),
+    /** Berapa kali Kirim Besok / terlewat (tanda "dicoba ×n"). */
+    tries: integer('tries').notNull().default(0),
+    /** Laporan Retur yang dibuat saat Diambil. */
+    reportId: integer('report_id').references((): AnyPgColumn => visitReports.id),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('return_pickups_one_open').on(t.customerId).where(sql`${t.status} in ('WAITING', 'ON_TRIP')`),
+    index('return_pickups_status_idx').on(t.status),
+    index('return_pickups_trip_idx').on(t.tripId),
+    check('return_pickups_status', sql`${t.status} in ('WAITING', 'ON_TRIP', 'PICKED', 'NO_GOODS', 'CANCELLED')`),
+    check('return_pickups_reason', sql`char_length(btrim(${t.reason})) between 5 and 300 and (${t.estimate} is null or char_length(${t.estimate}) <= 300)`),
+    check('return_pickups_on_trip', sql`${t.status} <> 'ON_TRIP' or ${t.tripId} is not null`),
+    check('return_pickups_picked', sql`(${t.status} = 'PICKED') = (${t.reportId} is not null)`),
+    check('return_pickups_done', sql`(${t.status} in ('PICKED', 'NO_GOODS')) = (${t.doneAt} is not null)`),
+    check('return_pickups_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null and ${t.cancelledByAccountId} is not null)`),
+  ],
+);
+
+/** Riwayat tugas jemput retur: dibuat, masuk trip, dilepas, kirim besok, terlewat, diambil, tidak ada barang, dibatalkan. */
+export const returnPickupEvents = logisticsSchema.table(
+  'return_pickup_events',
+  {
+    id: serial('id').primaryKey(),
+    pickupId: integer('pickup_id').notNull().references(() => returnPickups.id),
+    kind: text('kind').notNull(),
+    tripId: integer('trip_id').references(() => trips.id),
+    note: text('note'),
+    photoFileId: uuid('photo_file_id'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    byAccountId: integer('by_account_id'),
+    byEmployeeId: integer('by_employee_id'),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('return_pickup_events_pickup_idx').on(t.pickupId),
+    index('return_pickup_events_trip_idx').on(t.tripId),
+    check('return_pickup_events_kind', sql`${t.kind} in ('CREATED', 'ON_TRIP', 'RELEASED', 'TOMORROW', 'MISSED', 'PICKED', 'NO_GOODS', 'CANCELLED')`),
+    check('return_pickup_events_photo', sql`${t.kind} not in ('TOMORROW', 'PICKED', 'NO_GOODS') or ${t.photoFileId} is not null`),
   ],
 );
