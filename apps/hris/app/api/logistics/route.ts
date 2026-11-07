@@ -5,6 +5,7 @@ import { actorForSession } from '@/lib/authz';
 import {
   addCrew, addManualWage, closePending, decideVisitReport, markDecisionRecorded, addShopping, cancelTrip, cancelWage, closeCondition, createTrip, decideNote, dropShopping, keepKasirChange, markReady, releaseVisit,
   removeCrew, reopenNote, retryVisit, reviewOutside, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
+  assignReturnPickup, cancelReturnPickup, createReturnPickup, releaseReturnPickup,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -15,6 +16,7 @@ const reason = z.string().max(500);
 const tripBody = {
   vehicleId: id, routeId: id.nullable(), shoppingRouteIds: z.array(id).max(20), driverId: id, assistantIds: z.array(id).max(10),
   noteKeys: z.array(z.string().max(12)).max(200).optional(),
+  pickupIds: z.array(id).max(50).optional(),
 };
 
 const bodySchema = z.discriminatedUnion('action', [
@@ -57,6 +59,14 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set_garage'), branchId: id }),
   z.object({ action: z.literal('fence_off'), hours: z.number().int(), reason }),
   z.object({ action: z.literal('fence_on') }),
+  // A2: tugas jemput retur.
+  z.object({
+    action: z.literal('create_return_pickup'), customerId: id, ownerBranchId: id.nullable().optional(), reason: z.string().max(500),
+    estimate: z.string().max(500).nullable().optional(),
+  }),
+  z.object({ action: z.literal('cancel_return_pickup'), id, reason }),
+  z.object({ action: z.literal('assign_return_pickup'), id, tripId: id }),
+  z.object({ action: z.literal('release_return_pickup'), id, reason }),
 ]);
 
 // Logistik Minimal (spec L6 §3). Hak diperiksa di layanan per tindakan; aksi berfoto lewat /api/logistics/upload.
@@ -99,6 +109,10 @@ export async function POST(req: Request) {
       case 'set_garage': return setGarageBranch(actor, body.branchId);
       case 'fence_off': return turnFenceOff(actor, body.hours, body.reason);
       case 'fence_on': return turnFenceOn(actor);
+      case 'create_return_pickup': return createReturnPickup(actor, body);
+      case 'cancel_return_pickup': return cancelReturnPickup(actor, body.id, body.reason);
+      case 'assign_return_pickup': return assignReturnPickup(actor, body.id, body.tripId);
+      case 'release_return_pickup': return releaseReturnPickup(actor, body.id, body.reason);
     }
   })();
   if (result.ok && actor) {

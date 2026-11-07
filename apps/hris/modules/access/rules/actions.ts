@@ -184,6 +184,7 @@ export const ACTIONS = {
   'logistics.returned_goods.receive': { label: 'Terima barang kembali dari trip (Sesuai / Tidak sesuai)', group: LOGISTICS },
   'logistics.note_cut.decide': { label: 'Putuskan potong nota atas Laporan Toko dan tandai Sudah dicatat di kasir', group: LOGISTICS },
   'logistics.store_payment.correct': { label: 'Koreksi cara bayar toko sesudah trip (salah tekan), alasan wajib', group: LOGISTICS },
+  'logistics.return_pickup.manage': { label: 'Buat dan batalkan tugas jemput retur ke toko', group: LOGISTICS },
   'logistics.load_report.create': { label: 'Buat Laporan Muat (pilih nota kasir, foto nota dan barang, Selesai, Batal, foto susulan)', group: LOGISTICS },
   'logistics.load_report.view': { label: 'Lihat Laporan Muat (bukti foto barang yang dimuat)', group: LOGISTICS },
   'logistics.self_delivery.run': { label: 'Antar sendiri: bawa nota kurir cabang, Foto 1 / Foto 2 / Foto 3, cara bayar di tujuan', group: LOGISTICS },

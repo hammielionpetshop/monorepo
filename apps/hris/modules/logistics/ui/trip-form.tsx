@@ -17,11 +17,12 @@ type Option = { id: number; name: string; detail?: string };
  * Buat / Ubah trip Draft (spec L6 §3.2, LT1 §3.4): mobil, rute kirim (boleh kosong), surat jalan yang dicentang, supplier
  * belanja, driver, kenek.
  */
-export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes, drivers, assistants, notes, notesTruncated }: {
+export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes, drivers, assistants, notes, notesTruncated, pickups }: {
   id: number | null;
-  initial: { vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number | null; assistantIds: number[]; noteKeys: string[] } | null;
+  initial: { vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number | null; assistantIds: number[]; noteKeys: string[]; pickupIds: number[] } | null;
   vehicles: Option[]; deliveryRoutes: Option[]; shoppingRoutes: Option[]; drivers: Option[]; assistants: Option[];
   notes: NoteOption[]; notesTruncated: boolean;
+  pickups: { id: number; store: string; reason: string; owner: string; age: number; tries: number; onTrip: boolean }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -31,6 +32,7 @@ export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes
   const [driverId, setDriverId] = useState(String(initial?.driverId ?? ''));
   const [assistantIds, setAssistantIds] = useState<number[]>(initial?.assistantIds ?? []);
   const [picked, setPicked] = useState<string[]>(initial?.noteKeys ?? []);
+  const [pickupIds, setPickupIds] = useState<number[]>(initial?.pickupIds ?? []);
   const [onlyRoute, setOnlyRoute] = useState(true);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,11 +55,12 @@ export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes
     if (!vehicleId) return setError('Pilih mobil.');
     if (!routeId && !shopping.length) return setError('Isi rute kirim atau pilih minimal satu supplier belanja.');
     if (!routeId && picked.length) return setError('Trip yang membawa surat jalan wajib punya rute kirim.');
+    if (!routeId && pickupIds.length) return setError('Trip yang membawa tugas jemput retur wajib punya rute kirim.');
     if (!driverId) return setError('Pilih driver.');
     setBusy(true);
     const result = await postJson('/api/logistics', {
       action: id ? 'update' : 'create', tripId: id ?? undefined, vehicleId: Number(vehicleId), routeId: routeId ? Number(routeId) : null,
-      shoppingRouteIds: shopping, driverId: Number(driverId), assistantIds: assistantIds.filter((a) => a !== Number(driverId)), noteKeys: picked,
+      shoppingRouteIds: shopping, driverId: Number(driverId), assistantIds: assistantIds.filter((a) => a !== Number(driverId)), noteKeys: picked, pickupIds,
     });
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
@@ -119,6 +122,23 @@ export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes
           {picked.length ? <>{picked.length} surat jalan · {destinations} tujuan · dari {origins.join(', ')}</> : 'Belum ada surat jalan dipilih.'}
         </p>
       </fieldset>
+      {pickups.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="flex items-center gap-2 text-sm font-medium">Jemput retur <NewBadge feature="fitur/jemput-retur" /></legend>
+          <p className="text-xs text-ink-muted">Centang toko yang returnya dijemput trip ini. Toko tanpa surat jalan pun boleh (mampir khusus jemput).</p>
+          <div className="max-h-64 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+            {pickups.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-start gap-2 p-2 text-sm hover:bg-canvas">
+                <input type="checkbox" className="mt-1" checked={pickupIds.includes(p.id)} onChange={() => setPickupIds(toggle(pickupIds, p.id))} />
+                <span className="flex-1">
+                  <span className="font-medium">{p.store}</span>
+                  <span className="block text-xs text-ink-muted">{p.reason} · milik {p.owner}{p.age ? ` · ${p.age} hari` : ''}{p.tries ? ` · dicoba ×${p.tries}` : ''}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
       <fieldset className="space-y-1.5">
         <legend className="text-sm font-medium">Belanja ke supplier</legend>
         <p className="text-xs text-ink-muted">Boleh lebih dari satu. Tiap supplier yang selesai (foto nota) dihitung upah belanja, di atas ritase kirim.</p>

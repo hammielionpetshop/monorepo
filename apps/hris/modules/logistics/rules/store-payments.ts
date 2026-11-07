@@ -100,6 +100,7 @@ export type CleanDecision = { decision: Decision; noteId: number | null; amount:
  */
 export function cleanDecision(
   kind: ReportKind, input: DecisionInput, notes: { id: number; amount: number; otherCuts: number }[],
+  options: { noteOptional?: boolean } = {},
 ): { ok: true; value: CleanDecision } | { ok: false; error: string } {
   const note = (input.note ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) || null;
   const decision = input.decision as Decision;
@@ -109,6 +110,11 @@ export function cleanDecision(
     return { ok: true, value: { decision, noteId: null, amount: null, reason: null, note } };
   }
   if (decision === 'RETURN_BO' && kind !== 'RETURN') return { ok: false, error: 'Retur BO hanya untuk laporan Retur.' };
+  // Jemput retur (A2) tidak punya nota trip: Retur BO tanpa nota; potong nota tidak tersedia.
+  if (options.noteOptional && !notes.length) {
+    if (decision === 'RETURN_BO') return { ok: true, value: { decision, noteId: null, amount: null, reason: null, note } };
+    return { ok: false, error: 'Retur jemputan diputuskan lewat Retur BO atau Tidak dipotong.' };
+  }
   const target = notes.find((n) => n.id === input.noteId);
   if (!target) return { ok: false, error: notes.length ? 'Pilih nota.' : 'Kunjungan ini tidak punya nota kasir.' };
   if (decision === 'RETURN_BO') return { ok: true, value: { decision, noteId: target.id, amount: null, reason: null, note } };

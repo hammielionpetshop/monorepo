@@ -93,7 +93,7 @@ export function VisitReportsScreen({ open, closed, canDecide }: { open: ReportRo
   }
 
   const check = target && decision
-    ? cleanDecision(target.kind, { decision, noteId, amount: amount ? Number(amount) : null, reason, note }, target.noteOptions)
+    ? cleanDecision(target.kind, { decision, noteId, amount: amount ? Number(amount) : null, reason, note }, target.noteOptions, { noteOptional: target.pickup })
     : null;
   const ready = !!check?.ok && (!target?.decision || changeReason.trim().length >= 5);
 
@@ -114,7 +114,7 @@ export function VisitReportsScreen({ open, closed, canDecide }: { open: ReportRo
   }
 
   const decidable = (row: ReportRow) => canDecide && !row.own && (!row.closed || (!!row.decision && !row.decision.recorded));
-  const choices: Decision[] = target?.kind === 'RETURN' ? ['RETURN_BO', 'CUT', 'NO_CUT'] : ['CUT', 'NO_CUT'];
+  const choices: Decision[] = target?.pickup ? ['RETURN_BO', 'NO_CUT'] : target?.kind === 'RETURN' ? ['RETURN_BO', 'CUT', 'NO_CUT'] : ['CUT', 'NO_CUT'];
   const chosenNote = target?.noteOptions.find((n) => n.id === noteId);
 
   return (
@@ -146,7 +146,10 @@ export function VisitReportsScreen({ open, closed, canDecide }: { open: ReportRo
                 <Button key={c} size="sm" variant={decision === c ? 'primary' : 'secondary'} onClick={() => setDecision(c)}>{DECISION_LABELS[c]}</Button>
               ))}
             </div>
-            {decision && decision !== 'NO_CUT' && (
+            {target.pickup && decision === 'RETURN_BO' && (
+              <p className="text-sm text-ink-muted">Retur jemputan: pilih nota asalnya langsung saat membuat Retur di Back Office.</p>
+            )}
+            {decision && decision !== 'NO_CUT' && !target.pickup && (
               <div className="space-y-1">
                 <p className="text-sm font-medium">Nota</p>
                 {!target.noteOptions.length ? <p className="text-sm text-danger-fg">Kunjungan ini tidak punya nota kasir.</p> : (

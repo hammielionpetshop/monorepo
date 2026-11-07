@@ -17,6 +17,7 @@ import { rateProblem } from './rates';
 import { distanceFromPoint } from './store-points';
 import { openVisitBills, recordPayment, type PaymentInput } from './store-payments';
 import { activeKeys, endLinks, reshapeTrip, settleOnClose, tripNotesView } from './trip-notes';
+import { openPickupStores } from './return-pickups';
 
 // Alur trip di HP driver (spec LT1 §13.3, LT1b-2a). Semua langkah lewat pintu server ini (LOG-24).
 
@@ -265,6 +266,7 @@ async function leftovers(loaded: LoadedTrip) {
   return {
     visits: view.visits.filter((v) => v.status === 'OPEN').length,
     pickups: view.pickups.filter((p) => p.status === 'OPEN').map((p) => p.origin),
+    returns: await openPickupStores(loaded.trip.id),
     shopping: loaded.shopping.filter((s) => s.status === 'OPEN').map((s) => routeName.get(s.routeId) ?? 'supplier'),
   };
 }

@@ -1,3 +1,4 @@
+import { pickupOptions, returnPickupPhotoIds } from './return-pickups';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { photoPurges, photoViews, tripCrew, trips, tripWages } from '@petshop/logistics';
 import { db } from '@/lib/db';
@@ -98,6 +99,7 @@ export async function tripFormScreen(actor: Actor | null, id: number | null) {
   const [fleet, people] = await Promise.all([loadFleet(), activePeople(today)]);
   let initial = null as null | {
     vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number | null; assistantIds: number[]; noteKeys: NoteKey[];
+    pickupIds: number[];
   };
   if (id) {
     const loaded = await loadTrip(id);
@@ -108,8 +110,11 @@ export async function tripFormScreen(actor: Actor | null, id: number | null) {
       driverId: loaded.activeCrew.find((c) => c.role === 'DRIVER')?.employeeId ?? null,
       assistantIds: loaded.activeCrew.filter((c) => c.role === 'ASSISTANT').map((c) => c.employeeId),
       noteKeys: await draftNoteKeys(id),
+      pickupIds: [],
     };
   }
+  const pickups = await pickupOptions(id);
+  if (initial) initial.pickupIds = pickups.filter((p) => p.onTrip).map((p) => p.id);
   const [waiting, attached] = await Promise.all([waitingNotes(), liveNotesFor(initial?.noteKeys ?? [])]);
   const routeName = new Map(fleet.routes.map((r) => [r.id, r.name]));
   const option = (n: LiveNote): NoteOption => ({
@@ -118,7 +123,7 @@ export async function tripFormScreen(actor: Actor | null, id: number | null) {
   });
   const notes = [...attached.values(), ...waiting.filter((w) => !attached.has(w.key))].map(option);
   return {
-    notEditable: false as const, id, initial, notes, notesTruncated: waiting.length >= 300,
+    notEditable: false as const, id, initial, notes, notesTruncated: waiting.length >= 300, pickups,
     vehicles: fleet.vehicles.filter((v) => v.active || v.id === initial?.vehicleId).map((v) => ({ id: v.id, name: `${v.name} (${v.plate})` })),
     deliveryRoutes: fleet.routes.filter((r) => r.kind === 'DELIVERY' && (r.active || r.id === initial?.routeId)).map((r) => ({ id: r.id, name: r.name })),
     shoppingRoutes: fleet.routes.filter((r) => r.kind === 'SHOPPING' && (r.active || initial?.shoppingRouteIds.includes(r.id))).map((r) => ({ id: r.id, name: r.name })),
@@ -329,7 +334,9 @@ export async function openTripPhoto(actor: Actor | null, tripId: number, fileId:
     // Finance membuka bukti transfer dari layar Uang dari Toko (spec LT1 §13.5 butir 6).
     || (can(actor, 'logistics.store_payment.view') && (await paymentProofIds(tripId)).includes(fileId))
     // Penerima barang kembali membuka foto retur dan foto penerimaan (spec LT1 §14.1).
-    || (can(actor, 'logistics.returned_goods.receive') && (await returnedGoodsPhotoIds(tripId)).includes(fileId));
+    || (can(actor, 'logistics.returned_goods.receive') && (await returnedGoodsPhotoIds(tripId)).includes(fileId))
+    // Pembuat tugas jemput retur membuka foto langkah jemput (A2).
+    || (can(actor, 'logistics.return_pickup.manage') && (await returnPickupPhotoIds(tripId)).includes(fileId));
   if (!allowed) return null;
   const [purged] = await db.select().from(photoPurges).where(eq(photoPurges.fileId, fileId)).limit(1);
   if (purged) return null;

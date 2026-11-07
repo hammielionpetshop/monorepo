@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addVisitReport, arriveTrip, closeByOffice, correctPayment, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, receiveGoods, sendEndReport,
+  addVisitReport, arriveTrip, processReturnPickup, closeByOffice, correctPayment, departTrip, finishPickup, finishShopping, headHome, processVisit, proposeFromVisit, receiveGoods, sendEndReport,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
@@ -83,6 +83,14 @@ export async function POST(req: Request) {
       const kind = form.get('sourceKind');
       if (!sourceId || (kind !== 'NOTE' && kind !== 'RETURN')) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
       return receiveGoods(actor, { kind, sourceId, result: text(form.get('result'), 20), note: text(form.get('note'), 400) }, photo);
+    }
+    // A2: hasil jemput retur di toko (Diambil + rincian, Tidak ada barang, Kirim Besok).
+    if (action === 'return_pickup') {
+      const pickupId = positive(form.get('pickupId'));
+      if (!pickupId) return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
+      return processReturnPickup(actor, tripId, pickupId, {
+        outcome: text(form.get('outcome'), 20), note: text(form.get('note'), 400), items: itemsOf(form.get('items')), point,
+      }, photo);
     }
     if (action === 'head_home') return headHome(actor, tripId, photo, text(form.get('earlyReason'), 500));
     if (action === 'arrive') return arriveTrip(actor, tripId, point, photo);
