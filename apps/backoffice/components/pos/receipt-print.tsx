@@ -6,6 +6,7 @@ import { toReceiptItem, type ReceiptItemPromo } from '@/lib/receipt-data'
 import { GIFT_RECEIPT_AMOUNT, giftNoteRows, isGiftLine, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
+import type { DeliveryPrintLine } from '@/lib/delivery-method'
 
 interface ReceiptPrintProps {
   receiptNumber: string
@@ -27,6 +28,8 @@ interface ReceiptPrintProps {
   isReprint?: boolean
   isVoided?: boolean
   payments?: { name: string; amount: string }[]
+  /** Cara kirim tercetak di bawah pelanggan (lihat `deliveryPrintLine`). */
+  delivery?: DeliveryPrintLine | null
   /**
    * Skala cetak, 1 = ukuran penuh. Kotak "Scale" di dialog cetak browser tidak bisa
    * disetel dari halaman, jadi struknya sendiri yang dikecilkan supaya kasir tidak
@@ -82,6 +85,7 @@ export default function ReceiptPrint({
   isReprint = false,
   isVoided = false,
   payments,
+  delivery,
   printScale,
 }: ReceiptPrintProps) {
   const scale = normalizePrintScale(printScale)
@@ -172,6 +176,7 @@ export default function ReceiptPrint({
           <p>Tgl: {formatDate(transactionDate)}</p>
           <p>Kasir: {cashierName}</p>
           {customerName && <p>Pelanggan: {customerName}</p>}
+          {delivery && <p style={delivery.bold ? { fontWeight: 'bold' } : undefined}>{delivery.text}</p>}
         </div>
 
 
