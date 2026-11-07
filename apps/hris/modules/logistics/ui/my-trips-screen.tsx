@@ -356,9 +356,18 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
   const [method, setMethod] = useState<ChosenMethod | null>(null);
   const [partial, setPartial] = useState('');
   const [promise, setPromise] = useState(defaultPromise);
+  // Titipan toko (A1): Lunas + titip (uang tunai > tagihan) atau Titip saja (tagihan 0).
+  const [plus, setPlus] = useState(false);
+  const [total, setTotal] = useState('');
+  const [titip, setTitip] = useState(false);
+  const [titipAmount, setTitipAmount] = useState('');
+  const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clean = cleanPayment(bill, method, partial ? Number(partial) : null);
+  const deposit = plus ? Math.max(0, Number(total || 0) - bill) : bill === 0 && titip ? Number(titipAmount || 0) : 0;
+  const depositProblem = plus && Number(total || 0) <= bill ? `Uang tunai harus lebih dari tagihan ${rupiah(bill)}.`
+    : bill === 0 && titip && deposit <= 0 ? 'Isi uang yang dititipkan toko.' : null;
   // Janji bayar sisa wajib untuk Bayar sebagian / Tempo (spec LT1 §14.2 butir 5).
   const promiseCheck = clean.ok ? cleanPromise(clean.method, promise, wibDate(new Date())) : null;
 
@@ -369,7 +378,7 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
     const point = await readLocation();
     const form = photoForm({
       action: 'deliver_visit', tripId: step.tripId, visitId: step.visit.id, payMethod: clean.method === 'NONE' ? null : clean.method,
-      partialAmount: clean.method === 'PARTIAL' ? clean.received : null, promiseDate: needsPromise(clean.method) ? promise : null, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy,
+      partialAmount: clean.method === 'PARTIAL' ? clean.received : null, depositAmount: deposit || null, promiseDate: needsPromise(clean.method) ? promise : null, latitude: point?.latitude, longitude: point?.longitude, accuracy: point?.accuracy,
     }, photo);
     if (clean.method === 'TRANSFER' && proof) form.append('proof', proof, 'bukti.jpg');
     const result = await postJson('/api/logistics/upload', form);
@@ -405,10 +414,17 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
         <>
           <div className="grid grid-cols-2 gap-2">
             {CHOSEN_METHODS.map((m) => (
-              <Button key={m} className="min-h-12" variant={method === m ? 'primary' : 'secondary'} onClick={() => { setMethod(m); setError(null); }}>{PAYMENT_LABELS[m]}</Button>
+              <Button key={m} className="min-h-12" variant={method === m && !plus ? 'primary' : 'secondary'} onClick={() => { setMethod(m); setPlus(false); setError(null); }}>{PAYMENT_LABELS[m]}</Button>
             ))}
+            <Button className="min-h-12" variant={plus ? 'primary' : 'secondary'} onClick={() => { setMethod('CASH'); setPlus(true); setSure(false); setError(null); }}>Lunas + titip</Button>
           </div>
-          {method && <p className="text-sm text-ink-muted">{PAYMENT_HINTS[method]}</p>}
+          {method && !plus && <p className="text-sm text-ink-muted">{PAYMENT_HINTS[method]}</p>}
+          {plus && (
+            <Field id="plus-total" label="Seluruh uang tunai yang diterima (Rp)" hint={`Lebih dari tagihan ${rupiah(bill)}; kelebihannya jadi titipan toko.`}>
+              <Input id="plus-total" inputMode="numeric" value={total} onChange={(e) => { setTotal(e.target.value.replace(/D/g, '').slice(0, 12)); setSure(false); }} />
+            </Field>
+          )}
+          {plus && total && depositProblem && <p className="text-xs text-danger-fg">{depositProblem}</p>}
           {method === 'PARTIAL' && (
             <Field id="partial-amount" label="Uang cash yang diterima (Rp)" hint={`Kurang dari tagihan ${rupiah(bill)}.`}>
               <Input id="partial-amount" inputMode="numeric" value={partial} onChange={(e) => setPartial(e.target.value.replace(/\D/g, '').slice(0, 12))} />
@@ -419,7 +435,7 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
           {promiseCheck && !promiseCheck.ok && <p className="text-xs text-danger-fg">{promiseCheck.error}</p>}
           <div className="flex gap-2">
             <Button variant="secondary" className="min-h-12" onClick={() => setPage('PHOTO')}>Kembali</Button>
-            <Button block className="min-h-12" disabled={!clean.ok || !promiseCheck?.ok} onClick={() => setPage(method === 'TRANSFER' ? 'PROOF' : 'SUMMARY')}>Lanjut</Button>
+            <Button block className="min-h-12" disabled={!clean.ok || !promiseCheck?.ok || !!depositProblem} onClick={() => setPage(method === 'TRANSFER' ? 'PROOF' : 'SUMMARY')}>Lanjut</Button>
           </div>
         </>
       )}
@@ -443,18 +459,39 @@ function DeliverFlow({ step, onDone }: { step: Extract<Step, { kind: 'deliver' }
         <>
           <dl className="space-y-1 rounded-lg border border-line p-2 text-sm">
             <div className="flex justify-between gap-2"><dt>Cara bayar</dt><dd className="font-medium">{PAYMENT_LABELS[clean.method]}</dd></div>
-            <div className="flex justify-between gap-2"><dt>Uang diterima</dt><dd className="font-medium tabular-nums">{rupiah(clean.received)}{clean.method === 'TRANSFER' ? ' (transfer)' : clean.received ? ' (cash)' : ''}</dd></div>
+            <div className="flex justify-between gap-2"><dt>Uang diterima</dt><dd className="font-medium tabular-nums">{rupiah(clean.received + deposit)}{clean.method === 'TRANSFER' ? ' (transfer)' : clean.received + deposit ? ' (cash)' : ''}</dd></div>
             {leftToCollect(clean.method, bill, clean.received) > 0 && (
               <div className="flex justify-between gap-2"><dt>Sisa ditagih kantor</dt><dd className="font-medium tabular-nums">{rupiah(leftToCollect(clean.method, bill, clean.received))}</dd></div>
             )}
             {needsPromise(clean.method) && (
               <div className="flex justify-between gap-2"><dt>Janji bayar sisa</dt><dd className="font-medium tabular-nums">{promise}</dd></div>
             )}
+            {deposit > 0 && (
+              <div className="flex justify-between gap-2"><dt>Titipan toko (cash)</dt><dd className="font-medium tabular-nums">{rupiah(deposit)}</dd></div>
+            )}
           </dl>
+          {bill === 0 && (
+            <div className="space-y-2 rounded-lg border border-line p-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={titip} onChange={(e) => { setTitip(e.target.checked); setSure(false); }} /> Toko menitipkan uang (Titip saja)
+              </label>
+              {titip && (
+                <Field id="titip-amount" label="Uang tunai yang dititipkan (Rp)">
+                  <Input id="titip-amount" inputMode="numeric" value={titipAmount} onChange={(e) => { setTitipAmount(e.target.value.replace(/D/g, '').slice(0, 12)); setSure(false); }} />
+                </Field>
+              )}
+            </div>
+          )}
+          {deposit > 0 && (
+            <Alert tone="warn" title={`Uang ${rupiah(deposit)} lebih dari tagihan`}>
+              <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} /> Benar, toko menitipkan kelebihannya</label>
+              <span className="block text-xs">Bila salah ketik, tekan Kembali dan betulkan angkanya.</span>
+            </Alert>
+          )}
           <p className="text-xs text-ink-muted">Salah tekan cara bayar bisa dikoreksi (alasan wajib) selama trip belum Menuju Garasi. Bila ada barang salah, kurang, rusak, atau retur, tekan Lapor masalah di kartu toko.</p>
           <div className="flex gap-2">
             <Button variant="secondary" className="min-h-12" disabled={busy} onClick={() => setPage(bill > 0 ? (method === 'TRANSFER' ? 'PROOF' : 'PAY') : 'PHOTO')}>Kembali</Button>
-            <Button block className="min-h-12" loading={busy} onClick={send}>Simpan Terkirim</Button>
+            <Button block className="min-h-12" loading={busy} disabled={!!depositProblem || (deposit > 0 && !sure)} onClick={send}>Simpan Terkirim</Button>
           </div>
         </>
       )}

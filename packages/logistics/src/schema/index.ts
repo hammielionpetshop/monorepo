@@ -1212,3 +1212,56 @@ export const returnPickupEvents = logisticsSchema.table(
     check('return_pickup_events_photo', sql`${t.kind} not in ('TOMORROW', 'PICKED', 'NO_GOODS') or ${t.photoFileId} is not null`),
   ],
 );
+
+/**
+ * Titipan toko (A1, spec docs/work/specs/2026-11-08-titipan-toko-design.md): buku per toko tanpa hapus. IN = uang titipan
+ * dari kunjungan truk (Lunas + titip / Titip saja), masuk saldo sesudah diperiksa Finance (`actual_amount`); USE = dipakai
+ * untuk melunasi nota kasir (dicatat Finance sebagai Pelunasan Piutang, lalu Sudah dicatat); REFUND = dikembalikan tunai.
+ * Salah = Batalkan (USE belum dicatat / REFUND) dengan alasan.
+ */
+export const storeDeposits = logisticsSchema.table(
+  'store_deposits',
+  {
+    id: serial('id').primaryKey(),
+    customerId: integer('customer_id').notNull(),
+    kind: text('kind').notNull(),
+    /** IN: yang dilaporkan awak; USE / REFUND: nominal. */
+    amount: integer('amount').notNull(),
+    visitId: integer('visit_id').references(() => tripVisits.id),
+    tripId: integer('trip_id').references(() => trips.id),
+    /** USE: nota kasir yang dilunasi. */
+    transactionId: integer('transaction_id'),
+    trxNumber: text('trx_number'),
+    note: text('note'),
+    createdByEmployeeId: integer('created_by_employee_id'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** IN diperiksa Finance (Terima Uang). */
+    actualAmount: integer('actual_amount'),
+    checkNote: text('check_note'),
+    checkedByAccountId: integer('checked_by_account_id'),
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+    /** USE sudah dicatat di kasir. */
+    recordedAt: timestamp('recorded_at', { withTimezone: true }),
+    recordedByAccountId: integer('recorded_by_account_id'),
+    recordedRef: text('recorded_ref'),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedByAccountId: integer('voided_by_account_id'),
+    voidReason: text('void_reason'),
+  },
+  (t) => [
+    index('store_deposits_customer_idx').on(t.customerId),
+    uniqueIndex('store_deposits_visit_in').on(t.visitId).where(sql`${t.kind} = 'IN'`),
+    check('store_deposits_kind', sql`${t.kind} in ('IN', 'USE', 'REFUND') and ${t.amount} > 0`),
+    check('store_deposits_in', sql`(${t.kind} = 'IN') = (${t.visitId} is not null and ${t.tripId} is not null)`),
+    check('store_deposits_use', sql`(${t.kind} = 'USE') = (${t.transactionId} is not null and ${t.trxNumber} is not null)`),
+    check('store_deposits_refund', sql`${t.kind} <> 'REFUND' or ${t.note} is not null`),
+    check('store_deposits_checked', sql`(${t.checkedAt} is null) = (${t.actualAmount} is null) and (${t.checkedAt} is null) = (${t.checkedByAccountId} is null)
+      and (${t.checkedAt} is null or ${t.kind} = 'IN') and (${t.actualAmount} is null or ${t.actualAmount} >= 0)
+      and (${t.actualAmount} is null or ${t.actualAmount} = ${t.amount} or ${t.checkNote} is not null)`),
+    check('store_deposits_recorded', sql`(${t.recordedAt} is null) = (${t.recordedRef} is null) and (${t.recordedAt} is null) = (${t.recordedByAccountId} is null)
+      and (${t.recordedAt} is null or ${t.kind} = 'USE')`),
+    check('store_deposits_voided', sql`(${t.voidedAt} is null) = (${t.voidReason} is null) and (${t.voidedAt} is null) = (${t.voidedByAccountId} is null)
+      and (${t.voidedAt} is null or (${t.kind} <> 'IN' and ${t.recordedAt} is null))`),
+  ],
+);

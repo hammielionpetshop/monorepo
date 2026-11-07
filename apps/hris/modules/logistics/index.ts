@@ -25,6 +25,11 @@ export {
 } from './server/rates';
 export { RatesScreen } from './ui/rates-screen';
 export {
+  checkDeposit, depositAttention, depositUsesToRecord, depositsScreen, pendingDeposits, recordDepositUse, refundDeposit, applyDeposit, voidDeposit,
+  type DepositStoreView,
+} from './server/store-deposits';
+export { DepositChecks, DepositUsesToRecord, DepositsScreen } from './ui/deposits-ui';
+export {
   assignReturnPickup, cancelReturnPickup, createReturnPickup, processReturnPickup, releaseReturnPickup, returnPickupsScreen, searchPickupStores,
   waitingPickupCount, type ReturnPickupView,
 } from './server/return-pickups';
