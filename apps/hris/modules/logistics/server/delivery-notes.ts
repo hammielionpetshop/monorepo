@@ -10,6 +10,7 @@ import {
 import { reopenOpen } from '../rules/driver-trip';
 import { wibClock, wibDate, type IsoDate } from '../rules/trip';
 import { FORBIDDEN, fail } from './data';
+import { loadPhotoStates, type LoadPhotoState } from './load-reports';
 
 // Surat Jalan + Data Toko (spec LT1 §12). Kasir hanya dibaca lewat view logistics.pos_* (migrasi logistics 0003).
 const LIST_LIMIT = 300;
@@ -56,6 +57,8 @@ export type NoteRow = {
   /** Id surat jalan HRIS (untuk keputusan) dan kejadian terakhirnya (LT1b-2a). */
   noteId: number | null; event: { kind: string; reason: string | null; at: string; on: IsoDate; trip: { id: number; number: string } | null } | null;
   canReopen: boolean;
+  /** Foto Laporan Muat nota cabang ber-Laporan Muat (butir C); null = cabang tanpa Laporan Muat / PO Internal. */
+  load: LoadPhotoState | null;
 };
 
 export type NotesFilter = { tab: QueueStatus; originId: number | null; routeId: number | null; q: string };
@@ -142,7 +145,7 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
         destination: s.customer_name ?? 'Pelanggan tidak ditemukan', customerId: s.customer_id == null ? null : Number(s.customer_id),
         routeId, route: routeId ? routeName.get(routeId) ?? null : null, amount: Number(s.payable_amount), revised: Number(s.revision) > 1,
         link: backofficeLink(base, 'SALE', { number: s.trx_number, id: Number(s.id) }), trip: tripOf(s), tomorrowCount: Number(s.tomorrow_count ?? 0),
-        ...eventOf(s, queue.status),
+        ...eventOf(s, queue.status), load: null,
       };
     }),
     ...transfers.map((t): NoteRow => {
@@ -152,10 +155,12 @@ export async function deliveryNotesScreen(actor: Actor | null, filter: NotesFilt
         status, pendingVoid: false, originId: Number(t.source_branch_id), origin: t.source_branch_name,
         destination: t.destination_branch_name, customerId: null, routeId: null, route: null, amount: null, revised: false,
         link: backofficeLink(base, 'TRANSFER', { number: t.ibt_number, id: Number(t.id) }), trip: tripOf(t), tomorrowCount: Number(t.tomorrow_count ?? 0),
-        ...eventOf(t, status),
+        ...eventOf(t, status), load: null,
       };
     }),
   ];
+  const loads = await loadPhotoStates(rows.filter((r) => r.kind === 'SALE').map((r) => ({ transactionId: r.id, originBranchId: r.originId })));
+  rows = rows.map((r) => (r.kind === 'SALE' ? { ...r, load: loads.get(r.id) ?? null } : r));
   const q = filter.q.trim().toLowerCase();
   rows = rows.filter((r) => (filter.originId == null || r.originId === filter.originId)
     && (filter.routeId == null || r.routeId === filter.routeId)

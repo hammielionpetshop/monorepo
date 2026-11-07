@@ -13,6 +13,7 @@ import {
 import { outsidePoint } from '../rules/store-points';
 import { FORBIDDEN, fail, peopleNames, type Executor } from './data';
 import { pointsOf, type ApprovedPoint } from './store-points';
+import { loadPhotoStates, type LoadPhotoState } from './load-reports';
 import { moneyPhotoIds, openVisitBills, visitMoneyView, type VisitPaymentView, type VisitReportView } from './store-payments';
 import { returnPickupPhotoIds, returnPickupsOnClose, tripReturnPickupsView, type ReturnPickupView } from './return-pickups';
 
@@ -312,6 +313,8 @@ export type TripNoteView = {
   change: KasirChange; tomorrowCount: number; link: string | null;
   /** Perubahan kasir sudah diputuskan Tetap antar oleh Kepala Gudang (spec LT1 §14.3 butir 4): tanda abu-abu. */
   kept: boolean;
+  /** Foto Laporan Muat (butir C): nota cabang ber-Laporan Muat; null = tidak berlaku. */
+  load: LoadPhotoState | null;
 };
 export type TripVisitView = {
   id: number; destination: string; customerId: number | null; status: VisitStatus; statusLabel: string; tone: 'info' | 'ok' | 'warn' | 'danger';
@@ -343,6 +346,7 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
       select note_id, signature from logistics.kasir_changes where trip_id = ${tripId} and kept_at is not null and cleared_at is null`),
   ]);
   const kept = new Set(keptRows.map((r) => `${Number(r.note_id)}:${r.signature}`));
+  const loads = await loadPhotoStates(links.filter((l) => l.note.kind === 'SALE').map((l) => ({ transactionId: l.note.docId, originBranchId: l.note.originBranchId })));
   const customerIds = [...new Set(visits.map((v) => v.customerId).filter((id): id is number => id != null))];
   const storeVisitIds = visits.filter((v) => v.customerId != null).map((v) => v.id);
   const [contacts, names, points, radius, bills, money] = await Promise.all([
@@ -376,6 +380,7 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
           origin: doc?.origin ?? '-', amount: doc?.amount ?? null,
           change, kept: !!sign && kept.has(`${l.note.id}:${sign.signature}`),
           tomorrowCount: l.note.tomorrowCount, link: backofficeLink(base, l.note.kind as NoteKind, { number: l.note.number, id: l.note.docId }),
+          load: l.note.kind === 'SALE' ? loads.get(l.note.docId) ?? null : null,
         };
       });
       const waits = v.status === 'OPEN'

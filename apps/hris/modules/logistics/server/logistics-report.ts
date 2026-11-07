@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { can, recordAudit, type Actor } from '@/modules/access';
 import {
-  REPORT_TABS, isReportTab, periodChoices, reportCsv, reportRange, reportTable,
+  REPORT_TABS, cleanReportFilter, filterChoices, filterFacts, isReportTab, periodChoices, reportCsv, reportRange, reportTable,
   type CrewRole, type FuelFact, type MoneyCheckFact, type Outcome, type PayMethod, type RangeQuery, type ReportFact, type ReportFacts,
   type ReportParts, type ReportRange, type ReportTab, type TripFact, type VehicleAttentionFact, type VisitFact, type WageFact,
 } from '../rules/logistics-report';
@@ -22,7 +22,7 @@ export function reportParts(actor: Actor | null): ReportParts | null {
   return { fuel: FUEL.some((a) => can(actor, a)), shortage: SHORTAGE.some((a) => can(actor, a)) };
 }
 
-export type ReportQuery = RangeQuery & { tab?: string };
+export type ReportQuery = RangeQuery & { tab?: string; mobil?: string; cabang?: string };
 
 const TRUCK_TRIPS = (r: ReportRange) => sql`t.status in ('RUNNING', 'DONE') and t.trip_date between ${r.from}::date and ${r.to}::date`;
 const SELF_TRIPS = (r: ReportRange) => sql`(s.started_at at time zone 'Asia/Jakarta')::date between ${r.from}::date and ${r.to}::date`;
@@ -174,9 +174,12 @@ export async function logisticsReportScreen(actor: Actor | null, q: ReportQuery,
   const today = wibDate(now);
   const parsed = reportRange(q, today);
   const tab: ReportTab = isReportTab(q.tab) ? q.tab : 'ringkasan';
-  const table = reportTable(tab, await loadReportFacts(parsed.range), parts);
+  const facts = await loadReportFacts(parsed.range);
+  const filter = cleanReportFilter(q);
+  const table = reportTable(tab, filterFacts(facts, filter), parts);
   return {
-    tab, tabs: REPORT_TABS, parts, table,
+    tab, tabs: REPORT_TABS, parts, table, choices: filterChoices(facts),
+    filter: { mobil: filter.vehicleId ? String(filter.vehicleId) : '', cabang: filter.branch ?? '' },
     range: parsed.range, error: parsed.ok ? null : parsed.error,
     periods: periodChoices(today),
     query: { periode: parsed.range.free ? '' : parsed.range.from, dari: parsed.range.free ? parsed.range.from : '', sampai: parsed.range.free ? parsed.range.to : '' },
@@ -191,17 +194,18 @@ export async function logisticsReportDownload(actor: Actor | null, q: ReportQuer
   const parsed = reportRange(q, wibDate(now));
   if (!parsed.ok) return null;
   const tab: ReportTab = isReportTab(q.tab) ? q.tab : 'ringkasan';
-  const table = reportTable(tab, await loadReportFacts(parsed.range), parts);
+  const filter = cleanReportFilter(q);
+  const table = reportTable(tab, filterFacts(await loadReportFacts(parsed.range), filter), parts);
   const madeBy = (await peopleNames()).get(actor.personId) ?? `Akun #${actor.accountId}`;
   await db.transaction(async (tx) => {
     await recordAudit(tx, {
       actorAccountId: actor.accountId, entity: 'logistics_report', entityId: null, action: 'DOWNLOAD',
-      after: { tab, from: parsed.range.from, to: parsed.range.to, rows: table.rows.length, fuel: parts.fuel, shortage: parts.shortage },
+      after: { tab, from: parsed.range.from, to: parsed.range.to, rows: table.rows.length, fuel: parts.fuel, shortage: parts.shortage, vehicleId: filter.vehicleId, branch: filter.branch },
     });
   });
   const tabLabel = REPORT_TABS.find((t) => t.key === tab)?.label ?? tab;
   return {
-    filename: `laporan-logistik-${tab}-${parsed.range.from}-sd-${parsed.range.to}.csv`,
-    csv: reportCsv(table, { title: `Laporan Logistik — ${tabLabel}`, range: parsed.range.label, madeBy, madeAt: `${wibDate(now)} ${wibClock(now)} WIB` }),
+    filename: `laporan-logistik-${tab}-${parsed.range.from}-sd-${parsed.range.to}${filter.vehicleId ? `-mobil${filter.vehicleId}` : ''}${filter.branch ? '-cabang' : ''}.csv`,
+    csv: reportCsv(table, { title: `Laporan Logistik — ${tabLabel}${filter.branch ? ` — cabang ${filter.branch}` : ''}${filter.vehicleId ? ` — mobil #${filter.vehicleId}` : ''}`, range: parsed.range.label, madeBy, madeAt: `${wibDate(now)} ${wibClock(now)} WIB` }),
   };
 }
