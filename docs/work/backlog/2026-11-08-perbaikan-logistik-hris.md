@@ -79,8 +79,8 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 | A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
 | B3 | **Lolos uji owner** | Lolos uji owner di deployment staging `8582f86b` (run `42406407964`; owner: "ok sudah saya check", 2026-11-08; skenario tidak dirinci). HRIS belum produksi; ikut rilis HRIS. Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (disetujui owner 2026-11-08). `feat/hris-b3-short-handover` `c6094423`, dev_hris `2570643d`, migrasi hris `0054`; tes unit 7 + integrasi Terima Uang 6 (termasuk skenario B3) lulus, Potongan Lain / slip mingguan / denda driver lulus; klaim dilepas. Langkah uji: bagian **Uji B3** di bawah. Rilis HRIS ikut jadwal rilis HRIS (belum produksi). |
 | A2 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-jemput-retur-design.md`](../specs/2026-11-08-jemput-retur-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a2-return-pickup` `76bcb8c3`, dev_hris `891f839f`; migrasi logistics `0017`, hris `0055`. Tes integrasi jemput retur 4 + Barang Kembali, Laporan Toko, trip, Trip Saya, antar sendiri, Terima Uang (55 tes) lulus; typecheck lulus. Deploy staging run `42408818634` sukses (staging `3758618f`). Langkah uji: bagian **Uji A2** di bawah. HRIS belum produksi; ikut rilis HRIS. |
-| A1 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-titipan-toko-design.md`](../specs/2026-11-08-titipan-toko-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a1-store-deposit` `5aa7b001`, dev_hris `5d1e6c4b`; migrasi logistics `0018` (tanpa migrasi hris; hak memakai `logistics.money_check.do`). Tes integrasi titipan 2 + uang toko, Terima Uang, Trip Saya, jemput retur, antar sendiri (26 tes) lulus; typecheck lulus. **Di luar:** antar sendiri dan titipan lewat transfer belum bisa dititipkan. Langkah uji: bagian **Uji A1** di bawah. |
-| B1+B2 | Antre sesi malam | Sesudah A1. |
+| A1 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-titipan-toko-design.md`](../specs/2026-11-08-titipan-toko-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-a1-store-deposit` `5aa7b001`, dev_hris `5d1e6c4b`; migrasi logistics `0018` (tanpa migrasi hris; hak memakai `logistics.money_check.do`). Tes integrasi titipan 2 + uang toko, Terima Uang, Trip Saya, jemput retur, antar sendiri (26 tes) lulus; typecheck lulus. **Di luar:** antar sendiri dan titipan lewat transfer belum bisa dititipkan. Deploy staging run `42409644898` sukses. Langkah uji: bagian **Uji A1** di bawah. |
+| B1+B2 | **Tayang staging — menunggu uji owner** | Spec [`2026-11-08-pemeriksa-kasir-design.md`](../specs/2026-11-08-pemeriksa-kasir-design.md) (disetujui lewat jawaban sesi malam). `feat/hris-b12-kasir-check` `0b34b2b4`, dev_hris tergabung; migrasi logistics `0019` (view `pos_sale_returns`). Tes uang toko 8 (termasuk skenario B1+B2), jemput retur, Terima Uang, antar sendiri lulus; typecheck lulus. Langkah uji: bagian **Uji B1+B2** di bawah. |
 | C | Antre sesi malam | Sesudah B1+B2. |
 
 ## Sesi malam 2026-11-08
@@ -98,6 +98,16 @@ tidak disentuh. Jawaban owner:
   "Lunas + titip" = toko bayar lebih dari tagihan; "Titip saja" = toko menyerahkan uang tanpa tagihan di
   kunjungan itu. Titipan boleh **dikembalikan tunai** ke toko (alasan wajib).
 - **B2** saat Sudah dicatat untuk Retur BO, nomor retur **wajib ada** di kasir (dicek), nilainya ditampilkan.
+
+## Uji B1+B2 (staging HRIS `hris.staginghml.my.id` + BO `bo.staginghml.my.id`)
+
+1. Laporan Toko Retur → keputusan **Dicatat lewat Retur BO**. Di BO staging buat Retur Penjualan untuk nota toko itu.
+2. HRIS › Perlu dicatat di kasir › **Sudah dicatat**: ketik nomor salah → ditolak "tidak ditemukan"; nomor retur toko
+   lain → ditolak; nomor yang benar → tersimpan, kartu menampilkan ✅ nomor retur + nilainya (juga di Laporan Toko).
+3. Batalkan retur itu di BO → kartu berubah ⚠️ "dibatalkan di kasir".
+4. Potong nota → Sudah dicatat sebelum nota diubah di kasir → ⚠️ Belum terlihat di kasir (nominal sekarang). Kurangi
+   nota di kasir sebesar potongan → ✅ Terlihat di kasir.
+5. Retur BO yang belum dicatat > 3 hari bertanda merah "Retur belum dibuat di BO".
 
 ## Uji A1 (staging HRIS `hris.staginghml.my.id`)
 
