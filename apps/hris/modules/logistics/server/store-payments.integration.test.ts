@@ -222,6 +222,31 @@ describe.skipIf(!ADMIN_URL)('LT1b-3: uang dan laporan di toko', () => {
     await expect(sql`delete from logistics.report_decisions`).rejects.toThrow();
   });
 
+  it('B1+B2 pemeriksa kasir: nomor retur BO wajib ada di kasir + nilai; potong nota terlihat di nominal nota', async () => {
+    const finance = await actorOf(ids.finance);
+    // B1: nota TRX-C belum dikurangi di kasir → belum terlihat; sesudah dikurangi 25.000 → terlihat.
+    let done = (await lg.toRecordScreen(finance))!.done[0];
+    expect(done.kasir).toEqual({ kind: 'CUT', seen: false, current: 300000, expected: 275000 });
+    await sql`update petshop.transactions set payable_amount = 275000 where trx_number = 'TRX-C'`;
+    done = (await lg.toRecordScreen(finance))!.done[0];
+    expect(done.kasir).toMatchObject({ kind: 'CUT', seen: true });
+    // B2: Retur BO.
+    const ret = (await lg.toRecordScreen(finance))!.waiting[0];
+    const [maju] = await sql`select id from petshop.transactions where trx_number = 'TRX-C'`;
+    const [lain] = await sql`select id from petshop.transactions where trx_number = 'TRX-D'`;
+    await sql`insert into petshop.returns (return_number, transaction_id, total_refund_amount) values
+      ('RTR-OK', ${maju.id}, 45000), ('RTR-LAIN', ${lain.id}, 10000)`;
+    await sql`insert into petshop.returns (return_number, transaction_id, total_refund_amount, cancelled_at) values ('RTR-BATAL', ${maju.id}, 5000, now())`;
+    expect(await lg.markDecisionRecorded(finance, ret.id, 'RTR-SALAH')).toMatchObject({ ok: false, status: 400, error: expect.stringContaining('tidak ditemukan') });
+    expect(await lg.markDecisionRecorded(finance, ret.id, 'RTR-BATAL')).toMatchObject({ ok: false, status: 400, error: expect.stringContaining('dibatalkan') });
+    expect(await lg.markDecisionRecorded(finance, ret.id, 'RTR-LAIN')).toMatchObject({ ok: false, status: 400, error: expect.stringContaining('bukan milik') });
+    expect((await lg.markDecisionRecorded(finance, ret.id, ' rtr-ok ')).ok).toBe(true);
+    const recorded = (await lg.toRecordScreen(finance))!.done.find((d) => d.id === ret.id)!;
+    expect(recorded).toMatchObject({ recorded: { ref: 'RTR-OK' }, kasir: { kind: 'RETURN', number: 'RTR-OK', amount: 45000, cancelled: false, found: true } });
+    await sql`update petshop.returns set cancelled_at = now() where return_number = 'RTR-OK'`;
+    expect((await lg.toRecordScreen(finance))!.done.find((d) => d.id === ret.id)!.kasir).toMatchObject({ cancelled: true });
+  });
+
   it('koreksi cara bayar oleh awak selama trip berjalan; baris lama Diganti; Finance diberi tahu (§14.2 butir 4)', async () => {
     const depan = await visitOf('Toko Depan');
     const kenek = await actorOf(ids.kenek);

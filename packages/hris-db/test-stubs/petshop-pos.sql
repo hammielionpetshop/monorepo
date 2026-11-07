@@ -61,3 +61,9 @@ CREATE TABLE IF NOT EXISTS petshop.purchase_orders (
 CREATE TABLE IF NOT EXISTS petshop.purchase_order_items (
   id serial PRIMARY KEY, po_id integer NOT NULL, product_id integer NOT NULL, uom_id integer NOT NULL, qty_ordered integer NOT NULL, qty_received integer NOT NULL DEFAULT 0
 );
+-- B1+B2 (migrasi logistics 0019): retur penjualan untuk view logistics.pos_sale_returns.
+CREATE TABLE IF NOT EXISTS petshop.returns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), return_number varchar(50) NOT NULL UNIQUE, transaction_id integer NOT NULL,
+  total_refund_amount integer NOT NULL, debt_reduction_amount integer NOT NULL DEFAULT 0, created_at timestamp NOT NULL DEFAULT now(),
+  cancelled_at timestamp
+);

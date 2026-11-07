@@ -146,7 +146,12 @@ export type DecisionView = {
   /** Alasan ubah keputusan terakhir dan berapa kali diubah. */
   changeReason: string | null; changes: number;
   recorded: { ref: string; by: string; on: IsoDate } | null;
+  /** Pemeriksa kasir (B1+B2): retur BO yang dicatat (nilai dari kasir), atau potong nota sudah terlihat di nominal nota kasir. */
+  kasir: KasirSeen | null;
 };
+export type KasirSeen =
+  | { kind: 'RETURN'; number: string; amount: number | null; cancelled: boolean; found: boolean }
+  | { kind: 'CUT'; seen: boolean; current: number | null; expected: number };
 
 /** Nama karyawan pemilik akun HRIS. */
 async function accountNames(accountIds: number[], executor: Executor = db): Promise<Map<number, string>> {
@@ -172,6 +177,42 @@ async function decisionsOf(reportIds: number[], executor: Executor = db) {
   ]);
   const numberOf = new Map(numbers.map((n) => [Number(n.id), n.number]));
   const trxNumberOf = new Map(trxNumbers.map((n) => [Number(n.id), n.number]));
+  // Pemeriksa kasir (B1+B2): dibaca langsung dari view kasir, tanpa tabel baru.
+  const live = rows.filter((r) => !r.replacedAt && r.recordedAt);
+  const refs = [...new Set(live.filter((r) => r.decision === 'RETURN_BO').map((r) => (r.recordedRef ?? '').trim().toUpperCase()))];
+  const cutNotes = [...new Set(live.filter((r) => r.decision === 'CUT' && r.noteId != null).map((r) => r.noteId!))];
+  const cutTrx = [...new Set(live.filter((r) => r.decision === 'CUT' && r.transactionId != null).map((r) => r.transactionId!))];
+  const [returnRows, noteNow, trxNow, cutSums] = await Promise.all([
+    refs.length ? executor.execute<{ return_number: string; total_refund_amount: number; cancelled: boolean }>(sql`
+      select return_number, total_refund_amount, cancelled from logistics.pos_sale_returns
+      where upper(return_number) in (${sql.join(refs.map((r) => sql`${r}`), sql`, `)})`) : [],
+    cutNotes.length ? executor.execute<{ id: number; base: number | null; current: number | null }>(sql`
+      select n.id, n.amount_at_trip as base, s.payable_amount as current from logistics.delivery_notes n
+      left join logistics.pos_truck_sales s on s.id = n.doc_id where n.id in (${ids(cutNotes)})`) : [],
+    cutTrx.length ? executor.execute<{ id: number; base: number | null; current: number | null }>(sql`
+      select x.transaction_id as id, max(x.amount_at_start) as base, max(s.payable_amount) as current from logistics.self_trip_stops x
+      left join logistics.pos_courier_sales s on s.id = x.transaction_id where x.transaction_id in (${ids(cutTrx)}) group by x.transaction_id`) : [],
+    cutNotes.length || cutTrx.length ? executor.execute<{ note_id: number | null; transaction_id: number | null; total: number }>(sql`
+      select note_id, transaction_id, sum(amount)::int as total from logistics.report_decisions
+      where decision = 'CUT' and replaced_at is null and recorded_at is not null
+        and (note_id in (${ids(cutNotes)}) or transaction_id in (${ids(cutTrx)})) group by note_id, transaction_id`) : [],
+  ]);
+  const returnOf = new Map(returnRows.map((r) => [r.return_number.trim().toUpperCase(), r]));
+  const kasirOf = (r: (typeof rows)[number]): KasirSeen | null => {
+    if (!r.recordedAt) return null;
+    if (r.decision === 'RETURN_BO') {
+      const found = returnOf.get((r.recordedRef ?? '').trim().toUpperCase());
+      return { kind: 'RETURN', number: found?.return_number ?? r.recordedRef ?? '-', amount: found ? Number(found.total_refund_amount) : null, cancelled: !!found?.cancelled, found: !!found };
+    }
+    if (r.decision !== 'CUT') return null;
+    const state = r.noteId != null ? noteNow.find((n) => Number(n.id) === r.noteId) : trxNow.find((n) => Number(n.id) === r.transactionId);
+    const cuts = cutSums.filter((c) => (r.noteId != null ? Number(c.note_id) === r.noteId : Number(c.transaction_id) === r.transactionId))
+      .reduce((s, c) => s + Number(c.total), 0);
+    const base = state?.base == null ? null : Number(state.base);
+    const current = state?.current == null ? null : Number(state.current);
+    const expected = base == null ? 0 : Math.max(0, base - cuts);
+    return { kind: 'CUT', seen: base != null && current != null && current <= expected, current, expected };
+  };
   return (reportId: number): DecisionView | null => {
     const mine = rows.filter((r) => r.reportId === reportId);
     const r = mine.find((x) => !x.replacedAt);
@@ -185,6 +226,7 @@ async function decisionsOf(reportIds: number[], executor: Executor = db) {
       reasonLabel: r.reason ? CUT_REASON_LABELS[r.reason as CutReason] : null, note: r.note, by: names.get(r.decidedByAccountId) ?? '-',
       on: wibDate(r.decidedAt), at: wibClock(r.decidedAt), changeReason: r.changeReason, changes: mine.length - 1,
       recorded: r.recordedAt ? { ref: r.recordedRef ?? '-', by: names.get(r.recordedByAccountId ?? 0) ?? '-', on: wibDate(r.recordedAt) } : null,
+      kasir: kasirOf(r),
     };
   };
 }
@@ -331,6 +373,28 @@ export async function markDecisionRecorded(actor: Actor | null, decisionId: numb
   if (!actor || !can(actor, 'logistics.note_cut.decide')) return fail(403, FORBIDDEN);
   const clean = cleanRecordedRef(ref);
   if (!clean.ok) return fail(400, clean.error);
+  // B2: Retur BO wajib nomor retur yang ada di kasir, tidak dibatalkan, milik toko laporan itu, belum dipakai keputusan lain.
+  const [decision] = await db.select({ decision: reportDecisions.decision, customerId: visitReports.customerId }).from(reportDecisions)
+    .innerJoin(visitReports, eq(visitReports.id, reportDecisions.reportId)).where(eq(reportDecisions.id, decisionId)).limit(1);
+  if (decision?.decision === 'RETURN_BO') {
+    const number = clean.ref.toUpperCase();
+    const [found] = await db.execute<{ return_number: string; customer_id: number | null; cancelled: boolean }>(sql`
+      select return_number, customer_id, cancelled from logistics.pos_sale_returns where upper(return_number) = ${number} limit 1`);
+    if (!found) return fail(400, `Nomor retur ${clean.ref} tidak ditemukan di kasir. Salin nomor retur dari Back Office (Retur Penjualan).`);
+    if (found.cancelled) return fail(400, `Retur ${found.return_number} sudah dibatalkan di kasir.`);
+    if (decision.customerId != null && found.customer_id != null && Number(found.customer_id) !== decision.customerId) {
+      return fail(400, `Retur ${found.return_number} bukan milik toko laporan ini.`);
+    }
+    const [used] = await db.execute<{ id: number }>(sql`
+      select id from logistics.report_decisions where decision = 'RETURN_BO' and replaced_at is null and upper(recorded_ref) = ${number} and id <> ${decisionId} limit 1`);
+    if (used) return fail(409, `Retur ${found.return_number} sudah dipakai untuk laporan lain.`);
+    return recordWith(actor, decisionId, found.return_number);
+  }
+  return recordWith(actor, decisionId, clean.ref);
+}
+
+async function recordWith(actor: Actor, decisionId: number, ref: string): Promise<ServiceResult> {
+  const clean = { ref };
   const [row] = await db.update(reportDecisions).set({ recordedAt: new Date(), recordedByAccountId: actor.accountId, recordedRef: clean.ref })
     .where(and(
       eq(reportDecisions.id, decisionId), isNull(reportDecisions.replacedAt), isNull(reportDecisions.recordedAt),

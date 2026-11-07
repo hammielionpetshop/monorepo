@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import { rupiah } from '../rules/rates';
 import type { ToRecordRow } from '../server/store-payments';
+import { KasirSeenBadge } from './kasir-seen';
 
 function RecordCard({ row, onRecord }: { row: ToRecordRow; onRecord?: (row: ToRecordRow) => void }) {
   return (
@@ -22,7 +23,7 @@ function RecordCard({ row, onRecord }: { row: ToRecordRow; onRecord?: (row: ToRe
             <span className="font-medium tabular-nums">{row.noteNumber}</span>
             {row.amount != null && <b className="tabular-nums">{rupiah(row.amount)}</b>}
             {row.reasonLabel && <span>({row.reasonLabel})</span>}
-            {row.red && <Badge tone="danger">Lewat {row.days} hari</Badge>}
+            {row.red && <Badge tone="danger">{row.decision === 'RETURN_BO' ? 'Retur belum dibuat di BO' : 'Lewat'} {row.days} hari</Badge>}
           </p>
           <p className="text-sm">
             {row.customerId != null ? <Link href={`/logistik/toko/${row.customerId}`} className="underline">{row.store}</Link> : <span>{row.store}</span>}
@@ -36,6 +37,7 @@ function RecordCard({ row, onRecord }: { row: ToRecordRow; onRecord?: (row: ToRe
             Diputuskan {row.by} {row.on}{row.changes > 0 ? ` · diubah ${row.changes}×` : ''}
             {row.recorded ? ` · dicatat ${row.recorded.by} ${row.recorded.on}: ${row.recorded.ref}` : ''}
           </p>
+          <KasirSeenBadge kasir={row.kasir} />
         </div>
         {onRecord && <Button size="sm" onClick={() => onRecord(row)}>Sudah dicatat</Button>}
       </div>
@@ -89,7 +91,8 @@ export function ToRecordScreen({ waiting, done, redDays }: { waiting: ToRecordRo
       >
         <div className="space-y-3">
           {error && <Alert tone="danger">{error}</Alert>}
-          <Field id="record-ref" label="Nomor retur / keterangan pencatatan" hint="Sesudah disimpan, keputusan ini tidak bisa diubah lagi.">
+          <Field id="record-ref" label={target?.decision === 'RETURN_BO' ? 'Nomor retur dari Back Office (wajib ada di kasir)' : 'Nomor / keterangan pencatatan'}
+            hint={target?.decision === 'RETURN_BO' ? 'Contoh: nomor di Retur Penjualan BO. Salah ketik ditolak. Sesudah disimpan, keputusan ini terkunci.' : 'Sesudah disimpan, keputusan ini tidak bisa diubah lagi.'}>
             <Input id="record-ref" value={ref} maxLength={100} onChange={(e) => setRef(e.target.value)} />
           </Field>
         </div>

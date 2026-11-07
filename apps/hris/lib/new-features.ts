@@ -220,6 +220,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/di-luar-titik': '2026-11-06',
   '/logistik/laporan': '2026-11-06', // LT5b Laporan Logistik (tayang staging 2026-11-06)
   '/logistik/titipan': '2026-11-08', // A1 titipan toko (tayang staging 2026-11-08)
+  'fitur/pemeriksa-kasir': '2026-11-08', // B1+B2 nomor retur BO dicek ke kasir + nilai retur, potong nota terlihat di kasir
   'fitur/titipan-toko': '2026-11-08', // A1 Lunas + titip / Titip saja, periksa di Terima Uang, pakai di Perlu dicatat di kasir
   '/logistik/jemput-retur': '2026-11-08', // A2 tugas jemput retur (tayang staging 2026-11-08)
   'fitur/jemput-retur': '2026-11-08', // A2 jemput retur di form trip, rincian trip, Trip Saya
