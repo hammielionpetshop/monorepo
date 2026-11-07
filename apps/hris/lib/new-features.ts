@@ -220,6 +220,8 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/di-luar-titik': '2026-11-06',
   '/logistik/laporan': '2026-11-06', // LT5b Laporan Logistik (tayang staging 2026-11-06)
   '/logistik/titipan': '2026-11-08', // A1 titipan toko (tayang staging 2026-11-08)
+  'fitur/laporan-logistik-saring': '2026-11-08', // C saringan cabang/mobil di Laporan Logistik
+  'fitur/foto-muat-surat-jalan': '2026-11-08', // C foto Laporan Muat di surat jalan + tanda belum ada foto muat
   'fitur/pemeriksa-kasir': '2026-11-08', // B1+B2 nomor retur BO dicek ke kasir + nilai retur, potong nota terlihat di kasir
   'fitur/titipan-toko': '2026-11-08', // A1 Lunas + titip / Titip saja, periksa di Terima Uang, pakai di Perlu dicatat di kasir
   '/logistik/jemput-retur': '2026-11-08', // A2 tugas jemput retur (tayang staging 2026-11-08)

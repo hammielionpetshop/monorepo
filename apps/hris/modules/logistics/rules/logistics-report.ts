@@ -479,3 +479,49 @@ export function reportCsv(table: ReportTable, meta: { title: string; range: stri
   if (table.note) lines.push(csvCell(table.note));
   return `${lines.join('\r\n')}\r\n`;
 }
+
+/** Saringan Laporan Logistik (butir C): mobil (id) dan cabang asal nota (nama cabang kasir). Kosong = semua. */
+export type ReportFilter = { vehicleId: number | null; branch: string | null };
+
+export function cleanReportFilter(q: { mobil?: string; cabang?: string }): ReportFilter {
+  const id = Number(q.mobil);
+  const branch = (q.cabang ?? '').trim();
+  return { vehicleId: Number.isInteger(id) && id > 0 ? id : null, branch: branch ? branch.slice(0, 100) : null };
+}
+
+/** Pilihan saringan dari fakta rentang ini. */
+export function filterChoices(facts: ReportFacts): { vehicles: { id: number; label: string }[]; branches: string[] } {
+  const vehicleIds = new Set(facts.trips.map((t) => t.vehicleId).filter((id): id is number => id != null));
+  const branches = new Set(facts.visits.flatMap((v) => v.notes.map((n) => n.branch)).filter((b) => b && b !== '-'));
+  return {
+    vehicles: [...vehicleIds].map((id) => ({ id, label: facts.vehicles.get(id) ?? `Mobil #${id}` })).sort((a, b) => a.label.localeCompare(b.label)),
+    branches: [...branches].sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+/**
+ * Terapkan saringan: mobil = trip truk mobil itu beserta kunjungan, upah, bensin, laporan, dan keadaan mobilnya (antar sendiri
+ * tidak bermobil, jadi gugur). Cabang = kunjungan yang membawa nota dari cabang itu; trip, upah, dan laporan ikut trip yang
+ * tersisa. Bensin dan keadaan mobil tidak bercabang, jadi tidak disaring cabang.
+ */
+export function filterFacts(facts: ReportFacts, filter: ReportFilter): ReportFacts {
+  if (!filter.vehicleId && !filter.branch) return facts;
+  let trips = facts.trips;
+  let visits = facts.visits;
+  if (filter.vehicleId) trips = trips.filter((t) => t.vehicleId === filter.vehicleId);
+  if (filter.branch) {
+    visits = visits.filter((v) => v.notes.some((n) => n.branch === filter.branch));
+    const withVisit = new Set(visits.map((v) => v.tripKey));
+    trips = trips.filter((t) => withVisit.has(t.key));
+  }
+  const kept = new Set(trips.map((t) => t.key));
+  visits = visits.filter((v) => kept.has(v.tripKey));
+  return {
+    ...facts, trips, visits,
+    // Ritase tangan tanpa trip ikut saringan mobil, gugur di saringan cabang.
+    wages: facts.wages.filter((w) => (w.tripKey != null ? kept.has(w.tripKey) : !filter.branch && w.vehicleId === filter.vehicleId)),
+    reports: facts.reports.filter((r) => kept.has(r.tripKey)),
+    fuel: filter.vehicleId ? facts.fuel.filter((f) => f.vehicleId === filter.vehicleId) : facts.fuel,
+    vehicleAttention: filter.vehicleId ? facts.vehicleAttention.filter((a) => a.vehicleId === filter.vehicleId) : facts.vehicleAttention,
+  };
+}

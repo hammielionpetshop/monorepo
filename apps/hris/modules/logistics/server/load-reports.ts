@@ -362,3 +362,27 @@ export async function openLoadPhoto(actor: Actor | null, photoId: number): Promi
   const [report] = await db.select().from(loadReports).where(inArray(loadReports.id, [row.reportId])).limit(1);
   return report && canSee(actor, report) ? row.fileId : null;
 }
+
+export type LoadPhotoState = { reportId: number; photos: number; done: boolean } | { missing: true };
+
+/**
+ * Foto Laporan Muat per nota (butir C): untuk nota dari cabang kasir yang menyalakan Laporan Muat (mis. Toko Pusat), laporan
+ * berlaku yang memuatnya + jumlah foto; tanpa laporan = `missing`. Nota cabang lain tidak diberi tanda.
+ */
+export async function loadPhotoStates(notes: { transactionId: number; originBranchId: number }[]): Promise<Map<number, LoadPhotoState>> {
+  const out = new Map<number, LoadPhotoState>();
+  if (!notes.length) return out;
+  const enabled = new Set((await loadReportBranches(wibDate(new Date()))).map((b) => b.kasirBranchId));
+  const wanted = notes.filter((n) => enabled.has(n.originBranchId)).map((n) => n.transactionId);
+  if (!wanted.length) return out;
+  const rows = await db.execute<{ transaction_id: number; report_id: number; status: string; photos: number }>(sql`
+    select n.transaction_id, r.id as report_id, r.status,
+      (select count(*)::int from logistics.load_report_photos p where p.report_id = r.id and p.removed_at is null) as photos
+    from logistics.load_report_notes n join logistics.load_reports r on r.id = n.report_id
+    where n.released_at is null and r.status <> 'CANCELLED' and n.transaction_id in (${ids(wanted)})`);
+  for (const id of wanted) {
+    const row = rows.find((r) => Number(r.transaction_id) === id);
+    out.set(id, row ? { reportId: Number(row.report_id), photos: Number(row.photos), done: row.status === 'DONE' } : { missing: true });
+  }
+  return out;
+}

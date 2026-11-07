@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DataList } from '@/components/ui/data-list';
 import { Field, Input, Select } from '@/components/ui/field';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Card } from '@/components/ui/surface';
 import { rupiahText, type ReportRow } from '../rules/logistics-report';
 import type { logisticsReportScreen } from '../server/logistics-report';
@@ -10,7 +11,7 @@ type Data = NonNullable<Awaited<ReturnType<typeof logisticsReportScreen>>>;
 
 function queryString(data: Data, extra: Record<string, string>): string {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries({ ...data.query, ...extra })) if (v) q.set(k, v);
+  for (const [k, v] of Object.entries({ ...data.query, ...data.filter, ...extra })) if (v) q.set(k, v);
   return q.toString();
 }
 
@@ -45,6 +46,27 @@ export function LogisticsReportScreen({ data }: { data: Data }) {
           </form>
           <a className={buttonClass({ variant: 'secondary' })} href={csvHref}>Unduh CSV</a>
         </div>
+        <form method="get" className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="tab" value={data.tab} />
+          {Object.entries(data.query).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
+          <Field id="lr-cabang" label="Cabang asal nota">
+            <Select id="lr-cabang" name="cabang" defaultValue={data.filter.cabang}>
+              <option value="">Semua cabang</option>
+              {data.choices.branches.map((b) => <option key={b} value={b}>{b}</option>)}
+            </Select>
+          </Field>
+          <Field id="lr-mobil" label="Mobil">
+            <Select id="lr-mobil" name="mobil" defaultValue={data.filter.mobil}>
+              <option value="">Semua mobil</option>
+              {data.choices.vehicles.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </Select>
+          </Field>
+          <Button type="submit" variant="secondary">Saring</Button>
+          <NewBadge feature="fitur/laporan-logistik-saring" />
+        </form>
+        {(data.filter.cabang || data.filter.mobil) && (
+          <p className="text-ink-muted">Disaring{data.filter.cabang ? ` cabang ${data.filter.cabang}` : ''}{data.filter.mobil ? ' per mobil (antar sendiri tidak ikut)' : ''}. Bensin dan keadaan mobil tidak disaring cabang. CSV ikut saringan.</p>
+        )}
         <p className="font-medium">Rentang: {data.range.label}</p>
         <p className="text-ink-muted">
           Dasar tanggal: tanggal kirim (tanggal trip / mulai antar sendiri); retur dan laporan barang = tanggal dilaporkan; bensin = tanggal isi.

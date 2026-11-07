@@ -7,6 +7,7 @@ import type { QueueStatus } from '../rules/delivery-notes';
 import { rupiah } from '../rules/rates';
 import type { NoteRow, NotesFilter } from '../server/delivery-notes';
 import { NoteDecision } from './note-decision';
+import { LoadPhotoBadge } from './load-photo-badge';
 
 type Option = { id: number; name: string };
 
@@ -95,6 +96,7 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
                 {r.revised && <Badge tone="warn">Dikoreksi</Badge>}
                 {r.pendingVoid && <Badge tone="warn">Menunggu batal</Badge>}
                 {r.tomorrowCount > 0 && <Badge tone="warn">Pernah tertunda ×{r.tomorrowCount}</Badge>}
+                <LoadPhotoBadge load={r.load} />
               </span>
             ),
           },

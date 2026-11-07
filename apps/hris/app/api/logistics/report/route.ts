@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   if (!session.ok) return new NextResponse('Perlu masuk', { status: 401 });
   const actor = await actorForSession(session.accountId, session.localUserId);
   const q = Object.fromEntries(new URL(req.url).searchParams);
-  const file = await logisticsReportDownload(actor, { tab: q.tab, periode: q.periode, dari: q.dari, sampai: q.sampai });
+  const file = await logisticsReportDownload(actor, { tab: q.tab, periode: q.periode, dari: q.dari, sampai: q.sampai, mobil: q.mobil, cabang: q.cabang });
   if (!file) return new NextResponse('Tidak ditemukan atau rentang tidak sah', { status: 404 });
   // BOM supaya Excel membaca huruf dengan benar.
   return new NextResponse(`﻿${file.csv}`, {

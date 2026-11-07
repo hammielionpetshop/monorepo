@@ -4,6 +4,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { Badge, Card } from '@/components/ui/surface';
 import { rupiah } from '../rules/rates';
 import type { TripNoteView, TripPickupView, TripVisitView } from '../server/trip-notes';
+import { LoadPhotoBadge } from './load-photo-badge';
 
 function ChangeBadge({ note }: { note: TripNoteView }) {
   if (!note.change) return null;
@@ -150,6 +151,7 @@ export function TripNotesPanel({ visits, pickups, onRelease, onKeep, onPickup, o
                     {n.amount != null && <span className="tabular-nums">{rupiah(n.amount)}</span>}
                     {n.tomorrowCount > 0 && <Badge tone="warn">Pernah tertunda ×{n.tomorrowCount}</Badge>}
                     <ChangeBadge note={n} />
+                    {!compact && <LoadPhotoBadge load={n.load} />}
                     {onKeep && v.status === 'OPEN' && n.change && !n.kept && !(n.change.kind === 'cancelled' && !n.change.pending) && (
                       <>
                         <Button size="sm" variant="ghost" onClick={() => onKeep(v, n)}>Tetap antar</Button>
