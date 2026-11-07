@@ -78,10 +78,26 @@ Disetujui owner 2026-11-08, hasil analisis celah spec
 |---|---|---|
 | A3 | **Lolos uji owner — rilis ditahan** | Spec [`2026-11-08-cara-kirim-di-struk-design.md`](../specs/2026-11-08-cara-kirim-di-struk-design.md); commit `a9778ca7`, staging `b9fc6309`, deploy run `42402766854` sukses (2026-11-08); klaim dilepas. Langkah uji: lihat bagian **Uji A3** di bawah. **Lolos uji owner** di deployment staging `b9fc6309` (owner: "ok aman", 2026-11-08; skenario tidak dirinci). Owner: **jangan dulu PR ke `main`, simpan dulu** — PR rilis hanya atas izin owner berikutnya. |
 | B3 | **Lolos uji owner** | Lolos uji owner di deployment staging `8582f86b` (run `42406407964`; owner: "ok sudah saya check", 2026-11-08; skenario tidak dirinci). HRIS belum produksi; ikut rilis HRIS. Spec [`2026-11-08-kurang-serah-potongan-lain-design.md`](../specs/2026-11-08-kurang-serah-potongan-lain-design.md) (disetujui owner 2026-11-08). `feat/hris-b3-short-handover` `c6094423`, dev_hris `2570643d`, migrasi hris `0054`; tes unit 7 + integrasi Terima Uang 6 (termasuk skenario B3) lulus, Potongan Lain / slip mingguan / denda driver lulus; klaim dilepas. Langkah uji: bagian **Uji B3** di bawah. Rilis HRIS ikut jadwal rilis HRIS (belum produksi). |
-| A2 | Belum dimulai | — |
-| A1 | Belum dimulai | — |
-| B1+B2 | Belum dimulai | — |
-| C | Belum dimulai | — |
+| A2 | Dikerjakan (sesi malam) | Keputusan owner di bagian **Sesi malam 2026-11-08**; spec ditulis di branch `feat/hris-a2-return-pickup`. |
+| A1 | Antre sesi malam | Sesudah A2. |
+| B1+B2 | Antre sesi malam | Sesudah A1. |
+| C | Antre sesi malam | Sesudah B1+B2. |
+
+## Sesi malam 2026-11-08
+
+Owner (sebelum tidur) mengizinkan A2 → A1 → B1+B2 → C dikerjakan berurutan dalam **satu sesi**:
+spec + kode + tes + tayang staging **tanpa menunggu "ok kerjakan"** (jawaban pertanyaan berikut =
+persetujuan spec). Butir yang macet dicatat alasannya di tabel status lalu dilewati. Rilis ke `main`
+tidak disentuh. Jawaban owner:
+
+- **A2** pembuat tugas jemput: Kepala Gudang, Marketing, Finance, Pemilik/GM. Nilai retur tetap lewat
+  Retur di BO (keputusan C), HRIS tidak mengisi nilai. Trip boleh mampir ke toko **hanya** untuk jemput
+  retur (tanpa surat jalan), dan retur langsung tanpa tugas (Lapor masalah › Retur) tetap ada.
+- **A1** POS tidak punya saldo/deposit pelanggan → saldo titipan disimpan di HRIS (tanpa hapus), dipakai
+  lewat **Pelunasan Piutang** di kasir melalui "Perlu dicatat di kasir" (kasir tidak diubah).
+  "Lunas + titip" = toko bayar lebih dari tagihan; "Titip saja" = toko menyerahkan uang tanpa tagihan di
+  kunjungan itu. Titipan boleh **dikembalikan tunai** ke toko (alasan wajib).
+- **B2** saat Sudah dicatat untuk Retur BO, nomor retur **wajib ada** di kasir (dicek), nilainya ditampilkan.
 
 ## Uji A3 (staging backoffice `bo.staginghml.my.id`)
 
