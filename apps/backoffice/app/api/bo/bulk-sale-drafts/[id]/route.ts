@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
 import { and, bulkSaleDrafts, db, eq } from '@/lib/db'
 
+import { draftBranchFilter } from '../scope'
+
+// Dipakai untuk "Hapus" sekaligus "Lanjutkan": klien menghapus draf di server DULU sebelum
+// memuatnya ke form. Hapus bersifat atomik, jadi bila dua orang secabang menekan Lanjutkan
+// bersamaan hanya satu yang berhasil — yang lain mendapat 404 dan tidak membuat nota ganda.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -19,11 +24,14 @@ export async function DELETE(
 
     const deleted = await db
       .delete(bulkSaleDrafts)
-      .where(and(eq(bulkSaleDrafts.id, id), eq(bulkSaleDrafts.createdById, gate.userId)))
+      .where(and(eq(bulkSaleDrafts.id, id), draftBranchFilter(gate)))
       .returning({ id: bulkSaleDrafts.id })
 
     if (deleted.length === 0) {
-      return NextResponse.json({ error: 'Draft tidak ditemukan' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Draf sudah dilanjutkan atau dihapus pengguna lain' },
+        { status: 404 },
+      )
     }
 
     return NextResponse.json({ success: true })

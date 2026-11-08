@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, purchaseOrderItems, products, suppliers, branches, users, supplierPayables, desc, eq } from '@/lib/db';
+import { db, purchaseOrders, purchaseOrderItems, products, suppliers, branches, users, supplierPayables, desc, eq, sql } from '@/lib/db';
 import { pricePendingReceivedCount } from '@/lib/po-stage-sql';
 import { supplierDueDate } from '@/lib/supplier-due-date';
 import { todayWibDate } from '@/lib/payment-date';
@@ -38,6 +38,8 @@ export default async function PurchaseOrdersPage() {
           branchName: branches.name,
           createdByName: users.name,
           pricePendingItems: pricePendingReceivedCount(purchaseOrders.id),
+          unloadingNumber: sql<string | null>`(select u.report_number from petshop.purchase_order_unloadings u where u.po_id = ${purchaseOrders.id} order by u.id limit 1)`,
+          unloadingNeedsReview: sql<boolean>`exists (select 1 from petshop.purchase_order_unloadings u where u.po_id = ${purchaseOrders.id} and u.changed_after_approval_at is not null and u.reviewed_at is null)`,
           paymentTermDays: suppliers.paymentTermDays,
           payableStatus: supplierPayables.status,
           payableTotal: supplierPayables.totalAmount,

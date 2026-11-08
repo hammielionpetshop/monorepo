@@ -30,6 +30,8 @@ interface CreatePODialogProps {
   role: string;
   onClose: () => void;
   onSuccess: (poId: number) => void;
+  /** Isian awal, mis. "Buat PO Tambahan" dari PO Selesai (supplier & cabang sama, catatan rujukan). */
+  initial?: { supplierId?: number | null; branchId?: number; notes?: string; title?: string };
 }
 
 export function CreatePODialog({
@@ -39,11 +41,15 @@ export function CreatePODialog({
   role,
   onClose,
   onSuccess,
+  initial,
 }: CreatePODialogProps) {
-  const [supplierId, setSupplierId] = useState('');
-  const [branchId, setBranchId] = useState('');
+  // Supplier yang sudah nonaktif tidak ada di daftar — biarkan kosong supaya dipilih ulang.
+  const [supplierId, setSupplierId] = useState(() =>
+    initial?.supplierId && suppliers.some(s => s.id === initial.supplierId) ? String(initial.supplierId) : '');
+  const [branchId, setBranchId] = useState(() =>
+    initial?.branchId && branches.some(b => b.id === initial.branchId) ? String(initial.branchId) : '');
   const [targetDeliveryDate, setTargetDeliveryDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
   const [items, setItems] = useState<POItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -158,7 +164,7 @@ export function CreatePODialog({
       <div className="bg-background border border-border rounded-xl shadow-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-base font-semibold text-foreground">Buat Purchase Order</h2>
+          <h2 className="text-base font-semibold text-foreground">{initial?.title ?? 'Buat Purchase Order'}</h2>
           <button
             onClick={onClose}
             disabled={isSubmitting}

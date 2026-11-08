@@ -16,7 +16,7 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
-import type { SaleDeliveryMethod } from '@/lib/delivery-method'
+import { deliveryPrintLine, type DeliveryPrintLine, type SaleDeliveryMethod } from '@/lib/delivery-method'
 import {
   internalRetailWarning,
   pickDefaultPriceOption,
@@ -81,6 +81,8 @@ type PrintMode = 'receipt' | 'delivery-note'
 
 type PrintableBulkSale = {
   transactionNumber: string
+  /** Cara kirim yang disimpan server, dicetak di struk & surat jalan. */
+  delivery: DeliveryPrintLine | null
   transactionDate: Date
   branchName: string
   // Disalin saat transaksi terbit, bukan dibaca ulang dari dropdown: mengganti pilihan
@@ -780,7 +782,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   async function holdBulkSale(name: string) {
     if (rows.length === 0) return
-    const draftInput: Omit<BulkSaleDraft, 'id' | 'savedAt'> = {
+    const draftInput: Omit<BulkSaleDraft, 'id' | 'savedAt' | 'createdByName'> = {
       name,
       branchId,
       branchName: branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName,
@@ -822,12 +824,36 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => customerSearchRef.current?.focus(), 50)
   }
 
-  function resumeDraft(draft: BulkSaleDraft) {
+  async function refreshDrafts() {
+    setDrafts(await fetchBulkSaleDrafts())
+  }
+
+  function openDrafts() {
+    setShowDrafts(true)
+    // Muat ulang tiap dibuka: admin lain secabang bisa menahan/melanjutkan draf sementara itu.
+    void refreshDrafts()
+  }
+
+  function draftGoneMessage(draft: BulkSaleDraft) {
+    return `Draf "${draft.name}" sudah dilanjutkan atau dihapus admin lain`
+  }
+
+  async function resumeDraft(draft: BulkSaleDraft) {
     if (draft.branchId !== branchId && !canChangeBranch) {
       setErrorMsg(`Draf ini milik cabang ${draft.branchName}, hanya bisa dilanjutkan dari cabang tersebut`)
       return
     }
     if (rows.length > 0 && !window.confirm('Isi bulk sale saat ini akan diganti oleh draf yang dipilih. Lanjutkan?')) {
+      return
+    }
+
+    // Draf dihapus di server DULU baru dimuat ke form: (1) bila admin lain sudah
+    // melanjutkannya, kita berhenti di sini — tidak ada nota ganda; (2) stok yang dimuat
+    // sesudahnya tidak lagi menghitung draf ini sendiri sebagai "ditahan".
+    const result = await deleteBulkSaleDraft(draft.id)
+    if (result !== 'deleted') {
+      setErrorMsg(result === 'gone' ? draftGoneMessage(draft) : 'Gagal melanjutkan draf, coba lagi')
+      void refreshDrafts()
       return
     }
 
@@ -862,19 +888,21 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTransactionResponse(null)
     setPrintableBulkSale(null)
     setActivePrintMode(null)
-    // Draf yang dilanjutkan dianggap "dipakai" — dibuang dari daftar segera di UI, penghapusan
-    // di server menyusul di belakang (tidak diblokir menunggu network; kalaupun gagal, draf
-    // yatim di server tidak berbahaya, cuma nongkrong tak terlihat).
     setDrafts((previous) => previous.filter((d) => d.id !== draft.id))
-    void deleteBulkSaleDraft(draft.id)
     setShowDrafts(false)
     setSuccessMsg(`Draf "${draft.name}" dilanjutkan`)
   }
 
-  function deleteDraft(draft: BulkSaleDraft) {
-    if (!window.confirm(`Hapus draf "${draft.name}"? Tindakan ini tidak bisa dibatalkan.`)) return
+  async function deleteDraft(draft: BulkSaleDraft) {
+    const holder = draft.createdByName ? ` (ditahan ${draft.createdByName})` : ''
+    if (!window.confirm(`Hapus draf "${draft.name}"${holder}? Stok yang ditahannya akan lepas. Tindakan ini tidak bisa dibatalkan.`)) return
+    const result = await deleteBulkSaleDraft(draft.id)
+    if (result === 'failed') {
+      setErrorMsg('Gagal menghapus draf, coba lagi')
+      return
+    }
     setDrafts((previous) => previous.filter((d) => d.id !== draft.id))
-    void deleteBulkSaleDraft(draft.id)
+    if (result === 'gone') setErrorMsg(draftGoneMessage(draft))
   }
 
   function openProductPicker() {
@@ -1399,6 +1427,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       if (transactionNumber) {
         setPrintableBulkSale({
           transactionNumber,
+          delivery: deliveryPrintLine({ saleMethod: readString(transaction.deliveryMethod) }),
           transactionDate,
           branchName: selectedBranchName,
           storeName: selectedBranch?.receiptName || 'HAMMIELION',
@@ -1465,6 +1494,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       cashierName: printableBulkSale.cashierName,
       discountAmount: String(printableBulkSale.discountTotal),
       customerName: printableBulkSale.customerName,
+      delivery: printableBulkSale.delivery,
     }
   }
 
@@ -1489,6 +1519,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       staffName: printableBulkSale.cashierName,
       withPrice: includePrice,
       grandTotal: printableBulkSale.grandTotal,
+      delivery: printableBulkSale.delivery,
       items: printableBulkSale.items,
     }
   }
@@ -1538,7 +1569,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         </div>
         <button
           type="button"
-          onClick={() => setShowDrafts(true)}
+          onClick={openDrafts}
           className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
           aria-label={`Daftar tunggu bulk sale${drafts.length > 0 ? ` (${drafts.length})` : ''}`}
         >
@@ -2105,8 +2136,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           drafts={drafts}
           currentBranchId={branchId}
           canChangeBranch={canChangeBranch}
-          onResume={resumeDraft}
-          onDelete={deleteDraft}
+          onResume={(draft) => { void resumeDraft(draft) }}
+          onDelete={(draft) => { void deleteDraft(draft) }}
           onPrintDeliveryNote={(draft) => { void printDraftDeliveryNote(draft) }}
           onClose={() => setShowDrafts(false)}
         />
@@ -2148,6 +2179,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           cashierName={printableBulkSale.cashierName}
           discountAmount={String(printableBulkSale.discountTotal)}
           customerName={printableBulkSale.customerName}
+          delivery={printableBulkSale.delivery}
         />
       )}
 
@@ -2164,6 +2196,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           staffName={printableBulkSale.cashierName}
           withPrice={includePrice}
           grandTotal={printableBulkSale.grandTotal}
+          delivery={printableBulkSale.delivery}
           items={printableBulkSale.items}
         />
       )}

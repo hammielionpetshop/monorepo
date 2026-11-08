@@ -2,6 +2,44 @@
 
 # Changelog
 
+## [1.107.118] - 2026-11-08
+
+### Added
+- Menu baru **Pengaturan › Tempat Uang** (Owner, GM, Finance): satu daftar laci kasir, kas tunai, dan rekening untuk semua web. Laci kasir tiap cabang dibuat otomatis; rekening menyimpan bank, nomor, atas nama, dan "dipegang oleh". Tempat Uang tidak dihapus, cukup dinonaktifkan — dan tidak bisa dinonaktifkan selama masih dipakai metode bayar.
+- Tab **Metode Bayar per Cabang**: menautkan metode non-tunai (QRIS, transfer, e-wallet) di tiap cabang ke rekening tujuannya, sebagai dasar verifikasi setoran non-tunai berikutnya. Semua perubahan tercatat di Audit Log.
+
+## [1.107.117] - 2026-11-08
+
+### Changed
+- Bulk Sale → **Daftar Tunggu kini terlihat oleh semua admin di cabang yang sama** (seperti Daftar Tunggu POS), tidak lagi hanya oleh ID yang menahan. Tiap draf menampilkan **"Ditahan oleh …"**, dan admin lain secabang bisa melanjutkan atau menghapusnya supaya stok yang ditahan lepas. Sebelumnya draf satu ID menahan stok (stok tampak kosong) tanpa bisa dilihat admin lain. OWNER/GM melihat draf semua cabang.
+- Daftar Tunggu Bulk Sale dimuat ulang setiap kali dibuka, supaya draf yang baru ditahan atau dilanjutkan admin lain langsung terlihat.
+
+### Fixed
+- Bulk Sale → **Lanjutkan** draf tidak lagi memunculkan "Stok kurang … ditahan Daftar Tunggu" untuk barang draf itu sendiri: draf dihapus dari daftar tunggu dulu, baru stok dimuat.
+- Dua admin yang menekan **Lanjutkan** pada draf yang sama tidak bisa membuat nota ganda — yang kedua mendapat pesan "sudah dilanjutkan atau dihapus admin lain".
+
+## [1.107.116] - 2026-11-08
+
+### Added
+- Cara kirim kini tercetak di struk dan surat jalan: **DIKIRIM TRUK GUDANG** (tebal), "Diantar kurir cabang", atau "Kirim sendiri" untuk PO Internal; Ambil sendiri tidak dicetak. Berlaku di printer kasir, printer Bluetooth, cetak browser, gambar struk/surat jalan, Bulk Sale, dan Surat Jalan PO Internal. Cetak ulang selalu memakai cara kirim terbaru, termasuk sesudah Ubah cara kirim.
+
+## [1.107.115] - 2026-11-06
+
+### Added
+- PO Supplier: tombol **Ubah Isi PO / Tambah Barang** di detail PO untuk Owner/GM — barang yang lupa dimasukkan bisa ditambahkan, jumlah dan harga bisa diubah selama penerimaan belum disetujui. PO yang sudah Disetujui atau Dalam Pengiriman otomatis kembali ke **Menunggu Persetujuan** setelah diubah. Saat penerimaan sedang berjalan, barang yang sudah diterima tidak bisa dihapus dan jumlahnya tidak boleh kurang dari yang diterima. Setiap perubahan tercatat di Audit Log ("Isi PO diubah").
+- PO Supplier yang sudah Selesai: tombol **Buat PO Tambahan** — membuka form PO baru dengan supplier dan cabang yang sama serta catatan "PO Tambahan dari PO-…", karena PO Selesai (stok dan hutang sudah tercatat) tidak bisa diubah isinya.
+
+## [1.107.114] - 2026-11-06
+
+### Added
+- PO Supplier: **Draft PO dari Laporan Bongkaran HRIS** — barang yang datang sebelum PO dibuat langsung jadi Draft (tab Rencana, "dari bongkaran LB-…"). Kantor bisa mengubah isi Draft (tambah/hapus barang, jumlah, harga), lalu menyetujui atau membatalkannya.
+- Rincian PO menampilkan **foto surat jalan** dari bongkaran sebagai lampiran, serta jumlah bongkaran dibanding jumlah PO beserta selisihnya.
+- Tanda **"Bongkaran berubah, periksa"** bila laporan bongkaran dikoreksi atau dibatalkan sesudah PO disetujui, dengan tombol **Sudah diperiksa**.
+- Form Terima Barang terisi jumlah hitungan Kepala Gudang dari Laporan Bongkaran (tetap bisa diubah).
+
+### Fixed
+- Setujui PO kini hanya bisa dari Draft atau Menunggu Persetujuan (sebelumnya PO berstatus apa pun bisa "disetujui" ulang).
+
 ## [1.107.113] - 2026-11-05
 
 ### Added

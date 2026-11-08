@@ -29,6 +29,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/reports/debt-payments': '2026-10-11', // "Lihat bukti"
   '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
   '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
+  '/settings/money-places': '2026-11-08', // Tempat Uang + tautan metode bayar per cabang, F2-1a (rilis 1.107.118)
   // POS
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
@@ -86,6 +87,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/batalkan-po': '2026-11-05', // tombol Batalkan PO + panduan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
   'fitur/grooming-tahan': '2026-11-05', // tombol Tahan (karcis dulu, nota menyusul) di tab Grooming + tahanan di Sedang Dikerjakan (samakan dengan tanggal rilis saat merge)
   'fitur/promo-kelompok-campur': '2026-11-05', // tombol Kelompok campur (rasa/aroma bebas) di form promo (samakan dengan tanggal rilis saat merge)
+  'fitur/po-dari-bongkaran': '2026-11-06', // Draft PO dari Laporan Bongkaran HRIS + lampiran foto surat jalan di detail PO (samakan dengan tanggal rilis saat merge)
+  'fitur/ubah-isi-po': '2026-11-06', // tombol Ubah Isi PO / Tambah Barang + Buat PO Tambahan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

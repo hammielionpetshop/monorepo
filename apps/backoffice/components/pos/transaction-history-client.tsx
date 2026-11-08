@@ -254,6 +254,7 @@ export default function TransactionHistoryClient({
         customerName: selectedTransaction.customerName ?? undefined,
         isReprint: true,
         isVoided: selectedTransaction.status === 'VOIDED',
+        delivery: selectedTransaction.delivery ?? null,
       },
       () => window.print(),
       { forceRetry: true }
@@ -516,6 +517,7 @@ export default function TransactionHistoryClient({
         customerName={selectedTransaction.customerName ?? undefined}
         isReprint={true}
         isVoided={selectedTransaction.status === 'VOIDED'}
+        delivery={selectedTransaction.delivery ?? null}
       />
     )}
     </>

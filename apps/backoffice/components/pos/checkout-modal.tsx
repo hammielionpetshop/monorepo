@@ -18,7 +18,7 @@ import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
 import { NewBadge } from '@/components/ui/new-badge'
 import { TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
-import { type TransferDeliveryMethod } from '@/lib/delivery-method'
+import { deliveryPrintLine, type TransferDeliveryMethod } from '@/lib/delivery-method'
 import type { DeliveryChoice } from './delivery-step-model'
 import { applyFreeShipping, isOngkirItem } from '@/lib/ongkir'
 
@@ -59,6 +59,8 @@ interface TransactionResult {
   receiptNumber: string
   transactionId: number
   replayed: boolean
+  /** Cara kirim yang disimpan server (nota PO Internal: kosong, pilihannya di Kirim). */
+  deliveryMethod: string | null
 }
 
 interface SplitLine {
@@ -494,7 +496,7 @@ export default function CheckoutModal({
         body: JSON.stringify(payload),
       })
 
-      let data: { success?: boolean; replayed?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string; code?: string } = {}
+      let data: { success?: boolean; replayed?: boolean; transaction?: { id: number; trxNumber?: string; deliveryMethod?: string | null }; error?: string; code?: string } = {}
       const ct = res.headers.get('content-type')
       if (ct && ct.includes('application/json')) {
         data = await res.json()
@@ -516,7 +518,7 @@ export default function CheckoutModal({
         receiptNumber: data.transaction?.trxNumber ?? `TRX-${data.transaction?.id ?? Date.now()}`,
         transactionId: data.transaction?.id ?? 0,
       }
-      setResult({ ...saved, replayed: data.replayed === true })
+      setResult({ ...saved, replayed: data.replayed === true, deliveryMethod: data.transaction?.deliveryMethod ?? null })
       onSaved?.(saved)
       // Nota berpromo berkuota mengurangi jatah cabang. Muat ulang supaya nota berikutnya di kasir
       // ini memakai sisa jatah terbaru — tanpa ini nota selanjutnya bisa ditolak PROMO_CHANGED.
@@ -534,6 +536,13 @@ export default function CheckoutModal({
     }
   }
 
+
+  // Cara kirim tercetak: nota biasa dari simpanan server; PO Internal baru ada sesudah Kirim.
+  const printDelivery = deliveryPrintLine({
+    fromTransfer: sourceIbtId != null,
+    saleMethod: result?.deliveryMethod ?? null,
+    transferMethod: shipState === 'done' && shipNeedsMethod ? shipMethod : null,
+  })
 
   function buildSjData(receiptNumber: string): DeliveryNoteData {
     return {
@@ -553,6 +562,7 @@ export default function CheckoutModal({
       })),
       withPrice: sjWithPrice,
       grandTotal: netTotalBig.toNumber(),
+      delivery: printDelivery,
     }
   }
 
@@ -616,6 +626,7 @@ export default function CheckoutModal({
         storePhone: storeInfo.storePhone,
         transactionDate: new Date(),
         cashierName,
+        delivery: printDelivery,
       },
       () => window.print()
     )
@@ -644,6 +655,7 @@ export default function CheckoutModal({
             storePhone={storeInfo.storePhone}
             transactionDate={new Date()}
             cashierName={cashierName}
+            delivery={printDelivery}
           />
         )}
 

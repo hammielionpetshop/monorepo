@@ -314,3 +314,20 @@ describe('struk ESC/POS — ongkir lewat mesin ongkir', () => {
     expect(before).not.toContain('Anda hemat')
   })
 })
+
+describe('cara kirim di struk', () => {
+  it('truk Gudang dicetak tebal tepat di bawah baris pelanggan', () => {
+    const out = buildReceiptEscpos(data({ customerName: 'Toko Maju', delivery: { text: 'DIKIRIM TRUK GUDANG', bold: true } }))
+    expect(out).toContain('Toko Maju\n\x1BE\x01DIKIRIM TRUK GUDANG\n\x1BE\x00')
+  })
+
+  it('kurir cabang dicetak biasa', () => {
+    const out = buildReceiptEscpos(data({ delivery: { text: 'Diantar kurir cabang', bold: false } }))
+    expect(out).toContain('Umum\nDiantar kurir cabang\n')
+    expect(out).not.toContain('\x1BE\x01Diantar')
+  })
+
+  it('tanpa cara kirim tidak menambah baris', () => {
+    expect(buildReceiptEscpos(data({ delivery: null }))).toBe(buildReceiptEscpos(data()))
+  })
+})
