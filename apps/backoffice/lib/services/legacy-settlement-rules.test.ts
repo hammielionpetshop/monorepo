@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { simulateLegacySettlement, type BranchMoney, type LegacyPayable } from './legacy-settlement-rules'
+import { simulateLegacySettlement, simulationTotals, summarizeBranchMoney, type BranchMoney, type LegacyPayable } from './legacy-settlement-rules'
 
 // 1 = Toko A, 2 = Toko Pusat, 3 = Gudang (contoh spec F2-3 §2).
 const A = 1, PUSAT = 2, GUDANG = 3
@@ -56,5 +56,25 @@ describe('simulateLegacySettlement (F2-3b pratinjau utang lama)', () => {
     const free = sim.branches.filter((b) => b.branchId !== GUDANG).reduce((t, b) => t + b.freeAmount, 0)
     expect(settledTotal).toBeLessThanOrEqual(6_000_000)
     expect(free).toBeGreaterThan(0)
+  })
+})
+
+describe('summarizeBranchMoney + simulationTotals (F2-3b-2 jalankan = pratinjau)', () => {
+  it('shift belum terverifikasi tidak masuk kas; non-tunai dari semua shift; sidik urut id tagihan', () => {
+    const summary = summarizeBranchMoney({
+      payables: [{ debtorBranchId: A }],
+      shifts: [
+        { branchId: A, verified: true, cash: 4_000_000, noncash: 100 },
+        { branchId: A, verified: false, cash: 9_000_000, noncash: 200 },
+      ],
+      manualPayments: [{ debtorBranchId: A, amount: 500_000 }],
+    })
+    expect(summary).toEqual([{
+      branchId: A, verifiedCash: 4_000_000, verifiedShifts: 1, unverifiedCash: 9_000_000, unverifiedShifts: 1,
+      noncash: 300, manualPaid: 500_000, manualCount: 1,
+    }])
+    const sim = simulateLegacySettlement(payables, summary, { includeNoncash: false, subtractManual: true })
+    // 3,5 jt: #11 lunas 3 jt (Pusat teruskan 2 jt ke #21), #12 sebagian 0,5 jt; bebas = Pusat 1 jt + Gudang 2,5 jt.
+    expect(simulationTotals(sim)).toEqual({ settled: 5_500_000, payablesCount: 3, free: 3_500_000, fingerprint: '11:3000000,12:500000,21:2000000' })
   })
 })

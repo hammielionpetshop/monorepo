@@ -139,3 +139,58 @@ export function simulateLegacySettlement(
     steps,
   }
 }
+
+/** F2-3b-2: Jalankan & Batalkan pelunasan susulan hanya Owner (spec §9 no.5). */
+export const LEGACY_RUN_ROLES: readonly string[] = ['OWNER']
+
+export interface BranchMoneySummary extends BranchMoney {
+  verifiedShifts: number
+  unverifiedCash: number
+  unverifiedShifts: number
+  manualCount: number
+}
+
+/**
+ * Ringkas uang per cabang dari data pratinjau. Dipakai layar DAN server saat Jalankan, supaya hitungan
+ * yang dijalankan persis sama dengan yang dilihat Owner. Shift belum terverifikasi tidak masuk
+ * `verifiedCash` (hanya info); non-tunai dihitung dari semua shift (angka sistem).
+ */
+export function summarizeBranchMoney(input: {
+  payables: { debtorBranchId: number }[]
+  shifts: { branchId: number; verified: boolean; cash: number; noncash: number }[]
+  manualPayments: { debtorBranchId: number; amount: number }[]
+}): BranchMoneySummary[] {
+  const total = (xs: number[]) => xs.reduce((t, x) => t.plus(x), new Big(0)).toNumber()
+  const ids = new Set<number>([
+    ...input.payables.map((p) => p.debtorBranchId),
+    ...input.shifts.map((s) => s.branchId),
+    ...input.manualPayments.map((m) => m.debtorBranchId),
+  ])
+  return [...ids].sort((a, b) => a - b).map((branchId) => {
+    const shifts = input.shifts.filter((s) => s.branchId === branchId)
+    const verified = shifts.filter((s) => s.verified)
+    const unverified = shifts.filter((s) => !s.verified)
+    const manual = input.manualPayments.filter((m) => m.debtorBranchId === branchId)
+    return {
+      branchId,
+      verifiedCash: total(verified.map((s) => s.cash)),
+      verifiedShifts: verified.length,
+      unverifiedCash: total(unverified.map((s) => s.cash)),
+      unverifiedShifts: unverified.length,
+      noncash: total(shifts.map((s) => s.noncash)),
+      manualPaid: total(manual.map((m) => m.amount)),
+      manualCount: manual.length,
+    }
+  })
+}
+
+/** Total dilunasi + sidik hasil (tagihan:jumlah) untuk memastikan server menjalankan yang dilihat. */
+export function simulationTotals(sim: LegacySimulation): { settled: number; payablesCount: number; free: number; fingerprint: string } {
+  const touched = sim.payables.filter((p) => p.settled > 0).sort((a, b) => a.id - b.id)
+  return {
+    settled: touched.reduce((t, p) => t.plus(p.settled), new Big(0)).toNumber(),
+    payablesCount: touched.length,
+    free: sim.steps.filter((s) => s.payableId == null).reduce((t, s) => t.plus(s.amount), new Big(0)).toNumber(),
+    fingerprint: touched.map((p) => `${p.id}:${p.settled}`).join(','),
+  }
+}

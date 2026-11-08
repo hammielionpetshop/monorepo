@@ -4,8 +4,10 @@ import { Fragment, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Big from 'big.js'
-import { simulateLegacySettlement, type BranchMoney } from '@/lib/services/legacy-settlement-rules'
+import { NewBadge } from '@/components/ui/new-badge'
+import { simulateLegacySettlement, simulationTotals, summarizeBranchMoney } from '@/lib/services/legacy-settlement-rules'
 import type { LegacyPreviewData } from '@/lib/services/legacy-settlement-service'
+import { ActiveRunCard, CancelledRuns, RunDialog } from './legacy-run-panels'
 
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 const sum = (xs: number[]) => xs.reduce((t, x) => t.plus(x), new Big(0)).toNumber()
@@ -37,9 +39,10 @@ interface BranchRow {
   freeAmount: number
 }
 
-export function LegacyPreviewClient({ data, quickDates }: {
+export function LegacyPreviewClient({ data, quickDates, canRun }: {
   data: LegacyPreviewData
   quickDates: { date: string; label: string }[]
+  canRun: boolean
 }) {
   const router = useRouter()
   const [fromInput, setFromInput] = useState(data.fromDate)
@@ -47,33 +50,13 @@ export function LegacyPreviewClient({ data, quickDates }: {
   const [subtractManual, setSubtractManual] = useState(true)
   const [openBranch, setOpenBranch] = useState<number | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [runOpen, setRunOpen] = useState(false)
 
   const branchName = useMemo(() => new Map(data.branches.map((b) => [b.id, b.name])), [data.branches])
   const nameOf = (id: number) => branchName.get(id) ?? `Cabang #${id}`
 
-  const money = useMemo(() => {
-    const ids = new Set<number>([
-      ...data.payables.map((p) => p.debtorBranchId),
-      ...data.shifts.map((s) => s.branchId),
-      ...data.manualPayments.map((m) => m.debtorBranchId),
-    ])
-    return [...ids].map((branchId): BranchMoney & { verifiedShifts: number; unverifiedCash: number; unverifiedShifts: number; manualCount: number } => {
-      const shifts = data.shifts.filter((s) => s.branchId === branchId)
-      const verified = shifts.filter((s) => s.verified)
-      const unverified = shifts.filter((s) => !s.verified)
-      const manual = data.manualPayments.filter((m) => m.debtorBranchId === branchId)
-      return {
-        branchId,
-        verifiedCash: sum(verified.map((s) => s.cash)),
-        verifiedShifts: verified.length,
-        unverifiedCash: sum(unverified.map((s) => s.cash)),
-        unverifiedShifts: unverified.length,
-        noncash: sum(shifts.map((s) => s.noncash)),
-        manualPaid: sum(manual.map((m) => m.amount)),
-        manualCount: manual.length,
-      }
-    })
-  }, [data])
+  // Sama persis dengan hitungan server saat Jalankan (summarizeBranchMoney + simulateLegacySettlement).
+  const money = useMemo(() => summarizeBranchMoney(data), [data])
 
   const sim = useMemo(
     () => simulateLegacySettlement(data.payables, money, { includeNoncash, subtractManual }),
@@ -119,6 +102,8 @@ export function LegacyPreviewClient({ data, quickDates }: {
     remainingAfter: sum(sim.payables.map((p) => p.remainingAfter)),
   }
 
+  const runTotals = simulationTotals(sim)
+
   function goFrom(date: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
     setFromInput(date)
@@ -133,7 +118,7 @@ export function LegacyPreviewClient({ data, quickDates }: {
       { Pilihan: 'Utang lama = lahir sebelum', Isi: data.cutoffDate },
       { Pilihan: 'Non-tunai', Isi: includeNoncash ? 'ikut' : 'tidak ikut' },
       { Pilihan: 'Pelunasan manual', Isi: subtractManual ? 'dikurangi' : 'tidak dikurangi' },
-      { Pilihan: 'Catatan', Isi: 'Pratinjau saja — tidak ada data yang berubah' },
+      { Pilihan: 'Catatan', Isi: 'Pratinjau — belum ada data yang berubah' },
     ]), 'Pilihan')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
       rows.map((r) => ({
@@ -189,8 +174,20 @@ export function LegacyPreviewClient({ data, quickDates }: {
     XLSX.writeFile(wb, `pratinjau-utang-lama-${data.fromDate}.xlsx`)
   }
 
+  // Selama ada pelunasan susulan yang berlaku, simulasi disembunyikan: utang yang tersisa sudah
+  // berkurang, jadi "kalau dijalankan" akan memakai uang yang sama dua kali.
+  if (data.activeRun) {
+    return (
+      <div className="space-y-4">
+        <ActiveRunCard run={data.activeRun} canRun={canRun} />
+        <CancelledRuns runs={data.cancelledRuns} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      <CancelledRuns runs={data.cancelledRuns} />
       <div className="rounded-lg border border-border bg-card p-4 space-y-3 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-foreground">Setoran dihitung sejak</span>
@@ -231,9 +228,30 @@ export function LegacyPreviewClient({ data, quickDates }: {
           <button type="button" onClick={downloadExcel} className="rounded-md border border-border px-3 py-1 text-foreground hover:bg-muted">
             Unduh Excel
           </button>
+          {canRun && (
+            <button
+              type="button"
+              disabled={runTotals.settled <= 0}
+              onClick={() => setRunOpen(true)}
+              title={runTotals.settled <= 0 ? 'Tidak ada utang lama yang bisa dilunasi dengan pilihan ini' : undefined}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              Jalankan pelunasan susulan… <NewBadge feature="fitur/utang-lama-jalankan" />
+            </button>
+          )}
         </div>
         {showHelp && <HowToRead cutoffDate={data.cutoffDate} />}
       </div>
+      {runOpen && (
+        <RunDialog
+          fromDate={data.fromDate}
+          cutoffDate={data.cutoffDate}
+          includeNoncash={includeNoncash}
+          subtractManual={subtractManual}
+          totals={runTotals}
+          onClose={() => setRunOpen(false)}
+        />
+      )}
 
       <div className="grid gap-3 sm:grid-cols-4 text-sm">
         <Stat label="Utang lama terbuka" value={rupiah(totals.openRemaining)} note={`${totals.openCount} nota`} />
@@ -446,7 +464,7 @@ function HowToRead({ cutoffDate }: { cutoffDate: string }) {
       <p><b>Pelunasan manual</b> = bayar utang internal yang diketik orang di menu Utang Internal sejak tanggal pilihan, atas utang lama (termasuk yang sekarang sudah lunas). Dianggap dibayar dari uang setoran yang sama, jadi dikurangi supaya uang tidak terhitung dua kali.</p>
       <p><b>Uang tersedia</b> = kas terverifikasi (+ non-tunai bila dicentang) − pelunasan manual (bila dicentang). Bila minus, tampil 0 dengan tanda merah.</p>
       <p><b>Kalau dijalankan</b> = uang tersedia melunasi utang lama cabang itu dari yang paling lama, siapa pun pemasoknya. Uang yang diterima pemasok (mis. Toko Pusat) diteruskan melunasi utang lama pemasok itu (mis. ke Gudang) — sama dengan pelunasan otomatis. Sisa uang = <b>setoran bebas lama</b> (hanya info).</p>
-      <p>Halaman ini <b>tidak mengubah apa pun</b>. Klik nama cabang untuk melihat rincian nota, shift, pelunasan manual, dan ke mana uangnya mengalir.</p>
+      <p>Mengganti tanggal atau centang <b>tidak mengubah apa pun</b>. Data baru berubah bila Owner menekan <b>Jalankan pelunasan susulan</b>: nota tercatat lunas dengan Riwayat bertanda SUSULAN, dan bisa dibatalkan seluruhnya (BATAL SUSULAN). Klik nama cabang untuk melihat rincian nota, shift, pelunasan manual, dan ke mana uangnya mengalir.</p>
     </div>
   )
 }

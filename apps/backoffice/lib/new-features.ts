@@ -17,6 +17,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
   'fitur/langkah-pengiriman': '2026-11-04', // langkah Pengiriman sebelum layar bayar kasir: ambil sendiri / kurir + pengantar + ongkir / truk (samakan dengan tanggal rilis saat merge)
   'fitur/cara-kirim': '2026-11-04', // pilihan wajib Cara kirim (bayar, Bulk Sale, Kirim PO Internal) + kolom/saringan Riwayat Transaksi + Ubah cara kirim (samakan dengan tanggal rilis saat merge)
+  'fitur/utang-lama-jalankan': '2026-11-09', // tombol Jalankan pelunasan susulan + penyaring Utang lama, F2-3b-2 (samakan dengan tanggal rilis saat merge)
   'fitur/utang-lama-pratinjau': '2026-11-09', // tombol Utang Lama di Utang Internal, F2-3b-1 (samakan dengan tanggal rilis saat merge)
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping

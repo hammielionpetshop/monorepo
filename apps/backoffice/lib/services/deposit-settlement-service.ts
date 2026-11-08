@@ -7,7 +7,7 @@ import { todayWibDate } from '../payment-date'
 import { DepositError } from './deposit-error'
 import {
   AUTO_SETTLEMENT_SETTINGS_KEY, parseAutoSettlementSettings, planSettlement,
-  type AutoSettlementSettings, type OpenPayable,
+  type AutoSettlementSettings, type OpenPayable, type SettlementStep,
 } from './deposit-settlement-rules'
 
 // F2-3 Pelunasan Otomatis — dipanggil di transaksi DB yang sama dengan Verifikasi Setoran (F2-2).
@@ -17,7 +17,7 @@ import {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Executor = Pick<typeof db, 'select' | 'execute'>
-export type SettlementSource = 'CASH_DEPOSIT' | 'NONCASH_VERIFICATION'
+export type SettlementSource = 'CASH_DEPOSIT' | 'NONCASH_VERIFICATION' | 'LEGACY_RUN'
 
 export const SETTLEMENT_PAYMENT_SOURCE = 'SETORAN'
 export const SETTLEMENT_REVERSAL_SOURCE = 'BATAL_SETORAN'
@@ -31,7 +31,7 @@ export async function getAutoSettlementSettings(executor: Executor = db): Promis
   return parseAutoSettlementSettings(row?.value, todayWibDate())
 }
 
-function lockSettlement(tx: Tx) {
+export function lockSettlement(tx: Tx) {
   // Satu penjaga untuk semua alokasi: dua verifikasi bersamaan tidak melunasi tagihan yang sama.
   return tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('deposit_settlement'))`)
 }
@@ -92,9 +92,40 @@ export async function settleFromVerifiedSource(
   const steps = planSettlement(input.branchId, input.amount, (b) => byDebtor.get(b) ?? [])
   if (steps.length === 0) return empty
 
+  return writeSettlementSteps(tx, steps, {
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    userId: input.userId,
+    now,
+    paymentSource: SETTLEMENT_PAYMENT_SOURCE,
+    reference: input.reference,
+    noteOf: (step, originName) => `Pelunasan otomatis dari setoran ${input.reference}${step.level > 1 ? ` (diteruskan dari setoran ${originName})` : ''}`,
+  })
+}
+
+/**
+ * Tulis langkah alokasi (dari `planSettlement`): utang bertambah dibayar, satu baris
+ * `inter_branch_payments` per tagihan, satu baris `deposit_settlements` per langkah. `step.parent`
+ * menunjuk indeks di daftar yang sama. Dipakai F2-3 (setoran) dan F2-3b-2 (pelunasan susulan).
+ */
+export async function writeSettlementSteps(
+  tx: Tx,
+  steps: (SettlementStep & { originBranchId?: number })[],
+  input: {
+    sourceType: SettlementSource
+    sourceId: number
+    userId: number
+    now: Date
+    paymentSource: string
+    reference: string
+    noteOf: (step: SettlementStep, originName: string) => string
+  },
+): Promise<SettlementSummary> {
+  const now = input.now
+  const branchIds = new Set(steps.flatMap((s) => [s.payerBranchId, s.originBranchId ?? s.payerBranchId]))
   const payerNames = new Map(
     (await tx.select({ id: branches.id, name: branches.name }).from(branches)
-      .where(inArray(branches.id, [...new Set(steps.map((s) => s.payerBranchId))])))
+      .where(inArray(branches.id, [...branchIds])))
       .map((b) => [b.id, b.name]),
   )
   const rowIds: number[] = []
@@ -117,15 +148,15 @@ export async function settleFromVerifiedSource(
         ))
         .returning({ id: interBranchPayables.id })
       if (!updated) throw new DepositError('Sisa utang internal berubah saat pelunasan otomatis — coba lagi', 409)
-      const via = step.level > 1 ? ` (diteruskan dari setoran ${payerNames.get(input.branchId) ?? 'cabang'})` : ''
+      const origin = step.originBranchId ?? steps[0]?.payerBranchId ?? step.payerBranchId
       const [payment] = await tx.insert(interBranchPayments).values({
         payableId: step.payableId,
         amount: step.amount,
         paidByUserId: input.userId,
         paymentMethodId: null,
-        sourceType: SETTLEMENT_PAYMENT_SOURCE,
+        sourceType: input.paymentSource,
         referenceNumber: input.reference,
-        notes: `Pelunasan otomatis dari setoran ${input.reference}${via}`.slice(0, 500),
+        notes: input.noteOf(step, payerNames.get(origin) ?? 'cabang').slice(0, 500),
         paidAt: now,
       }).returning({ id: interBranchPayments.id })
       paymentId = payment.id
@@ -157,7 +188,17 @@ export async function settleFromVerifiedSource(
  */
 export async function reverseSettlements(
   tx: Tx,
-  input: { sourceType: SettlementSource; sourceId: number; reference: string; reason: string; userId: number; now?: Date },
+  input: {
+    sourceType: SettlementSource
+    sourceId: number
+    reference: string
+    reason: string
+    userId: number
+    now?: Date
+    /** Bawaan BATAL_SETORAN; pelunasan susulan memakai BATAL_SUSULAN. */
+    paymentSource?: string
+    notes?: string
+  },
 ): Promise<number> {
   await lockSettlement(tx)
   const now = input.now ?? new Date()
@@ -192,9 +233,9 @@ export async function reverseSettlements(
         amount: -row.amount,
         paidByUserId: input.userId,
         paymentMethodId: null,
-        sourceType: SETTLEMENT_REVERSAL_SOURCE,
+        sourceType: input.paymentSource ?? SETTLEMENT_REVERSAL_SOURCE,
         referenceNumber: input.reference,
-        notes: `Batal pelunasan otomatis setoran ${input.reference}: ${input.reason}`.slice(0, 500),
+        notes: (input.notes ?? `Batal pelunasan otomatis setoran ${input.reference}: ${input.reason}`).slice(0, 500),
         paidAt: now,
       }).returning({ id: interBranchPayments.id })
       paymentId = payment.id

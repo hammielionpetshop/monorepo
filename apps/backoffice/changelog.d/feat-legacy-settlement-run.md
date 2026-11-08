@@ -1,0 +1,4 @@
+### Added
+- Utang Internal › Utang Lama: tombol **Jalankan pelunasan susulan** (Owner saja). Memakai tanggal mulai dan centang yang sedang dipilih di pratinjau; Owner mengetik ulang total yang dilunasi dan menulis catatan. Nota utang lama yang terlunasi tercatat di Riwayat pembayaran dengan tanda **SUSULAN** (bukan uang kas baru, tidak masuk Pendapatan & Pengeluaran), berantai sama seperti pelunasan otomatis. Bila data berubah sejak halaman dibuka, pelaksanaan ditolak dan diminta muat ulang. Hanya satu pelaksanaan boleh berlaku.
+- **Batalkan pelunasan susulan** (Owner, alasan wajib): semua pelunasannya dibalik dengan tanda **BATAL SUSULAN** (tidak ada yang dihapus), nota kembali terbuka, lalu bisa dijalankan ulang dengan pilihan lain. Riwayat pelaksanaan yang dibatalkan tetap terlihat.
+- Utang Internal: penyaring **Utang lama** (utang yang lahir sebelum pelunasan otomatis) untuk menyelesaikan sisanya lewat Bayar manual atau Hapus Hutang.

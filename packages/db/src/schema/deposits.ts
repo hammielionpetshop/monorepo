@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, text, date, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text, date, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
@@ -140,10 +140,10 @@ export const cashDepositDefaults = petshop.table('cash_deposit_defaults', {
  */
 export const depositSettlements = petshop.table('deposit_settlements', {
   id: serial('id').primaryKey(),
-  /** CASH_DEPOSIT · NONCASH_VERIFICATION. */
+  /** CASH_DEPOSIT · NONCASH_VERIFICATION · LEGACY_RUN (F2-3b-2, sumber = legacy_settlement_runs.id). */
   sourceType: varchar('source_type', { length: 30 }).notNull(),
   sourceId: integer('source_id').notNull(),
-  /** 1 = cabang penyetor, 2 = pemasoknya, dst. */
+  /** 1 =cabang penyetor, 2 = pemasoknya, dst. */
   level: integer('level').notNull(),
   parentId: integer('parent_id').references((): AnyPgColumn => depositSettlements.id),
   payerBranchId: integer('payer_branch_id').references(() => branches.id).notNull(),
@@ -156,4 +156,30 @@ export const depositSettlements = petshop.table('deposit_settlements', {
 }, (t) => [
   index('idx_deposit_settlements_source').on(t.sourceType, t.sourceId),
   index('idx_deposit_settlements_payable').on(t.payableId),
+]);
+
+/**
+ * F2-3b-2 Pelunasan susulan utang lama (spec docs/work/specs/2026-11-08-f2-3b-utang-lama-design.md §4):
+ * satu baris per pelaksanaan oleh Owner. Hanya satu `ACTIVE` (indeks unik parsial, migrasi 0058);
+ * rinciannya di `deposit_settlements` sumber `LEGACY_RUN`.
+ */
+export const legacySettlementRuns = petshop.table('legacy_settlement_runs', {
+  id: serial('id').primaryKey(),
+  fromDate: date('from_date', { mode: 'string' }).notNull(),
+  cutoffDate: date('cutoff_date', { mode: 'string' }).notNull(),
+  includeNoncash: boolean('include_noncash').notNull(),
+  subtractManual: boolean('subtract_manual').notNull(),
+  settledAmount: integer('settled_amount').notNull(),
+  payablesCount: integer('payables_count').notNull(),
+  freeAmount: integer('free_amount').notNull(),
+  notes: text('notes').notNull(),
+  /** ACTIVE · CANCELLED. */
+  status: varchar('status', { length: 20 }).notNull().default('ACTIVE'),
+  createdBy: integer('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  cancelledBy: integer('cancelled_by').references(() => users.id),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelReason: text('cancel_reason'),
+}, (t) => [
+  uniqueIndex('uq_legacy_settlement_runs_active').on(t.status).where(sql`${t.status} = 'ACTIVE'`),
 ]);
