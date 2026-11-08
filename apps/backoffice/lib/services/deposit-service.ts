@@ -5,7 +5,7 @@ import {
 } from '../db'
 import { todayWibDate } from '../payment-date'
 import {
-  DEPOSIT_CORRECTOR_ROLES, DEPOSIT_SETTINGS_KEY, depositNumberPrefix, formatDepositNumber, isIsoDate,
+  DEPOSIT_CORRECTOR_ROLES, DEPOSIT_SETTINGS_KEY, LEGACY_DEPOSIT_FROM, depositNumberPrefix, formatDepositNumber, isIsoDate,
   parseDepositSettings, shiftDepositCash, validateCashVarianceLines, validateDepositSettings, validateNoncashCause,
   type CashVarianceLine, type DepositSettings, type NoncashCause,
 } from './deposit-rules'
@@ -14,12 +14,9 @@ import {
 // Tidak ada hapus/timpa: batal/koreksi menambah baris & pembalikan; perpindahan uang dicatat
 // otomatis di transaksi yang sama dengan tombol Verifikasi.
 
-export class DepositError extends Error {
-  constructor(message: string, readonly status: number = 400, readonly code: string = 'INVALID') {
-    super(message)
-    this.name = 'DepositError'
-  }
-}
+import { DepositError } from './deposit-error'
+import { reverseSettlements, settleFromVerifiedSource } from './deposit-settlement-service'
+export { DepositError }
 
 export interface DepositActor {
   userId: number
@@ -160,7 +157,7 @@ async function lockEligibleShifts(tx: Tx, branchId: number, shiftIds: number[], 
     if (r.status === 'OPEN') throw new DepositError('Shift masih berjalan — tutup shift dulu sebelum disetor')
     if (r.in_deposit === true) throw new DepositError('Ada shift yang sudah masuk setoran lain', 409, 'SHIFT_TAKEN')
     const isNew = String(r.closed_on) >= settings.startDate
-    if (!isNew && (r.origin !== 'POS' || r.legacy_verified === true)) {
+    if (!isNew && (r.origin !== 'POS' || r.legacy_verified === true || String(r.closed_on) < LEGACY_DEPOSIT_FROM)) {
       throw new DepositError('Ada shift lama yang sudah diverifikasi dengan cara lama atau tidak termasuk Setoran', 409)
     }
     const cash = shiftDepositCash({
@@ -332,7 +329,11 @@ async function applyVerification(
       createdBy: actor.userId,
     })
   }
-  return { updated, variance, shiftTotal }
+  const settlement = await settleFromVerifiedSource(tx, {
+    sourceType: 'CASH_DEPOSIT', sourceId: deposit.id, branchId: deposit.branchId, amount: input.receivedAmount,
+    heldBy: destination.heldBy, reference: deposit.depositNumber, userId: actor.userId, now,
+  })
+  return { updated, variance, shiftTotal, settlement }
 }
 
 async function lockDeposit(tx: Tx, id: number) {
@@ -366,9 +367,9 @@ export async function verifyCashDeposit(id: number, input: VerifyCashInput, acto
     const result = await applyVerification(tx, deposit, shifts, input, actor)
     await audit(tx, actor, 'CASH_DEPOSIT_VERIFY', 'cash_deposits', String(id), { status: deposit.status }, {
       receivedAmount: input.receivedAmount, variance: result.variance, variances: input.variances,
-      destinationMoneyPlaceId: result.updated.destinationMoneyPlaceId,
+      destinationMoneyPlaceId: result.updated.destinationMoneyPlaceId, settlement: result.settlement,
     })
-    return result.updated
+    return { ...result.updated, settlement: result.settlement }
   })
 }
 
@@ -391,8 +392,9 @@ export async function receiveCashDeposit(
       await audit(tx, actor, 'CASH_DEPOSIT_RECEIVE', 'cash_deposits', String(created.id), null, {
         depositNumber: created.depositNumber, shiftIds: shifts.map((s) => s.id), receivedAmount: input.receivedAmount,
         variance: result.variance, variances: input.variances, destinationMoneyPlaceId: input.destinationMoneyPlaceId,
+        settlement: result.settlement,
       })
-      return result.updated
+      return { ...result.updated, settlement: result.settlement }
     }),
   )
 }
@@ -468,6 +470,7 @@ export async function correctCashDeposit(
     await tx.update(cashDepositShifts).set({ releasedAt: now })
       .where(and(eq(cashDepositShifts.depositId, id), isNull(cashDepositShifts.releasedAt)))
     await reverseMovements(tx, 'CASH_DEPOSIT', id, actor)
+    await reverseSettlements(tx, { sourceType: 'CASH_DEPOSIT', sourceId: id, reference: old.depositNumber, reason, userId: actor.userId, now })
 
     const created = await insertDeposit(
       tx,
@@ -488,12 +491,17 @@ export async function correctCashDeposit(
     const result = await applyVerification(tx, created, shifts, { ...input, notes: undefined }, actor)
     await audit(tx, actor, 'CASH_DEPOSIT_CORRECT', 'cash_deposits', String(id),
       { status: 'VERIFIED', receivedAmount: old.receivedAmount, destinationMoneyPlaceId: old.destinationMoneyPlaceId },
-      { status: 'CORRECTED', correctedBy: created.id, correctionNumber: created.depositNumber, receivedAmount: input.receivedAmount, variances: input.variances, reason })
-    return result.updated
+      { status: 'CORRECTED', correctedBy: created.id, correctionNumber: created.depositNumber, receivedAmount: input.receivedAmount, variances: input.variances, reason, settlement: result.settlement })
+    return { ...result.updated, settlement: result.settlement }
   })
 }
 
 // ── Non-tunai ──────────────────────────────────────────────────────────────
+
+/** Nomor referensi pelunasan otomatis dari verifikasi non-tunai (tampil di riwayat Utang Internal). */
+export function noncashReference(id: number): string {
+  return `NT-${id}`
+}
 
 export interface NoncashKey {
   /** null = pelunasan non-tunai dari Back Office tanpa shift (per cabang per hari). */
@@ -659,10 +667,14 @@ export async function saveNoncashVerification(input: NoncashInput, actor: Deposi
           sourceType: 'NONCASH_VERIFICATION', sourceId: row.id, createdBy: actor.userId,
         })
       }
-      await audit(tx, actor, 'NONCASH_VERIFY', 'noncash_verifications', String(row.id), existing ? { status: existing.status } : null, {
-        expected: computed.expected, received, variance, cause, cashierId: values.cashierId,
+      const settlement = await settleFromVerifiedSource(tx, {
+        sourceType: 'NONCASH_VERIFICATION', sourceId: row.id, branchId: key.branchId, amount: received,
+        heldBy: place.heldBy, reference: noncashReference(row.id), userId: actor.userId, now,
       })
-      return row
+      await audit(tx, actor, 'NONCASH_VERIFY', 'noncash_verifications', String(row.id), existing ? { status: existing.status } : null, {
+        expected: computed.expected, received, variance, cause, cashierId: values.cashierId, settlement,
+      })
+      return { ...row, settlement }
     })
   } catch (error) {
     if (isUniqueViolation(error)) throw new DepositError('Baris ini baru saja disimpan pengguna lain — muat ulang', 409)
@@ -706,16 +718,21 @@ export async function correctNoncashVerification(
     }).returning()
     await tx.update(noncashVerifications).set({ supersededById: created.id }).where(eq(noncashVerifications.id, id))
     await reverseMovements(tx, 'NONCASH_VERIFICATION', id, actor)
+    await reverseSettlements(tx, { sourceType: 'NONCASH_VERIFICATION', sourceId: id, reference: noncashReference(id), reason, userId: actor.userId, now })
     if (input.receivedAmount > 0) {
       await tx.insert(moneyMovements).values({
         fromMoneyPlaceId: null, toMoneyPlaceId: place.id, amount: input.receivedAmount, occurredOn: old.businessDate,
         sourceType: 'NONCASH_VERIFICATION', sourceId: created.id, createdBy: actor.userId,
       })
     }
+    const settlement = await settleFromVerifiedSource(tx, {
+      sourceType: 'NONCASH_VERIFICATION', sourceId: created.id, branchId: old.branchId, amount: input.receivedAmount,
+      heldBy: place.heldBy, reference: noncashReference(created.id), userId: actor.userId, now,
+    })
     await audit(tx, actor, 'NONCASH_CORRECT', 'noncash_verifications', String(id),
       { receivedAmount: old.receivedAmount, variance: old.variance, cause: old.cause },
-      { supersededBy: created.id, receivedAmount: input.receivedAmount, variance, cause, reason })
-    return created
+      { supersededBy: created.id, receivedAmount: input.receivedAmount, variance, cause, reason, settlement })
+    return { ...created, settlement }
   })
 }
 

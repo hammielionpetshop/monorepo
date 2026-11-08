@@ -400,6 +400,13 @@
       "when": 1793451000000,
       "tag": "0056_deposits",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793452000000,
+      "tag": "0057_deposit_settlements",
+      "breakpoints": true
     }
   ]
 }
