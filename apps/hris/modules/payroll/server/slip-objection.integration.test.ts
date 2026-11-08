@@ -97,7 +97,7 @@ describe.skipIf(!ADMIN_URL)('L4g-2: Keberatan slip dan pembetulan', () => {
       payslip_objection: objection.payslipObjectionHandler(noAnnounce, 'payslip_objection'),
       payslip_objection_owner: objection.payslipObjectionHandler(noAnnounce, 'payslip_objection_owner'),
     };
-    brankas = Number((await sql`select id from hris.payment_sources where name = 'Brankas'`)[0].id);
+    brankas = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     const { loadActor } = await import('@/modules/access');
     actorOf = (employeeId) => loadActor(employeeId + 1000, employeeId);
     const gm = await actorOf(ids.gm);

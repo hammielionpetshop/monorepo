@@ -82,6 +82,8 @@ export const advanceHandovers = hrisSchema.table(
     amount: integer('amount').notNull(),
     moneyDate: date('money_date', { mode: 'string' }).notNull(),
     sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id'),
     method: text('method').notNull(),
     handedByAccountId: integer('handed_by_account_id').notNull(),
     /** Kosong = langsung ke orangnya; selain itu dititipkan lewat orang ini (K5). */
@@ -100,7 +102,7 @@ export const advanceHandovers = hrisSchema.table(
     uniqueIndex('advance_handovers_one_active').on(t.advanceId).where(sql`${t.status} = 'ACTIVE'`),
     check('advance_handovers_amount', sql`${t.amount} > 0`),
     check('advance_handovers_method', sql`${t.method} in ('CASH', 'TRANSFER', 'LEGACY')`),
-    check('advance_handovers_legacy_source', sql`(${t.method} = 'LEGACY') = (${t.sourceId} is null)`),
+    check('advance_handovers_legacy_source', sql`(${t.method} = 'LEGACY') = (${t.moneyPlaceId} is null)`),
     check('advance_handovers_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
     check('advance_handovers_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
   ],
@@ -153,6 +155,8 @@ export const advanceMovements = hrisSchema.table(
     installmentId: integer('installment_id').references(() => advanceInstallments.id),
     moneyDate: date('money_date', { mode: 'string' }),
     sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id'),
     proofFileId: uuid('proof_file_id').references(() => files.id),
     reason: text('reason'),
     recordedByAccountId: integer('recorded_by_account_id').notNull(),

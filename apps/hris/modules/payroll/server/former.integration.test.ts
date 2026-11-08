@@ -85,7 +85,7 @@ describe.skipIf(!ADMIN_URL)('L4g-3: akses terbatas mantan karyawan dan Total Dit
     await sql`insert into hris.employment_events (employee_id, kind, effective_on, reason_kind, resignation_notice, note, created_by_account_id)
       values (${ids.dodi}, 'DEACTIVATE', '2026-11-01', 'RESIGNED', 'WITH_NOTICE', 'Pindah kota bersama keluarga', 1),
              (${ids.eka}, 'DEACTIVATE', '2026-11-01', 'OTHER', null, 'Kontrak proyek selesai', 1)`;
-    rekening = Number((await sql`select id from hris.payment_sources where name = 'Rekening Kantor'`)[0].id);
+    rekening = Number((await sql`insert into petshop.money_places (name, kind, branch_id, bank_name, account_number) values ('Rekening Kantor', 'BANK', 1, 'BCA', '1234500001') returning id`)[0].id);
     slip = await import('./payslip');
     pay = await import('./payment');
     former = await import('./former');

@@ -74,7 +74,7 @@ describe.skipIf(!ADMIN_URL)('L4f-1: Bayar slip', () => {
       finance: await person('Fani', 'Finance'), ani: await person('Ani', 'Kasir'), budi: await person('Budi', 'Kasir', 'Mandiri'), cici: await person('Cici', 'Kasir', null),
       dodi: await person('Dodi', 'Kasir'),
     };
-    brankas = Number((await sql`select id from hris.payment_sources where name = 'Brankas'`)[0].id);
+    brankas = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     slip = await import('./payslip');
     pay = await import('./payment');
     reopen = await import('./payslip-reopen');
@@ -114,6 +114,16 @@ describe.skipIf(!ADMIN_URL)('L4f-1: Bayar slip', () => {
     expect(gmOwn.ok && gmOwn.data.outcomes[0]).toMatchObject({ result: 'PAID' });
     const estimate = await payOf(ids.owner, [await slipIdOf(ids.dodi)]);
     expect(estimate.ok && estimate.data.outcomes[0]).toMatchObject({ result: 'FAILED', text: 'Slip belum ditutup.' });
+  });
+
+  it('sumber uang: Laci kasir dan Tempat Uang nonaktif ditolak; daftar pilihan tanpa keduanya (F2-1b)', async () => {
+    const [{ id: drawer }] = await sql`insert into petshop.money_places (name, kind, branch_id, held_by) values ('Laci Kasir Uji', 'DRAWER', 1, 'STORE') returning id`;
+    const [{ id: closed }] = await sql`insert into petshop.money_places (name, kind, branch_id, is_active) values ('Kas Lama', 'CASH', 1, false) returning id`;
+    const ani = await slipIdOf(ids.ani);
+    expect(await payOf(ids.owner, [ani], { sourceId: Number(drawer) })).toMatchObject({ ok: false, status: 400 });
+    expect(await payOf(ids.owner, [ani], { sourceId: Number(closed) })).toMatchObject({ ok: false, status: 400 });
+    const preview = await pay.payPreviewScreen(await actorOf(ids.owner), [ani]);
+    expect(preview?.sources.map((s) => s.name)).toEqual(['Brankas']);
   });
 
   it('tanggal uang: masa depan dan mundur > 7 hari tanpa alasan ditolak', async () => {

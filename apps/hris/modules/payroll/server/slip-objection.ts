@@ -1,11 +1,12 @@
 import { and, asc, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { attendanceCorrections } from '@petshop/hris-db/schema/attendance';
 import {
-  bonusEntries, offSlipClaims, otherDeductions, otherReceivables, payWaivers, paymentSources, payslipLines, payslipObjections, payslipPayments, payslipSteps,
+  bonusEntries, offSlipClaims, otherDeductions, otherReceivables, payWaivers, payslipLines, payslipObjections, payslipPayments, payslipSteps,
   payslips, salaryChanges,
 } from '@petshop/hris-db/schema/payroll';
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
+import { moneyPlaceById } from '@/lib/money-places';
 import {
   can, listEmployeesWithAnyAction, loadActor, recordAudit, type Actor, type ActionName, type ChangeAnnounce, type ServiceResult, type Tx,
 } from '@/modules/access';
@@ -199,8 +200,8 @@ export function payslipObjectionHandler(announce: ChangeAnnounce, typeKey: Objec
       if (objection.kind === 'WRONG') {
         rows.push({ label: 'Baris dikeberati', before: null, after: lines.length ? lines.map((l) => `${l.label} ${reveal ? rupiah(l.amount) : ''}`.trim()).join('; ') : 'Lainnya' });
       } else if (objection.paymentId) {
-        const [p] = await db.select({ p: payslipPayments, source: paymentSources.name }).from(payslipPayments)
-          .leftJoin(paymentSources, eq(paymentSources.id, payslipPayments.sourceId)).where(eq(payslipPayments.id, objection.paymentId));
+        const [row] = await db.select().from(payslipPayments).where(eq(payslipPayments.id, objection.paymentId));
+        const p = row ? { p: row, source: (await moneyPlaceById(row.moneyPlaceId))?.name ?? null } : null;
         if (p) {
           const names = await accountNames();
           rows.push({

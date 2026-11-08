@@ -80,7 +80,7 @@ describe.skipIf(!ADMIN_URL)('L5b: Kasbon sesudah diberikan', () => {
       ani: await person('Ani', 'Kasir'), budi: await person('Budi', 'Kasir', '2026-01-01', 60_000), siti: await person('Siti', 'Kasir'),
       dodi: await person('Dodi', 'Kasir'), eko: await person('Eko', 'Kasir', '2026-01-01', 60_000), baru: await person('Baru', 'Kasir', '2026-08-01'),
     };
-    [{ id: sourceId }] = await sql`select id from hris.payment_sources order by id limit 1`;
+    sourceId = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     [{ id: driverId }] = await sql`select id from hris.positions where name = 'Driver'`;
     adv = await import('@/modules/advances');
     engine = await import('@/modules/requests');

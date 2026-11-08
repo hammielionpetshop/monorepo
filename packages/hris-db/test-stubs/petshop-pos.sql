@@ -67,3 +67,10 @@ CREATE TABLE IF NOT EXISTS petshop.returns (
   total_refund_amount integer NOT NULL, debt_reduction_amount integer NOT NULL DEFAULT 0, created_at timestamp NOT NULL DEFAULT now(),
   cancelled_at timestamp
 );
+-- F2-1b (migrasi hris 0056): Tempat Uang Back Office untuk view hris.pos_money_places. Tes membuat Tempat Uang sendiri
+-- (petshop.branches tes kosong saat migrasi, jadi pemetaan Sumber Uang lama tidak membuat apa-apa).
+CREATE TABLE IF NOT EXISTS petshop.money_places (
+  id serial PRIMARY KEY, name varchar(100) NOT NULL, kind varchar(10) NOT NULL, branch_id integer NOT NULL, bank_name varchar(50),
+  account_number varchar(50), account_holder varchar(100), held_by varchar(10) NOT NULL DEFAULT 'FINANCE', holder_note varchar(100),
+  is_active boolean NOT NULL DEFAULT true, sort_order integer NOT NULL DEFAULT 0
+);

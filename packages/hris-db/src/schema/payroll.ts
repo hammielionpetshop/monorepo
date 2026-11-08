@@ -853,7 +853,9 @@ export const payBatches = hrisSchema.table(
   {
     id: serial('id').primaryKey(),
     paidByAccountId: integer('paid_by_account_id').notNull(),
-    sourceId: integer('source_id').notNull().references(() => paymentSources.id),
+    sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id').notNull(),
     moneyDate: date('money_date', { mode: 'string' }).notNull(),
     /** Wajib bila tanggal uang mundur lebih dari 7 hari (GAJ-99). */
     dateReason: text('date_reason'),
@@ -879,6 +881,8 @@ export const payslipPayments = hrisSchema.table(
     moneyDate: date('money_date', { mode: 'string' }).notNull(),
     method: text('method'),
     sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id'),
     paidByAccountId: integer('paid_by_account_id').notNull(),
     /** Uraian untuk app Keuangan kelak (GAJ-56): cabang slip, gaji Pemilik/GM, pendapatan, terpotong per kelompok, dana. */
     breakdown: jsonb('breakdown'),
@@ -897,7 +901,7 @@ export const payslipPayments = hrisSchema.table(
     index('payslip_payments_batch_idx').on(t.batchId),
     check('payslip_payments_kind', sql`${t.kind} in ('MONEY', 'NO_MONEY')`),
     check('payslip_payments_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
-    check('payslip_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.batchId} is not null and ${t.sourceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
+    check('payslip_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.batchId} is not null and ${t.moneyPlaceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
     check('payslip_payments_no_money', sql`${t.kind} <> 'NO_MONEY' or (${t.amount} = 0 and ${t.batchId} is null)`),
     check('payslip_payments_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
   ],
@@ -1444,6 +1448,8 @@ export const unloadingPayments = hrisSchema.table(
     moneyDate: date('money_date', { mode: 'string' }).notNull(),
     dateReason: text('date_reason'),
     sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id'),
     method: text('method'),
     paidByAccountId: integer('paid_by_account_id').notNull(),
     /** Pembayar Pemilik/GM yang juga peserta atau pembuat (boleh, bertanda, DRV-111). */
@@ -1463,7 +1469,7 @@ export const unloadingPayments = hrisSchema.table(
     uniqueIndex('unloading_payments_one_active_top_up').on(t.topUpId).where(sql`${t.status} = 'ACTIVE' and ${t.topUpId} is not null`),
     check('unloading_payments_kind', sql`${t.kind} in ('MONEY', 'NO_MONEY')`),
     check('unloading_payments_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
-    check('unloading_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.sourceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
+    check('unloading_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.moneyPlaceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
     check('unloading_payments_no_money', sql`${t.kind} <> 'NO_MONEY' or ${t.amount} = 0`),
     check('unloading_payments_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
   ],
@@ -1530,6 +1536,8 @@ export const unloadingOverpaymentUses = hrisSchema.table(
     amount: integer('amount').notNull(),
     paymentId: integer('payment_id').references(() => unloadingPayments.id),
     sourceId: integer('source_id').references(() => paymentSources.id),
+    /** Tempat Uang Back Office (F2-1b; view `hris.pos_money_places`, tanpa FK lintas schema). `source_id` lama tidak dipakai lagi. */
+    moneyPlaceId: integer('money_place_id'),
     moneyDate: date('money_date', { mode: 'string' }),
     status: text('status').notNull().default('ACTIVE'),
     createdByAccountId: integer('created_by_account_id').notNull(),
@@ -1541,7 +1549,7 @@ export const unloadingOverpaymentUses = hrisSchema.table(
     check('unloading_overpayment_uses_amount', sql`${t.amount} > 0`),
     check('unloading_overpayment_uses_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
     check('unloading_overpayment_uses_offset', sql`${t.kind} <> 'OFFSET' or ${t.paymentId} is not null`),
-    check('unloading_overpayment_uses_refund', sql`${t.kind} <> 'REFUND' or (${t.sourceId} is not null and ${t.moneyDate} is not null)`),
+    check('unloading_overpayment_uses_refund', sql`${t.kind} <> 'REFUND' or (${t.moneyPlaceId} is not null and ${t.moneyDate} is not null)`),
   ],
 );
 

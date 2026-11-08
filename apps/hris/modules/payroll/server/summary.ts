@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { fundEntries, payslipLines, payslips, paymentSources } from '@petshop/hris-db/schema/payroll';
+import { fundEntries, payslipLines, payslips } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { moneyPlaces } from '@/lib/money-places';
 import { hasAction, type Actor } from '@/modules/access';
 import { todayWib } from '@/modules/employees';
 import { LINE_LABELS } from '../rules/attendance-pay';
@@ -39,7 +40,7 @@ export async function payrollSummary(actor: Actor | null, periodStart: string, o
   const [lines, paid, sources, funds] = await Promise.all([
     closedIds.length ? db.select().from(payslipLines).where(and(inArray(payslipLines.payslipId, closedIds), eq(payslipLines.status, 'ACTIVE'))) : Promise.resolve([]),
     activePayments(closedIds),
-    db.select().from(paymentSources),
+    moneyPlaces(),
     closedIds.length ? db.select({ payslipId: fundEntries.payslipId, fund: fundEntries.fund, amount: fundEntries.amount }).from(fundEntries).where(inArray(fundEntries.payslipId, closedIds)) : Promise.resolve([]),
   ]);
 
@@ -58,7 +59,7 @@ export async function payrollSummary(actor: Actor | null, periodStart: string, o
         section: l.section as SummarySlip['lines'][number]['section'], group: l.deductionGroup, sourceKey: l.sourceKey, lineKind: l.lineKind, label: l.label,
         amount: l.amount, taken: l.taken, remaining: l.remaining, fund: (l.details as { fund?: string } | null)?.fund === 'DISCIPLINE_FUND',
       })),
-      payment: pay ? { kind: pay.kind as 'MONEY' | 'NO_MONEY', source: sources.find((s) => s.id === pay.sourceId)?.name ?? null } : null,
+      payment: pay ? { kind: pay.kind as 'MONEY' | 'NO_MONEY', source: sources.find((s) => s.id === pay.moneyPlaceId)?.name ?? null } : null,
     });
   }
   const fundsOf = (ids: Set<number>) => funds.filter((f) => f.payslipId != null && ids.has(f.payslipId)).map((f) => ({ fund: f.fund as 'DISCIPLINE' | 'ABSENCE', amount: f.amount }));

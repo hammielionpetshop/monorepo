@@ -79,7 +79,7 @@ describe.skipIf(!ADMIN_URL)('L4f-2: Bayar di luar slip dan Ringkasan', () => {
       owner: await person('Elan', 'Pemilik'), gm: await person('Gina', 'GM'), hr: await person('Nadia HR', 'HR'), finance: await person('Fani', 'Finance'),
       budi: await person('Budi', 'Kasir'), eko: await person('Eko', 'Kasir'),
     };
-    brankas = Number((await sql`select id from hris.payment_sources where name = 'Brankas'`)[0].id);
+    brankas = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     slip = await import('./payslip');
     pay = await import('./payment');
     off = await import('./off-slip');
