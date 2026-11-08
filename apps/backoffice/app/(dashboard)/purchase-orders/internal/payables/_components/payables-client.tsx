@@ -63,6 +63,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
   const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
+  const [legacyOnly, setLegacyOnly] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'legacyOnly', '')
 
   const [modal, setModal] = useState<Modal>(null)
   const [payAmount, setPayAmount] = useState('')
@@ -125,11 +126,13 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   }, [payables])
 
   // Hanya sisi penerima (debitur) yang disaring — sama seperti pembatasan di query.
+  // "Utang lama" = lahir sebelum pelunasan otomatis berjalan (F2-3b): sisanya dibayar manual / dihapus.
   const branchScoped = useMemo(() => {
-    if (branchFilter === ALL_BRANCHES) return payables
+    const scoped = legacyOnly ? payables.filter(p => wibDate(p.createdAt) < autoStartDate) : payables
+    if (branchFilter === ALL_BRANCHES) return scoped
     const id = Number(branchFilter)
-    return payables.filter(p => p.debtorBranchId === id)
-  }, [payables, branchFilter])
+    return scoped.filter(p => p.debtorBranchId === id)
+  }, [payables, branchFilter, legacyOnly, autoStartDate])
 
   const statusScoped = useMemo(() =>
     activeTab === 'all' ? branchScoped : branchScoped.filter(p => p.status === activeTab),
@@ -429,6 +432,10 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
           })}
         </div>
         <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-1.5 text-sm text-foreground whitespace-nowrap" title={`Utang yang lahir sebelum ${autoStartDate}`}>
+            <input type="checkbox" checked={legacyOnly === '1'} onChange={e => setLegacyOnly(e.target.checked ? '1' : '')} />
+            Utang lama <NewBadge feature="fitur/utang-lama-jalankan" />
+          </label>
           <input
             type="text"
             value={search}
@@ -454,7 +461,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
 
       <DataTable
         data={filtered}
-        resetPageKey={JSON.stringify([activeTab, branchFilter, search])}
+        resetPageKey={JSON.stringify([activeTab, branchFilter, search, legacyOnly])}
         columns={payableColumns}
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-internal-payables"

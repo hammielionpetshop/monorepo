@@ -95,6 +95,8 @@ export default async function InterBranchPayablesPage() {
     BATAL_RETUR: 'BATAL RETUR INTERNAL',
     SETORAN: 'SETORAN',
     BATAL_SETORAN: 'BATAL SETORAN',
+    SUSULAN: 'SUSULAN',
+    BATAL_SUSULAN: 'BATAL SUSULAN',
   }
   const paymentsByPayable = new Map<number, PayablePayment[]>()
   for (const p of paymentRows) {

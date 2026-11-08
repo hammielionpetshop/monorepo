@@ -1,5 +1,7 @@
-import { db, sql } from '../db'
-import { getAutoSettlementSettings } from './deposit-settlement-service'
+import { db, sql, legacySettlementRuns, eq } from '../db'
+import { getAutoSettlementSettings, listSettlementLines, type SettlementLine } from './deposit-settlement-service'
+
+type Executor = Pick<typeof db, 'select' | 'execute'>
 
 // F2-3b-1 Pratinjau utang lama — hanya membaca (spec docs/work/specs/2026-11-08-f2-3b-utang-lama-design.md §3).
 // "Lama" = lahir sebelum tanggal mulai pelunasan otomatis (`auto_settlement_settings.startDate`).
@@ -42,7 +44,35 @@ export interface LegacyManualPaymentRow {
   paidByName: string | null
 }
 
+export interface LegacyRunInfo {
+  id: number
+  fromDate: string
+  cutoffDate: string
+  includeNoncash: boolean
+  subtractManual: boolean
+  settledAmount: number
+  payablesCount: number
+  freeAmount: number
+  notes: string
+  createdAt: string
+  createdByName: string | null
+  lines: SettlementLine[]
+}
+
+export interface LegacyCancelledRun {
+  id: number
+  fromDate: string
+  settledAmount: number
+  createdAt: string
+  cancelledAt: string
+  cancelledByName: string | null
+  cancelReason: string | null
+}
+
 export interface LegacyPreviewData {
+  /** Pelaksanaan pelunasan susulan yang sedang berlaku (paling banyak satu). */
+  activeRun: LegacyRunInfo | null
+  cancelledRuns: LegacyCancelledRun[]
   cutoffDate: string
   fromDate: string
   branches: { id: number; name: string }[]
@@ -53,12 +83,12 @@ export interface LegacyPreviewData {
 
 const rows = (r: unknown) => r as Record<string, unknown>[]
 
-export async function loadLegacyPreviewData(fromDate: string): Promise<LegacyPreviewData> {
-  const { startDate: cutoffDate } = await getAutoSettlementSettings()
+export async function loadLegacyPreviewData(fromDate: string, executor: Executor = db): Promise<LegacyPreviewData> {
+  const { startDate: cutoffDate } = await getAutoSettlementSettings(executor)
 
   const [branchRows, payableRows, shiftRows, manualRows] = await Promise.all([
-    db.execute(sql`SELECT id, name FROM petshop.branches ORDER BY id`),
-    db.execute(sql`
+    executor.execute(sql`SELECT id, name FROM petshop.branches ORDER BY id`),
+    executor.execute(sql`
       SELECT p.id, p.transfer_id, t.ibt_number, p.debtor_branch_id, p.creditor_branch_id,
         ${wibDate(sql`p.created_at`)} AS born_date, p.total_amount, p.paid_amount,
         p.total_amount - p.paid_amount AS remaining
@@ -70,7 +100,7 @@ export async function loadLegacyPreviewData(fromDate: string): Promise<LegacyPre
     `),
     // Shift laci kasir yang ditutup di jendela [tanggal mulai X, tanggal mulai pelunasan otomatis).
     // Shift Back Office tidak punya laci, jadi tidak punya setoran.
-    db.execute(sql`
+    executor.execute(sql`
       SELECT s.id, s.branch_id, s.shift_number,
         ${wibDate(sql`COALESCE(s.closed_at, s.force_closed_at)`)} AS closed_date,
         s.deposit_verified_at IS NOT NULL AS verified,
@@ -86,7 +116,7 @@ export async function loadLegacyPreviewData(fromDate: string): Promise<LegacyPre
     `),
     // Pelunasan manual (diketik orang, `source_type` kosong) atas utang lama sejak X — dianggap memakai
     // uang setoran yang sama, termasuk atas utang yang sekarang sudah lunas.
-    db.execute(sql`
+    executor.execute(sql`
       SELECT x.id, x.payable_id, t.ibt_number, p.debtor_branch_id, p.creditor_branch_id, x.amount,
         ${wibDate(sql`x.paid_at`)} AS paid_date, m.name AS method_name, u.name AS paid_by_name
       FROM petshop.inter_branch_payments x
@@ -102,6 +132,8 @@ export async function loadLegacyPreviewData(fromDate: string): Promise<LegacyPre
   ])
 
   return {
+    activeRun: null,
+    cancelledRuns: [],
     cutoffDate,
     fromDate,
     branches: rows(branchRows).map((r) => ({ id: Number(r.id), name: String(r.name) })),
@@ -137,4 +169,57 @@ export async function loadLegacyPreviewData(fromDate: string): Promise<LegacyPre
       paidByName: (r.paid_by_name as string | null) ?? null,
     })),
   }
+}
+
+/** Pelaksanaan aktif + riwayat batal, untuk layar Utang Lama (F2-3b-2). */
+export async function loadLegacyRuns(executor: Executor = db): Promise<Pick<LegacyPreviewData, 'activeRun' | 'cancelledRuns'>> {
+  const runRows = rows(await executor.execute(sql`
+    SELECT r.id, r.status, r.include_noncash, r.subtract_manual, r.settled_amount, r.payables_count,
+      r.free_amount, r.notes, r.cancel_reason,
+      to_char(r.from_date, 'YYYY-MM-DD') AS from_date, to_char(r.cutoff_date, 'YYYY-MM-DD') AS cutoff_date,
+      to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+      to_char(r.cancelled_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS cancelled_at,
+      cu.name AS created_by_name, xu.name AS cancelled_by_name
+    FROM petshop.legacy_settlement_runs r
+    LEFT JOIN petshop.users cu ON cu.id = r.created_by
+    LEFT JOIN petshop.users xu ON xu.id = r.cancelled_by
+    ORDER BY r.id DESC
+    LIMIT 20
+  `))
+  const active = runRows.find((r) => r.status === 'ACTIVE')
+  let activeRun: LegacyRunInfo | null = null
+  if (active) {
+    const id = Number(active.id)
+    const lines = (await listSettlementLines([{ sourceType: 'LEGACY_RUN', sourceId: id }], executor)).get(`LEGACY_RUN:${id}`) ?? []
+    activeRun = {
+      id,
+      fromDate: String(active.from_date),
+      cutoffDate: String(active.cutoff_date),
+      includeNoncash: active.include_noncash === true || active.include_noncash === 't',
+      subtractManual: active.subtract_manual === true || active.subtract_manual === 't',
+      settledAmount: Number(active.settled_amount),
+      payablesCount: Number(active.payables_count),
+      freeAmount: Number(active.free_amount),
+      notes: String(active.notes),
+      createdAt: String(active.created_at),
+      createdByName: (active.created_by_name as string | null) ?? null,
+      lines,
+    }
+  }
+  const cancelledRuns = runRows.filter((r) => r.status === 'CANCELLED').map((r): LegacyCancelledRun => ({
+    id: Number(r.id),
+    fromDate: String(r.from_date),
+    settledAmount: Number(r.settled_amount),
+    createdAt: String(r.created_at),
+    cancelledAt: String(r.cancelled_at),
+    cancelledByName: (r.cancelled_by_name as string | null) ?? null,
+    cancelReason: (r.cancel_reason as string | null) ?? null,
+  }))
+  return { activeRun, cancelledRuns }
+}
+
+export async function hasActiveLegacyRun(executor: Executor = db): Promise<boolean> {
+  const [row] = await executor.select({ id: legacySettlementRuns.id }).from(legacySettlementRuns)
+    .where(eq(legacySettlementRuns.status, 'ACTIVE')).limit(1)
+  return !!row
 }
