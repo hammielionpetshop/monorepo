@@ -1,7 +1,7 @@
 # PRD — Fase 2: Susunan Web & Keuangan
 
-Status: **draf 2026-11-08**, disusun dari diskusi owner 2026-11-08, **menunggu persetujuan owner**.
-Belum ada spec atau kode. Owner: "cukup buat dokumen dokumennya saja dulu".
+Status: **disetujui owner 2026-11-08** ("prd saya setujui"), disusun dari diskusi owner 2026-11-08, dengan pertanyaan ❓ yang masih terbuka di tiap dokumen.
+Belum ada spec atau kode; koding dimulai di sesi baru, diawali spec F2-1 Tempat Uang.
 
 Fase 2 = merapikan **susunan web** (4 web terpisah) dan membangun **Keuangan** sebagai tempat
 **analisa** uang. Pencatatan uang tetap di modul tempat kejadiannya (POS/Back Office, HRIS,
