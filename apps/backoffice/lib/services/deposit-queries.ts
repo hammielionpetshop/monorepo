@@ -1,6 +1,7 @@
 import { db, sql } from '../db'
 import { todayWibDate } from '../payment-date'
-import { ageInDays, undepositedLevel, type DepositSettings, type UndepositedLevel } from './deposit-rules'
+import type { SettlementLine } from './deposit-settlement-service'
+import { LEGACY_DEPOSIT_FROM, ageInDays, undepositedLevel, type DepositSettings, type UndepositedLevel } from './deposit-rules'
 import { getDepositSettings } from './deposit-service'
 
 // F2-2 Setoran — semua bacaan untuk layar POS › Setor Tunai, BO › Setoran, dan Detail Shift.
@@ -15,10 +16,14 @@ const OPENED_ON = sql`to_char(s.opened_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/
 const SHIFT_CASH = sql`(CASE WHEN s.origin = 'POS' AND s.status = 'CLOSED' AND s.total_closing_cash_real IS NOT NULL
   THEN s.total_closing_cash_real ELSE COALESCE(s.total_closing_cash_expected, 0) END)`
 
-/** Shift yang termasuk alur Setoran tunai (spec §6 no.1 + §7): baru sejak tanggal mulai, atau POS lama belum diverifikasi. */
+/**
+ * Shift yang termasuk alur Setoran tunai (spec §6 no.1 + §7): baru sejak tanggal mulai, atau POS lama
+ * belum diverifikasi yang ditutup sejak 1 November 2026 (sebelum itu dibiarkan).
+ */
 function cashFlowCondition(startDate: string) {
   return sql`s.status IN ('CLOSED', 'FORCE_CLOSED')
-    AND (${CLOSED_ON} >= ${startDate} OR (s.origin = 'POS' AND s.deposit_verified_at IS NULL))`
+    AND (${CLOSED_ON} >= ${startDate}
+      OR (s.origin = 'POS' AND s.deposit_verified_at IS NULL AND ${CLOSED_ON} >= ${LEGACY_DEPOSIT_FROM}))`
 }
 
 // ── Tunai belum disetor ────────────────────────────────────────────────────
@@ -137,6 +142,8 @@ export interface DepositListItem {
   correctedByNumber: string | null
   shifts: { shiftId: number; shiftNumber: number; openedOn: string; cash: number; legacy: boolean; cashiers: { id: number; name: string }[] }[]
   variances: { amount: number; cause: string; shiftId: number | null; cashierName: string | null; note: string | null }[]
+  /** Rincian pelunasan otomatis F2-3 (diisi rute Riwayat). */
+  settlements?: SettlementLine[]
 }
 
 export async function listDeposits(params: {
@@ -264,6 +271,8 @@ export interface NoncashRow {
   /** Dana belum cair melewati batas hari. */
   overdue: boolean
   cashiers: { id: number; name: string }[]
+  /** Rincian pelunasan otomatis F2-3 (diisi rute daftar non-tunai). */
+  settlements?: SettlementLine[]
 }
 
 export async function listNoncashRows(params: {
@@ -429,7 +438,7 @@ export async function getShiftDepositStatus(shiftId: number): Promise<ShiftDepos
   let state: ShiftDepositStatus['cash']['state']
   if (row.deposit_id != null) state = row.deposit_status === 'VERIFIED' ? 'VERIFIED' : 'PENDING'
   else if (!isNew && row.legacy_verified === true) state = 'LEGACY_VERIFIED'
-  else if (!isNew && row.origin !== 'POS') state = 'NOT_APPLICABLE'
+  else if (!isNew && (row.origin !== 'POS' || String(row.closed_on) < LEGACY_DEPOSIT_FROM)) state = 'NOT_APPLICABLE'
   else state = 'NOT_DEPOSITED'
   return {
     flow: isNew ? 'NEW' : 'LEGACY',

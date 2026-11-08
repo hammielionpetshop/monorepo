@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseJsonBody } from '@/lib/grooming-master-http'
 import { listNoncashRows } from '@/lib/services/deposit-queries'
+import { listSettlementLines } from '@/lib/services/deposit-settlement-service'
 import { saveNoncashVerification } from '@/lib/services/deposit-service'
 import { actorOf, assertBranchAllowed, depositErrorResponse, noncashSchema, requireDepositVerifier, scopedBranch } from '../_http'
 
@@ -23,7 +24,11 @@ export async function GET(req: NextRequest) {
       to: to && DATE.test(to) ? to : null,
       paymentMethodId: method && /^\d+$/.test(method) ? Number(method) : null,
     })
-    return NextResponse.json({ rows })
+    const ids = rows.filter((r) => r.status === 'VERIFIED' && r.verificationId != null).map((r) => r.verificationId as number)
+    const lines = await listSettlementLines(ids.map((id) => ({ sourceType: 'NONCASH_VERIFICATION' as const, sourceId: id })))
+    return NextResponse.json({
+      rows: rows.map((r) => ({ ...r, settlements: r.verificationId != null ? lines.get(`NONCASH_VERIFICATION:${r.verificationId}`) ?? [] : [] })),
+    })
   } catch (error) {
     return depositErrorResponse(error, 'GET /api/bo/deposits/noncash')
   }
@@ -39,7 +44,7 @@ export async function POST(req: NextRequest) {
     const denied = assertBranchAllowed(gate, data.branchId)
     if (denied) return denied
     const row = await saveNoncashVerification(data, actorOf(gate))
-    return NextResponse.json({ id: row.id, status: row.status })
+    return NextResponse.json({ id: row.id, status: row.status, settlement: 'settlement' in row ? row.settlement : null })
   } catch (error) {
     return depositErrorResponse(error, 'POST /api/bo/deposits/noncash')
   }

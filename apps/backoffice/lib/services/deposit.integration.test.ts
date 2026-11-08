@@ -166,6 +166,17 @@ describe('Setoran Tunai (DB lokal)', () => {
   })
 })
 
+describe('Shift lama sebelum November 2026 (DB lokal)', () => {
+  it('shift POS lama belum diverifikasi: Oktober ditolak & tidak muncul, November tetap ikut', async () => {
+    const oct = await makeShift(branchB, { cash: 10_000 })
+    await db.update(shifts).set({ openedAt: new Date('2026-10-20T08:00:00+07:00'), closedAt: new Date('2026-10-20T20:00:00+07:00') }).where(eq(shifts.id, oct))
+    await expect(receiveCashDeposit({ branchId: branchB, shiftIds: [oct], destinationMoneyPlaceId: brankas, depositDate: today(), receivedAmount: 10_000, variances: [] }, finance))
+      .rejects.toThrow(/tidak termasuk Setoran/)
+    const list = await listUndepositedShifts({ branchId: branchB })
+    expect(list.some((x) => x.shiftId === oct)).toBe(false)
+  })
+})
+
 describe('Verifikasi non-tunai (DB lokal)', () => {
   it('angka sistem = nota COMPLETED saja; metode belum ditautkan ditolak; dana belum cair lalu diverifikasi', async () => {
     const s1 = await makeShift(branchA, { cash: 0 })

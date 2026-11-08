@@ -19,6 +19,13 @@ export interface DepositSettings {
   awaitingFundsDays: number
 }
 
+/**
+ * Shift lama (ditutup sebelum tanggal mulai) yang belum diverifikasi cara lama hanya ikut Setoran Tunai
+ * bila ditutup sejak tanggal ini. Owner 2026-11-08: "data sebelum november di biarkan saja".
+ * Non-tunai tetap mulai dari tanggal mulai Setoran.
+ */
+export const LEGACY_DEPOSIT_FROM = '2026-11-01'
+
 export const DEFAULT_DEPOSIT_SETTINGS: Omit<DepositSettings, 'startDate'> = {
   warnDays: 5,
   warnAmount: 25_000_000,
