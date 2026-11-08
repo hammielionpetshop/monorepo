@@ -79,6 +79,12 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
       { value: 'USER_PIN_RESET', label: 'Reset PIN pengguna' },
       { value: 'OWNER_ASSIGNMENT_SET', label: 'Tetapkan owner cabang' },
       { value: 'OWNER_ASSIGNMENT_CLEARED', label: 'Hapus owner cabang' },
+      { value: 'MONEY_PLACE_CREATE', label: 'Tempat Uang ditambah' },
+      { value: 'MONEY_PLACE_UPDATE', label: 'Tempat Uang diubah' },
+      { value: 'MONEY_PLACE_ACTIVATE', label: 'Tempat Uang diaktifkan' },
+      { value: 'MONEY_PLACE_DEACTIVATE', label: 'Tempat Uang dinonaktifkan' },
+      { value: 'MONEY_PLACE_LINK_SET', label: 'Metode bayar ditautkan ke Tempat Uang' },
+      { value: 'MONEY_PLACE_LINK_REMOVE', label: 'Tautan metode bayar dilepas' },
     ],
   },
 ]
