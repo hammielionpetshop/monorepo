@@ -1,6 +1,6 @@
 # F2-1 Tempat Uang
 
-Tanggal: 2026-11-08 · Status: **draf — 5 dari 7 keputusan owner masuk (2026-11-08), 2 usul agent menunggu ok (§9 no.5–6)** · PRD: [`fase_2/02-tempat-uang.md`](../../hris_planning/PRD/fase_2/02-tempat-uang.md)
+Tanggal: 2026-11-08 · Status: **disetujui owner 2026-11-08** ("ok") · PRD: [`fase_2/02-tempat-uang.md`](../../hris_planning/PRD/fase_2/02-tempat-uang.md)
 
 Dua bagian, dua branch:
 
@@ -120,7 +120,7 @@ Rute `/settings/money-places`, menu baru di grup Pengaturan + tanda Baru.
    `source_id`. Cara bayar `CASH/TRANSFER` diturunkan dari jenis: `DRAWER/CASH` → tunai,
    `BANK` → transfer. Pengecekan "sumber wajib ada" pindah ke `money_place_id`.
 3. Semua layar bayar HRIS (bayar slip, luar slip, bongkaran, lebih bayar, serah & lunasi kasbon)
-   memilih dari Tempat Uang aktif; **Laci kasir tidak ditawarkan** 💡 (usul agent, menunggu ok):
+   memilih dari Tempat Uang aktif; **Laci kasir tidak ditawarkan** ✅:
    isi laci dihitung oleh shift POS — kalau HRIS juga boleh mengambil dari laci, hitungan tutup
    shift tidak cocok (kas kurang tanpa sebab) atau uangnya tercatat dua kali. Uang laci yang
    dipakai membayar (mis. kasbon karyawan toko) tetap dicatat kasir sebagai pengeluaran shift
@@ -160,10 +160,9 @@ Rute `/settings/money-places`, menu baru di grup Pengaturan + tanda Baru.
 3. ✅ **Laci kasir dibuat otomatis** per cabang — "ikuti saran anda".
 4. ✅ **"Dipegang oleh" tanpa riwayat bertanggal; verifikasi mencatat siapa yang memverifikasi**
    ("sebaiknya tercatat di verifikasi siapa") — §2.3, dipakai F2-2/F2-3.
-5. 💡 Owner bertanya "sebaiknya gimana?" — usul agent: **Laci tidak ditawarkan di HRIS** (§6 no.3).
-   Menunggu ok.
-6. 💡 Owner bertanya saran — usul agent: **Pindah Dana tidak di F2-1**, dibuat di **F2-4** (Arus
-   Kas) karena butuh layar catat uang; F2-1 hanya pengaturan. Menunggu ok.
+5. ✅ **Laci tidak ditawarkan di HRIS** (§6 no.3) — usul agent atas pertanyaan owner, disetujui "ok".
+6. ✅ **Pindah Dana tidak di F2-1** (usul agent, disetujui "ok"), dibuat di **F2-4** (Arus
+   Kas) karena butuh layar catat uang; F2-1 hanya pengaturan.
 7. ✅ **Finance libur**: verifikasi setoran **biasanya menunggu** Finance masuk, **atau dilakukan
    GM/Owner** ("biasanya tidak dikerjakan, atau oleh gm atau owner"). Sudah sejalan dengan hak
    `shift.deposit.verify` sekarang (OWNER, GM, FINANCE); dicatat untuk F2-2 — verifikasi yang
