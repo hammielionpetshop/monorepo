@@ -1,8 +1,9 @@
 # F2-4 Bayar Supplier & Arus Kas — "Dibayar dari", Arus Kas dirapikan, Pindah Dana
 
 PRD: `docs/hris_planning/PRD/fase_2/05-supplier-dan-arus-kas.md` (+ 02 Tempat Uang, 03 §8 Pindah Dana).
-Status: **disetujui owner 2026-11-09** (jawaban atas usul agent di percakapan: kategori bawaan "sudah ok",
-kategori lama dipilih jenisnya oleh owner, pembatalan "ikuti saran anda", urutan 4a → 4b → 4c "ok").
+Status: **draf, menunggu persetujuan owner atas isi lengkap**. Sudah diputuskan owner 2026-11-09: kategori
+bawaan "sudah ok" (bisa ditambah/diganti nanti), kategori lama dipilih jenisnya oleh owner, pembatalan
+"ikuti saran anda", urutan 4a → 4b → 4c "ok". Usul baru di draf ini: sewa sementara (§3.3), "Bersama" (§3.1).
 
 ## 1. Keadaan sekarang (diperiksa di kode `origin/main` `36d50827`)
 
