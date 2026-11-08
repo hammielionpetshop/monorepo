@@ -1,10 +1,10 @@
 import type { DeliveryNoteData } from "@/lib/delivery-note-layout";
 import type { BulkSaleRow } from "./types";
 
-// Daftar tunggu Bulk Sale disimpan di server (tabel `bulk_sale_drafts`), bukan localStorage
-// lagi — supaya draft tetap ada walau dilanjutkan dari device/browser lain (task kanban #38
-// Bagian B). Batas jumlah draft per user ditegakkan di server (lihat
-// `app/api/bo/bulk-sale-drafts/route.ts`), bukan lagi di sini.
+// Daftar tunggu Bulk Sale disimpan di server (tabel `bulk_sale_drafts`) dan dibagi ke semua
+// admin secabang (seperti Daftar Tunggu POS), bukan hanya penahannya — barang di draf ikut
+// menahan stok cabang, jadi rekan harus bisa melihat & melepasnya. Batas jumlah draft per
+// penahan ditegakkan di server (lihat `app/api/bo/bulk-sale-drafts/route.ts`).
 
 export type BulkSaleDraftSource = {
   kind: "IBT" | "ORDER";
@@ -17,6 +17,8 @@ export type BulkSaleDraft = {
   id: string;
   name: string;
   savedAt: string;
+  /** Nama user yang menahan; null untuk data lama tanpa nama. */
+  createdByName: string | null;
   branchId: number;
   branchName: string;
   customerId: number | null;
@@ -67,6 +69,7 @@ function parseDraft(value: unknown): BulkSaleDraft | null {
     id: value.id,
     name: readString(value.name, "Tanpa nama"),
     savedAt: readString(value.savedAt, new Date().toISOString()),
+    createdByName: typeof value.createdByName === "string" ? value.createdByName : null,
     branchId: readNumber(value.branchId),
     branchName: readString(value.branchName, "-"),
     customerId: typeof value.customerId === "number" ? value.customerId : null,
@@ -111,7 +114,7 @@ export async function fetchBulkSaleDrafts(): Promise<BulkSaleDraft[]> {
 // Melempar bila request gagal, supaya pemanggilnya bisa memberi tahu — bukan diam-diam
 // kehilangan draf yang dikira sudah tersimpan.
 export async function createBulkSaleDraft(
-  draft: Omit<BulkSaleDraft, "id" | "savedAt">,
+  draft: Omit<BulkSaleDraft, "id" | "savedAt" | "createdByName">,
 ): Promise<BulkSaleDraft> {
   const res = await fetch("/api/bo/bulk-sale-drafts", {
     method: "POST",
@@ -127,12 +130,19 @@ export async function createBulkSaleDraft(
   return parsed;
 }
 
-export async function deleteBulkSaleDraft(id: string): Promise<void> {
+export type DeleteDraftResult = "deleted" | "gone" | "failed";
+
+/**
+ * "gone" = draf sudah tidak ada (dilanjutkan/dihapus admin lain). Pemanggil wajib menunggu
+ * hasil ini sebelum memuat draf ke form, supaya dua admin tidak melanjutkan draf yang sama.
+ */
+export async function deleteBulkSaleDraft(id: string): Promise<DeleteDraftResult> {
   try {
-    await fetch(`/api/bo/bulk-sale-drafts/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/bo/bulk-sale-drafts/${id}`, { method: "DELETE" });
+    if (res.ok) return "deleted";
+    return res.status === 404 ? "gone" : "failed";
   } catch {
-    // abaikan — draft yatim di server tidak berbahaya, akan tampak lagi di daftar
-    // kalau dibuka ulang dan bisa dihapus lagi saat itu
+    return "failed";
   }
 }
 
