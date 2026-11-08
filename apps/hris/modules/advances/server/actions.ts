@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { advanceHandovers, advanceInstallments, advances } from '@petshop/hris-db/schema/advances';
-import { paymentSources } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { payableMoneyPlace } from '@/lib/money-places';
 import { can, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { todayWib } from '@/modules/employees';
@@ -48,8 +48,8 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
   : Promise<ServiceResult<{ message: string }>> {
   if (!actor || !hasAction(actor, 'advance.hand_over')) return fail(403, 'Anda tidak berhak menyerahkan uang kasbon.');
   const today = todayWib(now);
-  const [source] = await db.select().from(paymentSources).where(eq(paymentSources.id, Number(input.sourceId)));
-  if (!source?.active) return fail(400, 'Pilih sumber uang yang aktif.');
+  const source = await payableMoneyPlace(input.sourceId);
+  if (!source) return fail(400, 'Pilih sumber uang yang aktif.');
   const moneyDate = String(input.moneyDate ?? '');
   const dateReason = String(input.dateReason ?? '').trim() || null;
   const viaEmployeeId = input.viaEmployeeId ? Number(input.viaEmployeeId) : null;
@@ -78,7 +78,7 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
     if (proofFileId && !(await filesUploadedBy(tx, actor.accountId, [proofFileId])).length) return fail(400, 'Foto bukti tidak ditemukan. Unggah ulang.');
     const amount = view.row.finalAmount!;
     const [handover] = await tx.insert(advanceHandovers).values({
-      advanceId, amount, moneyDate, sourceId: source.id, method: source.method, handedByAccountId: actor.accountId, viaEmployeeId,
+      advanceId, amount, moneyDate, moneyPlaceId: source.id, method: source.method, handedByAccountId: actor.accountId, viaEmployeeId,
       proofFileId, dateReason, beforeApproval: moneyDate < approvedOn,
     }).returning({ id: advanceHandovers.id });
     const amounts = view.installments.filter((i) => i.status === 'SCHEDULED').map((i) => i.amount);
@@ -90,7 +90,7 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
     const firstLabel = periodLabel(periods[0], track.kind);
     await recordAudit(tx, {
       actorAccountId: actor.accountId, entity: 'advance', entityId: advanceId, action: 'advance.hand_over',
-      after: { handoverId: handover.id, amount, moneyDate, sourceId: source.id, viaEmployeeId, periods }, reason: dateReason ?? undefined,
+      after: { handoverId: handover.id, amount, moneyDate, moneyPlaceId: source.id, viaEmployeeId, periods }, reason: dateReason ?? undefined,
     });
     const how = source.method === 'TRANSFER' ? 'transfer' : 'tunai';
     const account = await accountOf(view.row.employeeId);

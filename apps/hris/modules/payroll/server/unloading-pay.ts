@@ -1,10 +1,11 @@
 import Big from 'big.js';
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import {
-  paymentSources, unloadingOverpaymentUses, unloadingOverpayments, unloadingPaymentLines, unloadingPayments, unloadingPhotos, unloadingReceiptClaims,
+  unloadingOverpaymentUses, unloadingOverpayments, unloadingPaymentLines, unloadingPayments, unloadingPhotos, unloadingReceiptClaims,
   unloadingReports, unloadingShares, unloadingTopUpLines, unloadingTopUps,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { moneyPlaces, payableMoneyPlace, type MoneyPlace } from '@/lib/money-places';
 import { hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { todayWib } from '@/modules/employees';
@@ -134,7 +135,7 @@ function moneyDateCheck(moneyDate: string, today: IsoDate, workDate: IsoDate, re
   return null;
 }
 
-async function payOne(tx: Tx, actor: Actor, target: PayTarget, input: PayInput, source: typeof paymentSources.$inferSelect | null, now: Date, announce: ChangeAnnounce) {
+async function payOne(tx: Tx, actor: Actor, target: PayTarget, input: PayInput, source: MoneyPlace | null, now: Date, announce: ChangeAnnounce) {
   const [report] = await tx.select().from(unloadingReports).where(eq(unloadingReports.id, target.reportId)).for('update');
   if (!report) return fail(404, 'Laporan tidak ditemukan.');
   const found = await linesToPay(tx, report, target.topUpId);
@@ -160,7 +161,7 @@ async function payOne(tx: Tx, actor: Actor, target: PayTarget, input: PayInput, 
   if (amount > 0 && !source) return fail(400, 'Pilih sumber uang.');
   const [payment] = await tx.insert(unloadingPayments).values({
     reportId: report.id, topUpId: found.topUp?.id ?? null, kind: amount > 0 ? 'MONEY' : 'NO_MONEY', amount, moneyDate, dateReason: dateReason || null,
-    sourceId: amount > 0 ? source!.id : null, method: amount > 0 ? source!.method : null, paidByAccountId: actor.accountId, ownerFlag: payer.ownerFlag,
+    moneyPlaceId: amount > 0 ? source!.id : null, method: amount > 0 ? source!.method : null, paidByAccountId: actor.accountId, ownerFlag: payer.ownerFlag,
     handedToName, proofFileId: input.proofFileId ? String(input.proofFileId) : null,
     breakdown: {
       report: report.number, supplier: report.supplierName, workDate: report.workDate, totalKg: report.totalKg, costBranchId: report.costBranchId, topUp: !!found.topUp,
@@ -192,7 +193,7 @@ async function payOne(tx: Tx, actor: Actor, target: PayTarget, input: PayInput, 
 export async function payUnloading(actor: Actor | null, input: PayInput, announce: ChangeAnnounce, now: Date = new Date()) {
   if (!hasAction(actor, 'unloading.pay')) return fail(403, 'Anda tidak berhak membayar bongkaran.');
   if (!input.targets.length) return fail(400, 'Pilih laporan yang dibayar.');
-  const [source] = input.sourceId ? await db.select().from(paymentSources).where(and(eq(paymentSources.id, Number(input.sourceId)), eq(paymentSources.active, true))) : [];
+  const source = input.sourceId ? await payableMoneyPlace(input.sourceId) : null;
   if (input.proofFileId && !(await db.transaction((tx) => filesUploadedBy(tx, actor!.accountId, [String(input.proofFileId)]))).length) return fail(400, 'Foto bukti tidak ditemukan. Unggah ulang.');
   const done: { label: string; amount: number; people: number }[] = [];
   const failed: string[] = [];
@@ -462,14 +463,14 @@ export async function receiveOverpaymentRefund(actor: Actor | null, id: number, 
     const [row] = await overpaymentsWith(tx, eq(unloadingOverpayments.id, id));
     if (!row || row.status === 'WRITTEN_OFF' || row.remaining <= 0) return fail(409, 'Lebih bayar ini sudah tidak bersisa.');
     if (amount > row.remaining) return fail(400, `Paling banyak sebesar sisa ${rupiah(row.remaining)}.`);
-    const [source] = await tx.select().from(paymentSources).where(and(eq(paymentSources.id, Number(input.sourceId)), eq(paymentSources.active, true)));
+    const source = await payableMoneyPlace(input.sourceId, tx);
     if (!source) return fail(400, 'Pilih sumber uang.');
     const today = todayWib(now);
     const moneyDate = String(input.moneyDate ?? today);
     const problem = moneyDateCheck(moneyDate, today, isoWib(row.createdAt), reasonOf(input.dateReason));
     if (problem) return fail(400, problem);
-    await tx.insert(unloadingOverpaymentUses).values({ overpaymentId: id, kind: 'REFUND', amount, sourceId: source.id, moneyDate, createdByAccountId: actor!.accountId });
-    await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'unloading_overpayment', entityId: id, action: 'unloading_overpayment.refund', before: { remaining: row.remaining }, after: { amount, sourceId: source.id, moneyDate } });
+    await tx.insert(unloadingOverpaymentUses).values({ overpaymentId: id, kind: 'REFUND', amount, moneyPlaceId: source.id, moneyDate, createdByAccountId: actor!.accountId });
+    await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'unloading_overpayment', entityId: id, action: 'unloading_overpayment.refund', before: { remaining: row.remaining }, after: { amount, moneyPlaceId: source.id, moneyDate } });
     return { ok: true as const, data: {} };
   });
 }
@@ -486,7 +487,7 @@ export async function waitingTopUps(actor: Actor | null) {
 /** DRV-L17 langkah 1–2: sasaran terpilih, rincian per peserta sesudah lebih bayar, yang tidak bisa dibayar beserta sebabnya. */
 export async function payScreen(actor: Actor | null, targets: PayTarget[], now: Date = new Date()) {
   if (!hasAction(actor, 'unloading.pay')) return null;
-  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const sources = await moneyPlaces({ payable: true });
   const ready = [];
   const blocked: { label: string; why: string }[] = [];
   for (const target of targets) {
@@ -524,7 +525,7 @@ export async function unloadingPaySection(actor: Actor | null, reportId: number)
     db.select().from(unloadingTopUps).where(eq(unloadingTopUps.reportId, reportId)).orderBy(asc(unloadingTopUps.createdAt)),
     overpaymentsWith(db, eq(unloadingOverpayments.reportId, reportId)),
     accountNames(),
-    db.select().from(paymentSources),
+    moneyPlaces(),
   ]);
   const lines = payments.length ? await db.select().from(unloadingPaymentLines).where(inArray(unloadingPaymentLines.paymentId, payments.map((p) => p.id))) : [];
   const topUpLines = topUps.length ? await db.select().from(unloadingTopUpLines).where(inArray(unloadingTopUpLines.topUpId, topUps.map((t) => t.id))) : [];
@@ -544,7 +545,7 @@ export async function unloadingPaySection(actor: Actor | null, reportId: number)
     },
     payments: payments.map((p) => ({
       id: p.id, topUp: p.topUpId != null, status: p.status, kind: p.kind, amount: p.amount, moneyDate: p.moneyDate, by: names.get(p.paidByAccountId) ?? '-',
-      source: showMoney ? sources.find((s) => s.id === p.sourceId)?.name ?? (p.kind === 'NO_MONEY' ? 'tanpa uang' : '-') : null,
+      source: showMoney ? sources.find((s) => s.id === p.moneyPlaceId)?.name ?? (p.kind === 'NO_MONEY' ? 'tanpa uang' : '-') : null,
       handedTo: p.handedToName ?? 'langsung ke tiap peserta', ownerFlag: p.ownerFlag, cancelReason: p.cancelReason, at: p.createdAt.toISOString(),
       lines: lines.filter((l) => l.paymentId === p.id).map((l) => ({ name: l.name, share: l.share, offset: l.offset, received: l.received })),
     })),
@@ -562,7 +563,7 @@ export async function overpaymentsScreen(actor: Actor | null, now: Date = new Da
   const days = Number(await settingOn<number>('payroll.unloading_overpay_flag_days', today) ?? 30);
   const [rows, reports, sources] = await Promise.all([
     overpaymentsWith(db, undefined), db.select({ id: unloadingReports.id, number: unloadingReports.number }).from(unloadingReports),
-    db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder)),
+    moneyPlaces({ payable: true }),
   ]);
   const list = rows.map((o) => {
     const age = daysBetween(isoWib(o.createdAt), today);

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { fundEntries, offSlipClaims, payBatches, payslipLines, payslipPayments, payslipSteps, payslips, paymentSources } from '@petshop/hris-db/schema/payroll';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { fundEntries, offSlipClaims, payBatches, payslipLines, payslipPayments, payslipSteps, payslips } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { MONEY_PLACE_HOLDER_LABELS, MONEY_PLACE_KIND_LABELS, moneyPlaces, payableMoneyPlace } from '@/lib/money-places';
 import { hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { bankAccountsOf, todayWib, type BankAccount } from '@/modules/employees';
@@ -117,8 +118,8 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
   const ids = Array.isArray(input.slipIds) ? [...new Set(input.slipIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
   if (!ids.length) return fail(400, 'Pilih slip yang dibayar.');
   if (ids.length > 300) return fail(400, 'Paling banyak 300 slip sekali bayar.');
-  const [source] = await db.select().from(paymentSources).where(eq(paymentSources.id, Number(input.sourceId)));
-  if (!source?.active) return fail(400, 'Pilih sumber uang yang aktif.');
+  const source = await payableMoneyPlace(input.sourceId);
+  if (!source) return fail(400, 'Pilih sumber uang yang aktif.');
   const moneyDate = String(input.moneyDate ?? '');
   const dateReason = String(input.dateReason ?? '').trim() || null;
   const proofFileId = String(input.proofFileId ?? '').trim() || null;
@@ -150,13 +151,13 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
         const dateProblem = moneyDateProblem({ moneyDate, today, closedOn: closedOnOf(slip), reason: dateReason });
         if (dateProblem) throw new Conflict(dateProblem);
         if (batchId == null) {
-          const [batch] = await tx.insert(payBatches).values({ paidByAccountId: actor.accountId, sourceId: source.id, moneyDate, dateReason, proofFileId }).returning({ id: payBatches.id });
+          const [batch] = await tx.insert(payBatches).values({ paidByAccountId: actor.accountId, moneyPlaceId: source.id, moneyDate, dateReason, proofFileId }).returning({ id: payBatches.id });
           batchId = batch.id;
         }
         const breakdown = await breakdownOf(tx, slip, person);
         const accountTail = source.method === 'TRANSFER' ? tailDigits((await bankAccountsOf([person.id])).get(person.id)?.accountNumber) : null;
         const [paid] = await tx.insert(payslipPayments).values({
-          payslipId: slip.id, batchId, kind: 'MONEY', amount: net, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown, accountTail,
+          payslipId: slip.id, batchId, kind: 'MONEY', amount: net, moneyDate, method: source.method, moneyPlaceId: source.id, paidByAccountId: actor.accountId, breakdown, accountTail,
         }).returning({ id: payslipPayments.id });
         // Bayar ulang sesudah keberatan "uang belum saya terima" disetujui: tertaut otomatis (spec L4g §3.6).
         await autoLinkPayment(tx, slip.id, paid.id, actor.accountId);
@@ -229,7 +230,7 @@ export async function slipPayment(actor: Actor | null, slipId: number) {
   const { slip, person } = loaded;
   if (slip.status !== 'CLOSED') return null;
   const all = await db.select().from(payslipPayments).where(eq(payslipPayments.payslipId, slip.id)).orderBy(desc(payslipPayments.createdAt));
-  const sources = await db.select().from(paymentSources);
+  const sources = await moneyPlaces();
   const batches = all.some((p) => p.batchId) ? await db.select().from(payBatches).where(inArray(payBatches.id, all.flatMap((p) => (p.batchId ? [p.batchId] : [])))) : [];
   const names = await accountNames();
   const active = all.find((p) => p.status === 'ACTIVE') ?? null;
@@ -237,7 +238,7 @@ export async function slipPayment(actor: Actor | null, slipId: number) {
     const batch = batches.find((b) => b.id === p.batchId);
     return {
       id: p.id, kind: p.kind as 'MONEY' | 'NO_MONEY', amount: p.amount, moneyDate: longDate(p.moneyDate), recordedAt: wibTime(p.createdAt),
-      by: names.get(p.paidByAccountId) ?? '-', source: sources.find((s) => s.id === p.sourceId)?.name ?? null,
+      by: names.get(p.paidByAccountId) ?? '-', source: sources.find((s) => s.id === p.moneyPlaceId)?.name ?? null,
       method: p.method ? PAY_METHOD_LABELS[p.method as PayMethod] : null, dateReason: batch?.dateReason ?? null, hasProof: Boolean(batch?.proofFileId),
       cancelled: p.status === 'CANCELLED' ? { at: wibTime(p.cancelledAt!), by: names.get(p.cancelledByAccountId ?? 0) ?? '-', reason: p.cancelReason } : null,
     };
@@ -363,7 +364,7 @@ export async function payPreviewScreen(actor: Actor | null, slipIds: number[], n
     if (problem) skipped.push({ slipId: id, name: person.name, text: problem });
     else ready.push({ slipId: slip.id, name: person.name, period: slipPhrase(slip), number: slip.number, net: slip.net ?? 0, closedOn: closedOnOf(slip) });
   }
-  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const sources = await moneyPlaces({ payable: true });
   return {
     ready, skipped, total: ready.reduce((s, r) => s + r.net, 0), today: todayWib(now),
     latestClosedOn: ready.reduce<IsoDate | null>((max, r) => (max == null || r.closedOn > max ? r.closedOn : max), null),
@@ -419,37 +420,24 @@ export async function transferDownload(actor: Actor | null, periodStart: string,
 
 // ---- Sumber Uang (Pengaturan) ----
 
+/**
+ * Sumber Uang = daftar Tempat Uang Back Office (F2-1b): HRIS hanya membaca; tambah/ubah/nonaktif di
+ * Back Office › Pengaturan › Tempat Uang. Laci kasir tampil tetapi tidak ditawarkan saat membayar.
+ */
 export async function paymentSourcesScreen(actor: Actor | null) {
   const manage = Boolean(actor?.fullAccess) && hasAction(actor, 'payment_sources.manage');
   if (!manage) return null;
-  const rows = await db.select().from(paymentSources).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
-  return { rows: rows.map((r) => ({ id: r.id, name: r.name, method: r.method as PayMethod, methodLabel: PAY_METHOD_LABELS[r.method as PayMethod], active: r.active, sortOrder: r.sortOrder })) };
-}
-
-export async function savePaymentSource(actor: Actor | null, input: { id?: number; name: unknown; method: unknown; active?: unknown; sortOrder?: unknown }): Promise<ServiceResult<object>> {
-  if (!actor?.fullAccess || !hasAction(actor, 'payment_sources.manage')) return fail(403, 'Hanya Pemilik atau GM yang mengubah Sumber Uang.');
-  const name = String(input.name ?? '').trim();
-  const method = String(input.method ?? '');
-  if (!name || name.length > 60) return fail(400, 'Nama sumber uang wajib, paling banyak 60 huruf.');
-  if (method !== 'CASH' && method !== 'TRANSFER') return fail(400, 'Pilih tunai atau transfer.');
-  const values = { name, method, active: input.active === undefined ? true : Boolean(input.active), sortOrder: Number.isInteger(input.sortOrder) ? Number(input.sortOrder) : 0 };
-  try {
-    return await db.transaction(async (tx) => {
-      if (input.id) {
-        const [before] = await tx.select().from(paymentSources).where(eq(paymentSources.id, input.id)).for('update');
-        if (!before) return fail(404, 'Sumber uang tidak ditemukan.');
-        await tx.update(paymentSources).set(values).where(eq(paymentSources.id, input.id));
-        await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payment_source', entityId: input.id, action: 'payment_source.save', before, after: values });
-      } else {
-        const [row] = await tx.insert(paymentSources).values(values).returning({ id: paymentSources.id });
-        await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payment_source', entityId: row.id, action: 'payment_source.save', before: null, after: values });
-      }
-      return { ok: true as const, data: {} };
-    });
-  } catch (error) {
-    if (String((error as { code?: string })?.code ?? (error as { cause?: { code?: string } })?.cause?.code) === '23505') return fail(409, 'Nama sumber uang itu sudah ada.');
-    throw error;
-  }
+  const rows = await moneyPlaces();
+  const base = (process.env.BACKOFFICE_PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
+  const boRoot = /^https?:\/\/[^/\s]+$/.test(base) ? base : null;
+  return {
+    manageUrl: boRoot ? `${boRoot}/settings/money-places` : null,
+    rows: rows.map((r) => ({
+      id: r.id, name: r.name, kindLabel: MONEY_PLACE_KIND_LABELS[r.kind], branchName: r.branchName, accountTail: r.accountTail,
+      heldBy: MONEY_PLACE_HOLDER_LABELS[r.heldBy] ?? r.heldBy, holderNote: r.holderNote, methodLabel: PAY_METHOD_LABELS[r.method], active: r.active,
+      payable: r.active && r.kind !== 'DRAWER',
+    })),
+  };
 }
 
 // ---- Status bayar untuk daftar periode dan halaman periode ----

@@ -83,7 +83,7 @@ export { SlipPrint } from './ui/slip-print';
 export { PersonSlipsScreen } from './ui/person-slips-screen';
 export {
   activePayments, cancelPayment, openPaymentProof, paidCounts, payPreviewScreen, payScheduleScreen, paySlips, paymentSourcesScreen, runPayslipPayReminder,
-  savePaymentSource, slipPayment, transferDownload, transferScreen, type PayOutcome,
+  slipPayment, transferDownload, transferScreen, type PayOutcome,
 } from './server/payment';
 export { DUE_BUCKET_LABELS, PAY_METHOD_LABELS, type PayMethod } from './rules/payment';
 export { PayScheduleScreen } from './ui/pay-schedule-screen';

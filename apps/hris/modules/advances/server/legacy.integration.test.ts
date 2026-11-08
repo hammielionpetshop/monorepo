@@ -126,8 +126,8 @@ describe.skipIf(!ADMIN_URL)('L9a: sisa kasbon bawaan sistem lama', () => {
     expect(cancel).toMatchObject({ ok: false, status: 409 });
     await expect(sql`insert into hris.advances (number, employee_id, kind, filled_by_account_id, filled_by_employee_id, requested_amount, requested_installments, reason, fund, state, final_amount, final_installments, decided_at)
       values ('KB-9999', ${ids.kasir}, 'LEGACY', 1, ${ids.fin}, 1000, 1, 'Uji dobel', 'MONTHLY', 'APPROVED', 1000, 1, now())`).rejects.toThrow(/advances_one_legacy/);
-    const [{ id: source }] = await sql`select id from hris.payment_sources order by id limit 1`;
-    await expect(sql`insert into hris.advance_handovers (advance_id, amount, money_date, source_id, method, handed_by_account_id)
+    const source = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
+    await expect(sql`insert into hris.advance_handovers (advance_id, amount, money_date, money_place_id, method, handed_by_account_id)
       values (${advanceId}, 1000, '2026-12-26', ${source}, 'LEGACY', 1)`).rejects.toThrow(/advance_handovers_legacy_source/);
   });
 });

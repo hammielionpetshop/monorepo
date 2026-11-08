@@ -74,7 +74,7 @@ describe.skipIf(!ADMIN_URL)('L4g-1: Pendapatan Saya dan Slip Saya', () => {
       finance: await person('Fani', 'Finance'), ani: await person('Ani', 'Kasir'), budi: await person('Budi', 'Kasir', 'Mandiri'), cici: await person('Cici', 'Kasir', null),
       dodi: await person('Dodi', 'Kasir'),
     };
-    rekening = Number((await sql`select id from hris.payment_sources where name = 'Rekening Kantor'`)[0].id);
+    rekening = Number((await sql`insert into petshop.money_places (name, kind, branch_id, bank_name, account_number) values ('Rekening Kantor', 'BANK', 1, 'BCA', '1234500001') returning id`)[0].id);
     slip = await import('./payslip');
     pay = await import('./payment');
     reopen = await import('./payslip-reopen');

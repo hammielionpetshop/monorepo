@@ -87,7 +87,7 @@ export function legacyAdvanceHandler(): RequestHandler {
       }).where(eq(advances.id, row.id));
       // Tidak ada uang keluar: serah bertanda LEGACY bertanggal hari pindah, tanpa sumber uang (spec L9 §2).
       await tx.insert(advanceHandovers).values({
-        advanceId: row.id, amount: row.requestedAmount, moneyDate: cutover, sourceId: null, method: 'LEGACY', handedByAccountId: actorAccountId,
+        advanceId: row.id, amount: row.requestedAmount, moneyDate: cutover, moneyPlaceId: null, method: 'LEGACY', handedByAccountId: actorAccountId,
       });
       const amounts = splitInstallments(row.requestedAmount, row.requestedInstallments);
       const track = await personTrack(row.employeeId, cutover, tx);
