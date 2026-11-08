@@ -5,6 +5,10 @@ export interface SupplierPayment {
   referenceNumber: string | null
   note: string | null
   proofPhotoUrl?: string | null
+  /** F2-4a: Tempat Uang asal; null + noMoney=false = pembayaran lama "belum diketahui". */
+  moneyPlaceName: string | null
+  /** Metode sistem tanpa uang (Retur, Saldo Supplier, Retur Batal). */
+  noMoney: boolean
   paidAt: string
   paidByName: string | null
 }

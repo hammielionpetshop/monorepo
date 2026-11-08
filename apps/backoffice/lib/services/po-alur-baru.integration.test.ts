@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productStockBatches,
   suppliers, roles, users, purchaseOrders, purchaseOrderItems, poReceivingLogs, supplierPayables,
-  supplierPayablePayments, auditLogs, eq, and,
+  supplierPayablePayments, auditLogs, eq, and, moneyPlaces,
 } from '../db'
 import { pricePendingReceivedCount } from '../po-stage-sql'
 import { poStage } from '../po-stage'
@@ -26,6 +26,7 @@ import { POST as payRoute } from '../../app/api/bo/supplier-payables/[id]/pay/ro
 // Satuan: PCS (dasar), SAK = 25 PCS. Harga per SAK.
 const run = randomUUID().slice(0, 8)
 let branchId: number
+let bankPlaceId: number
 let userId: number
 let supplierId: number
 let pcs: number
@@ -92,6 +93,13 @@ beforeAll(async () => {
     }).returning()
     itemId[key] = item.id
   }
+})
+
+// F2-4a: pembayaran supplier non-tunai wajib menyebut Rekening asalnya.
+beforeAll(async () => {
+  bankPlaceId = (await db.insert(moneyPlaces).values({
+    name: `Rekening Uji po-alur-baru ${run}`, kind: 'BANK', branchId, bankName: 'BCA', accountNumber: '1234', accountHolder: 'Uji',
+  }).returning())[0].id
 })
 
 describe('alur PO baru (DB lokal)', () => {
@@ -167,7 +175,7 @@ describe('alur PO baru (DB lokal)', () => {
 
   it('5. bayar lunas dengan tanggal mundur → Lunas, tanggal bayar sesuai', async () => {
     const [payable] = await db.select().from(supplierPayables).where(eq(supplierPayables.poId, poId))
-    const res = await payRoute(json({ amount: payable.totalAmount, method: 'TRANSFER BCA', paidDate: '2026-10-01' }), params(payable.id))
+    const res = await payRoute(json({ amount: payable.totalAmount, method: 'TRANSFER BCA', moneyPlaceId: bankPlaceId, paidDate: '2026-10-01' }), params(payable.id))
     expect(res.status).toBe(201)
     const [after] = await db.select().from(supplierPayables).where(eq(supplierPayables.id, payable.id))
     expect(after.status).toBe('PAID')

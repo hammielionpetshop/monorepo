@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productStocks,
   suppliers, roles, users, purchaseOrders, purchaseOrderItems, supplierPayables, supplierPayablePayments,
-  supplierReturns, supplierCreditEntries, damagedGoods, damagedGoodsItems, eq, and, sql,
+  supplierReturns, supplierCreditEntries, damagedGoods, damagedGoodsItems, eq, and, sql, moneyPlaces,
 } from '../db'
 import { stockLedgerUnion } from './stock-ledger'
 
@@ -31,6 +31,7 @@ import type { JWTPayload } from '@petshop/shared'
 // Retur ke Supplier end-to-end di DB lokal (salinan produksi). Satuan: PCS (dasar), SAK = 25 PCS.
 const run = randomUUID().slice(0, 8)
 let branchId: number
+let bankPlaceId: number
 let userId: number
 let supplierId: number
 let pcs: number
@@ -89,6 +90,13 @@ beforeAll(async () => {
   po1 = await receivedPo(10, 12_000)
 })
 
+// F2-4a: pembayaran supplier non-tunai wajib menyebut Rekening asalnya.
+beforeAll(async () => {
+  bankPlaceId = (await db.insert(moneyPlaces).values({
+    name: `Rekening Uji supplier-return ${run}`, kind: 'BANK', branchId, bankName: 'BCA', accountNumber: '1234', accountHolder: 'Uji',
+  }).returning())[0].id
+})
+
 describe('Retur ke Supplier (DB lokal)', () => {
   it('1. pengajuan dengan PO asal: PENDING, harga dari faktur, stok & tagihan belum berubah', async () => {
     const before = await stockPcs(productA)
@@ -133,7 +141,7 @@ describe('Retur ke Supplier (DB lokal)', () => {
 
   it('4. PO sudah lunas → seluruh nilai retur jadi saldo supplier', async () => {
     const payable = await payableOf(po1.poId)
-    expect((await payRoute(json({ amount: payable.totalAmount - payable.paidAmount, method: 'TRANSFER' }), params(payable.id))).status).toBe(201)
+    expect((await payRoute(json({ amount: payable.totalAmount - payable.paidAmount, method: 'TRANSFER', moneyPlaceId: bankPlaceId }), params(payable.id))).status).toBe(201)
     expect((await payableOf(po1.poId)).status).toBe('PAID')
 
     const header = await request(po1.poId, [{ productId: productA, uomId: sak, poItemId: po1.poItemId, qty: 1 }])
