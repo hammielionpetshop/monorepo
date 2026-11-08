@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkCancel, checkCategoryChange, checkEntry, type EntryRuleInput } from './cash-flow-rules'
+import { checkCancel, checkCategoryChange, checkEntry, checkTransfer, type EntryRuleInput } from './cash-flow-rules'
 
 const base: EntryRuleInput = {
   type: 'EXPENSE',
@@ -82,5 +82,23 @@ describe('checkCategoryChange (F2-4b)', () => {
   it('jenis harus cocok dengan tipe; kategori sistem terkunci', () => {
     expect(checkCategoryChange({ current: cur, next: { type: 'EXPENSE', reportKind: 'INCOME' }, usedCount: 0 })).toMatch(/tidak cocok/)
     expect(checkCategoryChange({ current: { ...cur, isSystem: true }, next: { type: 'EXPENSE', reportKind: 'NON_COST' }, usedCount: 0 })).toMatch(/sistem/)
+  })
+})
+
+describe('checkTransfer (F2-4c)', () => {
+  const brankas = { id: 1, kind: 'CASH', isActive: true }
+  const bank = { id: 2, kind: 'BANK', isActive: true }
+  const t = { from: brankas, to: bank, occurredOn: '2026-11-09', isOwner: false, today: '2026-11-09' }
+  it('Brankas → rekening sah', () => {
+    expect(checkTransfer(t)).toBeNull()
+  })
+  it('menolak sama, laci, nonaktif, kosong, dan tanggal di luar batas', () => {
+    expect(checkTransfer({ ...t, to: brankas })).toMatch(/tidak boleh sama/)
+    expect(checkTransfer({ ...t, from: { id: 3, kind: 'DRAWER', isActive: true } })).toMatch(/Laci/)
+    expect(checkTransfer({ ...t, to: { ...bank, isActive: false } })).toMatch(/nonaktif/)
+    expect(checkTransfer({ ...t, from: null })).toMatch(/asal/)
+    expect(checkTransfer({ ...t, occurredOn: '2026-11-10' })).toMatch(/melewati/)
+    expect(checkTransfer({ ...t, occurredOn: '2026-10-30' })).toMatch(/hanya Owner/)
+    expect(checkTransfer({ ...t, occurredOn: '2026-10-30', isOwner: true })).toBeNull()
   })
 })

@@ -4,7 +4,7 @@ import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { proofPhotoUrlSchema } from '@/lib/proof-photo'
 import { checkCancel, checkEntry, monthStart } from '@/lib/services/cash-flow-rules'
-import { db, cashFlowEntries, cashFlowCategories, moneyPlaces, branches, users, eq, and, desc, gte, lte, isNull, sql } from '@/lib/db'
+import { db, cashFlowEntries, cashFlowCategories, moneyPlaces, branches, users, eq, and, desc, gte, lte, isNull } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { createdOnWibSql } from '@/lib/services/cash-flow-sql'
 

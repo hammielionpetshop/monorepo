@@ -160,6 +160,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/cash-flow', label: 'Pendapatan & Pengeluaran', icon: HandCoins },
+      { href: '/cash-flow/transfers', label: 'Pindah Dana', icon: ArrowLeftRight, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/expenses', label: 'Pengeluaran Shift', icon: Banknote, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
       { href: '/cash-flow/categories', label: 'Kategori Kas', icon: FolderOpen, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
