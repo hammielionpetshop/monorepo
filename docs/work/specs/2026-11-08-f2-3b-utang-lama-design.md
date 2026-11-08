@@ -1,6 +1,6 @@
 # F2-3b Utang Antar Cabang Lama — Pratinjau & Pelunasan Susulan
 
-Tanggal: 2026-11-08 · Status: **draf, menunggu keputusan owner (§8)** · PRD:
+Tanggal: 2026-11-08 · Status: **disetujui owner 2026-11-08** (§9) · PRD:
 [`fase_2/04-pelunasan-otomatis.md`](../../hris_planning/PRD/fase_2/04-pelunasan-otomatis.md) §7 ·
 Dasar: [F2-3 Pelunasan Otomatis](2026-11-08-f2-3-pelunasan-otomatis-design.md) §8 pilihan **C**
 (tayang produksi 1.107.120)
@@ -125,3 +125,17 @@ ulang.
 5. **Siapa**: pratinjau Owner + GM; tombol jalankan & batalkan **Owner saja** (usul).
 6. **Setoran bebas November** tidak dipakai untuk utang lama (sesuai keputusan "data November
    saja") — usul: tetap begitu.
+
+## 9. Keputusan owner 2026-11-08 (atas draf)
+
+Owner: "ok saya setuju" — semua usul agent di §8 disetujui:
+
+1. ✅ Dua tahap: **F2-3b-1 Pratinjau** tayang produksi dulu, **F2-3b-2 Jalankan** sesudah owner
+   melihat angka nyata.
+2. ✅ Sumber uang bawaan = **kas shift terverifikasi cara lama** saja; centang non-tunai tersedia
+   untuk perbandingan, bawaan tidak dicentang.
+3. ✅ Pelunasan manual yang sudah ada **dikurangi** (bawaan dicentang); nota yang dibayar dari uang
+   lain dibahas khusus.
+4. ✅ Shift Oktober yang belum diverifikasi **tidak dihitung**, tampil sebagai info.
+5. ✅ Pratinjau Owner + GM; Jalankan & Batalkan **Owner saja**.
+6. ✅ Setoran November **tidak** dipakai untuk utang lama.
