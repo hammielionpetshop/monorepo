@@ -1,6 +1,6 @@
 # F2-1 Tempat Uang
 
-Tanggal: 2026-11-08 · Status: **draf — menunggu persetujuan owner** · PRD: [`fase_2/02-tempat-uang.md`](../../hris_planning/PRD/fase_2/02-tempat-uang.md)
+Tanggal: 2026-11-08 · Status: **draf — 5 dari 7 keputusan owner masuk (2026-11-08), 2 usul agent menunggu ok (§9 no.5–6)** · PRD: [`fase_2/02-tempat-uang.md`](../../hris_planning/PRD/fase_2/02-tempat-uang.md)
 
 Dua bagian, dua branch:
 
@@ -66,12 +66,14 @@ Tempat uang lain **tidak diisi migrasi**; owner mengisinya sendiri ✅ ("bisa sa
 - Mengganti tautan = menimpa baris (pengaturan, bukan data uang) + tercatat di Audit Log. F2-2
   menyimpan salinan tempat uang di tiap baris verifikasi, jadi verifikasi lama tidak ikut berubah.
 
-### 2.3 "Dipegang oleh" tidak bertanggal 💡
+### 2.3 "Dipegang oleh" tidak bertanggal ✅
 
-v3 (KEU-124) memakai pemegang bertanggal. Usulan: cukup satu kolom `held_by` + jejak di Audit Log,
-karena F2-3 **menyalin** `held_by` saat verifikasi ke baris pelunasannya. Pergantian pemegang
-kemudian tidak mengubah pelunasan yang sudah terjadi. Bila nanti Finance perlu "dipegang siapa
-pada tanggal X", tabel riwayat ditambah tanpa mengubah yang ini.
+v3 (KEU-124) memakai pemegang bertanggal. Keputusan: cukup satu kolom `held_by` + jejak di Audit
+Log. Owner 2026-11-08: **"sebaiknya tercatat di verifikasi siapa"** ✅ — maka tiap baris verifikasi
+(F2-2) dan pelunasan (F2-3) menyimpan **siapa yang memverifikasi** (akun) **dan salinan `held_by`**
+tempat uang tujuan saat itu. Pergantian pemegang kemudian tidak mengubah verifikasi/pelunasan yang
+sudah terjadi. Bila nanti Finance perlu "dipegang siapa pada tanggal X", tabel riwayat ditambah
+tanpa mengubah yang ini.
 
 ## 3. Aturan (F2-1a)
 
@@ -89,7 +91,7 @@ pada tanggal X", tabel riwayat ditambah tanpa mengubah yang ini.
 | Hak | Kode | Peran |
 |---|---|---|
 | Lihat daftar | `money_place.read` | OWNER, GM, FINANCE |
-| Tambah/ubah/nonaktif + tautan metode bayar | `money_place.manage` | OWNER, GM ❓ (lihat §9 no.1) |
+| Tambah/ubah/nonaktif + tautan metode bayar | `money_place.manage` | OWNER, GM, FINANCE ✅ (owner 2026-11-08: "tambahkan finance juga") |
 
 Ditambahkan ke `packages/db/src/seed/permissions.ts` dan peta peran lewat migrasi (pola yang sama
 dengan hak baru sebelumnya).
@@ -118,8 +120,11 @@ Rute `/settings/money-places`, menu baru di grup Pengaturan + tanda Baru.
    `source_id`. Cara bayar `CASH/TRANSFER` diturunkan dari jenis: `DRAWER/CASH` → tunai,
    `BANK` → transfer. Pengecekan "sumber wajib ada" pindah ke `money_place_id`.
 3. Semua layar bayar HRIS (bayar slip, luar slip, bongkaran, lebih bayar, serah & lunasi kasbon)
-   memilih dari Tempat Uang aktif; Laci kasir tidak ditawarkan 💡 (uang laci keluar lewat
-   pengeluaran shift POS, bukan dari HRIS).
+   memilih dari Tempat Uang aktif; **Laci kasir tidak ditawarkan** 💡 (usul agent, menunggu ok):
+   isi laci dihitung oleh shift POS — kalau HRIS juga boleh mengambil dari laci, hitungan tutup
+   shift tidak cocok (kas kurang tanpa sebab) atau uangnya tercatat dua kali. Uang laci yang
+   dipakai membayar (mis. kasbon karyawan toko) tetap dicatat kasir sebagai pengeluaran shift
+   di POS seperti sekarang.
 4. **Pengaturan › Sumber Uang** di HRIS menjadi daftar baca + tautan "Atur di Back Office".
 5. **Data staging dipetakan sekali** di migrasi: tiap `payment_sources` dicocokkan ke Tempat Uang
    yang namanya sama; bila tidak ada, dibuatkan Tempat Uang (Tunai/"Rekening — perlu dilengkapi",
@@ -147,16 +152,19 @@ Rute `/settings/money-places`, menu baru di grup Pengaturan + tanda Baru.
 4. Coba nonaktifkan Rekening Toko B → ditolak karena masih dipakai QRIS Toko B.
 5. (F2-1b) HRIS › bayar satu slip uji → pilihan sumber uang = daftar Back Office.
 
-## 9. Pertanyaan untuk owner
+## 9. Keputusan owner (2026-11-08)
 
-1. ❓ **Siapa boleh mengubah daftar Tempat Uang**: Owner/GM saja (usul agent — uang perusahaan,
-   jarang berubah), atau Finance juga?
-2. 💡 **Tiga jenis saja** (Laci / Tunai / Rekening) — Brankas, kas Finance, uang pegangan driver
-   cukup Tunai dengan nama masing-masing — bukan lima jenis seperti v3. Setuju?
-3. 💡 **Laci kasir dibuat otomatis** per cabang (§2.1). Setuju?
-4. 💡 **"Dipegang oleh" tanpa riwayat bertanggal** (§2.3). Setuju?
-5. 💡 HRIS **tidak** menawarkan Laci kasir sebagai sumber bayar (§6 no.3). Setuju?
-6. 🗣️ **Pindah Dana** (setor tunai ke bank, tarik ATM, isi uang pegangan) — PRD menaruhnya
-   "dibahas sambil jalan" di F2-1. Usul agent: **tidak** dibuat di F2-1; dibahas saat F2-4
-   (Arus Kas), karena ia butuh layar catat uang, sedangkan F2-1 hanya pengaturan.
-7. 🗣️ **Finance libur** — usul agent: dibahas di F2-2 (verifikasi), tidak memengaruhi F2-1.
+1. ✅ **Pengubah daftar Tempat Uang: Owner, GM, dan Finance** ("gunakan usul anda tambahkan
+   finance juga") — §4.
+2. ✅ **Tiga jenis** (Laci / Tunai / Rekening) — "ikuti saran anda saja".
+3. ✅ **Laci kasir dibuat otomatis** per cabang — "ikuti saran anda".
+4. ✅ **"Dipegang oleh" tanpa riwayat bertanggal; verifikasi mencatat siapa yang memverifikasi**
+   ("sebaiknya tercatat di verifikasi siapa") — §2.3, dipakai F2-2/F2-3.
+5. 💡 Owner bertanya "sebaiknya gimana?" — usul agent: **Laci tidak ditawarkan di HRIS** (§6 no.3).
+   Menunggu ok.
+6. 💡 Owner bertanya saran — usul agent: **Pindah Dana tidak di F2-1**, dibuat di **F2-4** (Arus
+   Kas) karena butuh layar catat uang; F2-1 hanya pengaturan. Menunggu ok.
+7. ✅ **Finance libur**: verifikasi setoran **biasanya menunggu** Finance masuk, **atau dilakukan
+   GM/Owner** ("biasanya tidak dikerjakan, atau oleh gm atau owner"). Sudah sejalan dengan hak
+   `shift.deposit.verify` sekarang (OWNER, GM, FINANCE); dicatat untuk F2-2 — verifikasi yang
+   menunggu tidak mengunci shift.
