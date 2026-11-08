@@ -136,3 +136,27 @@ export function checkCategoryChange({ current, next, usedCount }: CategoryChange
 export function monthStart(yyyyMm: string): string {
   return `${yyyyMm}-01`
 }
+
+export interface TransferRuleInput {
+  from: (RulePlace & { id: number }) | null
+  to: (RulePlace & { id: number }) | null
+  occurredOn: string
+  isOwner: boolean
+  today: string
+}
+
+/** F2-4c Pindah Dana: asal & tujuan Tempat Uang aktif (bukan Laci), tidak sama; tanggal seperti Arus Kas. */
+export function checkTransfer(input: TransferRuleInput): string | null {
+  const { from, to } = input
+  if (!from) return 'Pilih Tempat Uang asal'
+  if (!to) return 'Pilih Tempat Uang tujuan'
+  if (from.id === to.id) return 'Tempat Uang asal dan tujuan tidak boleh sama'
+  if (from.kind === 'DRAWER' || to.kind === 'DRAWER') return 'Laci kasir tidak dipakai di Pindah Dana (uang laci lewat Setoran)'
+  if (!from.isActive || !to.isActive) return 'Tempat Uang sudah nonaktif'
+  if (!validDate(input.occurredOn)) return 'Tanggal uang tidak valid'
+  if (input.occurredOn > input.today) return 'Tanggal uang tidak boleh melewati hari ini'
+  if (daysBetween(input.occurredOn, input.today) > BACKDATE_DAYS && !input.isOwner) {
+    return `Tanggal uang paling jauh ${BACKDATE_DAYS} hari ke belakang; lebih dari itu hanya Owner`
+  }
+  return null
+}

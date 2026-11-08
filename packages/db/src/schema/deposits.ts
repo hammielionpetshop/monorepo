@@ -114,7 +114,7 @@ export const moneyMovements = petshop.table('money_movements', {
   toMoneyPlaceId: integer('to_money_place_id').references(() => moneyPlaces.id).notNull(),
   amount: integer('amount').notNull(),
   occurredOn: date('occurred_on').notNull(),
-  /** CASH_DEPOSIT · NONCASH_VERIFICATION. */
+  /** CASH_DEPOSIT · NONCASH_VERIFICATION · TRANSFER (F2-4c Pindah Dana, sumber = money_transfers.id). */
   sourceType: varchar('source_type', { length: 30 }).notNull(),
   sourceId: integer('source_id').notNull(),
   reversalOfId: integer('reversal_of_id').unique().references((): AnyPgColumn => moneyMovements.id),
