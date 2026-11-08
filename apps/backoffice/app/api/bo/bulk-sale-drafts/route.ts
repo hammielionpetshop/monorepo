@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { requirePermission } from '@/lib/authz'
-import { db, bulkSaleDrafts, desc, eq } from '@/lib/db'
+import { db, bulkSaleDrafts, desc, eq, users } from '@/lib/db'
+
+import { canSeeAllBranches, draftBranchFilter } from './scope'
 
 export const dynamic = 'force-dynamic'
 
-// Batas draft per user — mirror MAX_BULK_SALE_DRAFTS yang dulu dipakai di localStorage,
+// Batas draft per penahan — mirror MAX_BULK_SALE_DRAFTS yang dulu dipakai di localStorage,
 // supaya daftar tunggu tidak menumpuk tanpa ada yang membersihkan.
 const MAX_BULK_SALE_DRAFTS = 20
 
@@ -38,11 +40,23 @@ const draftPostSchema = z.object({
   source: draftSourceSchema.nullable(),
 })
 
-function rowToDraft(row: { id: number; name: string; payload: unknown; createdAt: Date }) {
+function rowToDraft(row: {
+  id: number
+  name: string
+  payload: unknown
+  createdAt: Date
+  createdByName?: string | null
+}) {
   const payload = (row.payload ?? {}) as Record<string, unknown>
   // id di-stringify supaya cocok dengan tipe BulkSaleDraft.id sisi klien (dulu string acak
   // dari localStorage, kini id serial DB — bentuknya berubah, tipenya sengaja dipertahankan).
-  return { id: String(row.id), name: row.name, savedAt: row.createdAt, ...payload }
+  return {
+    ...payload,
+    id: String(row.id),
+    name: row.name,
+    savedAt: row.createdAt,
+    createdByName: row.createdByName ?? null,
+  }
 }
 
 export async function GET() {
@@ -50,10 +64,20 @@ export async function GET() {
     const gate = await requirePermission('transaction.bulk_sale')
     if (gate instanceof NextResponse) return gate
 
+    // Dibagi per cabang (seperti Daftar Tunggu POS), bukan per user: draf yang ditahan satu
+    // orang harus bisa dilanjutkan/dibersihkan rekan secabang, karena barangnya ikut menahan
+    // stok cabang itu (lihat lib/services/stock-reservation.ts).
     const rows = await db
-      .select()
+      .select({
+        id: bulkSaleDrafts.id,
+        name: bulkSaleDrafts.name,
+        payload: bulkSaleDrafts.payload,
+        createdAt: bulkSaleDrafts.createdAt,
+        createdByName: users.name,
+      })
       .from(bulkSaleDrafts)
-      .where(eq(bulkSaleDrafts.createdById, gate.userId))
+      .leftJoin(users, eq(users.id, bulkSaleDrafts.createdById))
+      .where(draftBranchFilter(gate))
       .orderBy(desc(bulkSaleDrafts.createdAt))
 
     return NextResponse.json(rows.map(rowToDraft))
@@ -82,6 +106,12 @@ export async function POST(req: Request) {
 
     const { name, ...payload } = parsed.data
 
+    // Draf terlihat oleh seluruh cabangnya, jadi cabangnya harus cabang sesi penahan —
+    // bukan nilai bebas dari body.
+    if (!canSeeAllBranches(gate) && payload.branchId !== gate.branchId) {
+      return NextResponse.json({ error: 'Cabang draf tidak sesuai dengan sesi' }, { status: 403 })
+    }
+
     const [created] = await db
       .insert(bulkSaleDrafts)
       .values({ createdById: gate.userId, name, payload })
@@ -99,7 +129,7 @@ export async function POST(req: Request) {
       await db.delete(bulkSaleDrafts).where(eq(bulkSaleDrafts.id, id))
     }
 
-    return NextResponse.json(rowToDraft(created), { status: 201 })
+    return NextResponse.json(rowToDraft({ ...created, createdByName: gate.userName ?? null }), { status: 201 })
   } catch (err) {
     console.error('POST /api/bo/bulk-sale-drafts error:', err)
     return NextResponse.json({ error: 'Gagal menyimpan draft bulk sale' }, { status: 500 })
