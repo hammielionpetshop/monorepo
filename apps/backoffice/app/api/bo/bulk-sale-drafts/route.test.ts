@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const requirePermission = vi.fn()
 const eq = vi.fn((left, right) => ({ type: 'eq', left, right }))
 const desc = vi.fn((column) => ({ type: 'desc', column }))
+const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ type: 'sql', text: strings.join('?'), values }))
 
-const selectChain = { from: vi.fn(), where: vi.fn(), orderBy: vi.fn() }
+const selectChain = { from: vi.fn(), leftJoin: vi.fn(), where: vi.fn(), orderBy: vi.fn() }
 const insertChain = { values: vi.fn(), returning: vi.fn() }
 const db = { select: vi.fn(), insert: vi.fn(), delete: vi.fn() }
 
@@ -19,8 +20,10 @@ vi.mock('@/lib/db', () => ({
     payload: 'bulkSaleDrafts.payload',
     createdAt: 'bulkSaleDrafts.createdAt',
   },
+  users: { id: 'users.id', name: 'users.name' },
   eq,
   desc,
+  sql,
 }))
 
 function makeRow(overrides: Record<string, unknown> = {}) {
@@ -66,9 +69,10 @@ function jsonRequest(body: unknown) {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
-  requirePermission.mockResolvedValue({ userId: 9, branchId: 2, role: 'MANAGER' })
+  requirePermission.mockResolvedValue({ userId: 9, userName: 'Admin Gudang', branchId: 2, role: 'MANAGER' })
 
   selectChain.from.mockReturnValue(selectChain)
+  selectChain.leftJoin.mockReturnValue(selectChain)
   selectChain.where.mockReturnValue(selectChain)
   selectChain.orderBy.mockResolvedValue([])
   db.select.mockReturnValue(selectChain)
@@ -92,8 +96,8 @@ describe('GET /api/bo/bulk-sale-drafts', () => {
     expect(res.status).toBe(403)
   })
 
-  it('mengembalikan daftar draft milik user, id di-stringify', async () => {
-    selectChain.orderBy.mockResolvedValue([makeRow()])
+  it('mengembalikan draf seluruh cabang sesi (bukan hanya milik user) beserta nama penahan', async () => {
+    selectChain.orderBy.mockResolvedValue([makeRow({ createdByName: 'Admin Lain' })])
     const { GET } = await import('./route')
 
     const res = await GET()
@@ -103,6 +107,18 @@ describe('GET /api/bo/bulk-sale-drafts', () => {
     expect(json[0].id).toBe('1')
     expect(json[0].name).toBe('Toko Sebelah')
     expect(json[0].branchId).toBe(2)
+    expect(json[0].createdByName).toBe('Admin Lain')
+    const where = selectChain.where.mock.calls[0][0]
+    expect(where).toMatchObject({ type: 'sql', values: ['bulkSaleDrafts.payload', '2'] })
+  })
+
+  it('OWNER/GM melihat draf semua cabang (tanpa filter)', async () => {
+    requirePermission.mockResolvedValue({ userId: 1, userName: 'Owner', branchId: 2, role: 'OWNER' })
+    const { GET } = await import('./route')
+
+    await GET()
+
+    expect(selectChain.where).toHaveBeenCalledWith(undefined)
   })
 })
 
@@ -149,6 +165,15 @@ describe('POST /api/bo/bulk-sale-drafts', () => {
       expect.objectContaining({ createdById: 9, name: 'Toko Sebelah' }),
     )
     expect(json.id).toBe('1')
+  })
+
+  it('menolak draf untuk cabang selain cabang sesi (non OWNER/GM)', async () => {
+    const { POST } = await import('./route')
+
+    const res = await POST(jsonRequest(postPayload({ branchId: 5 })))
+
+    expect(res.status).toBe(403)
+    expect(insertChain.values).not.toHaveBeenCalled()
   })
 
   it('membuang draft tertua saat melewati batas 20', async () => {
