@@ -20,6 +20,7 @@ import {
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { listInternalCreditBalances } from '@/lib/services/internal-credit-service'
+import { getAutoSettlementSettings } from '@/lib/services/deposit-settlement-service'
 import { PayablesClient } from './_components/payables-client'
 import type { PayablePayment, WaiveInfo } from './_components/types'
 
@@ -90,6 +91,8 @@ export default async function InterBranchPayablesPage() {
     RETUR_INTERNAL: 'RETUR INTERNAL',
     SALDO_INTERNAL: 'SALDO INTERNAL',
     BATAL_RETUR: 'BATAL RETUR INTERNAL',
+    SETORAN: 'SETORAN',
+    BATAL_SETORAN: 'BATAL SETORAN',
   }
   const paymentsByPayable = new Map<number, PayablePayment[]>()
   for (const p of paymentRows) {
@@ -164,6 +167,8 @@ export default async function InterBranchPayablesPage() {
     .where(ne(paymentMethods.type, 'DEBT'))
     .orderBy(asc(paymentMethods.id))
 
+  const autoSettlement = await getAutoSettlementSettings()
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -196,6 +201,8 @@ export default async function InterBranchPayablesPage() {
         canWaive={hasPermission(payload, 'payable.waive')}
         paymentMethods={methods}
         today={todayWibDate()}
+        redAgeDays={autoSettlement.redAgeDays}
+        autoStartDate={autoSettlement.startDate}
       />
     </div>
   )

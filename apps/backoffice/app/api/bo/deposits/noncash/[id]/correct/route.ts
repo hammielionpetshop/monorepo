@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const data = await parseJsonBody(req, noncashCorrectSchema)
     if (data instanceof NextResponse) return data
     const row = await correctNoncashVerification(Number(id.data), data, actorOf(gate))
-    return NextResponse.json({ id: row.id })
+    return NextResponse.json({ id: row.id, settlement: row.settlement })
   } catch (error) {
     return depositErrorResponse(error, 'POST /api/bo/deposits/noncash/[id]/correct')
   }
