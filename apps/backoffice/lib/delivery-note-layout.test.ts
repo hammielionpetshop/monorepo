@@ -259,3 +259,22 @@ describe('buildDeliveryNoteEscp', () => {
     expect(escp.endsWith('\x0C')).toBe(true)
   })
 })
+
+describe('cara kirim di surat jalan', () => {
+  it('truk Gudang tercetak tebal di setiap lembar, lembar tetap muat', () => {
+    const pages = buildDeliveryNotePages(makeData(60, { delivery: { text: 'DIKIRIM TRUK GUDANG', bold: true } }))
+    expect(pages.length).toBeGreaterThan(1)
+    for (const page of pages) {
+      const line = page.find((l) => l.text.includes('DIKIRIM TRUK GUDANG'))
+      expect(line?.bold).toBe(true)
+      expect(line?.text.startsWith('Kirim : ')).toBe(true)
+      expect(page.length).toBeLessThanOrEqual(BODY_LINES)
+    }
+    expect(itemNumbers(pages)).toEqual(Array.from({ length: 60 }, (_, i) => i + 1))
+  })
+
+  it('tanpa cara kirim tidak ada baris Kirim', () => {
+    const pages = buildDeliveryNotePages(makeData(3))
+    expect(pages.flat().some((l) => l.text.startsWith('Kirim :'))).toBe(false)
+  })
+})

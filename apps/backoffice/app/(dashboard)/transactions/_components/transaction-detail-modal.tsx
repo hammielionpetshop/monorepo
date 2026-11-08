@@ -14,7 +14,7 @@ import ReceiptImageExport from './receipt-image-export'
 import { canCloneTransaction } from './clone-rules'
 import { NewBadge } from '@/components/ui/new-badge'
 import { ChangeDeliveryDialog } from '@/components/delivery/delivery-method-picker'
-import { saleDeliveryLabel } from '@/lib/delivery-method'
+import { deliveryPrintLine, saleDeliveryLabel } from '@/lib/delivery-method'
 import { CopyPlus, ImageDown, Printer, Receipt, Truck } from 'lucide-react'
 
 const FOOTER_BTN_SECONDARY =
@@ -86,6 +86,8 @@ interface TransactionDetail {
   sourceIbtId: number | null
   /** Cara kirim (PICKUP / BRANCH_COURIER / TRUCK) atau null. */
   deliveryMethod: string | null
+  /** Cara kirim PO Internal asal nota (TRUCK / SELF) atau null. */
+  transferDeliveryMethod: string | null
   /** Saklar "Wajib pilih cara kirim" menyala. */
   deliveryRequired: boolean
   deliveryChanges: { id: number; oldMethod: string | null; newMethod: string; reason: string; changedByName: string; createdAt: string }[]
@@ -169,6 +171,15 @@ export default function TransactionDetailModal({
     setTimeout(() => window.print(), 50)
   }
 
+  // Cara kirim tercetak = nilai terbaru di database (ikut Ubah cara kirim karena detail dimuat ulang).
+  const printDelivery = detail
+    ? deliveryPrintLine({
+        fromTransfer: detail.sourceIbtId != null,
+        saleMethod: detail.deliveryMethod,
+        transferMethod: detail.transferDeliveryMethod,
+      })
+    : null
+
   function getReceiptSource(): ReceiptSource | null {
     if (!detail || !receiptCartItems) return null
     return {
@@ -189,6 +200,7 @@ export default function TransactionDetailModal({
       isReprint: true,
       isVoided: detail.status === 'VOIDED',
       payments: detail.payments.map((p) => ({ name: p.paymentMethodName, amount: p.amount.toString() })),
+      delivery: printDelivery,
     }
   }
 
@@ -215,6 +227,7 @@ export default function TransactionDetailModal({
       isVoided: detail.status === 'VOIDED',
       withPrice: includePrice,
       grandTotal: detail.payableAmount,
+      delivery: printDelivery,
       items: detail.items.map((item) => ({
         id: item.id,
         productCode: item.productSku,
@@ -727,6 +740,7 @@ export default function TransactionDetailModal({
           isVoided={detail.status === 'VOIDED'}
           withPrice={includePrice}
           grandTotal={detail.payableAmount}
+          delivery={printDelivery}
           items={detail.items.map((item) => ({
             id: item.id,
             productCode: item.productSku,
@@ -760,6 +774,7 @@ export default function TransactionDetailModal({
           isReprint={true}
           isVoided={detail.status === 'VOIDED'}
           payments={detail.payments.map(p => ({ name: p.paymentMethodName, amount: p.amount.toString() }))}
+          delivery={printDelivery}
         />
       )}
     </>

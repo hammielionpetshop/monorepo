@@ -78,6 +78,7 @@ export async function renderReceiptImages(
   addText(`Tgl: ${data.transactionDate}`)
   addText(`Kasir: ${data.cashierName}`)
   if (data.customerName) addText(`Pelanggan: ${data.customerName}`)
+  if (data.delivery) addText(data.delivery.text, { bold: data.delivery.bold })
   rule()
   for (const item of data.items) {
     if (item.ongkir) {

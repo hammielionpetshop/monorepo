@@ -57,6 +57,30 @@ export function transferDeliveryLabel(value: string | null | undefined): string 
   return isTransferDeliveryMethod(value) ? TRANSFER_DELIVERY_LABELS[value] : null
 }
 
+/** Baris cara kirim yang dicetak di struk & surat jalan. `bold` = dicetak tebal. */
+export interface DeliveryPrintLine {
+  text: string
+  bold: boolean
+}
+
+/**
+ * Teks cara kirim untuk kertas (struk, surat jalan, gambar). Satu-satunya tempat aturannya:
+ * truk Gudang dicetak tebal huruf besar supaya cepat terbaca orang gudang/sopir; kurir cabang
+ * dan kirim sendiri dicetak biasa; ambil sendiri / belum dipilih tidak dicetak.
+ * Nota hasil PO Internal memakai cara kirim PO Internal-nya (`transferMethod`), bukan nota.
+ */
+export function deliveryPrintLine(input: {
+  saleMethod?: string | null
+  transferMethod?: string | null
+  fromTransfer?: boolean
+}): DeliveryPrintLine | null {
+  const method = input.fromTransfer ? input.transferMethod ?? null : input.saleMethod ?? null
+  if (method === 'TRUCK') return { text: 'DIKIRIM TRUK GUDANG', bold: true }
+  if (input.fromTransfer) return method === 'SELF' ? { text: TRANSFER_DELIVERY_LABELS.SELF, bold: false } : null
+  if (method === 'BRANCH_COURIER') return { text: SALE_DELIVERY_LABELS.BRANCH_COURIER, bold: false }
+  return null
+}
+
 /** Nilai pengaturan dari app_settings. Baris hilang = wajib pilih menyala (bawaan). */
 export function parseDeliverySettings(required: string | null, truckFirst: string | null) {
   return {

@@ -14,7 +14,7 @@ import { NewBadge } from '@/components/ui/new-badge'
 import type { TransferItem } from './types'
 import InternalTransferEditForm from './internal-transfer-edit-form'
 import { ChangeDeliveryDialog, TransferDeliveryPicker } from '@/components/delivery/delivery-method-picker'
-import { transferDeliveryLabel, type TransferDeliveryMethod } from '@/lib/delivery-method'
+import { deliveryPrintLine, transferDeliveryLabel, type TransferDeliveryMethod } from '@/lib/delivery-method'
 
 const PRINT_STYLES = `
 @media print {
@@ -432,6 +432,9 @@ export function InternalTransferDetailClient({
     warmUpQz()
   }, [])
 
+  // Cara kirim terbaru PO Internal ini (ikut Ubah cara kirim) untuk Surat Jalan A4.
+  const sjDelivery = deliveryPrintLine({ fromTransfer: true, transferMethod: transfer.deliveryMethod })
+
   function printSuratJalan() {
     // Surat Jalan tetap A4 lewat dialog browser — bukan dokumen termal.
     setPrintMode('surat-jalan')
@@ -497,6 +500,15 @@ export function InternalTransferDetailClient({
             <strong>{transferDate}</strong>
           </div>
         </div>
+
+        {sjDelivery && (
+          <div className="sj-meta">
+            <div>
+              <span>Cara kirim: </span>
+              {sjDelivery.bold ? <strong>{sjDelivery.text}</strong> : <span>{sjDelivery.text}</span>}
+            </div>
+          </div>
+        )}
 
         <div className="sj-section">
           <div className="sj-field">

@@ -16,7 +16,7 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
-import type { SaleDeliveryMethod } from '@/lib/delivery-method'
+import { deliveryPrintLine, type DeliveryPrintLine, type SaleDeliveryMethod } from '@/lib/delivery-method'
 import {
   internalRetailWarning,
   pickDefaultPriceOption,
@@ -81,6 +81,8 @@ type PrintMode = 'receipt' | 'delivery-note'
 
 type PrintableBulkSale = {
   transactionNumber: string
+  /** Cara kirim yang disimpan server, dicetak di struk & surat jalan. */
+  delivery: DeliveryPrintLine | null
   transactionDate: Date
   branchName: string
   // Disalin saat transaksi terbit, bukan dibaca ulang dari dropdown: mengganti pilihan
@@ -1399,6 +1401,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       if (transactionNumber) {
         setPrintableBulkSale({
           transactionNumber,
+          delivery: deliveryPrintLine({ saleMethod: readString(transaction.deliveryMethod) }),
           transactionDate,
           branchName: selectedBranchName,
           storeName: selectedBranch?.receiptName || 'HAMMIELION',
@@ -1465,6 +1468,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       cashierName: printableBulkSale.cashierName,
       discountAmount: String(printableBulkSale.discountTotal),
       customerName: printableBulkSale.customerName,
+      delivery: printableBulkSale.delivery,
     }
   }
 
@@ -1489,6 +1493,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       staffName: printableBulkSale.cashierName,
       withPrice: includePrice,
       grandTotal: printableBulkSale.grandTotal,
+      delivery: printableBulkSale.delivery,
       items: printableBulkSale.items,
     }
   }
@@ -2148,6 +2153,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           cashierName={printableBulkSale.cashierName}
           discountAmount={String(printableBulkSale.discountTotal)}
           customerName={printableBulkSale.customerName}
+          delivery={printableBulkSale.delivery}
         />
       )}
 
@@ -2164,6 +2170,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           staffName={printableBulkSale.cashierName}
           withPrice={includePrice}
           grandTotal={printableBulkSale.grandTotal}
+          delivery={printableBulkSale.delivery}
           items={printableBulkSale.items}
         />
       )}

@@ -1,4 +1,5 @@
 import { ongkirReceiptRows, type ReceiptOngkirMark } from './ongkir'
+import type { DeliveryPrintLine } from './delivery-method'
 import { GIFT_RECEIPT_AMOUNT, giftNoteRows, isGiftLine, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from './receipt-lines'
 
 /**
@@ -94,6 +95,8 @@ export interface EscposReceiptData {
   payments?: { name: string; amount: number }[]
   isReprint?: boolean
   isVoided?: boolean
+  /** Cara kirim di bawah baris pelanggan; null = tidak dicetak. */
+  delivery?: DeliveryPrintLine | null
 }
 
 const TYPOGRAPHIC_REPLACEMENTS: Record<string, string> = {
@@ -232,6 +235,11 @@ export function buildReceiptEscpos(
   out.push(padEnd('Tgl', 6) + ': ' + truncate(data.transactionDate, columns - 8) + LF)
   out.push(padEnd('Kasir', 6) + ': ' + truncate(data.cashierName, columns - 8) + LF)
   out.push(padEnd('Plgn', 6) + ': ' + truncate(data.customerName || 'Umum', columns - 8) + LF)
+  if (data.delivery) {
+    if (data.delivery.bold) out.push(BOLD_ON)
+    out.push(truncate(data.delivery.text, columns) + LF)
+    if (data.delivery.bold) out.push(BOLD_OFF)
+  }
 
   out.push(divider(columns) + LF)
 

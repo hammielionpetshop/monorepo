@@ -40,6 +40,8 @@ export type DeliveryNoteData = {
   isVoided?: boolean
   withPrice?: boolean
   grandTotal?: number
+  /** Cara kirim (lihat `deliveryPrintLine` di lib/delivery-method); null = tidak dicetak. */
+  delivery?: { text: string; bold: boolean } | null
   /** Waktu cetak (WIB) di kanan bawah; default saat nota disusun — cetak ulang ikut waktu ulang. */
   printedAt?: Date | string
 }
@@ -241,6 +243,10 @@ function composeDeliveryNote(source: DeliveryNoteData, width: number) {
     CUSTOMER_NAME_MAX_LINES,
   ).map((text) => ({ text: padEnd(text, wideWidth), bold: true, wide: true }))
   const staffLine: DeliveryNoteLine[] = data.staffName ? [{ text: padEnd(`Staf  : ${data.staffName}`, width) }] : []
+  // Cara kirim di setiap lembar: lembar yang terlepas tetap terbaca sopir/gudang.
+  const deliveryLine: DeliveryNoteLine[] = data.delivery
+    ? [{ text: padEnd(`Kirim : ${data.delivery.text}`, width), bold: data.delivery.bold }]
+    : []
 
   const customerBlock: DeliveryNoteLine[] = []
   if (data.customerPhone?.trim()) customerBlock.push({ text: padEnd(`Telp  : ${data.customerPhone.trim()}`, width) })
@@ -264,6 +270,7 @@ function composeDeliveryNote(source: DeliveryNoteData, width: number) {
       { text: leftRight(`No: ${data.transactionNumber}`, `Tgl: ${data.transactionDate}`, width) },
       ...customerNameLines,
       ...staffLine,
+      ...deliveryLine,
       // Blok kontak customer cukup di lembar pertama; lembar lanjutan dipadatkan.
       ...(pageNo === 1 ? customerBlock : []),
       { text: rule },
