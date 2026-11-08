@@ -1,6 +1,6 @@
 # F2-2 Setoran (Tunai & Non-Tunai)
 
-Tanggal: 2026-11-08 · Status: **draf — menunggu persetujuan owner** · PRD:
+Tanggal: 2026-11-08 · Status: **draf — keputusan owner 2026-11-08 dimasukkan (§10), menunggu "ok" akhir** · PRD:
 [`fase_2/03-verifikasi-non-tunai.md`](../../hris_planning/PRD/fase_2/03-verifikasi-non-tunai.md)
 (**§8 keputusan owner 2026-11-08 mengikat**) · Dasar: [F2-1 Tempat Uang](2026-11-08-f2-1-tempat-uang-design.md)
 
@@ -35,8 +35,10 @@ terverifikasi yang nanti dibaca F2-3.
 
 ```
 Shift tutup ──► Tunai: masuk "Tunai belum disetor" cabang itu
-            │        └─ tim cabang (POS › Setor Tunai) atau Finance (BO) membuat SETORAN TUNAI
-            │           berisi ≥1 shift utuh → tujuan Rekening / Brankas → Menunggu Verifikasi
+            │        ├─ setor bank: tim cabang melapor di POS › Setor Tunai → Menunggu Verifikasi
+            │        └─ diantar ke kantor: tidak melapor; Finance membuat setoran di BO saat
+            │           uang diterima (langsung diverifikasi)
+            │        (satu setoran = ≥1 shift utuh, tujuan Rekening / Brankas)
             │           └─ Finance cocokkan mutasi/hitung uang → ketik diterima → Verifikasi
             │              → perpindahan uang Laci → tujuan tercatat otomatis
             └─► Non-tunai: per shift per metode → Finance ketik diterima dari mutasi → Verifikasi
@@ -127,10 +129,13 @@ Kolom lama `shifts.deposit_*` dibiarkan untuk shift sebelum tanggal mulai; tidak
 
 ### 4.1 POS › **Setor Tunai** (menu baru, tim cabang) ✅ §8 no.5
 
+- **Hanya untuk setor tunai ke bank** ✅ (owner 2026-11-08: "hanya di isi kalau dia setor tunai
+  saja, jika tidak … lihat saja dari verifikasi nya"). Uang yang diantar ke kantor tidak dilaporkan
+  di POS; Finance mencatatnya di Back Office (§4.2 tab 1).
 - Daftar shift tunai cabang ini yang belum masuk setoran: tanggal, nomor shift, kas, umur hari.
   Kepala daftar: jumlah shift, total, tanda jingga/merah bila lewat 5 hari atau Rp25 juta.
-- **Laporkan Setoran**: centang shift (bawaan semua, tertua dulu), tujuan (bawaan cabang; pilihan
-  Rekening / Antar ke kantor), nominal (terisi total shift tercentang, boleh diubah), tanggal,
+- **Laporkan Setoran**: centang shift (bawaan semua, tertua dulu), rekening tujuan (bawaan cabang
+  bila Rekening; hanya Tempat Uang jenis Rekening aktif), nominal (terisi total shift tercentang, boleh diubah), tanggal,
   foto slip opsional → status **Menunggu verifikasi Finance**; Finance mendapat pemberitahuan
   Back Office.
 - Daftar setoran cabang ini (menunggu / terverifikasi / batal). Batal hanya selama menunggu.
@@ -140,8 +145,9 @@ Kolom lama `shifts.deposit_*` dibiarkan untuk shift sebelum tanggal mulai; tidak
 
 1. **Menunggu Verifikasi** — setoran tunai `PENDING`: cabang, shift di dalamnya, tujuan, nominal
    pelapor, foto. Finance mengetik **diterima** (tidak terisi otomatis), mengisi rincian sebab bila
-   selisih, bisa ganti tujuan, lalu **Verifikasi**. Tombol **Buat Setoran** untuk cabang yang
-   uangnya diantar tanpa melapor di POS (§10 no.3).
+   selisih, bisa ganti tujuan, lalu **Verifikasi**. Tombol **Terima Setoran** untuk uang yang
+   diantar ke kantor: pilih cabang + shift (dari "Tunai belum disetor"), tujuan Brankas/Tunai,
+   ketik diterima → satu langkah langsung terverifikasi (`report_channel = BACKOFFICE`) ✅ §10 no.3.
 2. **Non-tunai** — per shift per metode: angka sistem, rekening tujuan, kolom diterima, sebab.
    Saringan cabang/tanggal/metode/status. Bisa simpan **Dana belum cair** lalu diselesaikan
    kemudian; merah bila lewat batas hari.
@@ -216,19 +222,23 @@ Hak: lihat/verifikasi memakai `shift.deposit.verify` yang ada (OWNER, GM, FINANC
 3. BO › Setoran › Menunggu Verifikasi: ketik nominal kurang Rp5.000, sebab biaya setor bank →
    Verifikasi. Minus Kasir tidak bertambah.
 4. Tab Non-tunai: shift QRIS → simpan Dana belum cair, lalu verifikasi dengan potongan bank.
-5. Toko B: Finance **Buat Setoran** dari BO (antar ke kantor → Brankas), selisih kurang dari kasir
-   dipilih kasirnya → muncul di Minus Kasir.
-6. Detail Shift menampilkan status tunai & non-tunai; Riwayat menampilkan siapa memverifikasi.
+5. Toko B (uang diantar): tidak ada laporan di POS; Finance **Terima Setoran** di BO → Brankas,
+   selisih kurang dari kasir dipilih kasirnya → muncul di Minus Kasir.
+6. Gudang: satu Bulk Sale tunai + satu transfer → tunai muncul di Tunai belum disetor Gudang,
+   diterima ke Brankas lewat Terima Setoran; transfernya di tab Non-tunai.
+7. Detail Shift menampilkan status tunai & non-tunai; Riwayat menampilkan siapa memverifikasi.
 
-## 10. Pertanyaan untuk owner ❓
+## 10. Keputusan owner 2026-11-08 (atas draf)
 
-1. **Batas dana belum cair** sebelum merah: usul **2 hari** (diatur di Pengaturan).
-2. **Ketik dua kali** untuk non-tunai? Usul **tidak** — Finance menyalin dari mutasi dan selisih
-   wajib bersebab; ketik dua kali tetap di tutup shift kasir (1.107.90).
-3. Toko yang **tidak pernah setor bank**: usul **keduanya boleh** — tim toko melapor "Antar ke
-   kantor" di POS, atau Finance membuat setorannya di BO saat uang diterima.
-4. **Pelunasan non-tunai tanpa shift** (dicatat di Back Office): usul masuk tab Non-tunai sebagai
-   baris "Pelunasan BO" per cabang per hari per metode, diverifikasi dengan cara yang sama.
-5. **Bulk Sale** (shift Back Office tanpa laci): usul non-tunainya ikut tab Non-tunai; tunainya
-   ikut Setoran Tunai cabang itu dengan angka kas sistem.
-6. Shift lama belum diverifikasi (§7): ikut Setoran Tunai bertanda *lama*?
+1. ✅ Batas dana belum cair **2 hari**, diatur di Pengaturan.
+2. ✅ Non-tunai **tidak** diketik dua kali.
+3. ✅ **POS › Setor Tunai hanya untuk setor bank.** Uang diantar ke kantor tidak dilaporkan di POS;
+   Finance mencatat & memverifikasi lewat **Terima Setoran** di BO (§4.1, §4.2).
+4. ✅ Pelunasan non-tunai tanpa shift masuk tab Non-tunai sebagai baris "Pelunasan BO" per cabang
+   per hari per metode.
+5. ✅ (usul agent, owner bertanya "sebaiknya bagaimana") **Bulk Sale hanya dipakai Gudang** →
+   diperlakukan sama dengan uang yang diantar ke kantor: tunai Bulk Sale (angka kas sistem, tanpa
+   hitungan laci) muncul di "Tunai belum disetor" Gudang dan diterima Finance ke Brankas lewat
+   Terima Setoran; non-tunainya ikut tab Non-tunai. Admin Gudang tidak melapor di POS. Bila
+   Bulk Sale kelak dipakai cabang lain, alurnya tetap sama.
+6. ✅ Shift lama yang belum diverifikasi ikut Setoran Tunai bertanda *lama*.
