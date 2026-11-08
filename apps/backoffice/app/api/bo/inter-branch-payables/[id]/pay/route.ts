@@ -16,7 +16,7 @@ import {
   sql,
 } from '@/lib/db'
 import { buildInterBranchPaymentCashEntries } from '@/lib/inter-branch-payment-cash'
-import { resolvePaidAt } from '@/lib/payment-date'
+import { resolvePaidAt, todayWibDate } from '@/lib/payment-date'
 
 export const dynamic = 'force-dynamic'
 
@@ -169,6 +169,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           createdBy: payload.userId,
           // Tanggal kas = tanggal uang benar-benar berpindah, bukan tanggal dicatat.
           createdAt: paidAt,
+          // F2-4b: tanggal uang & bulan mengikuti tanggal bayar (WIB).
+          occurredOn: todayWibDate(paidAt),
+          forMonth: `${todayWibDate(paidAt).slice(0, 7)}-01`,
         })
       }
 

@@ -59,4 +59,6 @@ export const paymentMethods = petshop.table('payment_methods', {
 export const expenseCategories = petshop.table('expense_categories', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 50 }).notNull().unique(),
+  /** F2-4b: kategori Arus Kas padanannya (FK di migrasi 0060; tanpa .references agar tidak impor melingkar). */
+  cashFlowCategoryId: integer('cash_flow_category_id'),
 });
