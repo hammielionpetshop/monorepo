@@ -407,6 +407,13 @@
       "when": 1793452000000,
       "tag": "0057_deposit_settlements",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793538400000,
+      "tag": "0058_legacy_settlement_runs",
+      "breakpoints": true
     }
   ]
 }
