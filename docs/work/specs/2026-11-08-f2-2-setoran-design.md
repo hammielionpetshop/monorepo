@@ -1,6 +1,6 @@
 # F2-2 Setoran (Tunai & Non-Tunai)
 
-Tanggal: 2026-11-08 · Status: **draf — keputusan owner 2026-11-08 dimasukkan (§10), menunggu "ok" akhir** · PRD:
+Tanggal: 2026-11-08 · Status: **disetujui owner 2026-11-08** ("ok") · PRD:
 [`fase_2/03-verifikasi-non-tunai.md`](../../hris_planning/PRD/fase_2/03-verifikasi-non-tunai.md)
 (**§8 keputusan owner 2026-11-08 mengikat**) · Dasar: [F2-1 Tempat Uang](2026-11-08-f2-1-tempat-uang-design.md)
 
