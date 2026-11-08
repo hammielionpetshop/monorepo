@@ -1,6 +1,6 @@
 # F2-3 Pelunasan Otomatis Antar Cabang
 
-Tanggal: 2026-11-08 · Status: **draf — menunggu persetujuan owner** · PRD:
+Tanggal: 2026-11-08 · Status: **disetujui owner 2026-11-08** ("ok saya ikuti semua saran anda") · PRD:
 [`fase_2/04-pelunasan-otomatis.md`](../../hris_planning/PRD/fase_2/04-pelunasan-otomatis.md) ·
 Dasar: [F2-1 Tempat Uang](2026-11-08-f2-1-tempat-uang-design.md),
 [F2-2 Setoran](2026-11-08-f2-2-setoran-design.md) (tayang produksi 1.107.119)
@@ -156,11 +156,13 @@ dengan angka produksi di layar pratinjau. Tanggal mulai bawaan = hari migrasi 00
 6. Utang yang lahir sebelum tanggal mulai tidak berubah.
 7. Sebelum rilis (PRD 00 §7): owner mencocokkan satu hari nyata setoran dua toko.
 
-## 10. Pertanyaan untuk owner
+## 10. Keputusan owner 2026-11-08 (atas draf)
 
-1. ❓ Utang lama: setuju **A** dulu, lalu **C** sebagai F2-3b? (atau B / bahas sekarang)
-2. ❓ Batas umur merah di Utang Internal: **30 hari**?
-3. ❓ Setoran ke rekening yang "dipegang toko" tidak melunasi sampai uangnya dipindah ke Finance
-   (F2-4) — setuju?
-4. ❓ Pelunasan otomatis **tidak** membuat catatan Pendapatan & Pengeluaran (menu itu belum jadi
-   acuan; Finance F2-6 membaca `deposit_settlements`) — setuju?
+Owner: "ok saya ikuti semua saran anda kalau begitu" — semua usul agent disetujui:
+
+1. ✅ Utang lama: **pilihan A** untuk rilis F2-3 (hanya utang yang lahir sejak tanggal mulai);
+   **C** (pratinjau + pelunasan susulan) menjadi langkah **F2-3b** yang dibahas khusus dengan angka
+   produksi.
+2. ✅ Batas umur merah Utang Internal **30 hari** (bisa diubah di pengaturan).
+3. ✅ Setoran ke tempat "dipegang toko/lainnya" tidak melunasi sampai dipindah ke Finance (F2-4).
+4. ✅ Pelunasan otomatis **tidak** membuat catatan Pendapatan & Pengeluaran.
