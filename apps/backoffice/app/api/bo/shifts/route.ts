@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { scopeFilter } from '@/lib/authz'
-import { db, shifts, branches, users, eq, ne, and, desc, gte, lte, isNull, isNotNull } from '@/lib/db'
+import { db, shifts, branches, users, eq, ne, and, or, desc, gte, lte, isNull, isNotNull, sql } from '@/lib/db'
+import { getDepositSettings } from '@/lib/services/deposit-service'
 import type { SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { requireShiftAccess } from './_access'
@@ -30,16 +31,32 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Format endDate tidak valid (YYYY-MM-DD)' }, { status: 400 })
     }
 
+    // F2-2: shift yang ditutup sejak tanggal mulai Setoran diverifikasi lewat menu Setoran.
+    const { startDate: depositStart } = await getDepositSettings()
+    const closedOn = sql`to_char(COALESCE(${shifts.closedAt}, ${shifts.forceClosedAt}, ${shifts.openedAt}) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD')`
+    const activeDeposit = (status: string) => sql`EXISTS (
+      SELECT 1 FROM petshop.cash_deposit_shifts ds JOIN petshop.cash_deposits d ON d.id = ds.deposit_id
+      WHERE ds.shift_id = ${shifts.id} AND ds.released_at IS NULL AND d.status = ${status})`
+
     const conditions: SQL<unknown>[] = []
     const scope = scopeFilter(gate, shifts.branchId)
     if (scope) conditions.push(scope)
     // PENDING = sudah ditutup tapi uangnya belum dicatat diterima finance.
     if (deposit === 'PENDING') {
-      conditions.push(ne(shifts.status, 'OPEN'), ne(shifts.origin, 'BACKOFFICE'), isNull(shifts.depositVerifiedAt))
+      conditions.push(
+        ne(shifts.status, 'OPEN'),
+        isNull(shifts.depositVerifiedAt),
+        sql`NOT ${activeDeposit('VERIFIED')}`,
+        or(ne(shifts.origin, 'BACKOFFICE'), sql`${closedOn} >= ${depositStart}`) as SQL,
+      )
     } else if (deposit === 'VERIFIED') {
-      conditions.push(isNotNull(shifts.depositVerifiedAt))
+      conditions.push(or(isNotNull(shifts.depositVerifiedAt), activeDeposit('VERIFIED')) as SQL)
     } else if (deposit === 'DISCREPANCY') {
-      conditions.push(isNotNull(shifts.depositVerifiedAt), ne(shifts.depositVariance, 0))
+      conditions.push(or(
+        and(isNotNull(shifts.depositVerifiedAt), ne(shifts.depositVariance, 0)),
+        sql`EXISTS (SELECT 1 FROM petshop.cash_deposit_variances v JOIN petshop.cash_deposits d ON d.id = v.deposit_id
+          WHERE v.shift_id = ${shifts.id} AND d.status = 'VERIFIED')`,
+      ) as SQL)
     }
     if (branchId) conditions.push(eq(shifts.branchId, parseInt(branchId)))
     if (status) conditions.push(eq(shifts.status, status))
@@ -70,6 +87,12 @@ export async function GET(req: Request) {
         depositVerifiedAt: shifts.depositVerifiedAt,
         depositNotes: shifts.depositNotes,
         depositVerifiedByName: verifier.name,
+        depositFlow: sql<boolean>`(${shifts.status} <> 'OPEN' AND ${shifts.depositVerifiedAt} IS NULL
+          AND (${closedOn} >= ${depositStart} OR ${shifts.origin} = 'POS'))`,
+        cashDepositStatus: sql<string | null>`(SELECT d.status FROM petshop.cash_deposit_shifts ds JOIN petshop.cash_deposits d ON d.id = ds.deposit_id
+          WHERE ds.shift_id = ${shifts.id} AND ds.released_at IS NULL LIMIT 1)`,
+        cashDepositNumber: sql<string | null>`(SELECT d.deposit_number FROM petshop.cash_deposit_shifts ds JOIN petshop.cash_deposits d ON d.id = ds.deposit_id
+          WHERE ds.shift_id = ${shifts.id} AND ds.released_at IS NULL LIMIT 1)`,
         branchName: branches.name,
         openedByName: users.name,
       })

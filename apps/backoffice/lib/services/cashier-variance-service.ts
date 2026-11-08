@@ -12,6 +12,7 @@ import {
   type CashierVarianceSettings,
   type VarianceCategory,
 } from '@/lib/cashier-variance'
+import { shiftSettleVariance } from './deposit-rules'
 
 type Executor = Pick<typeof db, 'select'>
 
@@ -130,13 +131,18 @@ export async function getCashierVarianceReport(params: {
   const shiftRows = (await db.execute(sql`
     SELECT s.id, s.shift_number, s.status, b.name AS branch_name,
       to_char(s.opened_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS date,
-      s.total_closing_cash_expected AS expected_cash,
+      s.total_closing_cash_expected AS expected_cash, s.total_closing_cash_real AS real_cash, s.origin,
       s.deposit_received_cash AS received_cash,
-      s.deposit_verified_at IS NOT NULL AS verified,
+      -- Cara lama (sebelum F2-2): angka Finance di kolom shift. Cara baru: setoran tunai terverifikasi.
+      s.deposit_verified_at IS NOT NULL AS legacy_verified,
+      cd.id AS deposit_id, cd.deposit_number, cd.notes AS deposit_notes_new, dvu.name AS deposit_verified_by_name,
       s.deposit_notes, vu.name AS verified_by_name
     FROM petshop.shifts s
     JOIN petshop.branches b ON b.id = s.branch_id
     LEFT JOIN petshop.users vu ON vu.id = s.deposit_verified_by_id
+    LEFT JOIN petshop.cash_deposit_shifts cds ON cds.shift_id = s.id AND cds.released_at IS NULL
+    LEFT JOIN petshop.cash_deposits cd ON cd.id = cds.deposit_id AND cd.status = 'VERIFIED'
+    LEFT JOIN petshop.users dvu ON dvu.id = cd.verified_by
     WHERE s.origin = 'POS'
       AND s.status IN ('CLOSED', 'FORCE_CLOSED')
       AND s.opened_at >= ((${range.start}::date)::timestamp AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC'
@@ -145,8 +151,13 @@ export async function getCashierVarianceReport(params: {
     ORDER BY s.opened_at, s.id
   `)) as Record<string, unknown>[]
 
+  for (const r of shiftRows) {
+    r.mode = r.legacy_verified === true ? 'LEGACY' : r.deposit_id != null ? 'DEPOSIT' : null
+    r.verified = r.mode != null
+  }
   const verifiedRows = shiftRows.filter((r) => r.verified === true)
   const verifiedIds = verifiedRows.map((r) => Number(r.id))
+  const depositIds = verifiedRows.filter((r) => r.mode === 'DEPOSIT').map((r) => Number(r.id))
 
   // Kas tunai per kasir = penjualan tunai bersih kembalian (breakdown settle/tutup paksa)
   // + pelunasan piutang tunai yang ia terima di shift itu (belum di-void).
@@ -172,6 +183,25 @@ export async function getCashierVarianceReport(params: {
       `)) as Record<string, unknown>[])
     : []
 
+  // Alur Setoran (F2-2): sebab selisih yang dibebankan ke kasir tertentu. Biaya bank & Lainnya tidak masuk.
+  const depositIdList = sql`(${sql.join(depositIds.map((id) => sql`${id}`), sql`, `)})`
+  const chargeRows = depositIds.length
+    ? ((await db.execute(sql`
+        SELECT v.shift_id, v.cashier_id, v.amount::bigint AS amount, u.name AS cashier_name, u.username
+        FROM petshop.cash_deposit_variances v
+        JOIN petshop.cash_deposit_shifts ds ON ds.deposit_id = v.deposit_id AND ds.shift_id = v.shift_id AND ds.released_at IS NULL
+        JOIN petshop.cash_deposits d ON d.id = v.deposit_id AND d.status = 'VERIFIED'
+        JOIN petshop.users u ON u.id = v.cashier_id
+        WHERE v.shift_id IN ${depositIdList} AND v.cause IN ('CASHIER_SHORT', 'CASHIER_OVER')
+        UNION ALL
+        SELECT nv.shift_id, nv.cashier_id, nv.variance::bigint, u.name, u.username
+        FROM petshop.noncash_verifications nv
+        LEFT JOIN petshop.users u ON u.id = nv.cashier_id
+        WHERE nv.shift_id IN ${depositIdList} AND nv.superseded_at IS NULL AND nv.status = 'VERIFIED'
+          AND nv.cause = 'CASHIER_INPUT' AND nv.variance <> 0
+      `)) as Record<string, unknown>[])
+    : []
+
   const names = new Map<number, string>()
   const usernames = new Map<number, string>()
   const sharesByShift = new Map<number, { cashierId: number; cash: number }[]>()
@@ -193,23 +223,87 @@ export async function getCashierVarianceReport(params: {
   const toView = (list: { cashierId: number; cash: number; sharePct: number; amount: number }[]) =>
     list.map((a) => ({ ...a, cashierName: names.get(a.cashierId) ?? `#${a.cashierId}` }))
 
+  const chargesByShift = new Map<number, { cashierId: number | null; amount: number }[]>()
+  for (const r of chargeRows) {
+    const shiftId = Number(r.shift_id)
+    const cashierId = r.cashier_id != null ? Number(r.cashier_id) : null
+    if (cashierId != null) {
+      names.set(cashierId, String(r.cashier_name))
+      usernames.set(cashierId, r.username != null ? String(r.username) : `#${cashierId}`)
+    }
+    const list = chargesByShift.get(shiftId) ?? []
+    list.push({ cashierId, amount: Number(r.amount) })
+    chargesByShift.set(shiftId, list)
+  }
+
+  // Pembagian per shift yang dipakai tampilan & rekap (null = bagi porsi kas seperti biasa).
+  const fixedAllocations = new Map<number, { cashierId: number; amount: number }[]>()
+
   const shifts: VarianceShiftView[] = verifiedRows.map((r) => {
     const shiftId = Number(r.id)
     const expectedCash = r.expected_cash != null ? Number(r.expected_cash) : null
-    const receivedCash = Number(r.received_cash ?? 0)
-    const variance = expectedCash != null ? receivedCash - expectedCash : null
-    const category = classifyVariance(variance, settings)
     const shares = sharesByShift.get(shiftId) ?? []
     const shareView = allocateByCashShare(0, shares)
+
+    let receivedCash: number
+    let variance: number | null
+    let allocations: ReturnType<typeof allocateByCashShare> = []
+    let unallocated = 0
+    let depositNotes: string | null
+    let verifiedByName: string | null
+
+    if (r.mode === 'DEPOSIT') {
+      // Selisih resmi = selisih tutup shift (hitungan − sistem, dibagi porsi kas)
+      //   + sebab Setoran yang dibebankan Finance ke kasir tertentu (atau porsi kas bila kasir tak dipilih).
+      const settle = shiftSettleVariance({
+        origin: String(r.origin),
+        status: String(r.status),
+        totalClosingCashReal: r.real_cash != null ? Number(r.real_cash) : null,
+        totalClosingCashExpected: expectedCash,
+      })
+      const charges = chargesByShift.get(shiftId) ?? []
+      const shared = settle + charges.filter((c) => c.cashierId == null).reduce((sum, c) => sum + c.amount, 0)
+      const direct = new Map<number, number>()
+      for (const c of charges) if (c.cashierId != null) direct.set(c.cashierId, (direct.get(c.cashierId) ?? 0) + c.amount)
+      variance = shared + [...direct.values()].reduce((a, b) => a + b, 0)
+      receivedCash = (expectedCash ?? 0) + variance
+
+      const sharedPart = shared !== 0 ? allocateByCashShare(shared, shares) : []
+      if (shared !== 0 && sharedPart.length === 0) unallocated = shared
+      const merged = new Map<number, number>()
+      for (const a of sharedPart) merged.set(a.cashierId, (merged.get(a.cashierId) ?? 0) + a.amount)
+      for (const [id, amount] of direct) merged.set(id, (merged.get(id) ?? 0) + amount)
+      const byShare = new Map(shareView.map((x) => [x.cashierId, x]))
+      allocations = [...merged.entries()]
+        .filter(([, amount]) => amount !== 0)
+        .map(([cashierId, amount]) => ({ cashierId, amount, cash: byShare.get(cashierId)?.cash ?? 0, sharePct: byShare.get(cashierId)?.sharePct ?? 0 }))
+      fixedAllocations.set(shiftId, allocations.map((a) => ({ cashierId: a.cashierId, amount: a.amount })))
+      const note = r.deposit_notes_new != null && String(r.deposit_notes_new).trim() ? ` — ${String(r.deposit_notes_new)}` : ''
+      depositNotes = `Setoran ${String(r.deposit_number)}${note}`
+      verifiedByName = r.deposit_verified_by_name != null ? String(r.deposit_verified_by_name) : null
+    } else {
+      receivedCash = Number(r.received_cash ?? 0)
+      variance = expectedCash != null ? receivedCash - expectedCash : null
+      depositNotes = r.deposit_notes != null && String(r.deposit_notes).trim() ? String(r.deposit_notes) : null
+      verifiedByName = r.verified_by_name != null ? String(r.verified_by_name) : null
+    }
+
+    const category = classifyVariance(variance, settings)
     const charged = category === 'MINUS' || category === 'PLUS'
-    const allocations = charged ? allocateByCashShare(variance as number, shares) : []
+    if (r.mode !== 'DEPOSIT') {
+      allocations = charged ? allocateByCashShare(variance as number, shares) : []
+      if (charged && allocations.length === 0) unallocated = variance as number
+    } else if (!charged) {
+      allocations = []
+      unallocated = 0
+    }
 
     if (category === 'MINUS') { totals.minus += variance as number; totals.minusShiftCount += 1 }
     if (category === 'PLUS') { totals.plus += variance as number; totals.plusShiftCount += 1 }
     if (category === 'TOLERATED') totals.toleratedShiftCount += 1
     if (category === 'MATCH') totals.matchShiftCount += 1
     if (category === 'ANOMALY') totals.anomalyShiftCount += 1
-    if (charged && allocations.length === 0) totals.unallocated += variance as number
+    totals.unallocated += unallocated
 
     return {
       shiftId,
@@ -221,8 +315,8 @@ export async function getCashierVarianceReport(params: {
       receivedCash,
       variance,
       category,
-      depositNotes: r.deposit_notes != null && String(r.deposit_notes).trim() ? String(r.deposit_notes) : null,
-      verifiedByName: r.verified_by_name != null ? String(r.verified_by_name) : null,
+      depositNotes,
+      verifiedByName,
       allocations: toView(allocations),
       shares: toView(shareView),
     }
@@ -234,6 +328,7 @@ export async function getCashierVarianceReport(params: {
       branchName: s.branchName,
       variance: s.variance,
       shares: sharesByShift.get(s.shiftId) ?? [],
+      allocations: fixedAllocations.get(s.shiftId),
     })),
     settings,
     // Satu orang bisa punya akun per cabang (mis. "rizal" & "rizalpusat") — rekap digabung per nama.

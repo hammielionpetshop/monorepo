@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { HandCoins } from 'lucide-react'
+import { HandCoins, Landmark } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
 import MobileCartBar from './mobile-cart-bar'
@@ -106,6 +107,8 @@ interface PosClientProps {
   totalExpenses: number
   canProcessInternalPo: boolean
   canReceiveDebtPayment: boolean
+  /** F2-2: POS › Setor Tunai (hak deposit.report). */
+  canReportDeposit?: boolean
   handover?: ShiftHandover | null
 }
 
@@ -131,6 +134,7 @@ export default function PosClient({
   totalExpenses,
   canProcessInternalPo,
   canReceiveDebtPayment,
+  canReportDeposit = false,
   handover = null,
 }: PosClientProps) {
   const router = useRouter()
@@ -315,6 +319,18 @@ export default function PosClient({
                 </span>
               )}
             </button>
+          )}
+          {canReportDeposit && (
+            <Link
+              href="/pos/cash-deposits"
+              className="min-h-[44px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-sm font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              aria-label="Setor Tunai"
+              title="Setor Tunai ke bank"
+            >
+              <Landmark className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+              <span className="hidden sm:inline">Setor Tunai</span>
+              <NewBadge feature="/pos/cash-deposits" />
+            </Link>
           )}
           {canReceiveDebtPayment && (
             <Link

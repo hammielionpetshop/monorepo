@@ -33,11 +33,14 @@ export function ProofPhotoField({
   onChange,
   onUploadingChange,
   disabled,
+  label,
 }: {
   value: string | null
   onChange: (url: string | null) => void
   onUploadingChange?: (uploading: boolean) => void
   disabled?: boolean
+  /** Judul isian; bawaan "Foto Bukti Transfer". */
+  label?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -74,7 +77,7 @@ export function ProofPhotoField({
   return (
     <div>
       <label className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
-        Foto Bukti Transfer <NewBadge feature="fitur/foto-bukti-transfer" />
+        {label ?? <>Foto Bukti Transfer <NewBadge feature="fitur/foto-bukti-transfer" /></>}
       </label>
       <input
         ref={inputRef}

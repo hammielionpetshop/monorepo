@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { MoneyPlaceHeldBy, MoneyPlaceKind, MoneyPlaceRow, PaymentLinkMatrix } from '@/lib/services/money-place-service'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface Props {
   initialPlaces: MoneyPlaceRow[]
   initialMatrix: PaymentLinkMatrix
   branchOptions: { id: number; name: string }[]
   canManage: boolean
+  /** F2-2: tujuan bawaan setoran tunai per cabang (baris Tunai). */
+  initialCashDefaults: { branchId: number; moneyPlaceId: number }[]
 }
 
 const KIND_LABEL: Record<MoneyPlaceKind, string> = { DRAWER: 'Laci kasir', CASH: 'Tunai', BANK: 'Rekening' }
@@ -38,7 +41,8 @@ function maskAccount(n: string | null): string {
   return n.length <= 4 ? n : `•••• ${n.slice(-4)}`
 }
 
-export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchOptions, canManage }: Props) {
+export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchOptions, canManage, initialCashDefaults }: Props) {
+  const [cashDefaults, setCashDefaults] = useState(initialCashDefaults)
   const [tab, setTab] = useState<'list' | 'links'>('list')
   const [places, setPlaces] = useState(initialPlaces)
   const [matrix, setMatrix] = useState(initialMatrix)
@@ -174,7 +178,28 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
     }
   }
 
+  async function setCashDefault(branchId: number, moneyPlaceId: number | null) {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/bo/settings/money-places/cash-defaults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId, moneyPlaceId }),
+      })
+      const data = await res.json()
+      if (!res.ok) return setMessage({ kind: 'error', text: data.error ?? `Gagal (${res.status})` })
+      setCashDefaults(data.defaults)
+      setMessage({ kind: 'ok', text: moneyPlaceId ? 'Tujuan setoran tunai disimpan' : 'Tujuan setoran tunai dilepas' })
+    } catch {
+      setMessage({ kind: 'error', text: 'Terjadi kesalahan jaringan, silakan coba lagi' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const activeBanks = places.filter((p) => p.kind === 'BANK' && p.isActive)
+  const cashTargets = places.filter((p) => (p.kind === 'BANK' || p.kind === 'CASH') && p.isActive)
   const placeById = new Map(places.map((p) => [p.id, p]))
   const linkOf = (methodId: number, branchId: number) =>
     matrix.links.find((l) => l.paymentMethodId === methodId && l.branchId === branchId)?.moneyPlaceId ?? null
@@ -337,8 +362,9 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
       {tab === 'links' && (
         <>
           <p className="mb-3 text-sm text-muted-foreground max-w-3xl">
-            Uang dari metode bayar non-tunai di tiap cabang masuk ke rekening mana. Tunai selalu masuk laci kasir cabangnya.
-            Dipakai saat Finance memverifikasi setoran non-tunai (langkah berikutnya).
+            Uang dari metode bayar non-tunai di tiap cabang masuk ke rekening mana. Tunai masuk laci kasir cabangnya; kolom
+            <strong> Tunai</strong> adalah tujuan bawaan saat laci disetor (Rekening untuk setor bank, atau Tunai seperti Brankas
+            bila uang diantar ke kantor) — tetap bisa diganti saat melapor/verifikasi Setoran.
           </p>
           {matrix.methods.length === 0 ? (
             <p className="text-sm text-muted-foreground">Belum ada metode bayar non-tunai di Master Data › Metode Pembayaran.</p>
@@ -348,6 +374,7 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
                 <thead className="text-xs text-muted-foreground">
                   <tr className="border-b border-border">
                     <th className="text-left font-medium px-4 py-2">Cabang</th>
+                    <th className="text-left font-medium px-4 py-2 whitespace-nowrap">Tunai (setoran) <NewBadge feature="/deposits" /></th>
                     {matrix.methods.map((m) => <th key={m.id} className="text-left font-medium px-4 py-2">{m.name}</th>)}
                   </tr>
                 </thead>
@@ -359,6 +386,32 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
                     return (
                       <tr key={b.id} className="border-b border-border last:border-0">
                         <td className="px-4 py-2 font-medium text-foreground whitespace-nowrap">{b.name}</td>
+                        <td className="px-4 py-2">
+                          {(() => {
+                            const current = cashDefaults.find((d) => d.branchId === b.id)?.moneyPlaceId ?? null
+                            const currentPlace = current ? placeById.get(current) : undefined
+                            if (!canManage) return <span>{currentPlace?.name ?? <span className="text-xs text-muted-foreground">belum diatur</span>}</span>
+                            return (
+                              <select
+                                value={current ?? ''}
+                                disabled={busy}
+                                onChange={(e) => setCashDefault(b.id, e.target.value ? Number(e.target.value) : null)}
+                                className="min-w-44 px-2 py-1.5 text-sm border border-border rounded-md bg-background"
+                                aria-label={`Tujuan setoran tunai ${b.name}`}
+                              >
+                                <option value="">— belum diatur —</option>
+                                {currentPlace && !currentPlace.isActive && <option value={currentPlace.id}>{currentPlace.name} (nonaktif)</option>}
+                                {[...cashTargets]
+                                  .sort((x, y) => Number(y.branchId === b.id) - Number(x.branchId === b.id) || x.name.localeCompare(y.name))
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name} ({KIND_LABEL[p.kind]}){p.branchId !== b.id ? ` · ${p.branchName}` : ''}
+                                    </option>
+                                  ))}
+                              </select>
+                            )
+                          })()}
+                        </td>
                         {matrix.methods.map((m) => {
                           const current = linkOf(m.id, b.id)
                           const currentPlace = current ? placeById.get(current) : undefined

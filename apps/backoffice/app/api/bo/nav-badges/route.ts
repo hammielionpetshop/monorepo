@@ -124,6 +124,12 @@ export async function GET() {
     // Usulan modal menunggu + harga jual bermargin <= 1% — halaman & permission-nya OWNER/GM saja.
     const costReviewExpr = isGlobal ? costReviewBadgeExpr() : sql<number>`0`
 
+    // F2-2: setoran tunai menunggu verifikasi Finance (pemberitahuan menu Setoran).
+    const canVerifyDeposit = payload.permissions.includes('shift.deposit.verify')
+    const depositExpr = canVerifyDeposit
+      ? sql<number>`(SELECT CAST(COUNT(*) AS INTEGER) FROM petshop.cash_deposits d WHERE d.status = 'PENDING' ${isGlobal ? sql`` : sql`AND d.branch_id = ${branchId}`})`
+      : sql<number>`0`
+
     const rows = await db.execute<{
       purchase_orders: number
       internal_transfers: number
@@ -135,6 +141,7 @@ export async function GET() {
       stock_shortfalls: number
       damaged_goods_pending: number
       cost_review: number
+      deposits_pending: number
     }>(sql`
       SELECT
         ${countExpr(purchaseOrders, poCond)} AS purchase_orders,
@@ -146,7 +153,8 @@ export async function GET() {
         ${countExpr(customerOrders, orderCond)} AS customer_orders,
         ${shortfallExpr} AS stock_shortfalls,
         ${damagedGoodsExpr} AS damaged_goods_pending,
-        ${costReviewExpr} AS cost_review
+        ${costReviewExpr} AS cost_review,
+        ${depositExpr} AS deposits_pending
     `)
 
     const row = rows[0]
@@ -162,6 +170,7 @@ export async function GET() {
       '/inventory/stock-shortfalls': Number(row?.stock_shortfalls ?? 0),
       '/inventory/damaged-goods-approval': Number(row?.damaged_goods_pending ?? 0),
       '/master-data/cost-review': Number(row?.cost_review ?? 0),
+      '/deposits': Number(row?.deposits_pending ?? 0),
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)
