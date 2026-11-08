@@ -1,76 +1,43 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Field, Input, Select } from '@/components/ui/field';
+import { buttonClass } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/surface';
-import { useToast } from '@/components/ui/toast';
-import { postJson } from '@/lib/post-json';
 
-type Row = { id: number; name: string; method: 'CASH' | 'TRANSFER'; methodLabel: string; active: boolean; sortOrder: number };
+type Row = {
+  id: number; name: string; kindLabel: string; branchName: string | null; accountTail: string | null; heldBy: string; holderNote: string | null;
+  methodLabel: string; active: boolean; payable: boolean;
+};
 
-/** Pengaturan › Sumber Uang (PRD 06 §3.3): daftar tempat uang gaji dibayar. Tidak dihapus, hanya dinonaktifkan. */
-export function PaymentSourcesScreen({ rows }: { rows: Row[] }) {
-  const router = useRouter();
-  const toast = useToast();
-  const [editing, setEditing] = useState<Row | null>(null);
-  const [name, setName] = useState('');
-  const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
-  const [busy, setBusy] = useState(false);
-
-  function start(row: Row | null) {
-    setEditing(row);
-    setName(row?.name ?? '');
-    setMethod(row?.method ?? 'CASH');
-  }
-
-  async function save(body: Record<string, unknown>) {
-    setBusy(true);
-    const result = await postJson('/api/payroll', { kind: 'payment_source_save', ...body });
-    setBusy(false);
-    if (!result.ok) return toast(result.error ?? 'Gagal menyimpan.', 'danger');
-    toast('Sumber uang disimpan.', 'ok');
-    start(null);
-    router.refresh();
-  }
-
+/**
+ * Pengaturan › Sumber Uang (F2-1b): daftar baca dari Tempat Uang Back Office. HRIS tidak mengubahnya;
+ * tambah, ubah, dan nonaktifkan di Back Office supaya satu daftar dipakai semua web.
+ */
+export function PaymentSourcesScreen({ rows, manageUrl }: { rows: Row[]; manageUrl: string | null }) {
   return (
     <div className="space-y-4">
-      <Card className="max-w-xl space-y-3 text-sm">
-        <p className="font-medium">{editing ? `Ubah ${editing.name}` : 'Tambah sumber uang'}</p>
-        <Field id="src-name" label="Nama" hint="Mis. Brankas, Rekening BCA Kantor.">
-          <Input id="src-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field id="src-method" label="Cara bayar">
-          <Select id="src-method" value={method} onChange={(e) => setMethod(e.target.value as 'CASH' | 'TRANSFER')}>
-            <option value="CASH">Tunai</option>
-            <option value="TRANSFER">Transfer</option>
-          </Select>
-        </Field>
-        <div className="flex flex-wrap gap-2">
-          <Button loading={busy} disabled={busy || !name.trim()} onClick={() => save({
-            id: editing?.id, name: name.trim(), method, active: editing?.active ?? true, sortOrder: editing?.sortOrder ?? rows.length + 1,
-          })}>Simpan</Button>
-          {editing && <Button variant="ghost" onClick={() => start(null)}>Batal</Button>}
-        </div>
+      <Card className="max-w-2xl space-y-2 text-sm">
+        <p>
+          Daftar ini sekarang diambil dari <b>Back Office › Pengaturan › Tempat Uang</b>. Untuk menambah, mengubah, atau
+          menonaktifkan sumber uang, buka Back Office.
+        </p>
+        <p className="text-ink-muted">Laci kasir tidak bisa dipilih untuk membayar di HRIS: isinya dihitung oleh shift kasir.</p>
+        {manageUrl && <a href={manageUrl} target="_blank" rel="noreferrer" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Atur di Back Office</a>}
       </Card>
       <Card className="text-sm">
-        <ul className="divide-y divide-line">
-          {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
-              <span className="font-medium">{r.name}</span>
-              <span className="text-ink-muted">{r.methodLabel}</span>
-              {!r.active && <Badge tone="warn">Nonaktif</Badge>}
-              <span className="ml-auto flex gap-2">
-                <Button size="sm" variant="secondary" onClick={() => start(r)}>Ubah</Button>
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => save({ id: r.id, name: r.name, method: r.method, active: !r.active, sortOrder: r.sortOrder })}>
-                  {r.active ? 'Nonaktifkan' : 'Aktifkan'}
-                </Button>
-              </span>
-            </li>
-          ))}
-        </ul>
+        {rows.length === 0 ? (
+          <p className="text-ink-muted">Belum ada Tempat Uang. Tambahkan di Back Office.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {rows.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
+                <span className="font-medium">{r.name}</span>
+                <span className="text-ink-muted">{r.kindLabel}{r.accountTail ? ` ••${r.accountTail}` : ''} · {r.methodLabel}</span>
+                {r.branchName && <span className="text-ink-muted">· {r.branchName}</span>}
+                <span className="text-ink-muted">· dipegang {r.heldBy}{r.holderNote ? ` (${r.holderNote})` : ''}</span>
+                {!r.active && <Badge tone="warn">Nonaktif</Badge>}
+                {r.active && !r.payable && <Badge>Tidak untuk bayar HRIS</Badge>}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   );

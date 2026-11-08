@@ -82,8 +82,7 @@ describe.skipIf(!ADMIN_URL)('L8b: Bayar Bongkaran', () => {
     pasirId = Number(pasir.id);
     [{ id: supplierId }] = await sql`insert into petshop.suppliers (name) values ('PT Sumber Pakan') returning id`;
     supplierId = Number(supplierId);
-    const [source] = await sql`select id from hris.payment_sources where active order by id limit 1`;
-    sourceId = source ? Number(source.id) : Number((await sql`insert into hris.payment_sources (name, method) values ('Kas Gudang', 'CASH') returning id`)[0].id);
+    sourceId = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Kas Gudang', 'CASH', 1) returning id`)[0].id);
     const [casual] = await sql`insert into hris.casual_workers (name, phone) values ('Asep', '081299999999') returning id`;
     casualKey = `C${casual.id}`;
     pr = await import('@/modules/payroll');
@@ -132,8 +131,8 @@ describe.skipIf(!ADMIN_URL)('L8b: Bayar Bongkaran', () => {
     const paid = await pay(finance, [{ reportId: reportA, topUpId: null }]);
     expect(paid.ok && paid.data).toMatchObject({ paid: 1, total: 20_000 });
     expect((await sql`select status from hris.unloading_reports where id = ${reportA}`)[0].status).toBe('PAID');
-    const [payment] = await sql`select kind, amount, source_id from hris.unloading_payments where report_id = ${reportA}`;
-    expect(payment).toMatchObject({ kind: 'MONEY', amount: 20_000, source_id: sourceId });
+    const [payment] = await sql`select kind, amount, money_place_id from hris.unloading_payments where report_id = ${reportA}`;
+    expect(payment).toMatchObject({ kind: 'MONEY', amount: 20_000, money_place_id: sourceId });
     const [note] = await sql`select title from hris.notifications where kind = 'unloading.paid' and recipient_account_id = ${ids.helper + 1000}`;
     expect(note.title).toMatch(/Rp10\.000/);
     expect((await pay(finance, [{ reportId: reportA, topUpId: null }])).ok).toBe(false);

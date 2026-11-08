@@ -125,9 +125,9 @@ export async function repayAdvance(actor: Actor | null, advanceId: number, input
     const reduced = await reduceInTx(tx, view, amount, 'REPAY');
     if (reduced) return reduced;
     const [move] = await tx.insert(advanceMovements).values({
-      advanceId, kind: 'CASH', amount, moneyDate, sourceId: source.id, proofFileId, reason: dateReason, recordedByAccountId: actor.accountId,
+      advanceId, kind: 'CASH', amount, moneyDate, moneyPlaceId: source.id, proofFileId, reason: dateReason, recordedByAccountId: actor.accountId,
     }).returning({ id: advanceMovements.id });
-    await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'advance', entityId: advanceId, action: 'advance.repay', after: { movementId: move.id, amount, moneyDate, sourceId: source.id }, reason: dateReason ?? undefined });
+    await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'advance', entityId: advanceId, action: 'advance.repay', after: { movementId: move.id, amount, moneyDate, moneyPlaceId: source.id }, reason: dateReason ?? undefined });
     const left = view.remaining - amount;
     const account = await accountOf(view.row.employeeId);
     if (account) {

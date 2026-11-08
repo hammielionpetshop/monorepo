@@ -1,8 +1,9 @@
 import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { advanceFollowups, advanceHandovers, advanceInstallments, advanceMovements, advances } from '@petshop/hris-db/schema/advances';
-import { deductionCarryovers, paymentSources, payslips, salaryChanges } from '@petshop/hris-db/schema/payroll';
+import { deductionCarryovers, payslips, salaryChanges } from '@petshop/hris-db/schema/payroll';
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
+import { payableMoneyPlace } from '@/lib/money-places';
 import type { Tx } from '@/modules/access';
 import { listPeopleForModules, placementHistory, placementOn, todayWib, type PersonForModules } from '@/modules/employees';
 import { loadWeekRegimes, weekOf } from '@/modules/logistics';
@@ -185,16 +186,9 @@ export async function nextNumber(tx: Tx): Promise<number> {
 
 // ---- Bahan L5b dari tabel Gaji dan Mesin Pengajuan (dibaca di sini supaya modul lain tetap lewat satu pintu) ----
 
-/** Sumber Uang aktif (L4f) untuk pelunasan tunai. */
+/** Sumber Uang (Tempat Uang Back Office, F2-1b) yang boleh dipakai untuk pelunasan tunai. */
 export async function activeSourceOf(id: number) {
-  const [source] = await db.select().from(paymentSources).where(eq(paymentSources.id, id));
-  return source?.active ? source : null;
-}
-
-export async function allSources(onlyActive = false) {
-  const rows = await db.select().from(paymentSources).where(onlyActive ? eq(paymentSources.active, true) : undefined)
-    .orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
-  return rows;
+  return payableMoneyPlace(id);
 }
 
 /** Kunci slip orang ini supaya pelunasan tidak berbarengan dengan tutup slip (DRV-136). */

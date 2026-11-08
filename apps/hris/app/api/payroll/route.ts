@@ -16,7 +16,7 @@ import { cancelOther, otherFromShortHandover, recordOtherDirect, rescheduleOther
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
 import { closeSlips, reopenSlip, writeOffOther, writeOffReceivable } from '@/modules/payroll';
-import { cancelPayment, paySlips, savePaymentSource } from '@/modules/payroll';
+import { cancelPayment, paySlips } from '@/modules/payroll';
 import { cancelOffSlipPayment, payOffSlipClaim } from '@/modules/payroll';
 import { correctPastSalary, linkFix, objectionTypeForSlip } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
@@ -205,7 +205,6 @@ export async function POST(req: Request) {
     case 'other_write_off': return respond(await writeOffOther(actor, body.id, body.reason, announceToOwners));
     case 'payslip_pay': return respond(await paySlips(actor, body, announceToOwners));
     case 'payslip_pay_cancel': return respond(await cancelPayment(actor, body.slipId, body.reason, announceToOwners));
-    case 'payment_source_save': return respond(await savePaymentSource(actor, body));
     case 'off_slip_pay': return respond(await payOffSlipClaim(actor, body.claimId, body, announceToOwners));
     case 'off_slip_pay_cancel': return respond(await cancelOffSlipPayment(actor, body.claimId, body.reason, announceToOwners));
     case 'objection_submit':

@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
-  bonusEntries, bonusTypes, fundEntries, offSlipClaims, otherReceivables, payBatches, payslipPayments, payslips, paymentSources, receivableSettlements,
+  bonusEntries, bonusTypes, fundEntries, offSlipClaims, otherReceivables, payBatches, payslipPayments, payslips, receivableSettlements,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { moneyPlaceById, moneyPlaces, payableMoneyPlace } from '@/lib/money-places';
 import { hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { bankAccountsOf, todayWib } from '@/modules/employees';
@@ -246,7 +247,7 @@ export async function offSlipPayScreen(actor: Actor | null, claimId: number, now
   const { claim, person, lastSlip } = loaded;
   const receivables = await openReceivablesOf(db, person.id);
   const plan = settleAgainst(claim.amount, receivables);
-  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const sources = await moneyPlaces({ payable: true });
   return {
     claim: {
       id: claim.id, name: person.name, label: claim.label, kind: CLAIM_KIND_LABELS[claim.kind as ClaimKind], amount: claim.amount, status: claim.status as ClaimStatus,
@@ -305,14 +306,14 @@ export async function payOffSlipClaim(actor: Actor | null, claimId: number, inpu
         amount: claim.amount, settledToReceivables: settled, cash: plan.cash, funds: movements.map((m) => ({ fund: m.fund, amount: m.amount })),
       };
       if (plan.cash > 0) {
-        const [source] = await tx.select().from(paymentSources).where(eq(paymentSources.id, Number(input.sourceId)));
-        if (!source?.active) throw new Conflict('Pilih sumber uang yang aktif.');
+        const source = await payableMoneyPlace(input.sourceId, tx);
+        if (!source) throw new Conflict('Pilih sumber uang yang aktif.');
         const moneyDate = String(input.moneyDate ?? '');
         const dateProblem = moneyDateProblem({ moneyDate, today, closedOn: todayWib(claim.createdAt), reason: dateReason });
         if (dateProblem) throw new Conflict(dateProblem.replace('sebelum slip ditutup', 'sebelum tagihan lahir'));
-        const [batch] = await tx.insert(payBatches).values({ paidByAccountId: actor.accountId, sourceId: source.id, moneyDate, dateReason, proofFileId }).returning({ id: payBatches.id });
+        const [batch] = await tx.insert(payBatches).values({ paidByAccountId: actor.accountId, moneyPlaceId: source.id, moneyDate, dateReason, proofFileId }).returning({ id: payBatches.id });
         await tx.insert(payslipPayments).values({
-          claimId: claim.id, batchId: batch.id, kind: 'MONEY', amount: plan.cash, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown,
+          claimId: claim.id, batchId: batch.id, kind: 'MONEY', amount: plan.cash, moneyDate, method: source.method, moneyPlaceId: source.id, paidByAccountId: actor.accountId, breakdown,
           accountTail: source.method === 'TRANSFER' ? tailDigits((await bankAccountsOf([claim.employeeId])).get(claim.employeeId)?.accountNumber) : null,
         });
         methodText = `${rupiah(plan.cash)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]} tanggal ${longDate(moneyDate)}${settled ? `, ${rupiah(settled)} dipotongkan ke Piutang Lain` : ''}`;
@@ -436,7 +437,7 @@ export async function offSlipCancelScreen(actor: Actor | null, claimId: number) 
   const [payment] = await db.select().from(payslipPayments).where(and(eq(payslipPayments.claimId, claim.id), eq(payslipPayments.status, 'ACTIVE')));
   const can = claim.status === 'PAID' && Boolean(payment) && payerProblem(actor, person, 'payslip.cancel_payment') == null;
   if (!payment) return { name: person.name, label: claim.label, can: false, lines: [], effects: [] };
-  const source = payment.sourceId ? (await db.select().from(paymentSources).where(eq(paymentSources.id, payment.sourceId)))[0] : null;
+  const source = await moneyPlaceById(payment.moneyPlaceId);
   const settled = claim.amount - (payment.kind === 'MONEY' ? payment.amount : 0);
   const fundRows = await db.select({ id: fundEntries.id }).from(fundEntries).where(eq(fundEntries.claimId, claim.id)).limit(1);
   const by = (await accountNames()).get(payment.paidByAccountId) ?? '-';

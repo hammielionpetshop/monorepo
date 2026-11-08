@@ -124,7 +124,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/hapuskan-sisa': '2026-11-03', // Hapuskan sisa di Potongan Lain
   // L4f-1 Bayar Slip, Jadwal Bayar, Daftar Transfer, Sumber Uang (tayang staging 2026-11-03)
   '/gaji/jadwal-bayar': '2026-11-03',
-  '/pengaturan/sumber-uang': '2026-11-03',
+  '/pengaturan/sumber-uang': '2026-11-08', // F2-1b: kini daftar baca Tempat Uang Back Office (semula 2026-11-03)
   'fitur/bayar-slip': '2026-11-03', // tombol Bayar, kotak Pembayaran di Slip, angka Dibayar di periode
   'fitur/daftar-transfer': '2026-11-03', // Daftar Transfer + unduh CSV
   // L4f-2 Bayar di luar slip, Ringkasan Gaji (tayang staging 2026-11-03)

@@ -82,7 +82,7 @@ describe.skipIf(!ADMIN_URL)('L7b-2: kasbon driver dan kenek', () => {
     };
     // Driver tanpa paket gaji bulanan: upahnya ritase saja.
     ids = { owner: await person('Elan', 'Pemilik', true), fin: await person('Fani', 'Finance', true), driver: await person('Dedi', 'Driver', false) };
-    [{ id: sourceId }] = await sql`select id from hris.payment_sources order by id limit 1`;
+    sourceId = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     adv = await import('@/modules/advances');
     engine = await import('@/modules/requests');
     pr = await import('@/modules/payroll');

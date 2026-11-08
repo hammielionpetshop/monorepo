@@ -76,7 +76,7 @@ describe.skipIf(!ADMIN_URL)('L5a: Kasbon dari ajukan sampai terpotong di slip', 
       owner: await person('Elan', 'Pemilik'), owner2: await person('Irma', 'Pemilik'), hr: await person('Nadia HR', 'HR'), fin: await person('Fani', 'Finance'),
       ani: await person('Ani', 'Kasir'), budi: await person('Budi', 'Kasir', '2026-01-01', 60_000), baru: await person('Baru', 'Kasir', '2026-08-01'),
     };
-    [{ id: sourceId }] = await sql`select id from hris.payment_sources order by id limit 1`;
+    sourceId = Number((await sql`insert into petshop.money_places (name, kind, branch_id) values ('Brankas', 'CASH', 1) returning id`)[0].id);
     adv = await import('@/modules/advances');
     engine = await import('@/modules/requests');
     slip = await import('@/modules/payroll');

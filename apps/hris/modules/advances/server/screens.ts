@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import { advanceFollowups } from '@petshop/hris-db/schema/advances';
-import { paymentSources, payslips } from '@petshop/hris-db/schema/payroll';
+import { payslips } from '@petshop/hris-db/schema/payroll';
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
+import { moneyPlaceById, moneyPlaces } from '@/lib/money-places';
 import { can, getOrgLookup, hasAction, type Actor } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { listPeopleForModules, placementHistory, placementOn, todayWib, type PersonForModules } from '@/modules/employees';
@@ -300,7 +301,7 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
   const follows = await followupsOf([id]);
   const processDays = Number(await settingOn<number>('advance.process_days', today)) || 2;
   const seesMoney = actor.fullAccess || hasAction(actor, 'advance.review') || hasAction(actor, 'advance.hand_over');
-  const [source] = v.handover?.sourceId ? await db.select().from(paymentSources).where(eq(paymentSources.id, v.handover.sourceId)) : [];
+  const source = await moneyPlaceById(v.handover?.moneyPlaceId);
   const self = v.row.employeeId === actor.personId;
   const cancelOpen = follows.some((f) => f.f.kind === 'CANCEL' && OPEN.includes(f.status));
   return {
@@ -349,7 +350,7 @@ export async function manageFormScreen(actor: Actor | null, id: number, now: Dat
   if (!detail) return null;
   const [v] = await loadAdvances({ ids: [id] });
   const today = todayWib(now);
-  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const sources = await moneyPlaces({ payable: true });
   const carried = (await carriesOf(db, v)).reduce((s, c) => s + c.amount, 0);
   const limits = await rescheduleLimits(v, today);
   const person = (await listPeopleForModules()).find((p) => p.id === v.row.employeeId);
@@ -418,7 +419,7 @@ export async function moneyScreen(actor: Actor | null, monthInput: string | null
   const all = await loadAdvances();
   const people = await listPeopleForModules();
   const { branches } = await getOrgLookup();
-  const sources = await db.select().from(paymentSources);
+  const sources = await moneyPlaces();
   const history = await placementHistory();
   const branchOn = (employeeId: number, date: IsoDate) => {
     const placement = placementOn(history.get(employeeId) ?? [], date);
@@ -432,7 +433,7 @@ export async function moneyScreen(actor: Actor | null, monthInput: string | null
     if (v.handover && v.handover.method !== 'LEGACY') {
       months.add(monthOf(v.handover.moneyDate));
       if (monthOf(v.handover.moneyDate) === month) {
-        rows.push({ id: v.handover.id, date: v.handover.moneyDate, kind: 'OUT', number: v.row.number, name, branchName: branchOn(v.row.employeeId, v.handover.moneyDate), sourceName: sources.find((s) => s.id === v.handover!.sourceId)?.name ?? '-', amount: v.handover.amount });
+        rows.push({ id: v.handover.id, date: v.handover.moneyDate, kind: 'OUT', number: v.row.number, name, branchName: branchOn(v.row.employeeId, v.handover.moneyDate), sourceName: sources.find((s) => s.id === v.handover!.moneyPlaceId)?.name ?? '-', amount: v.handover.amount });
       }
     }
     for (const m of v.movements) {
@@ -441,7 +442,7 @@ export async function moneyScreen(actor: Actor | null, monthInput: string | null
       if (monthOf(m.moneyDate) !== month) continue;
       rows.push({
         id: m.id, date: m.moneyDate, kind: m.kind === 'CASH' ? 'IN' : 'WRITE_OFF', number: v.row.number, name, branchName: branchOn(v.row.employeeId, m.moneyDate),
-        sourceName: m.kind === 'CASH' ? sources.find((s) => s.id === m.sourceId)?.name ?? '-' : '-', amount: m.amount,
+        sourceName: m.kind === 'CASH' ? sources.find((s) => s.id === m.moneyPlaceId)?.name ?? '-' : '-', amount: m.amount,
       });
     }
   }
@@ -481,7 +482,7 @@ export async function handoverFormScreen(actor: Actor | null, id: number, now: D
   const detail = await detailScreen(actor, id, now);
   if (!detail) return null;
   const [v] = await loadAdvances({ ids: [id] });
-  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const sources = await moneyPlaces({ payable: true });
   const people = (await listPeopleForModules()).filter((p) => p.activeToday && p.id !== v.row.employeeId).map((p) => ({ id: p.id, name: p.name, branchName: p.branchName }));
   people.sort((a, b) => a.name.localeCompare(b.name, 'id'));
   return {
