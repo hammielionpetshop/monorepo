@@ -30,6 +30,7 @@ function makeDraft(overrides: Partial<BulkSaleDraft> = {}): BulkSaleDraft {
     id: "draft-1",
     name: "Toko Sebelah",
     savedAt: "2026-08-16T03:00:00.000Z",
+    createdByName: "Admin Gudang",
     branchId: 1,
     branchName: "Gudang",
     customerId: 7,
@@ -137,9 +138,19 @@ describe("deleteBulkSaleDraft", () => {
     );
   });
 
-  it("tidak melempar error saat request gagal", async () => {
+  it("tidak melempar error saat request gagal, mengembalikan failed", async () => {
     fetchMock.mockRejectedValue(new Error("offline"));
-    await expect(deleteBulkSaleDraft("draft-1")).resolves.toBeUndefined();
+    await expect(deleteBulkSaleDraft("draft-1")).resolves.toBe("failed");
+  });
+
+  it("mengembalikan gone saat draf sudah dilanjutkan/dihapus admin lain (404)", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "x" }), { status: 404 }));
+    await expect(deleteBulkSaleDraft("draft-1")).resolves.toBe("gone");
+  });
+
+  it("mengembalikan deleted saat berhasil", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    await expect(deleteBulkSaleDraft("draft-1")).resolves.toBe("deleted");
   });
 });
 

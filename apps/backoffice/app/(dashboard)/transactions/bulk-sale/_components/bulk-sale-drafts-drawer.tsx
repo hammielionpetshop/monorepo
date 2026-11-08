@@ -49,7 +49,7 @@ export default function BulkSaleDraftsDrawer({
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-foreground">Daftar Tunggu</h2>
-            <p className="text-xs text-muted-foreground">Bulk sale yang ditahan — bisa dilanjutkan dari perangkat mana pun</p>
+            <p className="text-xs text-muted-foreground">Bulk sale yang ditahan semua admin cabang — barangnya menahan stok sampai dilanjutkan atau dihapus</p>
           </div>
           <button
             type="button"
@@ -78,6 +78,9 @@ export default function BulkSaleDraftsDrawer({
                       <h3 className="truncate text-sm font-medium text-foreground">{draft.name}</h3>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {formatSavedAt(draft.savedAt)} · {draft.branchName}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        Ditahan oleh <span className="font-medium text-foreground">{draft.createdByName ?? '-'}</span>
                       </p>
                       {draft.customerName && (
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">Customer: {draft.customerName}</p>
