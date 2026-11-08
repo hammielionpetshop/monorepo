@@ -421,6 +421,13 @@
       "when": 1793624800000,
       "tag": "0059_supplier_payment_source",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793625800000,
+      "tag": "0060_cash_flow_tidy",
+      "breakpoints": true
     }
   ]
 }
