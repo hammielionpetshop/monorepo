@@ -8,6 +8,10 @@ const verifyAccessToken = vi.fn();
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
 const transaction = vi.fn();
+vi.mock("../../_source", () => ({
+  PaymentSourceError: class extends Error {},
+  assertPaymentSource: vi.fn(async () => 5),
+}));
 vi.mock("@/lib/db", () => ({
   db: { transaction },
   supplierPayables: {
@@ -104,6 +108,6 @@ describe("POST supplier payable payment", () => {
     const res = await POST(req, { params: Promise.resolve({ id: "10" }) });
 
     expect(res.status).toBe(201);
-    expect(insertedValues[0]).toMatchObject({ paidById: 7 });
+    expect(insertedValues[0]).toMatchObject({ paidById: 7, moneyPlaceId: 5 });
   });
 });

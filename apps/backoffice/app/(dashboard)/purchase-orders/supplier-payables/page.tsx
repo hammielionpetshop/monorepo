@@ -3,7 +3,7 @@ import { getAuth, hasPermission, scopeFilter } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { supplierDueDate } from '@/lib/supplier-due-date'
 import { loadPendingPriceEstimates } from '@/lib/po-pending-estimate'
-import { supplierCreditBalances } from '@/lib/services/supplier-return-service'
+import { SYSTEM_PAYMENT_METHODS, supplierCreditBalances } from '@/lib/services/supplier-return-service'
 import {
   db,
   supplierPayables,
@@ -13,6 +13,7 @@ import {
   branches,
   users,
   paymentMethods,
+  moneyPlaces,
   eq,
   ne,
   asc,
@@ -69,9 +70,11 @@ export default async function SupplierPayablesPage({
       proofPhotoUrl: supplierPayablePayments.proofPhotoUrl,
       paidAt: supplierPayablePayments.paidAt,
       paidByName: users.name,
+      moneyPlaceName: moneyPlaces.name,
     })
     .from(supplierPayablePayments)
     .leftJoin(users, eq(supplierPayablePayments.paidById, users.id))
+    .leftJoin(moneyPlaces, eq(supplierPayablePayments.moneyPlaceId, moneyPlaces.id))
     .where(inArray(supplierPayablePayments.payableId, ids))
     .orderBy(asc(supplierPayablePayments.paidAt), asc(supplierPayablePayments.id))
 
@@ -87,6 +90,8 @@ export default async function SupplierPayablesPage({
       proofPhotoUrl: p.proofPhotoUrl,
       paidAt: p.paidAt.toISOString(),
       paidByName: p.paidByName,
+      moneyPlaceName: p.moneyPlaceName,
+      noMoney: SYSTEM_PAYMENT_METHODS.includes(p.method.toUpperCase()),
     })
     paymentsByPayable.set(p.payableId, list)
   }

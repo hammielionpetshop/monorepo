@@ -1,10 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 import type { Option } from './types'
 import { ProofPhotoField } from '@/components/ui/proof-photo-field'
 import { isNonCashMethod } from '@/lib/proof-photo'
+import { NewBadge } from '@/components/ui/new-badge'
+
+interface SourcePlace {
+  id: number
+  name: string
+  kind: 'CASH' | 'BANK'
+  branchName: string | null
+  bankName: string | null
+  accountNumber: string | null
+}
+
+const SOURCE_KEY = 'supplier-pay-source'
+
+function readRememberedSource(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(SOURCE_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
 
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
@@ -48,6 +68,37 @@ export function SupplierPaymentDialog({
   const showsPhoto = !useCredit && isNonCashMethod(paymentMethods.find(m => m.name === payMethod))
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [places, setPlaces] = useState<SourcePlace[] | null>(null)
+  const [placesError, setPlacesError] = useState<string | null>(null)
+  const [sourceId, setSourceId] = useState('')
+  // Tunai → tempat jenis Tunai; non-tunai → Rekening (aturan sama dengan server).
+  const neededKind = isNonCashMethod(paymentMethods.find(m => m.name === payMethod)) ? 'BANK' : 'CASH'
+  const sourceOptions = (places ?? []).filter(p => p.kind === neededKind)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/bo/supplier-payables/money-places')
+      .then(async res => {
+        const data = await res.json()
+        if (cancelled) return
+        if (!res.ok) setPlacesError(data.error ?? 'Gagal memuat Tempat Uang')
+        else setPlaces(data as SourcePlace[])
+      })
+      .catch(() => { if (!cancelled) setPlacesError('Gagal memuat Tempat Uang') })
+    return () => { cancelled = true }
+  }, [])
+
+  // Pilihan terakhir per jenis diingat di peramban ini sebagai bawaan.
+  useEffect(() => {
+    if (!payMethod || !places) return
+    const remembered = readRememberedSource()[neededKind]
+    const options = places.filter(p => p.kind === neededKind)
+    setSourceId(prev => {
+      if (options.some(p => String(p.id) === prev)) return prev
+      if (remembered && options.some(p => p.id === remembered)) return String(remembered)
+      return options.length === 1 ? String(options[0].id) : ''
+    })
+  }, [payMethod, places, neededKind])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -58,6 +109,7 @@ export function SupplierPaymentDialog({
     if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
     if (useCredit && amount > creditBalance) return setFormError(`Nominal melebihi saldo supplier (${rupiah(creditBalance)})`)
     if (!useCredit && !payMethod) return setFormError('Pilih metode pembayaran')
+    if (!useCredit && !sourceId) return setFormError('Pilih "Dibayar dari" (Tempat Uang asal pembayaran)')
     if (photoUploading) return setFormError('Tunggu foto selesai diunggah')
 
     setSubmitting(true)
@@ -70,6 +122,7 @@ export function SupplierPaymentDialog({
           amount,
           method: useCredit ? 'SALDO SUPPLIER' : payMethod,
           useSupplierCredit: useCredit || undefined,
+          moneyPlaceId: useCredit ? undefined : Number(sourceId),
           paidDate: payDate,
           referenceNumber: payRef.trim() || undefined,
           note: payNote.trim() || undefined,
@@ -80,6 +133,13 @@ export function SupplierPaymentDialog({
       if (!res.ok) {
         setFormError(data.error ?? 'Terjadi kesalahan')
         return
+      }
+      if (!useCredit) {
+        try {
+          localStorage.setItem(SOURCE_KEY, JSON.stringify({ ...readRememberedSource(), [neededKind]: Number(sourceId) }))
+        } catch {
+          // penyimpanan peramban tidak tersedia — bawaan tidak diingat
+        }
       }
       onSaved(
         amount >= target.remaining
@@ -158,6 +218,28 @@ export function SupplierPaymentDialog({
             </Field>
           </div>
 
+          {!useCredit && (
+            <Field label="Dibayar dari" required badge={<NewBadge feature="fitur/dibayar-dari-supplier" />}>
+              {placesError ? (
+                <div className="text-sm text-destructive">{placesError}</div>
+              ) : !payMethod ? (
+                <div className={`${inputClass} bg-muted text-muted-foreground`}>Pilih metode pembayaran dulu</div>
+              ) : (
+                <select value={sourceId} onChange={e => setSourceId(e.target.value)} className={inputClass} required disabled={places === null}>
+                  <option value="">{places === null ? 'Memuat…' : sourceOptions.length === 0 ? (neededKind === 'CASH' ? 'Belum ada Tempat Uang Tunai' : 'Belum ada Rekening') : '— Pilih —'}</option>
+                  {sourceOptions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.kind === 'BANK' && p.bankName ? ` · ${p.bankName}${p.accountNumber ? ' ' + p.accountNumber : ''}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {neededKind === 'CASH' ? 'Tunai diambil dari tempat uang tunai (mis. Brankas).' : 'Non-tunai keluar dari rekening.'} Daftar diatur di Pengaturan › Tempat Uang.
+              </p>
+            </Field>
+          )}
+
           <Field label="No. Bukti Transfer">
             <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Opsional" maxLength={100} className={inputClass} />
           </Field>
@@ -195,11 +277,11 @@ export function SupplierPaymentDialog({
 
 const inputClass = 'w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, badge, children }: { label: string; required?: boolean; badge?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1">
-        {label} {required && <span className="text-destructive">*</span>}
+        {label} {required && <span className="text-destructive">*</span>} {badge}
       </label>
       {children}
     </div>

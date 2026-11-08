@@ -4,6 +4,7 @@ import { branches } from './branches';
 import { suppliers, unitsOfMeasure } from './master';
 import { products } from './products';
 import { users } from './users';
+import { moneyPlaces } from './money_places';
 
 export const purchaseOrders = petshop.table('purchase_orders', {
   id: serial('id').primaryKey(),
@@ -122,6 +123,8 @@ export const supplierPayablePayments = petshop.table('supplier_payable_payments'
   note: text('note'),
   // Foto bukti transfer (opsional, non-tunai) — diunggah dari Back Office.
   proofPhotoUrl: text('proof_photo_url'),
+  // F2-4a: Tempat Uang asal pembayaran. Kosong = pembayaran lama ("belum diketahui") atau metode tanpa uang.
+  moneyPlaceId: integer('money_place_id').references(() => moneyPlaces.id),
   paidById: integer('paid_by_id').references(() => users.id).notNull(),
   paidAt: timestamp('paid_at').defaultNow().notNull(),
 });
