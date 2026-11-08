@@ -8,7 +8,7 @@ import type {
 } from '@/lib/services/deposit-queries'
 import type { DepositSettings } from '@/lib/services/deposit-rules'
 import {
-  CAUSE_LABEL, NoncashModal, ReceiveModal, SettingsModal, VerifyCashModal, btnPrimary, btnSecondary, postJson,
+  CAUSE_LABEL, NoncashModal, ReceiveModal, SettingsModal, SettlementList, VerifyCashModal, btnPrimary, btnSecondary, postJson,
 } from './deposit-forms'
 
 type Tab = 'pending' | 'noncash' | 'undeposited' | 'history'
@@ -32,9 +32,9 @@ const TABS: { key: Tab; label: string }[] = [
 
 const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   PENDING: { label: 'Menunggu verifikasi', cls: 'bg-blue-500/10 text-blue-700 border-blue-500/20' },
-  VERIFIED: { label: 'Terverifikasi', cls: 'bg-green-500/10 text-green-700 border-green-500/20' },
+  VERIFIED: { label: 'Terverifikasi', cls: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20' },
   CANCELLED: { label: 'Batal', cls: 'bg-muted text-muted-foreground border-border' },
-  CORRECTED: { label: 'Dikoreksi', cls: 'bg-amber-500/10 text-amber-700 border-amber-500/20' },
+  CORRECTED: { label: 'Dikoreksi', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' },
   AWAITING_FUNDS: { label: 'Dana belum cair', cls: 'bg-blue-500/10 text-blue-700 border-blue-500/20' },
 }
 
@@ -48,7 +48,7 @@ function Pill({ status }: { status: string }) {
 function Variance({ value }: { value: number | null }) {
   if (value == null) return <span className="text-muted-foreground">-</span>
   if (value === 0) return <span className="text-green-600">✓ Cocok</span>
-  return <span className={value < 0 ? 'text-red-600' : 'text-green-700'}>{formatRupiah(value)}</span>
+  return <span className={value < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>{formatRupiah(value)}</span>
 }
 
 function daysAgo(n: number): string {
@@ -82,7 +82,7 @@ export default function DepositsClient(props: Props) {
 
   useEffect(() => {
     if (!message) return
-    const t = setTimeout(() => setMessage(null), message.kind === 'ok' ? 3500 : 7000)
+    const t = setTimeout(() => setMessage(null), message.kind === 'ok' ? 6000 : 7000)
     return () => clearTimeout(t)
   }, [message])
 
@@ -270,16 +270,16 @@ export default function DepositsClient(props: Props) {
               </thead>
               <tbody>
                 {visibleNoncash.map((r) => (
-                  <tr key={r.key} className={`border-b border-border last:border-0 ${r.overdue ? 'bg-red-50' : ''}`}>
+                  <tr key={r.key} className={`border-b border-border last:border-0 ${r.overdue ? 'bg-red-500/10' : ''}`}>
                     <td className="px-3 py-2 whitespace-nowrap">{r.businessDate}</td>
                     <td className="px-3 py-2">{r.branchName} · {r.shiftNumber ? `#${r.shiftNumber}` : <span className="text-blue-700">Pelunasan BO</span>}</td>
                     <td className="px-3 py-2">{r.paymentMethodName}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatRupiah(r.expected)}</td>
                     <td className="px-3 py-2">{r.moneyPlaceName ?? r.linkedPlaceName ?? <span className="text-xs text-destructive">belum ditautkan</span>}</td>
                     <td className="px-3 py-2">
-                      {r.status === 'PENDING' ? <span className="text-xs text-amber-700">Menunggu</span> : <Pill status={r.status} />}
-                      {r.overdue && <span className="ml-1 text-xs text-red-600">lewat {settings.awaitingFundsDays} hari</span>}
-                      {r.changedAfterVerify && <span className="block text-xs text-red-600">Angka sistem berubah sesudah diverifikasi (dulu {formatRupiah(r.verifiedExpected ?? 0)})</span>}
+                      {r.status === 'PENDING' ? <span className="text-xs text-amber-700 dark:text-amber-400">Menunggu</span> : <Pill status={r.status} />}
+                      {r.overdue && <span className="ml-1 text-xs text-red-600 dark:text-red-400">lewat {settings.awaitingFundsDays} hari</span>}
+                      {r.changedAfterVerify && <span className="block text-xs text-red-600 dark:text-red-400">Angka sistem berubah sesudah diverifikasi (dulu {formatRupiah(r.verifiedExpected ?? 0)})</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {r.received != null ? (
@@ -328,7 +328,7 @@ export default function DepositsClient(props: Props) {
                 {summary.map((s) => (
                   <FragmentRows key={s.branchId}>
                     <tr
-                      className={`border-b border-border cursor-pointer hover:bg-muted/50 ${s.level === 'OVER' ? 'bg-red-50' : s.level === 'WARN' ? 'bg-amber-50' : ''}`}
+                      className={`border-b border-border cursor-pointer hover:bg-muted/50 ${s.level === 'OVER' ? 'bg-red-500/10' : s.level === 'WARN' ? 'bg-amber-500/10' : ''}`}
                       onClick={() => setExpandedBranch(expandedBranch === s.branchId ? null : s.branchId)}
                     >
                       <td className="px-3 py-2 font-medium">
@@ -336,8 +336,8 @@ export default function DepositsClient(props: Props) {
                         {s.legacyCount > 0 && <span className="ml-1 text-xs text-muted-foreground">({s.legacyCount} lama)</span>}
                       </td>
                       <td className="px-3 py-2 text-right">{s.shiftCount}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${s.total >= settings.warnAmount ? 'text-red-600 font-semibold' : ''}`}>{formatRupiah(s.total)}</td>
-                      <td className={`px-3 py-2 ${s.oldestAgeDays >= settings.warnDays ? 'text-red-600 font-semibold' : ''}`}>{s.oldestClosedOn} ({s.oldestAgeDays} hari)</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${s.total >= settings.warnAmount ? 'text-red-600 dark:text-red-400 font-semibold' : ''}`}>{formatRupiah(s.total)}</td>
+                      <td className={`px-3 py-2 ${s.oldestAgeDays >= settings.warnDays ? 'text-red-600 dark:text-red-400 font-semibold' : ''}`}>{s.oldestClosedOn} ({s.oldestAgeDays} hari)</td>
                       <td className="px-3 py-2 text-right">
                         <button type="button" onClick={(e) => { e.stopPropagation(); setReceiving({ branchId: s.branchId }) }} className="text-xs text-primary hover:underline">Terima Setoran</button>
                       </td>
@@ -348,7 +348,7 @@ export default function DepositsClient(props: Props) {
                           {x.openedOn} · Shift #{x.shiftNumber}
                           {x.origin === 'BACKOFFICE' && <span className="ml-1 text-blue-700">Bulk Sale</span>}
                           {x.legacy && <span className="ml-1 text-muted-foreground">(lama)</span>}
-                          {x.status === 'FORCE_CLOSED' && <span className="ml-1 text-amber-700">tutup paksa · kas sistem</span>}
+                          {x.status === 'FORCE_CLOSED' && <span className="ml-1 text-amber-700 dark:text-amber-400">tutup paksa · kas sistem</span>}
                         </td>
                         <td className="px-3 py-1.5 text-right tabular-nums">{formatRupiah(x.cash)}</td>
                         <td className="px-3 py-1.5" colSpan={2}>{x.ageDays} hari</td>
@@ -392,7 +392,7 @@ export default function DepositsClient(props: Props) {
                         <td className="px-3 py-2 whitespace-nowrap">
                           {d.depositNumber}
                           <span className="block text-xs text-muted-foreground">{d.depositDate} · {d.shifts.length} shift · {d.reportChannel === 'POS' ? 'lapor POS' : 'diterima BO'}</span>
-                          {d.correctsDepositNumber && <span className="block text-xs text-amber-700">koreksi atas {d.correctsDepositNumber}</span>}
+                          {d.correctsDepositNumber && <span className="block text-xs text-amber-700 dark:text-amber-400">koreksi atas {d.correctsDepositNumber}</span>}
                         </td>
                         <td className="px-3 py-2">{d.branchName}</td>
                         <td className="px-3 py-2">{d.destinationName}</td>
@@ -415,6 +415,10 @@ export default function DepositsClient(props: Props) {
                           {d.status === 'CANCELLED' ? d.cancelledByName : d.verifiedByName}
                           {d.verifiedAt && <span className="block">{formatWIB(d.verifiedAt)}</span>}
                           {d.verifiedHeldBy && <span className="block">dipegang {HELD_BY_LABEL[d.verifiedHeldBy] ?? d.verifiedHeldBy}</span>}
+                          {d.status !== 'CANCELLED' && d.verifiedHeldBy && d.verifiedHeldBy !== 'FINANCE' && (
+                            <span className="block text-amber-700 dark:text-amber-400">belum sampai kantor — tidak melunasi utang internal</span>
+                          )}
+                          <SettlementList lines={d.settlements} />
                         </td>
                         <td className="px-3 py-2 text-right">
                           <ProofPhotoLink url={d.slipPhotoUrl} />
@@ -444,7 +448,10 @@ export default function DepositsClient(props: Props) {
                         <td className="px-3 py-2">{r.paymentMethodName} → {r.moneyPlaceName}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatRupiah(r.received ?? 0)} <span className="text-xs"><Variance value={r.variance} /></span></td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{r.cause ? CAUSE_LABEL[r.cause] ?? r.cause : ''}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{r.verifiedByName}{r.verifiedAt ? ` · ${formatWIB(r.verifiedAt)}` : ''}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
+                          {r.verifiedByName}{r.verifiedAt ? ` · ${formatWIB(r.verifiedAt)}` : ''}
+                          <SettlementList lines={r.settlements} />
+                        </td>
                       </tr>
                     ))}
                   </tbody>

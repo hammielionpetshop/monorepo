@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseJsonBody } from '@/lib/grooming-master-http'
 import { listDeposits } from '@/lib/services/deposit-queries'
+import { listSettlementLines } from '@/lib/services/deposit-settlement-service'
 import { receiveCashDeposit } from '@/lib/services/deposit-service'
 import { actorOf, assertBranchAllowed, depositErrorResponse, receiveSchema, requireDepositVerifier, scopedBranch } from './_http'
 
@@ -20,12 +21,18 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams
     const from = sp.get('from')
     const to = sp.get('to')
+    const tab = sp.get('tab') ?? 'pending'
     const items = await listDeposits({
-      statuses: TABS[sp.get('tab') ?? 'pending'] ?? TABS.pending,
+      statuses: TABS[tab] ?? TABS.pending,
       branchId: scopedBranch(gate, sp.get('branchId')),
       from: from && DATE.test(from) ? from : null,
       to: to && DATE.test(to) ? to : null,
     })
+    // Riwayat: rincian pelunasan otomatis (F2-3) tiap setoran.
+    if (tab === 'history') {
+      const lines = await listSettlementLines(items.map((d) => ({ sourceType: 'CASH_DEPOSIT' as const, sourceId: d.id })))
+      return NextResponse.json({ items: items.map((d) => ({ ...d, settlements: lines.get(`CASH_DEPOSIT:${d.id}`) ?? [] })) })
+    }
     return NextResponse.json({ items })
   } catch (error) {
     return depositErrorResponse(error, 'GET /api/bo/deposits')
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
     const denied = assertBranchAllowed(gate, data.branchId)
     if (denied) return denied
     const created = await receiveCashDeposit(data, actorOf(gate))
-    return NextResponse.json({ id: created.id, depositNumber: created.depositNumber }, { status: 201 })
+    return NextResponse.json({ id: created.id, depositNumber: created.depositNumber, settlement: created.settlement }, { status: 201 })
   } catch (error) {
     return depositErrorResponse(error, 'POST /api/bo/deposits')
   }

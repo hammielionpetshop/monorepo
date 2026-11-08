@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const data = await parseJsonBody(req, schema)
     if (data instanceof NextResponse) return data
     const created = await correctCashDeposit(Number(id.data), data, actorOf(gate))
-    return NextResponse.json({ id: created.id, depositNumber: created.depositNumber })
+    return NextResponse.json({ id: created.id, depositNumber: created.depositNumber, settlement: created.settlement })
   } catch (error) {
     return depositErrorResponse(error, 'POST /api/bo/deposits/[id]/correct')
   }

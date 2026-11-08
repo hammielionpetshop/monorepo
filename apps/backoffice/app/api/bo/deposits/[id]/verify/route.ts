@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (denied) return denied
     }
     const updated = await verifyCashDeposit(Number(id.data), data, actorOf(gate))
-    return NextResponse.json({ id: updated.id, status: updated.status })
+    return NextResponse.json({ id: updated.id, status: updated.status, settlement: updated.settlement })
   } catch (error) {
     return depositErrorResponse(error, 'POST /api/bo/deposits/[id]/verify')
   }

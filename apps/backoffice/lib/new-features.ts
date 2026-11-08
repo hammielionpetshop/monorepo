@@ -91,6 +91,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/promo-kelompok-campur': '2026-11-05', // tombol Kelompok campur (rasa/aroma bebas) di form promo (samakan dengan tanggal rilis saat merge)
   'fitur/po-dari-bongkaran': '2026-11-06', // Draft PO dari Laporan Bongkaran HRIS + lampiran foto surat jalan di detail PO (samakan dengan tanggal rilis saat merge)
   'fitur/ubah-isi-po': '2026-11-06', // tombol Ubah Isi PO / Tambah Barang + Buat PO Tambahan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
+  'fitur/pelunasan-otomatis': '2026-11-08', // F2-3: ringkasan sisa utang per cabang + kolom Umur di Utang Internal (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

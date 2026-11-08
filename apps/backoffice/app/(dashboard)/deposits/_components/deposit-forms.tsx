@@ -5,6 +5,7 @@ import { formatRupiah } from '@petshop/shared'
 import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
 import type { DepositDestination, DepositListItem, NoncashRow, UndepositedShift } from '@/lib/services/deposit-queries'
 import type { CashVarianceCause, DepositSettings } from '@/lib/services/deposit-rules'
+import type { SettlementLine } from '@/lib/services/deposit-settlement-service'
 
 // Form & modal menu Setoran (F2-2). Semua angka diketik Finance; tidak ada yang terisi otomatis
 // dari angka sistem kecuali saran rincian sebab.
@@ -30,6 +31,32 @@ export const CAUSE_LABEL: Record<string, string> = {
   OTHER: 'Lainnya',
   CASHIER_INPUT: 'Salah input kasir',
   AWAITING_FUNDS: 'Dana belum cair',
+}
+
+/** Ringkasan pelunasan otomatis (F2-3) untuk pesan sesudah Verifikasi. */
+export function settlementText(raw: unknown): string {
+  const s = raw as { payablesSettled?: number; settledAmount?: number; freeAmount?: number } | null | undefined
+  if (!s) return ''
+  if (!s.payablesSettled) return s.freeAmount ? ` · tidak ada utang internal terbuka, setoran bebas ${formatRupiah(s.freeAmount)}` : ''
+  return ` · melunasi ${s.payablesSettled} tagihan internal (${formatRupiah(s.settledAmount ?? 0)}), setoran bebas ${formatRupiah(s.freeAmount ?? 0)}`
+}
+
+/** Rincian pelunasan otomatis per tingkat: penyetor → pemasok, lalu diteruskan ke pemasoknya. */
+export function SettlementList({ lines }: { lines?: SettlementLine[] }) {
+  if (!lines || lines.length === 0) return null
+  return (
+    <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+      {lines.map((l) => (
+        <li key={l.id} className={l.reversed ? 'line-through opacity-60' : ''} style={{ paddingLeft: `${(l.level - 1) * 12}px` }}>
+          {l.level > 1 && '↳ '}
+          {l.ibtNumber
+            ? `${l.payerBranchName} → ${l.creditorBranchName ?? '-'} ${l.ibtNumber}: ${formatRupiah(l.amount)}`
+            : `Setoran bebas ${l.payerBranchName}: ${formatRupiah(l.amount)}`}
+          {l.reversed && ' (dibalik)'}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export function todayWib(): string {
@@ -174,12 +201,12 @@ export function VarianceEditor({ variance, drafts, setDrafts, shifts }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variance])
 
-  if (variance === 0) return <p className="text-sm text-green-700">Cocok — tidak ada selisih.</p>
+  if (variance === 0) return <p className="text-sm text-green-700 dark:text-green-400">Cocok — tidak ada selisih.</p>
   const update = (key: number, patch: Partial<VarianceDraft>) => setDrafts(drafts.map((d) => (d.key === key ? { ...d, ...patch } : d)))
   const problem = varianceDraftProblem(drafts, variance)
   return (
     <div className="space-y-2">
-      <p className={`text-sm font-medium ${variance < 0 ? 'text-red-600' : 'text-green-700'}`}>
+      <p className={`text-sm font-medium ${variance < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
         Selisih {formatRupiah(variance)} — rinci sebabnya:
       </p>
       {drafts.map((d) => {
@@ -222,7 +249,7 @@ export function VarianceEditor({ variance, drafts, setDrafts, shifts }: {
       <button type="button" onClick={() => setDrafts([...drafts, { key: draftKey++, cause: '', amount: '', shiftId: '', cashierId: '', note: '' }])} className="text-xs text-primary hover:underline">
         + Tambah sebab
       </button>
-      {problem && <p className="text-xs text-amber-700">{problem}</p>}
+      {problem && <p className="text-xs text-amber-700 dark:text-amber-400">{problem}</p>}
     </div>
   )
 }
@@ -265,7 +292,7 @@ export function VerifyCashModal({ deposit, destinations, mode, onClose, onDone }
     const { ok, data } = await postJson(`/api/bo/deposits/${deposit.id}/${mode}`, body)
     setBusy(false)
     if (!ok) return setError(String(data.error))
-    onDone(mode === 'verify' ? `Setoran ${deposit.depositNumber} terverifikasi` : `Setoran ${deposit.depositNumber} dikoreksi → ${String(data.depositNumber)}`)
+    onDone((mode === 'verify' ? `Setoran ${deposit.depositNumber} terverifikasi` : `Setoran ${deposit.depositNumber} dikoreksi → ${String(data.depositNumber)}`) + settlementText(data.settlement))
   }
 
   return (
@@ -348,7 +375,7 @@ export function ReceiveModal({ branches, shifts, destinations, defaults, initial
     })
     setBusy(false)
     if (!ok) return setError(String(data.error))
-    onDone(`Setoran ${String(data.depositNumber)} diterima dan terverifikasi`)
+    onDone(`Setoran ${String(data.depositNumber)} diterima dan terverifikasi` + settlementText(data.settlement))
   }
 
   return (
@@ -467,7 +494,7 @@ export function NoncashModal({ row, mode, onClose, onDone }: {
       })
     setBusy(false)
     if (!ok) return setError(String(data.error))
-    onDone(awaitingFunds ? 'Disimpan sebagai Dana belum cair' : mode === 'correct' ? 'Verifikasi non-tunai dikoreksi' : 'Non-tunai terverifikasi')
+    onDone(awaitingFunds ? 'Disimpan sebagai Dana belum cair' : (mode === 'correct' ? 'Verifikasi non-tunai dikoreksi' : 'Non-tunai terverifikasi') + settlementText(data.settlement))
   }
 
   const title = `${row.paymentMethodName} · ${row.branchName} · ${row.shiftNumber ? `Shift #${row.shiftNumber}` : 'Pelunasan BO'} ${row.businessDate}`
@@ -485,7 +512,7 @@ export function NoncashModal({ row, mode, onClose, onDone }: {
         <RupiahField label="Diterima (ketik dari mutasi rekening)" value={received} onChange={setReceived} autoFocus />
         {receivedNum != null && variance !== 0 && (
           <div className="space-y-2">
-            <p className={`font-medium ${variance < 0 ? 'text-red-600' : 'text-green-700'}`}>Selisih {formatRupiah(variance)}</p>
+            <p className={`font-medium ${variance < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>Selisih {formatRupiah(variance)}</p>
             <select value={cause} onChange={(e) => setCause(e.target.value as typeof cause)} className={inputClass} aria-label="Sebab selisih">
               <option value="">— pilih sebab —</option>
               {variance < 0 && <option value="BANK_FEE">Potongan bank (Biaya Bank)</option>}

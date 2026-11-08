@@ -166,3 +166,28 @@ Owner: "ok saya ikuti semua saran anda kalau begitu" — semua usul agent disetu
 2. ✅ Batas umur merah Utang Internal **30 hari** (bisa diubah di pengaturan).
 3. ✅ Setoran ke tempat "dipegang toko/lainnya" tidak melunasi sampai dipindah ke Finance (F2-4).
 4. ✅ Pelunasan otomatis **tidak** membuat catatan Pendapatan & Pengeluaran.
+
+### Keputusan owner 2026-11-08 (sesudah persetujuan) — hanya data November
+
+Owner: "fitur baru setoran … hanya membaca data bulan november saja … data sebelum november di
+biarkan saja, begitu juga pelunasan otomatis, cukup semua data november saja"; lalu "saya ikuti
+saran anda":
+
+- **Pelunasan otomatis**: tanggal mulai **2026-11-01** (bukan hari rilis). Utang internal 1–7 Nov
+  yang belum lunas ikut dilunasi paling dulu oleh setoran yang diverifikasi sesudah rilis; setoran
+  yang sudah diverifikasi sebelum rilis tidak dihitung mundur. Utang sebelum November tetap manual.
+- **Setoran Tunai (perubahan F2-2)**: shift lama yang belum diverifikasi hanya ikut "Tunai belum
+  disetor" bila ditutup **sejak 2026-11-01** (`LEGACY_DEPOSIT_FROM`); sebelum itu tidak muncul dan
+  ditolak. Shift yang sudah diverifikasi cara lama tetap selesai.
+- **Non-tunai** tetap mulai tanggal mulai Setoran (hari rilis F2-2, 8 Nov); 1–7 Nov tidak
+  diantrekan.
+- Perbaikan tampilan: baris berwarna tab Tunai belum disetor terbaca di mode gelap (laporan owner).
+
+### Catatan implementasi
+
+- Tabel `petshop.deposit_settlements` (migrasi 0057, tak bisa diubah/dihapus lewat trigger),
+  layanan `deposit-settlement-service.ts`, aturan murni `planSettlement` di
+  `deposit-settlement-rules.ts`. Dipanggil di `applyVerification`, `saveNoncashVerification`,
+  dan kedua fungsi koreksi.
+- Batas umur merah 30 hari disimpan di `app_settings.auto_settlement_settings` (belum ada layar
+  ubah; diubah lewat migrasi/permintaan bila perlu).

@@ -7,6 +7,7 @@ import { users } from './users';
 import { shifts } from './shifts';
 import { paymentMethods } from './master';
 import { moneyPlaces } from './money_places';
+import { interBranchPayables, interBranchPayments } from './inter_branch_payables';
 
 /**
  * F2-2 Setoran (spec docs/work/specs/2026-11-08-f2-2-setoran-design.md). Aturan isian dijaga CHECK
@@ -131,3 +132,28 @@ export const cashDepositDefaults = petshop.table('cash_deposit_defaults', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   updatedBy: integer('updated_by').references(() => users.id),
 });
+
+/**
+ * F2-3 Pelunasan Otomatis (spec docs/work/specs/2026-11-08-f2-3-pelunasan-otomatis-design.md): satu
+ * baris per potongan alokasi setoran terverifikasi. `payableId` kosong = setoran bebas cabang itu.
+ * Tidak pernah diubah/dihapus (trigger migrasi 0057); koreksi = baris pembalikan bernilai negatif.
+ */
+export const depositSettlements = petshop.table('deposit_settlements', {
+  id: serial('id').primaryKey(),
+  /** CASH_DEPOSIT · NONCASH_VERIFICATION. */
+  sourceType: varchar('source_type', { length: 30 }).notNull(),
+  sourceId: integer('source_id').notNull(),
+  /** 1 = cabang penyetor, 2 = pemasoknya, dst. */
+  level: integer('level').notNull(),
+  parentId: integer('parent_id').references((): AnyPgColumn => depositSettlements.id),
+  payerBranchId: integer('payer_branch_id').references(() => branches.id).notNull(),
+  payableId: integer('payable_id').references(() => interBranchPayables.id),
+  paymentId: integer('payment_id').references(() => interBranchPayments.id),
+  amount: integer('amount').notNull(),
+  reversalOfId: integer('reversal_of_id').unique().references((): AnyPgColumn => depositSettlements.id),
+  createdBy: integer('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_deposit_settlements_source').on(t.sourceType, t.sourceId),
+  index('idx_deposit_settlements_payable').on(t.payableId),
+]);
