@@ -132,6 +132,7 @@ export default async function PosHomePage() {
       handover={handover}
       canProcessInternalPo={payload.permissions?.includes('internal_transfer.process_pos') ?? false}
       canReceiveDebtPayment={payload.permissions?.includes('debt.pay') ?? false}
+      canReportDeposit={payload.permissions?.includes('deposit.report') ?? false}
     />
   )
 }

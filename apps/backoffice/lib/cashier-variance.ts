@@ -114,6 +114,11 @@ export interface ShiftVarianceInput {
   shares: CashShare[]
   /** Nama cabang shift — untuk rincian minus/plus per cabang. */
   branchName?: string
+  /**
+   * Pembagian yang sudah ditentukan (alur Setoran F2-2: Finance memilih kasir). Bila diisi,
+   * dipakai menggantikan pembagian porsi kas; jumlahnya harus sama dengan `variance`.
+   */
+  allocations?: { cashierId: number; amount: number }[]
 }
 
 export interface CashierBranchRecap {
@@ -180,7 +185,7 @@ export function recapByCashier(
     const category = classifyVariance(s.variance, settings)
     if (category !== 'MINUS' && category !== 'PLUS') continue
     const charged = new Map<CashierRecap, number>()
-    for (const a of allocateByCashShare(s.variance as number, s.shares)) {
+    for (const a of s.allocations ?? allocateByCashShare(s.variance as number, s.shares)) {
       if (a.amount === 0) continue
       const r = get(a.cashierId)
       charged.set(r, (charged.get(r) ?? 0) + a.amount)

@@ -66,27 +66,35 @@ beforeEach(() => {
 })
 
 describe('POST /api/bo/shifts/[id]/deposit', () => {
-  it('mencatat kas diterima dan selisih serah-terima terhadap angka kasir', async () => {
-    const res = await call({ receivedCash: 1_850_000, notes: 'kurang 150rb' })
-    expect(res.status).toBe(200)
-    expect(updates[0]).toMatchObject({ depositReceivedCash: 1_850_000, depositVariance: -150_000, depositVerifiedById: 9 })
-    expect(audits[0]).toMatchObject({ action: 'SHIFT_DEPOSIT_VERIFY', recordId: '7', oldData: null })
+  const verified = { depositVerifiedAt: new Date(), depositReceivedCash: 1_850_000, depositVariance: -150_000, depositVerifiedById: 9 }
+  const ownerPayload = { ...financePayload, role: 'OWNER', branchScope: 'ALL', branchId: 1 }
+
+  it('verifikasi baru dialihkan ke menu Setoran (F2-2)', async () => {
+    const res = await call({ receivedCash: 2_000_000 })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toMatch(/Setoran/)
+    expect(updates).toHaveLength(0)
   })
 
-  it('menolak selisih tanpa catatan', async () => {
+  it('koreksi: menolak selisih tanpa catatan', async () => {
+    requirePermission.mockResolvedValue(ownerPayload)
+    shiftRow = { ...baseShift, ...verified }
     const res = await call({ receivedCash: 1_850_000 })
     expect(res.status).toBe(400)
     expect(updates).toHaveLength(0)
   })
 
-  it('tidak butuh catatan bila cocok', async () => {
+  it('koreksi: tidak butuh catatan bila cocok', async () => {
+    requirePermission.mockResolvedValue(ownerPayload)
+    shiftRow = { ...baseShift, ...verified }
     const res = await call({ receivedCash: 2_000_000 })
     expect(res.status).toBe(200)
     expect(updates[0]).toMatchObject({ depositVariance: 0, depositNotes: null })
   })
 
-  it('shift tutup paksa dibandingkan dengan kas sistem', async () => {
-    shiftRow = { ...baseShift, status: 'FORCE_CLOSED', totalClosingCashReal: null, totalClosingCashExpected: 500_000 }
+  it('koreksi: shift tutup paksa dibandingkan dengan kas sistem', async () => {
+    requirePermission.mockResolvedValue(ownerPayload)
+    shiftRow = { ...baseShift, ...verified, status: 'FORCE_CLOSED', totalClosingCashReal: null, totalClosingCashExpected: 500_000 }
     const res = await call({ receivedCash: 450_000, notes: 'kurang' })
     expect(res.status).toBe(200)
     expect(updates[0]).toMatchObject({ depositVariance: -50_000 })

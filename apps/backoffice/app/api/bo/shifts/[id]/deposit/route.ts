@@ -52,6 +52,8 @@ export async function POST(
       if (payload.branchScope !== 'ALL' && shift.branchId !== payload.branchId) throw new Error('FORBIDDEN_BRANCH')
       if (shift.status === 'OPEN') throw new Error('SHIFT_OPEN')
       if (shift.origin === 'BACKOFFICE') throw new Error('NO_DRAWER')
+      // F2-2: verifikasi baru lewat menu Shift › Setoran. Rute ini tinggal untuk koreksi data lama.
+      if (!shift.depositVerifiedAt) throw new Error('USE_DEPOSITS')
       // Verifikasi adalah tanda tangan finance atas uang yang diterima. Mengubahnya
       // belakangan sama dengan mengubah bukti serah-terima, jadi hanya atasan yang boleh.
       if (shift.depositVerifiedAt && !CORRECTOR_ROLES.includes(payload.role)) throw new Error('ALREADY_VERIFIED')
@@ -116,6 +118,8 @@ export async function POST(
           return NextResponse.json({ error: 'Shift backoffice (bulk sale) tidak punya laci kas untuk disetorkan' }, { status: 400 })
         case 'ALREADY_VERIFIED':
           return NextResponse.json({ error: 'Setoran shift ini sudah diverifikasi. Koreksi hanya bisa dilakukan Owner/GM' }, { status: 409 })
+        case 'USE_DEPOSITS':
+          return NextResponse.json({ error: 'Verifikasi setoran sekarang lewat menu Shift › Setoran' }, { status: 409 })
         case 'NOTES_REQUIRED':
           return NextResponse.json({ error: 'Kas diterima berbeda dengan setoran kasir — catatan wajib diisi' }, { status: 400 })
       }

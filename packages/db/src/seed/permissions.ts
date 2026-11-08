@@ -116,6 +116,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // FINANCE yang menerima setoran fisik dari kasir. Ikut memberi akses baca Riwayat Shift,
   // tapi dibatasi cabang sendiri lewat branchScope (lihat api/bo/shifts).
   { code: 'shift.deposit.verify', name: 'Verifikasi Setoran Shift', description: 'Catat kas setoran shift yang diterima finance', roles: ['OWNER', 'GM', 'FINANCE'] },
+  { code: 'deposit.report', name: 'Laporkan Setoran Tunai', description: 'Melaporkan setoran tunai ke bank dari POS (cabang sendiri)', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
   // F2-1 Tempat Uang (migrasi 0055). Finance ikut mengelola atas keputusan owner 2026-11-08.
   { code: 'money_place.read', name: 'Lihat Tempat Uang', description: 'Melihat daftar Tempat Uang dan tautan metode bayar per cabang', roles: ['OWNER', 'GM', 'FINANCE'] },
   { code: 'money_place.manage', name: 'Kelola Tempat Uang', description: 'Menambah, mengubah, menonaktifkan Tempat Uang dan menautkan metode bayar per cabang', roles: ['OWNER', 'GM', 'FINANCE'] },
