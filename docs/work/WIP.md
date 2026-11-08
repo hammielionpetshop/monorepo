@@ -35,6 +35,7 @@ Owner: repo session state
 
 ## Next Actions
 
+- **Antrean perbaikan Logistik HRIS** (disetujui owner 2026-11-08): 6 butir berurutan, satu butir per sesi. **Owner cukup mengetik "lanjutkan perbaikan HRIS"; agent wajib membaca panduan, isi, keputusan owner, dan tabel status (versi `origin/staging`) di** [`backlog/2026-11-08-perbaikan-logistik-hris.md`](backlog/2026-11-08-perbaikan-logistik-hris.md). A3 lolos uji owner (2026-11-08), rilis ke `main` ditahan atas permintaan owner; B3 lolos uji owner di staging (2026-11-08); berikutnya A2 (sesi baru).
 - Setelah 1.107.102 tayang: cutover akun pusat produksi (backfill, `BO_AUTH_MODE=central`, jembatan token, domain `hris.hammielion.com`) mengikuti `docs/ops/auth-pusat.md` dan butuh persetujuan owner terpisah; masa stabil 30 hari dihitung dari cutover. Lalu L2 dimulai dengan sistem komponen/tampilan dasar HRIS.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
