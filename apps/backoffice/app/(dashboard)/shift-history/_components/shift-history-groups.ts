@@ -14,6 +14,8 @@ export interface GroupableShift {
   totalVariance: number | null
   depositVerifiedAt: string | null
   depositVariance: number | null
+  /** F2-2: status setoran tunai yang memuat shift ini (null = belum disetor / cara lama). */
+  cashDepositStatus?: string | null
 }
 
 /** Satu baris tabel: satu shift biasa, atau beberapa shift estafet di hari & cabang yang sama. */
@@ -83,7 +85,7 @@ export function groupTotals(shifts: GroupableShift[]): ShiftGroupTotals {
       ? 'FORCE_CLOSED'
       : 'CLOSED'
   const eligible = shifts.filter((s) => s.status !== 'OPEN' && s.origin !== 'BACKOFFICE')
-  const verified = eligible.filter((s) => s.depositVerifiedAt != null)
+  const verified = eligible.filter((s) => s.depositVerifiedAt != null || s.cashDepositStatus === 'VERIFIED')
   return {
     openedAt: shifts[0].openedAt,
     closedAt: last.status === 'OPEN' ? null : (last.closedAt ?? last.forceClosedAt),
