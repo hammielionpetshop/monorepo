@@ -30,7 +30,9 @@ export const NEW_FEATURES: Record<string, string> = {
   '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
   '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
   '/settings/money-places': '2026-11-08', // Tempat Uang + tautan metode bayar per cabang, F2-1a (rilis 1.107.118)
+  '/deposits': '2026-11-08', // menu Setoran, F2-2 (samakan dengan tanggal rilis saat merge)
   // POS
+  '/pos/cash-deposits': '2026-11-08', // POS › Setor Tunai, F2-2 (samakan dengan tanggal rilis saat merge)
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
   '/pos/ongkir': '2026-11-04', // menu Ongkir: riwayat ongkir & pengantar cabang (samakan dengan tanggal rilis saat merge)

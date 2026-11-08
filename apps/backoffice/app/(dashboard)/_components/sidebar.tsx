@@ -44,6 +44,7 @@ import {
   HandCoins,
   CreditCard,
   Wallet,
+  Landmark,
   Barcode,
   PackageX,
   PackageMinus,
@@ -170,6 +171,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/shift-history', label: 'Riwayat Shift', icon: Clock, roles: ['OWNER', 'GM', 'FINANCE'] },
+      { href: '/deposits', label: 'Setoran', icon: Landmark, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/cashier-variance', label: 'Minus Kasir', icon: Scale, roles: ['OWNER', 'GM', 'FINANCE'] },
     ],
   },

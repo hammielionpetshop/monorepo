@@ -2,6 +2,7 @@ import { getAuth, hasPermission } from '@/lib/authz'
 import { db, branches, eq, asc } from '@/lib/db'
 import { NewBadge } from '@/components/ui/new-badge'
 import { getPaymentLinkMatrix, listMoneyPlaces, type MoneyPlaceRow, type PaymentLinkMatrix } from '@/lib/services/money-place-service'
+import { listCashDepositDefaults } from '@/lib/services/deposit-queries'
 import MoneyPlaceClient from './_components/money-place-client'
 
 export const dynamic = 'force-dynamic'
@@ -21,12 +22,14 @@ export default async function MoneyPlacesPage() {
   let places: MoneyPlaceRow[] = []
   let matrix: PaymentLinkMatrix = { branches: [], methods: [], links: [] }
   let branchOptions: { id: number; name: string }[] = []
+  let cashDefaults: { branchId: number; moneyPlaceId: number }[] = []
   let error: string | null = null
   try {
-    ;[places, matrix, branchOptions] = await Promise.all([
+    ;[places, matrix, branchOptions, cashDefaults] = await Promise.all([
       listMoneyPlaces(),
       getPaymentLinkMatrix(),
       db.select({ id: branches.id, name: branches.name }).from(branches).where(eq(branches.isActive, true)).orderBy(asc(branches.name)),
+      listCashDepositDefaults(),
     ])
   } catch (e) {
     console.error('MoneyPlacesPage error:', e)
@@ -53,6 +56,7 @@ export default async function MoneyPlacesPage() {
           initialMatrix={matrix}
           branchOptions={branchOptions}
           canManage={hasPermission(payload, 'money_place.manage')}
+          initialCashDefaults={cashDefaults}
         />
       )}
     </div>

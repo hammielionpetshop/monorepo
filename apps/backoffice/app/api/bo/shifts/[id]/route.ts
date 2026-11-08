@@ -9,6 +9,7 @@ import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
 import { getShiftDayRecap } from '@/lib/services/shift-day-recap'
 import { computeLiveShiftBreakdown } from '@/lib/services/shift-live-breakdown'
 import { recordedLineDiscountByTransaction, shiftDiscountOf } from '@/lib/services/line-discount-service'
+import { getShiftDepositStatus } from '@/lib/services/deposit-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -228,6 +229,8 @@ export async function GET(
     debtCash = debtCash ?? (await getShiftDebtCash(db, shiftId))
     // Ikut dihitung saat shift masih berjalan — dipakai "Detail Hari" di Riwayat Shift.
     const dayRecap = await getShiftDayRecap(db, shiftData)
+    // F2-2: status setoran tunai & verifikasi non-tunai per metode.
+    const depositStatus = await getShiftDepositStatus(shiftId)
 
     return NextResponse.json({
       shift: {
@@ -252,6 +255,7 @@ export async function GET(
       debtPaymentsReceived: debtCash.payments,
       totalDebtPaymentCash: debtCash.totalCash,
       dayRecap,
+      depositStatus,
     })
   } catch (error: unknown) {
     console.error('[bo/shifts/[id]] GET error:', error)
