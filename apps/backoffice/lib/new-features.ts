@@ -19,10 +19,10 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/cara-kirim': '2026-11-04', // pilihan wajib Cara kirim (bayar, Bulk Sale, Kirim PO Internal) + kolom/saringan Riwayat Transaksi + Ubah cara kirim (samakan dengan tanggal rilis saat merge)
   'fitur/utang-lama-jalankan': '2026-11-08', // tombol Jalankan pelunasan susulan + penyaring Utang lama, F2-3b-2
   'fitur/utang-lama-pratinjau': '2026-11-08', // tombol Utang Lama di Utang Internal, F2-3b-1
-  'fitur/pindah-dana': '2026-11-09', // Arus Kas › Pindah Dana F2-4c (samakan dengan tanggal rilis saat merge)
-  '/cash-flow/transfers': '2026-11-09', // menu Pindah Dana F2-4c (samakan dengan tanggal rilis saat merge)
-  'fitur/arus-kas-rapi': '2026-11-09', // Arus Kas F2-4b: tanggal uang, untuk bulan, Tempat Uang, batal beralasan, jenis kategori (samakan dengan tanggal rilis saat merge)
-  'fitur/dibayar-dari-supplier': '2026-11-09', // isian Dibayar dari (Tempat Uang) di form bayar supplier, F2-4a (samakan dengan tanggal rilis saat merge)
+  'fitur/pindah-dana': '2026-11-09', // Arus Kas › Pindah Dana F2-4c
+  '/cash-flow/transfers': '2026-11-09', // menu Pindah Dana F2-4c
+  'fitur/arus-kas-rapi': '2026-11-09', // Arus Kas F2-4b: tanggal uang, untuk bulan, Tempat Uang, batal beralasan, jenis kategori
+  'fitur/dibayar-dari-supplier': '2026-11-09', // isian Dibayar dari (Tempat Uang) di form bayar supplier, F2-4a
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
