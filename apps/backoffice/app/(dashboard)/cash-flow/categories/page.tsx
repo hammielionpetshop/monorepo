@@ -1,18 +1,24 @@
-import { db, cashFlowCategories } from '@/lib/db'
+import { db, cashFlowCategories, expenseCategories, asc } from '@/lib/db'
+import { categorySelect } from '@/lib/services/cash-flow-sql'
 import CategoryClient from './_components/category-client'
-import type { CashFlowCategory } from './_components/types'
+import type { CashFlowCategory, ExpenseLink } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CashFlowCategoriesPage() {
   let data: CashFlowCategory[] = []
+  let links: ExpenseLink[] = []
   let error: string | null = null
 
   try {
     data = (await db
-      .select({ id: cashFlowCategories.id, name: cashFlowCategories.name, type: cashFlowCategories.type })
+      .select(categorySelect)
       .from(cashFlowCategories)
       .orderBy(cashFlowCategories.type, cashFlowCategories.name)) as CashFlowCategory[]
+    links = await db
+      .select({ id: expenseCategories.id, name: expenseCategories.name, cashFlowCategoryId: expenseCategories.cashFlowCategoryId })
+      .from(expenseCategories)
+      .orderBy(asc(expenseCategories.name))
   } catch (e) {
     console.error('CashFlowCategoriesPage error:', e)
     error = 'Terjadi kesalahan saat mengambil data kategori'
@@ -32,9 +38,12 @@ export default async function CashFlowCategoriesPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-foreground">Kategori Pendapatan & Pengeluaran</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Kelola kategori untuk mencatat arus kas</p>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Kelola kategori untuk mencatat arus kas. Setiap kategori punya jenis laporan: Biaya atau Bukan biaya (pengeluaran),
+          Pendapatan lain atau Bukan pendapatan (pemasukan).
+        </p>
       </div>
-      <CategoryClient categories={data} />
+      <CategoryClient categories={data} expenseLinks={links} />
     </div>
   )
 }

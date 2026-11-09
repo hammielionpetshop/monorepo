@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productStocks, productStockBatches,
   suppliers, roles, users, purchaseOrders, purchaseOrderItems, supplierPayables, supplierPayablePayments,
-  supplierReturns, supplierCreditEntries, auditLogs, eq, and, desc, sql,
+  supplierReturns, supplierCreditEntries, auditLogs, eq, and, desc, sql, moneyPlaces,
 } from '../db'
 import { stockLedgerUnion } from './stock-ledger'
 
@@ -30,6 +30,7 @@ import { listSupplierReturns } from './supplier-return-queries'
 // Satuan: PCS (dasar), SAK = 25 PCS.
 const run = randomUUID().slice(0, 8)
 let branchId: number
+let bankPlaceId: number
 let userId: number
 let otherUserId: number
 let supplierId: number
@@ -98,6 +99,13 @@ beforeAll(async () => {
   po1 = await receivedPo(productA, 10, 12_500) // tagihan 125.000, modal 500/PCS
 })
 
+// F2-4a: pembayaran supplier non-tunai wajib menyebut Rekening asalnya.
+beforeAll(async () => {
+  bankPlaceId = (await db.insert(moneyPlaces).values({
+    name: `Rekening Uji supplier-return-cancel ${run}`, kind: 'BANK', branchId, bankName: 'BCA', accountNumber: '1234', accountHolder: 'Uji',
+  }).returning())[0].id
+})
+
 describe('Batalkan Retur Supplier Luar & tarik pengajuan (RI3b, DB lokal)', () => {
   it('1. batal retur ber-PO: stok masuk lagi (modal sama), tagihan kembali, jejak pembayaran negatif, Mutasi Stok dua baris', async () => {
     const stock0 = await stockPcs(productA)
@@ -108,7 +116,7 @@ describe('Batalkan Retur Supplier Luar & tarik pengajuan (RI3b, DB lokal)', () =
 
     // Sisa tagihan dilunasi tunai SETELAH retur — pembatalan harus mengembalikan tagihan 25.000.
     const payable = await payableOf(po1.poId)
-    expect((await payRoute(json({ amount: payable.totalAmount - payable.paidAmount, method: 'TRANSFER' }), params(payable.id))).status).toBe(201)
+    expect((await payRoute(json({ amount: payable.totalAmount - payable.paidAmount, method: 'TRANSFER', moneyPlaceId: bankPlaceId }), params(payable.id))).status).toBe(201)
     expect((await payableOf(po1.poId)).status).toBe('PAID')
 
     const cancelled = await cancelSupplierReturn({ id: header.id, userId, reason: 'tes: ternyata supplier menolak retur' })

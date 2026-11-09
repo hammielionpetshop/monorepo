@@ -465,6 +465,9 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                     <th className="text-right font-medium px-3 py-2">Nominal</th>
                     <th className="text-left font-medium px-3 py-2">Metode</th>
                     <th className="text-left font-medium px-3 py-2">
+                      <span className="inline-flex items-center gap-1.5">Dibayar dari <NewBadge feature="fitur/dibayar-dari-supplier" /></span>
+                    </th>
+                    <th className="text-left font-medium px-3 py-2">
                       <span className="inline-flex items-center gap-1.5">Bukti / Keterangan <NewBadge feature="fitur/foto-bukti-transfer" /></span>
                     </th>
                     <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
@@ -476,6 +479,15 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                       <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
                       <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
                       <td className="px-3 py-2">{pay.method}</td>
+                      <td className="px-3 py-2">
+                        {pay.noMoney ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : pay.moneyPlaceName ? (
+                          pay.moneyPlaceName
+                        ) : (
+                          <span className="italic text-muted-foreground">belum diketahui</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
                         {pay.note && <div>{pay.note}</div>}

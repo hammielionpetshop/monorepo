@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuth, requirePermission } from '@/lib/authz'
+import { reportKindsFor } from '@/lib/services/cash-flow-rules'
+import { categorySelect } from '@/lib/services/cash-flow-sql'
 import { db, cashFlowCategories, and, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -8,7 +10,11 @@ export const dynamic = 'force-dynamic'
 const createSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
   type: z.enum(['INCOME', 'EXPENSE'], { message: 'Tipe harus pendapatan atau pengeluaran' }),
+  reportKind: z.enum(['COST', 'NON_COST', 'INCOME', 'NON_INCOME'], { message: 'Jenis laporan wajib dipilih' }),
+  ownerOnly: z.boolean().optional(),
+  noteRequired: z.boolean().optional(),
 })
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +29,7 @@ export async function GET(req: NextRequest) {
       : undefined
 
     const result = await db
-      .select({ id: cashFlowCategories.id, name: cashFlowCategories.name, type: cashFlowCategories.type })
+      .select(categorySelect)
       .from(cashFlowCategories)
       .where(where)
       .orderBy(cashFlowCategories.type, cashFlowCategories.name)
@@ -56,6 +62,9 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
+    if (!reportKindsFor(parsed.data.type).includes(parsed.data.reportKind)) {
+      return NextResponse.json({ error: 'Jenis laporan tidak cocok dengan tipe kategori' }, { status: 400 })
+    }
 
     const result = await db.transaction(async (trx) => {
       const existing = await trx
@@ -65,7 +74,13 @@ export async function POST(req: NextRequest) {
         .limit(1)
       if (existing.length > 0) throw new Error('DUPLICATE_NAME')
 
-      return await trx.insert(cashFlowCategories).values({ name: parsed.data.name, type: parsed.data.type }).returning()
+      return await trx.insert(cashFlowCategories).values({
+        name: parsed.data.name,
+        type: parsed.data.type,
+        reportKind: parsed.data.reportKind,
+        ownerOnly: parsed.data.ownerOnly ?? false,
+        noteRequired: parsed.data.noteRequired ?? false,
+      }).returning()
     })
 
     return NextResponse.json(result[0], { status: 201 })

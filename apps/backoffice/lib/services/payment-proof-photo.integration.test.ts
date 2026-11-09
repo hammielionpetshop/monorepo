@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import {
   db, branches, roles, users, suppliers, customers, paymentMethods, purchaseOrders,
-  supplierPayables, supplierPayablePayments, customerDebts, debtPayments, eq,
+  supplierPayables, supplierPayablePayments, customerDebts, debtPayments, eq, moneyPlaces,
 } from '../db'
 
 vi.mock('@/lib/authz', () => ({
@@ -23,6 +23,7 @@ import { POST as debtBulkRoute } from '../../app/api/bo/customers/[id]/debts/pay
 const run = randomUUID().slice(0, 8)
 const PHOTO = `/uploads/${randomUUID()}.jpg`
 let branchId: number
+let bankPlaceId: number
 let userId: number
 let supplierId: number
 let customerId: number
@@ -54,14 +55,39 @@ beforeAll(async () => {
   cashMethodId = (await db.insert(paymentMethods).values({ name: `Tunai FB ${run}`, type: 'CASH' }).returning())[0].id
 })
 
+// F2-4a: pembayaran supplier non-tunai wajib menyebut Rekening asalnya.
+beforeAll(async () => {
+  bankPlaceId = (await db.insert(moneyPlaces).values({
+    name: `Rekening Uji payment-proof-photo ${run}`, kind: 'BANK', branchId, bankName: 'BCA', accountNumber: '1234', accountHolder: 'Uji',
+  }).returning())[0].id
+})
+
 describe('Foto bukti transfer di pembayaran manual (DB lokal)', () => {
+  it('F2-4a Dibayar dari: tersimpan; wajib; tunai harus dari tempat Tunai; laci ditolak', async () => {
+    const id = await payable(50_000)
+    const params = { params: Promise.resolve({ id: String(id) }) }
+    const cashPlaceId = (await db.insert(moneyPlaces).values({ name: `Brankas Uji ${run}`, kind: 'CASH', branchId }).returning())[0].id
+    const [drawer] = await db.select({ id: moneyPlaces.id }).from(moneyPlaces).where(eq(moneyPlaces.branchId, branchId))
+      .then(rows => rows.filter(r => r.id !== cashPlaceId && r.id !== bankPlaceId))
+    const cashName = `Tunai FB ${run}`
+
+    expect((await supplierPayRoute(json({ amount: 1_000, method: cashName }), params)).status).toBe(400)
+    expect((await supplierPayRoute(json({ amount: 1_000, method: cashName, moneyPlaceId: bankPlaceId }), params)).status).toBe(400)
+    expect((await supplierPayRoute(json({ amount: 1_000, method: 'TRANSFER', moneyPlaceId: cashPlaceId }), params)).status).toBe(400)
+    if (drawer) expect((await supplierPayRoute(json({ amount: 1_000, method: cashName, moneyPlaceId: drawer.id }), params)).status).toBe(400)
+    expect((await supplierPayRoute(json({ amount: 1_000, method: cashName, moneyPlaceId: cashPlaceId }), params)).status).toBe(201)
+
+    const rows = await db.select().from(supplierPayablePayments).where(eq(supplierPayablePayments.payableId, id))
+    expect(rows.map(r => r.moneyPlaceId)).toEqual([cashPlaceId])
+  })
+
   it('bayar hutang supplier: foto tersimpan; tanpa foto tetap bisa; alamat foto asing ditolak', async () => {
     const id = await payable(30_000)
     const params = { params: Promise.resolve({ id: String(id) }) }
 
-    expect((await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER', proofPhotoUrl: PHOTO }), params)).status).toBe(201)
-    expect((await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER' }), params)).status).toBe(201)
-    const bad = await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER', proofPhotoUrl: 'https://contoh.test/x.jpg' }), params)
+    expect((await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER', moneyPlaceId: bankPlaceId, proofPhotoUrl: PHOTO }), params)).status).toBe(201)
+    expect((await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER', moneyPlaceId: bankPlaceId }), params)).status).toBe(201)
+    const bad = await supplierPayRoute(json({ amount: 10_000, method: 'TRANSFER', moneyPlaceId: bankPlaceId, proofPhotoUrl: 'https://contoh.test/x.jpg' }), params)
     expect(bad.status).toBe(400)
 
     const rows = await db.select().from(supplierPayablePayments).where(eq(supplierPayablePayments.payableId, id)).orderBy(supplierPayablePayments.id)
