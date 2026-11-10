@@ -13,6 +13,7 @@ import { PromoSaleError } from "@/lib/services/promo-sale-service";
 import { MANUAL_DISCOUNT_NOTE_MAX } from "@/lib/manual-discount";
 import { DeliveryMethodError, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
 import { getDeliverySettings } from "@/lib/delivery-method-server";
+import { BelowCostSaleError } from "@/lib/below-cost";
 
 const transactionSchema = z.object({
   branchId: z.number().int().positive(),
@@ -331,6 +332,8 @@ export async function POST(req: NextRequest) {
       branchId: effectiveBranchId,
       cashierId: payload.userId,
       saleType: result.data.sourceIbtId ? "BULK" : "RETAIL",
+      // Kasir tidak boleh menjual di bawah modal (promo resmi dikecualikan) — hubungi kantor.
+      belowCostPolicy: "REJECT",
       sourceIbtId: result.data.sourceIbtId ?? null,
       deliveryMethod,
       clientRequestId: result.data.clientRequestId ?? null,
@@ -352,6 +355,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof GroomingOrderError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof LineDiscountError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof BelowCostSaleError) return NextResponse.json({ error: error.message, code: error.code, lines: error.lines }, { status: error.status })
     if (error instanceof PromoSaleError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
     // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
     // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.

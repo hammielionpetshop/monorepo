@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.107.125] - 2026-11-10
+
+### Added
+- Larangan jual di bawah modal. Kasir: nota ditolak bila harga bersih barang (sesudah ubah harga atau diskon manual) lebih rendah dari modal cabang, dengan pesan "Harga di bawah modal — hubungi kantor untuk memeriksa harga" beserta nama barang, harga, dan modalnya. Promo resmi tetap boleh. Bulk Sale: muncul dua jendela konfirmasi berturut-turut (daftar barang di bawah modal, lalu "Penjualan ini RUGI Rp X"); penjualan rugi yang disimpan tercatat di Audit Log sebagai "Jual di bawah modal". PO Internal dan jasa tidak diperiksa.
+- Tinjauan Modal & Margin › tab baru **Harga Jual Perlu Diperiksa** (Owner/GM): setiap barang yang modalnya naik dari barang masuk (PO, faktur PO, terima transfer internal, penambahan stok) otomatis masuk daftar ini per cabang. Tiap satuan dan jenis harga menampilkan harga lama, modal baru, margin, dan usulan harga yang mempertahankan persentase untung lama, dibulatkan ke atas ke Rp 100. **Setujui harga** langsung mengubah harga di Manajemen Harga (tercatat di riwayat harga), dan modal yang masih ditahan (naik 30% atau lebih) ikut disetujui. Tersedia juga Setujui banyak sekaligus, **Tetap harga lama** (alasan wajib; ditolak bila harga di bawah modal baru), dan **Tolak kenaikan modal**.
+- Detail PO dan detail transfer internal menampilkan "X barang modalnya naik — harga jualnya menunggu diperiksa manajemen".
+
+### Changed
+- Peringatan "Harga beda jauh" di Terima Barang PO menjelaskan bahwa modal yang berubah 30% atau lebih ditahan sampai disetujui Owner/GM dan harga jualnya menunggu diperiksa.
+
 ## [1.107.124] - 2026-11-10
 
 ### Changed

@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import {
   db,
   productCostSyncs,
+  priceReviews,
   productUomCosts,
   productUomConversions,
   productPrices,
@@ -21,6 +22,7 @@ import {
   desc,
 } from '@/lib/db'
 import { buildPriceAuditEntry, type PriceMutationActor } from './price-service'
+import { lockOpenPriceReview, recordPriceReviewInTx, resolvePriceReviewInTx } from './price-review-record'
 
 // Lompatan modal per satuan dasar sebesar ini (naik atau turun) wajib ditinjau OWNER/GM.
 export const COST_REVIEW_THRESHOLD = new Big('0.3')
@@ -92,7 +94,7 @@ export function marginPercent(price: number, cost: number): number {
 
 // -------------------- Akses DB --------------------
 
-async function loadProductUoms(tx: Tx, productId: number): Promise<{ baseUomId: number; uoms: UomRatio[] } | null> {
+export async function loadProductUoms(tx: Tx, productId: number): Promise<{ baseUomId: number; uoms: UomRatio[] } | null> {
   const [prod] = await tx
     .select({ baseUomId: products.baseUomId })
     .from(products)
@@ -112,7 +114,7 @@ async function loadProductUoms(tx: Tx, productId: number): Promise<{ baseUomId: 
   return { baseUomId: prod.baseUomId, uoms }
 }
 
-async function loadCurrentCosts(tx: Tx, branchId: number, productId: number): Promise<Map<number, number>> {
+export async function loadCurrentCosts(tx: Tx, branchId: number, productId: number): Promise<Map<number, number>> {
   const rows: { uomId: number; costPrice: number }[] = await tx
     .select({ uomId: productUomCosts.uomId, costPrice: productUomCosts.costPrice })
     .from(productUomCosts)
@@ -225,6 +227,7 @@ export async function syncCostFromInbound(tx: Tx, input: InboundCostInput): Prom
   const supersedeNote = `Digantikan barang masuk yang lebih baru (${sourceRef})`
   if (targets.every(t => current.get(t.uomId) === t.costPrice)) {
     await supersedePending(tx, branchId, productId, supersedeNote)
+    await settlePriceReview(tx, branchId, productId)
     return 'UNCHANGED'
   }
 
@@ -244,7 +247,7 @@ export async function syncCostFromInbound(tx: Tx, input: InboundCostInput): Prom
     })
   }
 
-  await tx.insert(productCostSyncs).values({
+  const [sync] = await tx.insert(productCostSyncs).values({
     branchId,
     productId,
     sourceType,
@@ -257,9 +260,56 @@ export async function syncCostFromInbound(tx: Tx, input: InboundCostInput): Prom
     status: decision === 'APPLY' ? 'APPLIED' : 'PENDING',
     effectiveAt,
     createdById: actorUserId,
-  })
+  }).returning({ id: productCostSyncs.id })
+
+  // Modal naik (diterapkan atau masih ditahan) → harga jual wajib diperiksa manajemen.
+  if (oldPerBase === null || oldPerBase <= 0 || newPerBase > oldPerBase) {
+    await recordPriceReviewInTx(tx, {
+      branchId,
+      productId,
+      oldCostPerBase: oldPerBase,
+      newCostPerBase: newPerBase,
+      costSyncId: sync.id,
+      source: { type: sourceType, id: sourceId, ref: sourceRef },
+    })
+  } else {
+    await settlePriceReview(tx, branchId, productId)
+  }
 
   return decision === 'APPLY' ? 'APPLIED' : 'PENDING'
+}
+
+/**
+ * Sesudah modal (cabang, produk) berubah tanpa naik — usulan ditolak/disetujui, digantikan, atau
+ * turun: Pemeriksaan Harga Jual yang terbuka ditutup bila modal yang berlaku tidak lagi di atas
+ * modal pembandingnya; kalau masih naik, angka modal barunya diperbarui. Selama masih ada usulan
+ * modal yang ditahan, Pemeriksaan dibiarkan (keputusan modalnya belum ada).
+ */
+export async function settlePriceReview(tx: Tx, branchId: number, productId: number): Promise<void> {
+  const open = await lockOpenPriceReview(tx, branchId, productId)
+  if (!open) return
+  const [pending] = await tx
+    .select({ id: productCostSyncs.id })
+    .from(productCostSyncs)
+    .where(and(
+      eq(productCostSyncs.branchId, branchId),
+      eq(productCostSyncs.productId, productId),
+      eq(productCostSyncs.status, 'PENDING'),
+    ))
+    .limit(1)
+  if (pending) return
+
+  const product = await loadProductUoms(tx, productId)
+  const current = await loadCurrentCosts(tx, branchId, productId)
+  const perBase = product ? currentCostPerBase(product.uoms, current, product.baseUomId) : null
+  const stillRaised = perBase !== null && (open.oldCostPerBase === null || perBase > open.oldCostPerBase)
+  if (!stillRaised) {
+    await resolvePriceReviewInTx(tx, { id: open.id, status: 'CLOSED', userId: null, note: 'Modal tidak jadi naik' })
+    return
+  }
+  if (perBase !== open.newCostPerBase) {
+    await tx.update(priceReviews).set({ newCostPerBase: perBase, updatedAt: new Date() }).where(eq(priceReviews.id, open.id))
+  }
 }
 
 /**
@@ -359,6 +409,7 @@ export async function approveCostReview(tx: Tx, input: { id: number; userId: num
     .update(productCostSyncs)
     .set({ status: 'APPROVED', resolvedById: input.userId, resolvedAt: new Date(), resolutionNote: input.note ?? null })
     .where(eq(productCostSyncs.id, row.id))
+  await settlePriceReview(tx, row.branchId, row.productId)
 }
 
 export async function rejectCostReview(tx: Tx, input: { id: number; userId: number; reason: string }): Promise<void> {
@@ -366,8 +417,11 @@ export async function rejectCostReview(tx: Tx, input: { id: number; userId: numb
     .update(productCostSyncs)
     .set({ status: 'REJECTED', resolvedById: input.userId, resolvedAt: new Date(), resolutionNote: input.reason })
     .where(and(eq(productCostSyncs.id, input.id), eq(productCostSyncs.status, 'PENDING')))
-    .returning({ id: productCostSyncs.id })
-  if (updated) return
+    .returning({ id: productCostSyncs.id, branchId: productCostSyncs.branchId, productId: productCostSyncs.productId })
+  if (updated) {
+    await settlePriceReview(tx, updated.branchId, updated.productId)
+    return
+  }
 
   const [exists] = await tx.select({ id: productCostSyncs.id }).from(productCostSyncs).where(eq(productCostSyncs.id, input.id)).limit(1)
   throw new Error(exists ? 'NOT_PENDING' : 'NOT_FOUND')
@@ -565,6 +619,7 @@ export function costReviewBadgeExpr() {
   const { costJoin } = marginAlertBase()
   return sql<number>`(
     (SELECT CAST(COUNT(*) AS INTEGER) FROM ${productCostSyncs} WHERE ${eq(productCostSyncs.status, 'PENDING')})
+    + (SELECT CAST(COUNT(*) AS INTEGER) FROM ${priceReviews} WHERE ${eq(priceReviews.status, 'OPEN')})
     + (SELECT CAST(COUNT(*) AS INTEGER) FROM ${productPrices}
         INNER JOIN ${productUomCosts} ON ${costJoin}
         INNER JOIN ${products} ON ${eq(productPrices.productId, products.id)}
