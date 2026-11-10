@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { NewBadge } from '@/components/ui/new-badge'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import { PROMO_STATUS_LABEL, type PromoStatus } from '@/lib/promo/promo-engine'
-import { describePromo, formatPromoPeriod, promoKindLabel } from '@/lib/promo/promo-form'
+import { describePromo, formatPromoPeriod, promoKindLabel, promoToForm } from '@/lib/promo/promo-form'
+import PromoDatesDialog from './promo-dates-dialog'
 import PromoFormDialog from './promo-form-dialog'
 import type { BranchOption, PromoItemOption, PromoView } from './types'
 
@@ -114,12 +115,17 @@ export default function PromoClient({
   const router = useRouter()
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>('SEMUA')
   const [creating, setCreating] = useState(false)
+  const [copying, setCopying] = useState<PromoView | null>(null)
+  const [editingDates, setEditingDates] = useState<PromoView | null>(null)
   const [deactivating, setDeactivating] = useState<PromoView | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const shown = filter === 'SEMUA' ? promos : promos.filter((p) => p.status === filter)
   const countOf = (s: (typeof STATUS_FILTERS)[number]) => (s === 'SEMUA' ? promos.length : promos.filter((p) => p.status === s).length)
+
+  const branchIds = branches.map((b) => b.id)
+  const copyFormOf = (p: PromoView) => promoToForm(p, today, new Date(), branchIds)
 
   async function deactivate(promo: PromoView) {
     setBusy(true)
@@ -149,6 +155,38 @@ export default function PromoClient({
         />
       )}
 
+      {copying && (() => {
+        const form = copyFormOf(copying)
+        if (!form) return null
+        return (
+          <PromoFormDialog
+            items={items}
+            branches={branches}
+            today={today}
+            defaultBranchIds={defaultBranchIds}
+            copyFrom={{ id: copying.id, name: copying.name, isActive: copying.isActive, form }}
+            onClose={() => setCopying(null)}
+            onCreated={(name) => {
+              setCopying(null)
+              setMessage({ type: 'ok', text: `Promo "${name}" tersimpan sebagai promo baru.` })
+              router.refresh()
+            }}
+          />
+        )
+      })()}
+
+      {editingDates && (
+        <PromoDatesDialog
+          promo={editingDates}
+          onClose={() => setEditingDates(null)}
+          onSaved={() => {
+            setEditingDates(null)
+            setMessage({ type: 'ok', text: `Tanggal promo "${editingDates.name}" tersimpan.` })
+            router.refresh()
+          }}
+        />
+      )}
+
       {deactivating && (
         <RequiredChoiceDialog
           title="Nonaktifkan promo?"
@@ -160,7 +198,7 @@ export default function PromoClient({
         >
           <p>
             Promo <b>{deactivating.name}</b> langsung berhenti di semua cabangnya dan <b>tidak bisa dinyalakan lagi</b>. Bila masih
-            dibutuhkan, buat promo baru. Nota yang sudah memakai promo ini tidak berubah.
+            dibutuhkan, pakai <b>Salin jadi promo baru</b>. Nota yang sudah memakai promo ini tidak berubah.
           </p>
           <p>Perubahan ini tercatat atas nama Anda.</p>
         </RequiredChoiceDialog>
@@ -229,15 +267,36 @@ export default function PromoClient({
                     {p.deactivatedAt && ` · Dinonaktifkan ${p.deactivatedByName ?? '-'} · ${new Date(p.deactivatedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`}
                   </p>
                 </div>
-                {p.status !== 'NONAKTIF' && p.status !== 'BERAKHIR' && (
-                  <button
-                    type="button"
-                    onClick={() => { setMessage(null); setDeactivating(p) }}
-                    className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
-                  >
-                    Nonaktifkan
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <NewBadge feature="fitur/promo-salin-ubah-tanggal" />
+                  {p.status !== 'NONAKTIF' && (
+                    <button
+                      type="button"
+                      onClick={() => { setMessage(null); setEditingDates(p) }}
+                      className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      Ubah tanggal
+                    </button>
+                  )}
+                  {copyFormOf(p) && (
+                    <button
+                      type="button"
+                      onClick={() => { setMessage(null); setCopying(p) }}
+                      className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      Salin jadi promo baru
+                    </button>
+                  )}
+                  {p.status !== 'NONAKTIF' && p.status !== 'BERAKHIR' && (
+                    <button
+                      type="button"
+                      onClick={() => { setMessage(null); setDeactivating(p) }}
+                      className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+                    >
+                      Nonaktifkan
+                    </button>
+                  )}
+                </div>
               </div>
             </li>
           ))}
