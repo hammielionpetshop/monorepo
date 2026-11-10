@@ -4,7 +4,7 @@ export const COST_JUMP_THRESHOLD = 0.3
 export interface ReceivingLineInput {
   name: string
   uomCode: string
-  /** Sisa pesanan yang belum diterima; 0 = baris tidak bisa diisi. */
+  /** Sisa pesanan yang belum diterima; 0 = pesanan baris ini sudah terpenuhi. */
   remaining: number
   qty: number
   damaged: number
@@ -15,7 +15,7 @@ export interface ReceivingLineInput {
 }
 
 export interface ReceivingWarning {
-  kind: 'ZERO_QTY' | 'NO_PRICE' | 'COST_JUMP'
+  kind: 'OVER_QTY' | 'ZERO_QTY' | 'NO_PRICE' | 'COST_JUMP'
   title: string
   message: string
   lines: string[]
@@ -27,10 +27,22 @@ const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`
 
 /**
  * Peringatan sebelum penerimaan disimpan, urut ditampilkan satu per satu sebagai jendela wajib
- * klik: qty 0 → harga kosong → harga melonjak. Kosong = langsung simpan.
+ * klik: lebih dari pesanan → qty 0 → harga kosong → harga melonjak. Kosong = langsung simpan.
  */
 export function receivingWarnings(lines: ReceivingLineInput[]): ReceivingWarning[] {
   const warnings: ReceivingWarning[] = []
+
+  const over = lines.filter(l => l.qty > l.remaining)
+  if (over.length > 0) {
+    warnings.push({
+      kind: 'OVER_QTY',
+      title: `${over.length} barang datang melebihi pesanan`,
+      message: 'Kelebihan ikut masuk stok dan dihitung ke hutang supplier. Yakin barang ini memang diterima?',
+      lines: over.map(l => `${l.name}: datang ${l.qty}, sisa pesanan ${l.remaining} (lebih ${l.qty - l.remaining} ${l.uomCode})`),
+      backLabel: 'Periksa lagi',
+      continueLabel: 'Ya, terima semua',
+    })
+  }
 
   const zeroQty = lines.filter(l => l.remaining > 0 && l.qty === 0)
   if (zeroQty.length > 0) {

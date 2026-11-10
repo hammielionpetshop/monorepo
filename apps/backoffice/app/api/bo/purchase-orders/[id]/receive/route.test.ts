@@ -21,8 +21,8 @@ vi.mock('@/lib/db', async () => {
 import { POST } from './route'
 
 beforeEach(() => { vi.clearAllMocks(); updates.length = 0; lockedStatus = 'APPROVED'; received = 0; permission.mockResolvedValue({ userId: 1, branchId: 1, branchScope: 'ALL' }) })
-async function receive(item: Record<string, unknown> = {}) {
-  return POST(new Request('http://localhost', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: [{ poItemId: 1, qtyReceived: 2, qtyDamaged: 0, ...item }] }) }), { params: Promise.resolve({ id: '1' }) })
+async function receive(item: Record<string, unknown> = {}, note?: string) {
+  return POST(new Request('http://localhost', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ note, items: [{ poItemId: 1, qtyReceived: 2, qtyDamaged: 0, ...item }] }) }), { params: Promise.resolve({ id: '1' }) })
 }
 const itemUpdate = () => updates.find(u => 'qtyReceived' in u)!
 describe('pencatatan penerimaan PO BO', () => {
@@ -34,7 +34,21 @@ describe('pencatatan penerimaan PO BO', () => {
   })
   it('qty terbaru pada header terkunci dipakai untuk validasi sisa', async () => {
     received = 4
-    expect((await receive()).status).toBe(400)
+    const res = await receive()
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/melebihi pesanan/)
+  })
+  it('barang datang melebihi pesanan diterima bila alasan diisi, qty penuh tercatat', async () => {
+    const res = await receive({ qtyReceived: 8 }, 'negosiasi owner')
+    expect(res.status).toBe(200)
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ qtyReceived: 8, note: 'Lebih 3 dari sisa pesanan (5)' }))
+  })
+  it('barang lebih pada baris yang sudah terpenuhi tetap bisa dicatat dengan alasan', async () => {
+    received = 5
+    expect((await receive({ qtyReceived: 2 }, 'lebih kirim')).status).toBe(200)
+  })
+  it('alasan berisi spasi saja dianggap kosong', async () => {
+    expect((await receive({ qtyReceived: 8 }, '   ')).status).toBe(400)
   })
 })
 

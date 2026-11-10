@@ -130,10 +130,15 @@ export async function POST(
           throw new Error("PO_ITEM_NOT_FOUND");
         }
 
-        const remainingQty =
-          Number(poItem.qtyOrdered) - Number(poItem.qtyReceived);
-        if (item.qtyReceived > remainingQty) {
-          throw new Error("RECEIVE_QTY_EXCEEDED");
+        // Barang boleh datang melebihi sisa pesanan (negosiasi/lebih kirim); hutang & stok
+        // mengikuti qty yang benar-benar diterima. Alasannya wajib tercatat di catatan penerimaan.
+        const remainingQty = Math.max(
+          Number(poItem.qtyOrdered) - Number(poItem.qtyReceived),
+          0,
+        );
+        const overQty = item.qtyReceived - remainingQty;
+        if (overQty > 0 && !parsed.data.note?.trim()) {
+          throw new Error("OVER_RECEIVE_NOTE_REQUIRED");
         }
 
         await tx.insert(poReceivingItems).values({
@@ -142,7 +147,9 @@ export async function POST(
           qtyReceived: item.qtyReceived,
           qtyDamaged: item.qtyDamaged,
           expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
-          note: item.note ?? null,
+          note:
+            item.note ??
+            (overQty > 0 ? `Lebih ${overQty} dari sisa pesanan (${remainingQty})` : null),
         });
 
         await tx
@@ -199,9 +206,9 @@ export async function POST(
         );
       }
 
-      if (error.message === "RECEIVE_QTY_EXCEEDED") {
+      if (error.message === "OVER_RECEIVE_NOTE_REQUIRED") {
         return NextResponse.json(
-          { error: "Qty diterima melebihi sisa item PO" },
+          { error: "Barang datang melebihi pesanan — isi alasannya di Catatan" },
           { status: 400 },
         );
       }
