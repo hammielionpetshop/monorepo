@@ -22,6 +22,9 @@ import { getDeliverySettings } from '@/lib/delivery-method-server'
 import { InternalTransferDetailClient } from './_components/internal-transfer-detail-client'
 import type { InternalTransferDetail, BranchOption, TransferCancelEntry } from './_components/types'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import { countOpenPriceReviewsForSource } from '@/lib/services/price-review-record'
+import { hasPermission } from '@/lib/authz'
+import PriceReviewNotice from '../../[id]/_components/price-review-notice'
 
 export const dynamic = 'force-dynamic'
 
@@ -219,8 +222,11 @@ export default async function InternalTransferDetailPage({
     )
   }
 
+  const priceReviewCount = await countOpenPriceReviewsForSource(['IBT_RECEIVE'], transferId).catch(() => 0)
+
   return (
     <div className="p-6 max-w-5xl">
+      <PriceReviewNotice count={priceReviewCount} canReview={payload ? hasPermission(payload, 'master.price.manage') : false} />
       <InternalTransferDetailClient
         transfer={transfer!}
         role={role}

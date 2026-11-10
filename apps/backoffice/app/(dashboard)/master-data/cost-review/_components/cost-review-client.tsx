@@ -9,8 +9,11 @@ import type {
   CostSyncSourceType,
   MarginAlertEntry,
 } from '@/lib/services/cost-sync-service'
+import type { PriceReviewEntry } from '@/lib/services/price-review-service'
+import { NewBadge } from '@/components/ui/new-badge'
+import PriceReviewPanel from './price-review-panel'
 
-type View = 'MODAL' | 'MARGIN'
+type View = 'HARGA' | 'MODAL' | 'MARGIN'
 
 interface BranchOption {
   id: number
@@ -68,12 +71,14 @@ function ChangeBadge({ percent }: { percent: number | null }) {
 
 interface Props {
   initialReviews: CostReviewEntry[]
+  initialPriceReviews: PriceReviewEntry[]
   branches: BranchOption[]
 }
 
-export default function CostReviewClient({ initialReviews, branches }: Props) {
+export default function CostReviewClient({ initialReviews, initialPriceReviews, branches }: Props) {
   const router = useRouter()
-  const [view, setView] = useState<View>('MODAL')
+  const [priceReviewCount, setPriceReviewCount] = useState(initialPriceReviews.length)
+  const [view, setView] = useState<View>('HARGA')
 
   const [tab, setTab] = useState<CostReviewTab>('PENDING')
   const [reviews, setReviews] = useState<CostReviewEntry[]>(initialReviews)
@@ -208,6 +213,7 @@ export default function CostReviewClient({ initialReviews, branches }: Props) {
     <div className="space-y-4">
       <div className="flex gap-2">
         {([
+          { value: 'HARGA' as const, label: `Harga Jual Perlu Diperiksa${priceReviewCount > 0 ? ` (${priceReviewCount})` : ''}` },
           { value: 'MODAL' as const, label: `Modal Perlu Ditinjau${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
           { value: 'MARGIN' as const, label: `Margin Menipis / Rugi${margins !== null ? ` (${marginTotal})` : ''}` },
         ]).map((v) => (
@@ -222,6 +228,7 @@ export default function CostReviewClient({ initialReviews, branches }: Props) {
             }`}
           >
             {v.label}
+            {v.value === 'HARGA' && <NewBadge feature="fitur/periksa-harga-jual" className="ml-2" />}
           </button>
         ))}
       </div>
@@ -232,7 +239,9 @@ export default function CostReviewClient({ initialReviews, branches }: Props) {
         </div>
       )}
 
-      {view === 'MODAL' ? (
+      {view === 'HARGA' ? (
+        <PriceReviewPanel initialReviews={initialPriceReviews} branches={branches} onCountChange={setPriceReviewCount} />
+      ) : view === 'MODAL' ? (
         <>
           <div className="flex gap-1 border-b border-border">
             {REVIEW_TABS.map((t) => (

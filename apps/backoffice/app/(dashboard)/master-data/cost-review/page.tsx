@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { db, branches, eq } from '@/lib/db'
 import { getCostReviews, MARGIN_ALERT_PERCENT } from '@/lib/services/cost-sync-service'
+import { getOpenPriceReviews } from '@/lib/services/price-review-service'
 import CostReviewClient from './_components/cost-review-client'
 
 export const dynamic = 'force-dynamic'
@@ -30,9 +31,12 @@ export default async function CostReviewPage() {
     .orderBy(branches.name)
 
   let initialReviews: Awaited<ReturnType<typeof getCostReviews>> = []
+  let initialPriceReviews: Awaited<ReturnType<typeof getOpenPriceReviews>> = []
   let error: string | null = null
   try {
-    initialReviews = await getCostReviews('PENDING')
+    const [reviews, priceReviews] = await Promise.all([getCostReviews('PENDING'), getOpenPriceReviews()])
+    initialReviews = reviews
+    initialPriceReviews = priceReviews
   } catch (e) {
     error = e instanceof Error ? e.message : 'Gagal memuat tinjauan modal'
   }
@@ -54,7 +58,7 @@ export default async function CostReviewPage() {
         </div>
       )}
 
-      <CostReviewClient initialReviews={initialReviews} branches={branchList} />
+      <CostReviewClient initialReviews={initialReviews} initialPriceReviews={initialPriceReviews} branches={branchList} />
     </div>
   )
 }
