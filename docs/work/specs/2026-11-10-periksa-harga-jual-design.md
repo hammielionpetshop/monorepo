@@ -129,3 +129,21 @@ manual di Manajemen Harga; Tahap 2 menyusul untuk membuat alur itu cepat.
 
 - Urutan: Tahap 1 (Bagian B) dulu, Tahap 2 (Bagian A) menyusul — owner: "ok".
 - Hak `price.review` hanya OWNER dan GM.
+
+## Catatan implementasi (2026-11-10)
+
+- **Hak akses:** tidak menambah hak `price.review`; memakai hak yang sudah ada `master.price.manage` (Kelola
+  Harga) yang memang hanya dimiliki OWNER dan GM — sama dengan Tinjauan Modal, tanpa lapisan baru.
+- **Tabel `price_reviews`:** rujukan cabang/produk `ON DELETE CASCADE` dan catatan modal `ON DELETE SET NULL`
+  (pola `money_places` 0055) agar data yang boleh dihapus (data tes) tidak tertahan; data terpakai tetap
+  tertahan rujukan lain. Modal baru & usulan dihitung saat dibaca dari modal yang berlaku atau usulan modal
+  yang masih ditahan.
+- **Usulan tanpa modal lama:** harga lama, dinaikkan ke modal (bulat ke atas Rp 100) bila kurang. Usulan
+  tidak pernah di bawah modal satuannya.
+- **Modal tidak jadi naik** (usulan ditolak, digantikan, atau turun lagi): Pemeriksaan tertutup sendiri
+  (status `CLOSED`, "Modal tidak jadi naik").
+- **Tanda admin:** detail PO & detail transfer internal (bukan langsung di form terima, karena modal baru
+  berubah saat penerimaan disetujui); teks peringatan "Harga beda jauh" di form terima diperjelas.
+- **Kasir (Tahap 1):** pemeriksaan di server; layar kasir menampilkan pesan penolakan berisi barang, harga,
+  dan modal (data modal tidak dikirim ke layar kasir).
+
