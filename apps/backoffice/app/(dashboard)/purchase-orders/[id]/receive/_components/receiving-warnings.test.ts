@@ -23,6 +23,12 @@ describe('receivingWarnings', () => {
     expect(w[0].lines).toEqual(['ACTIVE -2 (sisa 10 SAK)'])
   })
 
+  it('qty melebihi sisa pesanan → peringatan lebih, tampil paling awal', () => {
+    const w = receivingWarnings([line({ remaining: 20, qty: 30 }), line({ name: 'B', qty: 0, price: 0 })])
+    expect(w.map(x => x.kind)).toEqual(['OVER_QTY', 'ZERO_QTY'])
+    expect(w[0].lines).toEqual(['ACTIVE -2: datang 30, sisa pesanan 20 (lebih 10 SAK)'])
+  })
+
   it('barang yang sudah habis diterima (sisa 0) tidak diperingatkan', () => {
     expect(receivingWarnings([line({ remaining: 0, qty: 0, price: 0 }), line({ name: 'B' })])).toEqual([])
   })
