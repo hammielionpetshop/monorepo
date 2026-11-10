@@ -470,6 +470,7 @@ describe("POST /api/bo/bulk-sales", () => {
       priceOverrides: [],
       overrideById: 7,
       saleType: "BULK",
+      belowCostPolicy: "REJECT",
       sourceIbtId: null,
       sourceOrderId: null,
       deliveryMethod: "TRUCK",
@@ -609,5 +610,29 @@ describe("POST /api/bo/bulk-sales", () => {
     expect(res.status).toBe(409);
     expect(json.error).toContain("Internal PO");
     expect(json.error).toContain("baru saja diproses");
+  });
+
+  it("tanpa konfirmasi: barang di bawah modal ditolak dan daftar barangnya dikembalikan", async () => {
+    const { BelowCostSaleError } = await import("@/lib/below-cost");
+    const lines = [{ productId: 1, productName: "A", uomId: 1, uomCode: "PCS", qty: 2, netUnitPrice: 4500, unitCost: 5000, loss: 1000 }];
+    createTransaction.mockRejectedValueOnce(new BelowCostSaleError(lines));
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload()));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.code).toBe("BELOW_COST");
+    expect(json.lines).toEqual(lines);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ belowCostPolicy: "REJECT" }));
+  });
+
+  it("sesudah 2× konfirmasi: penjualan diteruskan dengan kebijakan CONFIRMED", async () => {
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ belowCostConfirmed: true })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ belowCostPolicy: "CONFIRMED" }));
   });
 });
