@@ -1,5 +1,5 @@
 import {
-  checkNewPromo, conditionUnits, promoUnitPrice, PROMO_KIND_LABEL, PROMO_QUOTA_KIND_LABEL,
+  checkNewPromo, conditionUnits, promoUnitPrice, CREATABLE_PROMO_KINDS, PROMO_KIND_LABEL, PROMO_QUOTA_KIND_LABEL,
   type PromoKind, type PromoQuotaKind, type PromoRule, type PromoRewardType,
 } from './promo-engine'
 
@@ -346,4 +346,112 @@ export function formatPromoPeriod(rule: Pick<PromoRule, 'startsAt' | 'endsAt' | 
   const range = `${PERIOD_FORMAT.format(new Date(rule.startsAt))} – ${PERIOD_FORMAT.format(new Date(rule.endsAt))} WIB`
   if (rule.dailyStartMinute == null || rule.dailyEndMinute == null) return range
   return `${range} · tiap hari ${minuteToTime(rule.dailyStartMinute)}–${minuteToTime(rule.dailyEndMinute)}`
+}
+
+// ── Salin promo & ubah tanggal ─────────────────────────────────────────────────────────────
+
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Waktu → tanggal & jam WIB untuk isian form (`YYYY-MM-DD`, `HH:MM`). */
+export function wibParts(at: Date | string): { date: string; time: string } {
+  const iso = new Date(new Date(at).getTime() + WIB_OFFSET_MS).toISOString()
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) }
+}
+
+/** `YYYY-MM-DD` + n hari. */
+function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
+}
+
+const hhmm = (minute: number) => minuteToTime(minute).replace('.', ':')
+
+type CopiedRule = Pick<PromoRule,
+  'name' | 'kind' | 'branchIds' | 'startsAt' | 'endsAt' | 'dailyStartMinute' | 'dailyEndMinute'
+  | 'isMultiple' | 'maxPerNote' | 'quotaKind' | 'quotaPerBranch' | 'requireStock' | 'conditions' | 'rewards'
+> & { note: string | null }
+
+/**
+ * Isian form dari promo yang sudah ada, untuk "Salin jadi promo baru". Null = bentuknya belum bisa
+ * dibuat lewat layar. Masa berlaku disalin apa adanya bila promo belum berakhir; bila sudah
+ * berakhir, digeser mulai `today` dengan lama hari yang sama. Cabang yang tidak bisa dipilih
+ * (`allowedBranchIds`) dibuang.
+ */
+export function promoToForm(rule: CopiedRule, today: string, now: Date, allowedBranchIds: number[]): PromoFormState | null {
+  if (!CREATABLE_PROMO_KINDS.includes(rule.kind) || rule.conditions.length === 0 || rule.rewards.length === 0) return null
+  const first = rule.rewards[0]!
+  const sameItem = rule.conditions.length === 1 && rule.rewards.length === 1
+    && rule.conditions[0]!.productId === first.productId && rule.conditions[0]!.uomId === first.uomId
+    && first.qty == null && first.type !== 'GRATIS'
+
+  let shape: PromoFormShape
+  if (rule.kind === 'BELI_GRATIS') shape = 'BELI_GRATIS'
+  else if (rule.kind === 'BUNDLING') shape = 'BUNDLING'
+  else if (!sameItem) shape = 'BELI_A_POTONG_B'
+  else if (rule.kind === 'FLASH_SALE') shape = 'FLASH_SALE'
+  else shape = rule.conditions[0]!.minQty > 1 ? 'MULAI_N' : 'POTONGAN'
+  if (rule.kind === 'FLASH_SALE' && !sameItem) return null
+
+  let start = wibParts(rule.startsAt)
+  let end = wibParts(rule.endsAt)
+  if (new Date(rule.endsAt).getTime() <= now.getTime()) {
+    const days = Math.round((Date.parse(`${end.date}T00:00:00Z`) - Date.parse(`${start.date}T00:00:00Z`)) / DAY_MS)
+    start = { date: today, time: start.time }
+    end = { date: addDays(today, days), time: end.time }
+  }
+
+  const form = emptyPromoForm(today, rule.branchIds.filter((id) => allowedBranchIds.includes(id)))
+  form.shape = shape
+  form.name = rule.name
+  form.note = rule.note ?? ''
+  form.startDate = start.date
+  form.startTime = start.time
+  form.endDate = end.date
+  form.endTime = end.time
+  if (rule.dailyStartMinute != null && rule.dailyEndMinute != null) {
+    form.useDailyHours = true
+    form.dailyFrom = hhmm(rule.dailyStartMinute)
+    form.dailyTo = hhmm(rule.dailyEndMinute)
+  }
+  if (first.type !== 'GRATIS') {
+    form.cutType = first.type
+    form.cutValue = String(first.value)
+  }
+  form.isMultiple = rule.isMultiple
+  form.maxPerNote = rule.maxPerNote != null ? String(rule.maxPerNote) : ''
+  form.quotaKind = rule.quotaKind ?? ''
+  form.quotaPerBranch = rule.quotaPerBranch != null ? String(rule.quotaPerBranch) : ''
+  form.requireStock = rule.requireStock ?? false
+
+  if (sameItem) {
+    const c = rule.conditions[0]!
+    form.target = { productId: c.productId, uomId: c.uomId }
+    form.minQty = shape === 'MULAI_N' ? String(c.minQty) : ''
+    return form
+  }
+  for (const unit of conditionUnits(rule.conditions)) {
+    if (unit[0]!.groupNo == null) {
+      for (const c of unit) form.conditions.push({ productId: c.productId, uomId: c.uomId, minQty: String(c.minQty) })
+    } else {
+      form.conditionGroups.push({ members: unit.map((c) => ({ productId: c.productId, uomId: c.uomId })), minQty: String(unit[0]!.minQty) })
+    }
+  }
+  form.rewards = rule.rewards.map((r) => ({ productId: r.productId, uomId: r.uomId, qty: String(r.qty ?? 1) }))
+  return form
+}
+
+/**
+ * Isian ubah tanggal → kiriman `PATCH /api/bo/promos/[id]/dates`, atau pesan. Pemeriksaan akhir
+ * (promo sudah berjalan, sudah nonaktif) tetap di server.
+ */
+export function buildPromoDatesPayload(
+  input: { startDate: string; startTime: string; endDate: string; endTime: string },
+  now: Date,
+): { payload: { startsAt: string; endsAt: string } } | { error: string } {
+  const startsAt = wibDateTime(input.startDate, input.startTime)
+  const endsAt = wibDateTime(input.endDate, input.endTime)
+  if (!startsAt || !endsAt) return { error: 'Masa berlaku promo wajib diisi (tanggal dan jam)' }
+  if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { error: 'Promo harus berakhir sesudah waktu mulainya' }
+  if (new Date(endsAt).getTime() <= now.getTime()) return { error: 'Waktu berakhir harus di masa depan. Untuk menghentikan promo, pakai Nonaktifkan.' }
+  return { payload: { startsAt, endsAt } }
 }

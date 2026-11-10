@@ -5,7 +5,7 @@ import {
   roles, users, appSettings, auditLogs, and, eq,
 } from '../db'
 import {
-  createPromo, deactivatePromo, findPromoLosses, getPromoEnabled, listPromoItemOptions, listPromos, setPromoEnabled,
+  createPromo, deactivatePromo, findPromoLosses, getPromoEnabled, listPromoItemOptions, listPromos, setPromoEnabled, updatePromoDates,
   PromoLossError, PromoServiceError, PROMO_SWITCH_SETTING_KEY, type NewPromoInput,
 } from './promo-service'
 
@@ -132,6 +132,48 @@ describe('Layanan promo Back Office (DB lokal)', () => {
     expect(item?.deactivatedAt).toBeInstanceOf(Date)
     expect(await errorOf(deactivatePromo(id, actor()))).toMatchObject({ status: 409 })
     expect(await errorOf(deactivatePromo(999_999_999, actor()))).toMatchObject({ status: 404 })
+  })
+
+  it('salin jadi promo baru dengan replacePromoId: promo lama ikut nonaktif dalam satu simpan', async () => {
+    const lama = await createPromo(promo({ name: `Lama ${run}` }), actor())
+    const baru = await createPromo(promo({ name: `Baru ${run}` }), actor(), { replacePromoId: lama.id })
+    const list = await listPromos()
+    expect(list.find((p) => p.id === lama.id)).toMatchObject({ isActive: false, status: 'NONAKTIF' })
+    expect(list.find((p) => p.id === baru.id)).toMatchObject({ isActive: true, status: 'BERJALAN' })
+    const [log] = await db.select().from(auditLogs).where(and(eq(auditLogs.action, 'PROMO_DEACTIVATE'), eq(auditLogs.recordId, String(lama.id))))
+    expect(JSON.parse(log.newData ?? '{}')).toMatchObject({ isActive: false, replacedBy: baru.id })
+
+    // Promo lama sudah nonaktif → salinan kedua yang mau menggantinya batal seluruhnya.
+    const before = (await listPromos()).length
+    expect(await errorOf(createPromo(promo({ name: `Ganda ${run}` }), actor(), { replacePromoId: lama.id }))).toMatchObject({ status: 409 })
+    expect((await listPromos()).length).toBe(before)
+  })
+
+  it('ubah tanggal: perpanjang yang berjalan/berakhir, mulai terkunci setelah mulai, nonaktif ditolak', async () => {
+    // Berjalan: waktu berakhir boleh diperpanjang; waktu mulai tidak boleh digeser.
+    const jalan = await createPromo(promo({ name: `Jalan ${run}`, startsAt: hours(-2), endsAt: hours(2) }), actor())
+    await updatePromoDates(jalan.id, { startsAt: hours(-2), endsAt: hours(48) }, actor())
+    expect((await listPromos()).find((p) => p.id === jalan.id)?.endsAt).toEqual(new Date(hours(48)))
+    expect(await errorOf(updatePromoDates(jalan.id, { startsAt: hours(1), endsAt: hours(48) }, actor()))).toMatchObject({ status: 409 })
+    const [log] = await db.select().from(auditLogs).where(and(eq(auditLogs.action, 'PROMO_DATES_UPDATE'), eq(auditLogs.recordId, String(jalan.id))))
+    expect(log).toBeDefined()
+
+    // Sudah berakhir: diperpanjang → berjalan lagi.
+    const habis = await createPromo(promo({ name: `Habis ${run}`, startsAt: hours(-5), endsAt: hours(-1) }), actor())
+    expect((await listPromos()).find((p) => p.id === habis.id)?.status).toBe('BERAKHIR')
+    await updatePromoDates(habis.id, { startsAt: hours(-5), endsAt: hours(5) }, actor())
+    expect((await listPromos()).find((p) => p.id === habis.id)?.status).toBe('BERJALAN')
+
+    // Belum mulai: waktu mulai boleh diubah.
+    const nanti = await createPromo(promo({ name: `Nanti ubah ${run}`, startsAt: hours(5), endsAt: hours(10) }), actor())
+    await updatePromoDates(nanti.id, { startsAt: hours(3), endsAt: hours(12) }, actor())
+    expect((await listPromos()).find((p) => p.id === nanti.id)?.startsAt).toEqual(new Date(hours(3)))
+
+    // Waktu berakhir di masa lalu atau sebelum mulai ditolak; promo nonaktif ditolak.
+    expect(await errorOf(updatePromoDates(nanti.id, { startsAt: hours(3), endsAt: hours(-1) }, actor()))).toBeInstanceOf(PromoServiceError)
+    expect(await errorOf(updatePromoDates(nanti.id, { startsAt: hours(6), endsAt: hours(4) }, actor()))).toBeInstanceOf(PromoServiceError)
+    await deactivatePromo(nanti.id, actor())
+    expect(await errorOf(updatePromoDates(nanti.id, { startsAt: hours(3), endsAt: hours(20) }, actor()))).toMatchObject({ status: 409 })
   })
 
   it('daftar per cabang hanya memuat promo cabang itu; keadaan Belum mulai & Berakhir', async () => {
