@@ -565,6 +565,11 @@ export function PODetailClient({
                   {parseFloat(item.qtyReceived) > 0 ? (
                     <span className={parseFloat(item.qtyReceived) < parseFloat(item.qtyOrdered) ? 'text-orange-600' : 'text-green-600'}>
                       {parseFloat(item.qtyReceived).toFixed(0)} {item.uomCode}
+                      {parseFloat(item.qtyReceived) > parseFloat(item.qtyOrdered) && (
+                        <span className="ml-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                          (lebih {(parseFloat(item.qtyReceived) - parseFloat(item.qtyOrdered)).toFixed(0)})
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>

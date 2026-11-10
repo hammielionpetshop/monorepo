@@ -103,7 +103,7 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
       ...item,
       lastCost: lastCosts.get(lastCostKey(item.productId, item.uomId)) ?? null,
       unloadedPrefill: unloadingFresh && qtyUnloaded != null
-        ? Math.max(Math.min(qtyUnloaded, item.qtyOrdered - item.qtyReceived), 0)
+        ? Math.max(qtyUnloaded, 0)
         : null,
     })),
   };
