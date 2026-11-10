@@ -9,6 +9,7 @@ import { assertManualDiscounts, recordManualDiscountInTx } from './line-discount
 import { judgeSalePromos, recordPromoDiscountInTx, recordPromoUsageInTx } from './promo-sale-service'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 import { lockGroomingHoldForNotaInTx, markGroomingHoldConvertedInTx } from './grooming-hold-service'
+import { BelowCostSaleError, findBelowCostLines, unitCostFor, type BelowCostPolicy } from '../below-cost'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -232,6 +233,44 @@ export class TransactionService {
         const arr = uomCostsByProduct.get(c.productId) ?? [];
         arr.push(c);
         uomCostsByProduct.set(c.productId, arr);
+      }
+
+      // Larangan jual di bawah modal: dicek sebelum stok/promo disentuh. PO Internal (sumber IBT)
+      // dan jasa tidak dicek. Kasir = tolak; Bulk Sale = boleh bila sudah 2× dikonfirmasi; antrean
+      // POS desktop = hanya dicatat (penjualannya sudah terjadi di toko).
+      const belowCostPolicy: BelowCostPolicy = payload.belowCostPolicy ?? 'REJECT'
+      const belowCostLines = payload.sourceIbtId
+        ? []
+        : findBelowCostLines(
+            items.filter((item: any) => !isServiceKind(productsMap.get(Number(item.productId))?.productKind)),
+            (line) => {
+              const product: any = productsMap.get(line.productId)
+              return unitCostFor(
+                uomCostsByProduct.get(line.productId) ?? [],
+                line.uomId,
+                product?.baseUomId ?? null,
+                (uomId) => {
+                  const ratio = Number((conversionsMap.get(`${line.productId}_${uomId}`) as any)?.ratio)
+                  return ratio > 0 ? ratio : null
+                },
+              )
+            },
+          )
+      if (belowCostLines.length > 0) {
+        if (belowCostPolicy === 'REJECT') throw new BelowCostSaleError(belowCostLines)
+        await tx.insert(auditLogs).values({
+          branchId,
+          userId: cashierId ?? null,
+          action: 'BELOW_COST_SALE',
+          tableName: 'transactions',
+          recordId: String(trx.id),
+          newData: JSON.stringify({
+            trxNumber: trx.trxNumber,
+            policy: belowCostPolicy,
+            totalLoss: belowCostLines.reduce((sum, l) => sum + l.loss, 0),
+            lines: belowCostLines,
+          }),
+        })
       }
 
       await lockProductStocks(tx, branchId, productIds)

@@ -172,6 +172,8 @@ export async function POST(req: NextRequest) {
           offlineTimestamp: new Date(item.payload.offlineAt),
           // Diteruskan agar audit log OVERSELL mencatat bahwa oversell sudah disetujui PIN di POS
           authorizedOversell: authorizedOversell === true,
+          // Penjualan offline sudah terjadi di toko: jual di bawah modal hanya dicatat audit.
+          belowCostPolicy: 'AUDIT_ONLY',
         });
         synced.push(item.id);
       } catch (err: unknown) {
