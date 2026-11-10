@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { JWTPayload } from '@petshop/shared'
 import { getAuth } from '@/lib/authz'
 import { PROMO_KINDS, PROMO_QUOTA_KINDS, PROMO_REWARD_TYPES } from './promo-engine'
-import { PROMO_MANAGER_ROLES, PromoLossError, PromoServiceError } from '@/lib/services/promo-service'
+import { PROMO_MANAGER_ROLES, PromoLossError, PromoServiceError, listPromos } from '@/lib/services/promo-service'
 
 // Bagian HTTP layar Promo (P2b): gerbang peran Owner/GM, bentuk kiriman, dan jawaban galat.
 
@@ -15,6 +15,20 @@ export async function requirePromoManager(): Promise<JWTPayload | NextResponse> 
     return NextResponse.json({ error: 'Promo hanya bisa diatur Owner dan GM' }, { status: 403 })
   }
   return payload
+}
+
+/**
+ * GM bercakupan satu cabang hanya boleh mengubah promo yang seluruhnya milik cabangnya.
+ * Null = boleh; selain itu jawaban 403.
+ */
+export async function guardPromoScope(gate: JWTPayload, promoId: number): Promise<NextResponse | null> {
+  if (gate.branchScope === 'ALL') return null
+  const own = await listPromos({ branchId: gate.branchId })
+  const promo = own.find((p) => p.id === promoId)
+  if (!promo || promo.branchIds.some((b) => b !== gate.branchId)) {
+    return NextResponse.json({ error: 'Promo ini bukan milik cabang Anda saja' }, { status: 403 })
+  }
+  return null
 }
 
 const id = z.number().int().positive()
@@ -40,6 +54,13 @@ export const newPromoSchema = z.object({
     ...item, type: z.enum(PROMO_REWARD_TYPES), value: z.number().int(), qty: z.number().int().nullable(),
   })).max(20, 'Barang yang dipotong paling banyak 20'),
   acceptLoss: z.boolean().optional(),
+  /** Salin jadi promo baru: promo lama ini ikut dinonaktifkan. */
+  replacePromoId: id.optional(),
+})
+
+export const promoDatesSchema = z.object({
+  startsAt: z.string().datetime({ offset: true, message: 'Waktu mulai tidak sah' }),
+  endsAt: z.string().datetime({ offset: true, message: 'Waktu selesai tidak sah' }),
 })
 
 export function promoErrorResponse(error: unknown, context: string): NextResponse {
