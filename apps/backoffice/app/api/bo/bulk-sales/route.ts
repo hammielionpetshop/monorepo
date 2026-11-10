@@ -19,6 +19,7 @@ import { TransactionService } from "@/lib/services/transaction-service";
 import { resolveShiftId } from "@/lib/services/shift-resolver";
 import { DeliveryMethodError, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
 import { getDeliverySettings } from "@/lib/delivery-method-server";
+import { BelowCostSaleError } from "@/lib/below-cost";
 
 const itemSchema = z.object({
   productId: z.number().int().positive(),
@@ -43,6 +44,8 @@ const payloadSchema = z.object({
   sourceOrderId: z.number().int().positive().nullable().optional(),
   deliveryMethod: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
+  // true = pengguna sudah melewati dua kali konfirmasi "di bawah modal" di layar Bulk Sale.
+  belowCostConfirmed: z.boolean().optional(),
   items: z.array(itemSchema).min(1, "Minimal satu produk harus dipilih"),
   totals: z.object({
     subtotal: z.number().int().min(0),
@@ -438,6 +441,7 @@ export async function POST(request: Request) {
       priceOverrides,
       overrideById: payload.userId,
       saleType: "BULK",
+      belowCostPolicy: body.belowCostConfirmed === true ? "CONFIRMED" : "REJECT",
       sourceIbtId: body.sourceIbtId ?? null,
       sourceOrderId: body.sourceOrderId ?? null,
       deliveryMethod,
@@ -450,6 +454,12 @@ export async function POST(request: Request) {
     );
   } catch (error: unknown) {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
+    if (error instanceof BelowCostSaleError) {
+      return NextResponse.json(
+        { error: "Ada barang di bawah modal — perlu konfirmasi", code: error.code, lines: error.lines },
+        { status: error.status },
+      );
+    }
     // Race konversi-dobel yang lolos pre-check: sumber baru saja dikonversi transaksi lain
     // saat kita di dalam transaksi DB → service melempar & rollback. Balas 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_ORDER_ALREADY_CONVERTED") {

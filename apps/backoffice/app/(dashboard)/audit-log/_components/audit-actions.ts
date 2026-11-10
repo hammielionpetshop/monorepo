@@ -6,6 +6,7 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     actions: [
       { value: 'EDIT_TRANSACTION', label: 'Edit transaksi' },
       { value: 'OVERSELL', label: 'Jual melebihi stok (oversell)' },
+      { value: 'BELOW_COST_SALE', label: 'Jual di bawah modal' },
       { value: 'VOID_TRANSACTION', label: 'Void transaksi' },
       { value: 'VOID_REQUEST_APPROVED', label: 'Permintaan void disetujui' },
       { value: 'VOID_REQUEST_REJECTED', label: 'Permintaan void ditolak' },
