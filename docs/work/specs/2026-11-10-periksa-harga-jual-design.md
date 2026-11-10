@@ -1,6 +1,6 @@
 # Periksa Harga Jual saat Modal Naik + Larangan Jual di Bawah Modal
 
-Status: **draf — menunggu persetujuan owner** (2026-11-10)
+Status: **disetujui owner** (2026-11-10) — Tahap 1 (Bagian B) dikerjakan dulu
 
 ## Masalah
 
@@ -125,6 +125,7 @@ manual di Manajemen Harga; Tahap 2 menyusul untuk membuat alur itu cepat.
 - Diskon/bonus barang di faktur supplier (Tahap 2 PO, spec terpisah).
 - Mengubah ambang 30% Tinjauan Modal.
 
-## Pertanyaan terbuka
+## Keputusan lanjutan (2026-11-10)
 
-- Hak `price.review`: cukup OWNER dan GM, atau ada jabatan manajemen lain (mis. Finance/Admin Kantor)?
+- Urutan: Tahap 1 (Bagian B) dulu, Tahap 2 (Bagian A) menyusul — owner: "ok".
+- Hak `price.review` hanya OWNER dan GM.
