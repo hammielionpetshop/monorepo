@@ -80,7 +80,9 @@ export function receivingWarnings(lines: ReceivingLineInput[]): ReceivingWarning
     warnings.push({
       kind: 'COST_JUMP',
       title: `Harga ${jumps.length} barang beda jauh`,
-      message: 'Harga yang diketik berbeda jauh dari harga sebelumnya. Pastikan tidak salah ketik (kelebihan/kurang angka 0).',
+      message:
+        'Harga yang diketik berbeda jauh dari harga sebelumnya. Pastikan tidak salah ketik (kelebihan/kurang angka 0). ' +
+        'Bila modal berubah 30% atau lebih, modal baru ditahan sampai disetujui Owner/GM; harga jual barang yang modalnya naik menunggu diperiksa manajemen.',
       lines: jumps.map(l => {
         const pct = Math.round(((l.price - l.referencePrice) / l.referencePrice) * 100)
         return `${l.name}: ${rupiah(l.referencePrice)} → ${rupiah(l.price)} (${pct > 0 ? '+' : ''}${pct}%)`

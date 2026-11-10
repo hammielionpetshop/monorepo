@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
 import { hasPermission } from '@/lib/authz';
+import { countOpenPriceReviewsForSource } from '@/lib/services/price-review-record';
+import PriceReviewNotice from './_components/price-review-notice';
 import {
   db,
   purchaseOrders,
@@ -53,6 +55,7 @@ export default async function PODetailPage({
   const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
   const canCancel = payload ? hasPermission(payload, 'po.approve') : false;
   const canManage = payload ? hasPermission(payload, 'po.manage') : false;
+  const canReviewPrice = payload ? hasPermission(payload, 'master.price.manage') : false;
   const today = todayWibDate();
   let methods: { id: number; name: string }[] = [];
   let creditBalance = 0;
@@ -287,8 +290,11 @@ export default async function PODetailPage({
     );
   }
 
+  const priceReviewCount = await countOpenPriceReviewsForSource(['PO_RECEIVING', 'PO_INVOICE'], poId).catch(() => 0);
+
   return (
     <div className="p-6 max-w-5xl">
+      <PriceReviewNotice count={priceReviewCount} canReview={canReviewPrice} />
       <PODetailClient
         po={po}
         currentUserId={currentUserId}

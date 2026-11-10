@@ -1,4 +1,5 @@
-import { serial, integer, varchar, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { serial, integer, varchar, text, timestamp, index, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { products } from './products';
@@ -34,4 +35,31 @@ export const productCostSyncs = petshop.table('product_cost_syncs', {
   index('idx_product_cost_syncs_status_branch').on(t.status, t.branchId),
   index('idx_product_cost_syncs_branch_product').on(t.branchId, t.productId, t.effectiveAt),
   index('idx_product_cost_syncs_source').on(t.sourceType, t.sourceId),
+]);
+
+export interface PriceReviewSource {
+  type: string;
+  id: number | null;
+  ref: string | null;
+}
+
+// Pemeriksaan Harga Jual saat modal naik (migrasi 0062): satu OPEN per (cabang, produk) sampai
+// manajemen menyetujui harga baru (APPROVED), mempertahankan harga (KEPT), atau modalnya batal naik (CLOSED).
+export const priceReviews = petshop.table('price_reviews', {
+  id: serial('id').primaryKey(),
+  branchId: integer('branch_id').references(() => branches.id, { onDelete: 'cascade' }).notNull(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  status: varchar('status', { length: 10 }).default('OPEN').notNull(),
+  oldCostPerBase: integer('old_cost_per_base'),
+  newCostPerBase: integer('new_cost_per_base').notNull(),
+  costSyncId: integer('cost_sync_id').references(() => productCostSyncs.id, { onDelete: 'set null' }),
+  sources: jsonb('sources').$type<PriceReviewSource[]>().default(sql`'[]'::jsonb`).notNull(),
+  resolvedById: integer('resolved_by_id').references(() => users.id),
+  resolvedAt: timestamp('resolved_at'),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('uq_price_reviews_open').on(t.branchId, t.productId).where(sql`${t.status} = 'OPEN'`),
+  index('idx_price_reviews_status').on(t.status, t.branchId),
 ]);

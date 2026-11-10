@@ -435,6 +435,13 @@
       "when": 1793626800000,
       "tag": "0061_money_transfers",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793627800000,
+      "tag": "0062_price_reviews",
+      "breakpoints": true
     }
   ]
 }
