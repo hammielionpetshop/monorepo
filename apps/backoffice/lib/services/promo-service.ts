@@ -10,9 +10,11 @@ import {
 } from '../promo/promo-engine'
 import { isOngkirKind } from '../ongkir'
 
-// Layanan promo Back Office (P2b): daftar, buat, nonaktifkan, saklar darurat. Hitungan promo
-// tetap di mesin (lib/promo/promo-engine.ts); berkas ini hanya membaca dan menyimpan.
-// Promo tidak bisa diubah atau dihapus — hanya dinonaktifkan, lalu buat promo baru.
+// Layanan promo Back Office (P2b): daftar, buat, nonaktifkan, ubah tanggal, saklar darurat.
+// Hitungan promo tetap di mesin (lib/promo/promo-engine.ts); berkas ini hanya membaca dan menyimpan.
+// Isi promo (barang, potongan, cabang, kuota) tidak bisa diubah atau dihapus — yang boleh hanya
+// masa berlakunya (`updatePromoDates`). Perubahan isi = "salin jadi promo baru" (`createPromo`
+// dengan `replacePromoId`), supaya laporan per promo tetap jujur.
 
 type Executor = Pick<typeof db, 'select'>
 type Actor = { userId: number; branchId: number }
@@ -201,9 +203,14 @@ export async function findPromoLosses(input: Pick<NewPromoInput, 'branchIds' | '
 
 /**
  * Simpan promo baru. Harga promo di bawah modal → PromoLossError, kecuali `acceptLoss`
- * (pembuat sudah memilih "tetap buat" di peringatan jual rugi).
+ * (pembuat sudah memilih "tetap buat" di peringatan jual rugi). `replacePromoId` = promo lama
+ * yang disalin ikut dinonaktifkan dalam transaksi yang sama.
  */
-export async function createPromo(input: NewPromoInput, actor: Actor, opts: { acceptLoss?: boolean } = {}): Promise<{ id: number }> {
+export async function createPromo(
+  input: NewPromoInput,
+  actor: Actor,
+  opts: { acceptLoss?: boolean; replacePromoId?: number } = {},
+): Promise<{ id: number }> {
   const rule = { ...input, name: input.name.trim(), branchIds: [...new Set(input.branchIds)], isActive: true }
   const problem = checkNewPromo(rule)
   if (problem) throw new PromoServiceError(problem)
@@ -234,22 +241,70 @@ export async function createPromo(input: NewPromoInput, actor: Actor, opts: { ac
     })))
     await tx.insert(auditLogs).values({
       branchId: actor.branchId, userId: actor.userId, action: 'PROMO_CREATE', tableName: 'promos',
-      recordId: String(promo.id), newData: JSON.stringify({ ...rule, acceptedLoss: losses.length > 0 ? losses : undefined }),
+      recordId: String(promo.id),
+      newData: JSON.stringify({ ...rule, copiedFrom: opts.replacePromoId, acceptedLoss: losses.length > 0 ? losses : undefined }),
     })
+    if (opts.replacePromoId != null) await deactivateInTx(tx, opts.replacePromoId, actor, { replacedBy: promo.id })
     return promo
   })
 }
 
-/** Nonaktifkan promo (tidak bisa dinyalakan lagi — buat promo baru bila perlu). */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function deactivateInTx(tx: Tx, promoId: number, actor: Actor, extra: { replacedBy?: number } = {}) {
+  const [promo] = await tx.select({ id: promos.id, isActive: promos.isActive }).from(promos).where(eq(promos.id, promoId)).for('update')
+  if (!promo) throw new PromoServiceError('Promo tidak ditemukan', 404)
+  if (!promo.isActive) throw new PromoServiceError('Promo ini sudah dinonaktifkan', 409)
+  await tx.update(promos).set({ isActive: false, deactivatedById: actor.userId, deactivatedAt: new Date() }).where(eq(promos.id, promoId))
+  await tx.insert(auditLogs).values({
+    branchId: actor.branchId, userId: actor.userId, action: 'PROMO_DEACTIVATE', tableName: 'promos',
+    recordId: String(promoId), oldData: JSON.stringify({ isActive: true }), newData: JSON.stringify({ isActive: false, ...extra }),
+  })
+}
+
+/** Nonaktifkan promo (tidak bisa dinyalakan lagi — salin jadi promo baru bila perlu). */
 export async function deactivatePromo(promoId: number, actor: Actor): Promise<void> {
+  await db.transaction((tx) => deactivateInTx(tx, promoId, actor))
+}
+
+/**
+ * Ubah masa berlaku promo — satu-satunya bagian promo yang boleh diubah. Promo yang sudah
+ * dinonaktifkan tidak bisa diubah. Waktu mulai hanya bisa diubah selama promo belum mulai
+ * (nota yang sudah memakai promo tetap berada di dalam masa berlakunya). Waktu berakhir harus di
+ * masa depan: memperpanjang promo yang sudah berakhir membuatnya berjalan lagi, dengan sisa kuota
+ * yang sama.
+ */
+export async function updatePromoDates(
+  promoId: number,
+  input: { startsAt: string; endsAt: string },
+  actor: Actor,
+  now: Date = new Date(),
+): Promise<void> {
+  const startsAt = new Date(input.startsAt)
+  const endsAt = new Date(input.endsAt)
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) throw new PromoServiceError('Masa berlaku promo wajib diisi')
+  if (endsAt <= startsAt) throw new PromoServiceError('Promo harus berakhir sesudah waktu mulainya')
+  if (endsAt <= now) throw new PromoServiceError('Waktu berakhir harus di masa depan. Untuk menghentikan promo, pakai Nonaktifkan.')
+
   await db.transaction(async (tx) => {
-    const [promo] = await tx.select({ id: promos.id, isActive: promos.isActive }).from(promos).where(eq(promos.id, promoId)).for('update')
+    const [promo] = await tx
+      .select({ id: promos.id, isActive: promos.isActive, startsAt: promos.startsAt, endsAt: promos.endsAt })
+      .from(promos)
+      .where(eq(promos.id, promoId))
+      .for('update')
     if (!promo) throw new PromoServiceError('Promo tidak ditemukan', 404)
-    if (!promo.isActive) throw new PromoServiceError('Promo ini sudah dinonaktifkan', 409)
-    await tx.update(promos).set({ isActive: false, deactivatedById: actor.userId, deactivatedAt: new Date() }).where(eq(promos.id, promoId))
+    if (!promo.isActive) throw new PromoServiceError('Promo yang sudah dinonaktifkan tidak bisa diubah. Pakai "Salin jadi promo baru".', 409)
+    const startChanged = promo.startsAt.getTime() !== startsAt.getTime()
+    if (startChanged && promo.startsAt <= now) {
+      throw new PromoServiceError('Promo sudah mulai berjalan; waktu mulainya tidak bisa diubah lagi', 409)
+    }
+    if (!startChanged && promo.endsAt.getTime() === endsAt.getTime()) return
+    await tx.update(promos).set({ startsAt, endsAt }).where(eq(promos.id, promoId))
     await tx.insert(auditLogs).values({
-      branchId: actor.branchId, userId: actor.userId, action: 'PROMO_DEACTIVATE', tableName: 'promos',
-      recordId: String(promoId), oldData: JSON.stringify({ isActive: true }), newData: JSON.stringify({ isActive: false }),
+      branchId: actor.branchId, userId: actor.userId, action: 'PROMO_DATES_UPDATE', tableName: 'promos',
+      recordId: String(promoId),
+      oldData: JSON.stringify({ startsAt: promo.startsAt, endsAt: promo.endsAt }),
+      newData: JSON.stringify({ startsAt, endsAt }),
     })
   })
 }
