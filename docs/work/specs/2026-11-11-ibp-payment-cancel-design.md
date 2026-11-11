@@ -1,6 +1,6 @@
 # Batalkan Pembayaran Utang Internal
 
-Tanggal: 2026-11-11 · Status: **draf, menunggu persetujuan owner** · Dasar: Utang Internal
+Tanggal: 2026-11-11 · Status: **disetujui owner 2026-11-11** ("ok ikuti saran anda") · Dasar: Utang Internal
 (`/purchase-orders/internal/payables`), [F2-3 Pelunasan Otomatis](2026-11-08-f2-3-pelunasan-otomatis-design.md),
 [F2-3b Utang Lama](2026-11-08-f2-3b-utang-lama-design.md), [F2-4 Bayar Supplier & Arus Kas](2026-11-09-f2-4-supplier-arus-kas-design.md)
 
@@ -77,8 +77,7 @@ Arus Kas lain hari ini). Riwayat Utang Internal tetap bertanggal hari pembatalan
 jelas. Saat fitur tutup periode dibuat, aturan koreksi periode tertutup berlaku sama untuk semua
 pembatalan Arus Kas, termasuk ini.
 
-⚠️ Perlu konfirmasi owner: **tandai Batal (usul)** atau **catatan pembalik bertanggal hari ini**
-(laporan bulan lalu tidak berubah, tetapi berbeda dari cara batal Arus Kas lainnya).
+✅ Owner 2026-11-11: "ok ikuti saran anda" — **tandai Batal**.
 
 ## 5. Data
 
