@@ -36,6 +36,9 @@ jobs:
           - image: hris
             target: runner
             app_name: hris
+          - image: finance
+            target: runner
+            app_name: finance
           - image: migrator
             target: migrator
             app_name: backoffice

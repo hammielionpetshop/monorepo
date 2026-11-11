@@ -4,6 +4,8 @@ const applicationRoles = [
   ['STAGING_BACKOFFICE_DATABASE_URL', 'stg_bo_app'],
   ['STAGING_ORDER_DATABASE_URL', 'stg_order_app'],
   ['STAGING_HRIS_DATABASE_URL', 'stg_hris_app'],
+  // Web Finance staging (spec F2-6 §3.5): role baca saja.
+  ['STAGING_FINANCE_DATABASE_URL', 'stg_finance_app'],
 ];
 
 function parseStagingUrl(value, label) {

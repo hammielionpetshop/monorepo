@@ -10,7 +10,7 @@ const STAGING_DB = process.env.ROLES_TEST_STAGING_DB ?? 'petshop_staging'
 const TEST_PASSWORD = 'roles-test-password'
 
 const allPasswords = Object.fromEntries(
-  ['bo_app', 'order_app', 'hris_app', 'stg_bo_app', 'stg_order_app', 'stg_hris_app'].map((role) => [
+  ['bo_app', 'order_app', 'hris_app', 'finance_app', 'stg_bo_app', 'stg_order_app', 'stg_hris_app', 'stg_finance_app'].map((role) => [
     `${role.toUpperCase()}_DB_PASSWORD`,
     TEST_PASSWORD,
   ]),
@@ -52,6 +52,18 @@ describe.skipIf(!ADMIN_URL)('roles.sql', () => {
     const sql = connectAs('hris_app')
     await expect(sql`select 1 from petshop.branches limit 1`).rejects.toThrow(/permission denied/)
     await expect(sql`insert into petshop.branches (name) values ('x')`).rejects.toThrow(/permission denied/)
+  })
+
+  it('finance_app hanya membaca daftar pintu baca, tidak bisa menulis, tidak membaca hash kata sandi', async () => {
+    const sql = connectAs('finance_app')
+    await expect(sql`select count(*) from petshop.money_places`).resolves.toBeDefined()
+    await expect(sql`select count(*) from hris.payslip_payments`).resolves.toBeDefined()
+    await expect(sql`select id, is_active from auth.accounts limit 1`).resolves.toBeDefined()
+    await expect(sql`select password_hash from auth.accounts limit 1`).rejects.toThrow(/permission denied/)
+    await expect(sql`select 1 from petshop.transactions limit 1`).rejects.toThrow(/permission denied/)
+    await expect(sql`insert into petshop.branches (name) values ('x')`).rejects.toThrow(/permission denied/)
+    await expect(sql`update petshop.money_places set name = name`).rejects.toThrow(/permission denied/)
+    await expect(sql`delete from hris.payslip_payments`).rejects.toThrow(/permission denied/)
   })
 
   it('hris_app bisa menulis tabel hris', async () => {

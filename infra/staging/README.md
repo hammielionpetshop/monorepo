@@ -52,6 +52,14 @@ database tersebut secara otomatis. Periksa error dan selesaikan pemulihannya seb
 Sesudah aktivasi pertama, gunakan refresh biasa di bawah ini; `--check` memerlukan image migrator
 staging yang sudah dibangun/ditarik.
 
+## Web Finance (F2-6)
+
+`finance-staging` di `https://finance.staginghml.my.id` (spec
+[F2-6](../../docs/work/specs/2026-11-12-f2-6-modul-finance-design.md) §3): hanya membaca, hanya Owner/GM, tidak ada
+di produksi. Sebelum deploy pertama, tambahkan di `.env` `STAGING_FINANCE_DATABASE_URL` (role `stg_finance_app`) dan
+`DOMAIN_STAGING_FINANCE`, serta `STG_FINANCE_APP_DB_PASSWORD` yang sama di `migrator.env`; role & hak SELECT-nya dibuat
+`db-roles` saat migrasi. Login memakai sesi auth pusat Back Office (`STAGING_BO_AUTH_MODE=central`), tanpa rahasia sendiri.
+
 ## Deploy
 
 Push ke branch `staging` membangun empat image bertanda `staging-<SHA>` lalu menjalankan

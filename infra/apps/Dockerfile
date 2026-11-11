@@ -31,6 +31,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backoffice/package.json apps/backoffice/
 COPY apps/order-web/package.json apps/order-web/
 COPY apps/hris/package.json apps/hris/
+COPY apps/finance/package.json apps/finance/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
 COPY packages/auth/package.json packages/auth/
