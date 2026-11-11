@@ -381,6 +381,104 @@ export async function proposeCostReversalForPO(
   return proposed
 }
 
+export type CostRestoreSkip = 'NEWER' | 'NO_OLD' | 'NO_CONVERSION'
+
+export interface CostRestoreResult {
+  /** Modalnya dikembalikan ke angka sebelum PO. */
+  restored: number[]
+  /** Kenaikan dari PO ini masih menunggu tinjauan — modal memang belum berubah; usulannya ditutup. */
+  pendingClosed: number[]
+  /** Tidak diubah: NEWER = modal sudah diperbarui barang masuk lain sesudahnya; NO_OLD = dulu belum bermodal. */
+  skipped: { productId: number; reason: CostRestoreSkip }[]
+}
+
+/**
+ * "Kembalikan Modal" dari PO Selesai: modal setiap barang di PO kembali ke angka sebelum PO itu
+ * masuk (oldCostPerBase usulan/terapan PO_RECEIVING/PO_INVOICE terakhir), lewat baris PO_REVERSAL
+ * yang langsung disetujui pelaku (Owner/GM) — jejaknya sama dengan persetujuan di Tinjauan Modal.
+ * Usulan PENDING dari PO ini ditutup. Harga PO, hutang, dan HPP batch tidak disentuh.
+ */
+export async function restoreCostBeforePO(
+  tx: Tx,
+  input: { poId: number; poNumber: string; branchId: number; actorUserId: number; reason: string },
+): Promise<CostRestoreResult> {
+  const { poId, poNumber, branchId, actorUserId, reason } = input
+  const poSources = and(
+    inArray(productCostSyncs.sourceType, ['PO_RECEIVING', 'PO_INVOICE']),
+    eq(productCostSyncs.sourceId, poId),
+    eq(productCostSyncs.branchId, branchId),
+  )
+  const result: CostRestoreResult = { restored: [], pendingClosed: [], skipped: [] }
+
+  const pending: { productId: number }[] = await tx
+    .update(productCostSyncs)
+    .set({ status: 'SUPERSEDED', resolvedById: actorUserId, resolvedAt: new Date(), resolutionNote: `Kembalikan modal ${poNumber}: ${reason}` })
+    .where(and(poSources, eq(productCostSyncs.status, 'PENDING')))
+    .returning({ productId: productCostSyncs.productId })
+
+  const applied: { id: number; productId: number; oldCostPerBase: number | null }[] = await tx
+    .select({ id: productCostSyncs.id, productId: productCostSyncs.productId, oldCostPerBase: productCostSyncs.oldCostPerBase })
+    .from(productCostSyncs)
+    .where(and(poSources, inArray(productCostSyncs.status, ['APPLIED', 'APPROVED'])))
+    .orderBy(desc(productCostSyncs.id))
+
+  const latestByProduct = new Map<number, { id: number; oldCostPerBase: number | null }>()
+  for (const r of applied) if (!latestByProduct.has(r.productId)) latestByProduct.set(r.productId, r)
+
+  for (const { productId } of pending) {
+    if (latestByProduct.has(productId) || result.pendingClosed.includes(productId)) continue
+    result.pendingClosed.push(productId)
+    await settlePriceReview(tx, branchId, productId)
+  }
+
+  for (const [productId, row] of latestByProduct) {
+    if (row.oldCostPerBase === null || row.oldCostPerBase <= 0) {
+      result.skipped.push({ productId, reason: 'NO_OLD' })
+      continue
+    }
+    const [later] = await tx
+      .select({ id: productCostSyncs.id })
+      .from(productCostSyncs)
+      .where(and(
+        eq(productCostSyncs.branchId, branchId),
+        eq(productCostSyncs.productId, productId),
+        gt(productCostSyncs.id, row.id),
+        inArray(productCostSyncs.status, ['APPLIED', 'APPROVED']),
+      ))
+      .limit(1)
+    if (later) {
+      result.skipped.push({ productId, reason: 'NEWER' })
+      continue
+    }
+
+    const product = await loadProductUoms(tx, productId)
+    if (!product) {
+      result.skipped.push({ productId, reason: 'NO_CONVERSION' })
+      continue
+    }
+    const current = await loadCurrentCosts(tx, branchId, productId)
+    await supersedePending(tx, branchId, productId, `Digantikan Kembalikan Modal ${poNumber}`)
+    const [proposal] = await tx.insert(productCostSyncs).values({
+      branchId,
+      productId,
+      sourceType: 'PO_REVERSAL',
+      sourceId: poId,
+      sourceRef: `Kembalikan modal ${poNumber}`,
+      sourceUomId: product.baseUomId,
+      sourceUnitCost: row.oldCostPerBase,
+      oldCostPerBase: currentCostPerBase(product.uoms, current, product.baseUomId),
+      newCostPerBase: row.oldCostPerBase,
+      status: 'PENDING',
+      effectiveAt: new Date(),
+      createdById: actorUserId,
+    }).returning({ id: productCostSyncs.id })
+    await approveCostReview(tx, { id: proposal.id, userId: actorUserId, note: reason })
+    result.restored.push(productId)
+  }
+
+  return result
+}
+
 /** Setujui satu usulan PENDING: terapkan modal ke semua satuan dari angka mentah satuan masuknya. */
 export async function approveCostReview(tx: Tx, input: { id: number; userId: number; note?: string | null }): Promise<void> {
   const [row] = await tx
