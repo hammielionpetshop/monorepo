@@ -6,15 +6,18 @@ type RestoreResult = {
   restored: string[];
   pendingClosed: string[];
   skipped: { name: string; reason: 'NEWER' | 'NO_OLD' | 'NO_CONVERSION' }[];
+  batchFix: { batches: number; valueBefore: number; valueAfter: number };
 };
 
+const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
+
 const SKIP_LABEL: Record<RestoreResult['skipped'][number]['reason'], string> = {
-  NEWER: 'modal sudah diperbarui barang masuk lain sesudah PO ini',
+  NEWER: 'modal sudah diperbarui barang masuk lain sesudah PO ini (HPP sisa stok disamakan dengan modal sekarang)',
   NO_OLD: 'belum punya modal sebelum PO ini',
   NO_CONVERSION: 'data satuan produk tidak ditemukan',
 };
 
-/** Kembalikan modal barang-barang PO Selesai ke angka sebelum PO masuk; harga PO & hutang tetap. */
+/** Kembalikan modal barang-barang PO Selesai ke angka sebelum PO masuk + HPP sisa stoknya; harga PO & hutang tetap. */
 export function PoCostRestoreDialog({
   poId,
   poNumber,
@@ -96,10 +99,18 @@ export function PoCostRestoreDialog({
                 </ul>
               </div>
             )}
-            {result.restored.length + result.pendingClosed.length + result.skipped.length === 0 && (
+            {result.batchFix.batches > 0 && (
+              <div>
+                <p className="font-medium text-foreground">HPP sisa stok dibetulkan ({result.batchFix.batches} batch):</p>
+                <p className="text-muted-foreground">
+                  Nilai sisa stok dari PO ini {rupiah(result.batchFix.valueBefore)} → {rupiah(result.batchFix.valueAfter)}
+                </p>
+              </div>
+            )}
+            {result.restored.length + result.pendingClosed.length + result.skipped.length === 0 && result.batchFix.batches === 0 && (
               <p className="text-muted-foreground">PO ini tidak mengubah modal barang apa pun — tidak ada yang perlu dikembalikan.</p>
             )}
-            <p className="text-xs text-muted-foreground">Harga PO dan hutang tidak berubah. Perubahan harga faktur berikutnya tidak akan mengubah modal lagi.</p>
+            <p className="text-xs text-muted-foreground">Harga PO dan hutang tidak berubah. Barang yang sudah terjual tetap ber-HPP saat terjual. Perubahan harga faktur berikutnya tidak akan mengubah modal lagi.</p>
             <div className="flex justify-end">
               <button type="button" onClick={onDone} className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
                 Selesai
@@ -110,7 +121,8 @@ export function PoCostRestoreDialog({
           <form onSubmit={submit} className="space-y-4">
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 space-y-1">
               <p>Modal semua barang di PO ini (semua satuan) dikembalikan ke angka <span className="font-semibold">sebelum PO ini masuk</span>.</p>
-              <p><span className="font-semibold">Harga beli di PO, total, dan hutang tidak berubah.</span> HPP barang yang sudah masuk juga tidak diubah.</p>
+              <p>HPP <span className="font-semibold">sisa stok</span> dari PO ini ikut disamakan dengan modal tersebut, jadi nilai stok & untung saat dijual memakai modal. Barang yang sudah terjual tidak diubah.</p>
+              <p><span className="font-semibold">Harga beli di PO, total, dan hutang tidak berubah.</span></p>
               <p>Sesudahnya, perubahan harga faktur PO ini tidak akan mengubah modal lagi. Langkah ini tidak bisa dibatalkan.</p>
             </div>
             <div>
