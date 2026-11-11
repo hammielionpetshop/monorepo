@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
 /**
  * Pencarian produk untuk form Purchase Order: satuan beserta rasio dan modal terakhirnya di
  * cabang tujuan (dasar harga satuan default), plus stok cabang itu sebagai bahan pertimbangan.
+ * `ids=1,2,3` (pengganti `q`) memuat produk tertentu — dipakai Duplikat PO.
  */
 export async function GET(req: Request) {
   const gate = await requirePermission('po.manage')
@@ -37,7 +38,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Tidak punya akses ke cabang ini' }, { status: 403 })
   }
 
-  const search = productSearchCondition(q)
+  const ids = (searchParams.get('ids') ?? '')
+    .split(',')
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .slice(0, 200)
+  const search = ids.length > 0 ? inArray(products.id, ids) : productSearchCondition(q)
   if (!search) return NextResponse.json([])
 
   try {
@@ -62,10 +68,10 @@ export async function GET(req: Request) {
       )
       .where(and(eq(products.isActive, true), eq(products.productKind, 'BARANG'), search))
       .orderBy(asc(products.name))
-      .limit(40)
+      .limit(ids.length > 0 ? ids.length : 40)
 
     if (rows.length === 0) return NextResponse.json([])
-    const ids = rows.map((r) => r.id)
+    const rowIds = rows.map((r) => r.id)
 
     const [conversions, costs] = await Promise.all([
       db
@@ -77,11 +83,11 @@ export async function GET(req: Request) {
         })
         .from(productUomConversions)
         .innerJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
-        .where(inArray(productUomConversions.productId, ids)),
+        .where(inArray(productUomConversions.productId, rowIds)),
       db
         .select({ productId: productUomCosts.productId, uomId: productUomCosts.uomId, cost: productUomCosts.costPrice })
         .from(productUomCosts)
-        .where(and(inArray(productUomCosts.productId, ids), eq(productUomCosts.branchId, branchId))),
+        .where(and(inArray(productUomCosts.productId, rowIds), eq(productUomCosts.branchId, branchId))),
     ])
 
     const costOf = new Map(costs.map((c) => [`${c.productId}:${c.uomId}`, Number(c.cost)]))

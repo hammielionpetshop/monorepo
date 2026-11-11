@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
+import { hasPermission } from '@/lib/authz';
 import { db, purchaseOrders, purchaseOrderItems, products, suppliers, branches, users, supplierPayables, desc, eq, sql } from '@/lib/db';
 import { pricePendingReceivedCount } from '@/lib/po-stage-sql';
 import { supplierDueDate } from '@/lib/supplier-due-date';
@@ -123,6 +124,7 @@ export default async function PurchaseOrdersPage() {
         branches={branchesList}
         currentUserId={currentUserId}
         role={role}
+        canReturnedGoods={payload ? hasPermission(payload, 'po.returned_goods') : false}
         today={todayWibDate()}
       />
     </div>
