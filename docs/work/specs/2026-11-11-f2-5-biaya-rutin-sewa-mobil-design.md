@@ -1,7 +1,7 @@
 # F2-5 Biaya Rutin & Sewa Mobil per Ritase
 
 PRD: `docs/hris_planning/PRD/fase_2/06-biaya-rutin-dan-sewa-mobil.md` (+ 02 Tempat Uang, 05 Arus Kas).
-Status: **draf — menunggu persetujuan owner**. Sudah diputuskan owner 2026-11-11 ("saya setuju" atas usulan
+Status: **disetujui owner 2026-11-11** ("ok" atas draf lengkap). Sudah diputuskan owner 2026-11-11 ("saya setuju" atas usulan
 agent): F2-5 dipecah **F2-5a Biaya Rutin** (Back Office, sampai produksi) dan **F2-5b Sewa Mobil** (Logistik,
 sampai staging, ikut rilis HRIS); pengatur Biaya Rutin Owner/GM, pembayar Owner/GM/Finance; sewa setahun
 sekaligus = satu kali bayar melunasi 12 tagihan; jumlah dibayar boleh beda dengan alasan wajib; pembelian aset
