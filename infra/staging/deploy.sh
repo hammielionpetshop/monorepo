@@ -34,9 +34,9 @@ compose=(docker compose --project-name hammielion-staging --project-directory "$
 "${compose[@]}" --profile tools pull migrator-staging
 # Pemeriksaan target tidak membuka koneksi DB; dijalankan sebelum migrasi apa pun.
 "${compose[@]}" --profile tools run --rm --no-deps --entrypoint node migrator-staging /opt/staging/check-env.mjs
-"${compose[@]}" pull bo-staging order-staging hris-staging cron-staging
+"${compose[@]}" pull bo-staging order-staging hris-staging finance-staging cron-staging
 "${compose[@]}" --profile tools run --rm --no-deps migrator-staging
-"${compose[@]}" up -d --wait --wait-timeout 180 bo-staging order-staging hris-staging cron-staging
+"${compose[@]}" up -d --wait --wait-timeout 180 bo-staging order-staging hris-staging finance-staging cron-staging
 
 python3 "$SCRIPT_DIR/configure-gateway.py"
 
@@ -50,7 +50,7 @@ fi
 echo 'Staging sehat; tag deployment tersimpan.'
 
 # Hanya tag staging-* milik aplikasi sendiri; image/tag produksi tidak disentuh.
-for image in backoffice order-web hris migrator; do
+for image in backoffice order-web hris finance migrator; do
   keep="$(docker images --filter "reference=ghcr.io/*/${image}:staging-*" --format '{{.ID}}' | awk '!seen[$0]++' | head -n 6 || true)"
   docker images --filter "reference=ghcr.io/*/${image}:staging-*" --format '{{.ID}} {{.Repository}}:{{.Tag}}' \
     | while read -r id reference; do

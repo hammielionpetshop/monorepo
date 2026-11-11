@@ -69,6 +69,23 @@ services:
     networks:
       - apps
 
+  # Web Finance khusus staging (spec F2-6 §3): hanya membaca, role stg_finance_app (SELECT saja). Login lewat
+  # sesi auth pusat Back Office (cookie .staginghml.my.id); tidak ada rahasia sendiri, jadi tanpa env_file.
+  finance-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/finance:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DATABASE_URL: ${STAGING_FINANCE_DATABASE_URL:?URL Finance staging wajib diisi}
+      DB_POOL_MAX: "2"
+      PORT: "3000"
+      AUTH_COOKIE_ENV: staging
+      AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
+      BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
+      HRIS_PUBLIC_URL: ${STAGING_HRIS_ORIGIN:-}
+    networks:
+      - apps
+
   cron-staging:
     image: alpine:3.22
     restart: unless-stopped
@@ -97,6 +114,7 @@ services:
       STAGING_BACKOFFICE_DATABASE_URL: ${STAGING_BACKOFFICE_DATABASE_URL:?URL backoffice staging wajib diisi}
       STAGING_ORDER_DATABASE_URL: ${STAGING_ORDER_DATABASE_URL:?URL portal staging wajib diisi}
       STAGING_HRIS_DATABASE_URL: ${STAGING_HRIS_DATABASE_URL:?URL HRIS staging wajib diisi}
+      STAGING_FINANCE_DATABASE_URL: ${STAGING_FINANCE_DATABASE_URL:?URL Finance staging wajib diisi}
       STAGING_JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
       # Hanya untuk check-env: nilai yang sama dengan yang dipakai bo-staging dan hris-staging.
       STAGING_BO_AUTH_MODE: ${STAGING_BO_AUTH_MODE:-legacy}

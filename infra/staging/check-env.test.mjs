@@ -8,9 +8,11 @@ function environment() {
     STAGING_BACKOFFICE_DATABASE_URL: 'postgresql://stg_bo_app:bo-test@postgres:5432/petshop_staging',
     STAGING_ORDER_DATABASE_URL: 'postgresql://stg_order_app:order-test@postgres:5432/petshop_staging',
     STAGING_HRIS_DATABASE_URL: 'postgresql://stg_hris_app:hris-test@postgres:5432/petshop_staging',
+    STAGING_FINANCE_DATABASE_URL: 'postgresql://stg_finance_app:finance-test@postgres:5432/petshop_staging',
     STG_BO_APP_DB_PASSWORD: 'bo-test',
     STG_ORDER_APP_DB_PASSWORD: 'order-test',
     STG_HRIS_APP_DB_PASSWORD: 'hris-test',
+    STG_FINANCE_APP_DB_PASSWORD: 'finance-test',
     STAGING_JOB_SECRET: 'test-only',
   };
 }
@@ -20,7 +22,7 @@ test('menerima database staging dan pasangan role/password yang benar', () => {
 });
 
 test('menolak database produksi pada semua URL sebelum migrasi', () => {
-  for (const key of ['DATABASE_URL', 'STAGING_BACKOFFICE_DATABASE_URL', 'STAGING_ORDER_DATABASE_URL', 'STAGING_HRIS_DATABASE_URL']) {
+  for (const key of ['DATABASE_URL', 'STAGING_BACKOFFICE_DATABASE_URL', 'STAGING_ORDER_DATABASE_URL', 'STAGING_HRIS_DATABASE_URL', 'STAGING_FINANCE_DATABASE_URL']) {
     const env = environment();
     env[key] = env[key].replace('/petshop_staging', '/petshop_db');
     assert.throws(() => checkEnvironment(env), /petshop_staging/);
@@ -50,7 +52,7 @@ test('menolak penggantian target melalui query URL termasuk nama kunci terenkode
 });
 
 test('setiap aplikasi hanya boleh memakai role staging miliknya', () => {
-  for (const key of ['STAGING_BACKOFFICE_DATABASE_URL', 'STAGING_ORDER_DATABASE_URL', 'STAGING_HRIS_DATABASE_URL']) {
+  for (const key of ['STAGING_BACKOFFICE_DATABASE_URL', 'STAGING_ORDER_DATABASE_URL', 'STAGING_HRIS_DATABASE_URL', 'STAGING_FINANCE_DATABASE_URL']) {
     const env = environment();
     env[key] = env[key].replace(/\/\/[^:]+:/, '//admin:');
     assert.throws(() => checkEnvironment(env), /wajib memakai role stg_/);
