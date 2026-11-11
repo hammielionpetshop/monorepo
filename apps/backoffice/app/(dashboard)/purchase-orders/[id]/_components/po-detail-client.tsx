@@ -22,6 +22,7 @@ import { PoItemsEditor } from './po-items-editor';
 import { canEditPoItems } from '@/lib/services/po-item-edit-rules';
 import { CreatePODialog } from '../../_components/create-po-dialog';
 import { poLineQty } from '@/lib/po-total';
+import { PoCostRestoreDialog } from './po-cost-restore-dialog';
 
 const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
 
@@ -168,6 +169,7 @@ export function PODetailClient({
   const refresh = () => startRefresh(() => router.refresh());
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showCostRestore, setShowCostRestore] = useState(false);
 
   useEffect(() => {
     if (!successMsg) return;
@@ -848,6 +850,30 @@ export function PODetailClient({
           <p className="text-sm text-green-600 font-medium">
             Penerimaan telah disetujui. Stok sudah diperbarui.
           </p>
+        )}
+
+        {po.status === 'COMPLETED' && canReturnedGoods && !po.keepCurrentCost && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Harga beli PO ini bukan modal yang wajar (mis. barang kembali dari rekan)? Kembalikan modal semua barangnya ke sebelum PO ini masuk — harga PO dan hutang tetap.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCostRestore(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-muted/50 transition-colors"
+            >
+              Kembalikan Modal <NewBadge feature="fitur/po-kembalikan-modal" />
+            </button>
+          </div>
+        )}
+
+        {showCostRestore && (
+          <PoCostRestoreDialog
+            poId={po.id}
+            poNumber={po.poNumber}
+            onClose={() => setShowCostRestore(false)}
+            onDone={() => { setShowCostRestore(false); refresh(); }}
+          />
         )}
 
         {po.status === 'COMPLETED' && followUp && (
