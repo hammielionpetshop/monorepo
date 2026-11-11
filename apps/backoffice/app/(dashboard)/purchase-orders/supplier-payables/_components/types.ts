@@ -35,6 +35,9 @@ export interface SupplierPayable {
   /** Tagihan perkiraan (harga rencana / modal lama untuk barang yang belum berharga). */
   estimatedTotal: number
   payments: SupplierPayment[]
+  /** Alasan & pelaku Bebaskan Hutang (status WAIVED dari tombol itu); null = bukan/tidak tercatat. */
+  waiveReason: string | null
+  waivedByName: string | null
 }
 
 export interface SupplierCredit {

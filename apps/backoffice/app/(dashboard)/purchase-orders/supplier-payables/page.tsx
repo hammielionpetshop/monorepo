@@ -14,7 +14,9 @@ import {
   users,
   paymentMethods,
   moneyPlaces,
+  auditLogs,
   eq,
+  and,
   ne,
   asc,
   desc,
@@ -96,6 +98,21 @@ export default async function SupplierPayablesPage({
     paymentsByPayable.set(p.payableId, list)
   }
 
+  const waivedIds = rows.filter(r => r.status === 'WAIVED').map(r => String(r.id))
+  const waiveRows = waivedIds.length === 0 ? [] : await db
+    .select({ recordId: auditLogs.recordId, newData: auditLogs.newData, userName: users.name })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .where(and(eq(auditLogs.action, 'SUPPLIER_PAYABLE_WAIVED'), inArray(auditLogs.recordId, waivedIds)))
+  const waiveByPayable = new Map<number, { reason: string | null; byName: string | null }>()
+  for (const w of waiveRows) {
+    let reason: string | null = null
+    try {
+      reason = JSON.parse(w.newData ?? '{}').reason ?? null
+    } catch {}
+    waiveByPayable.set(Number(w.recordId), { reason, byName: w.userName })
+  }
+
   const pendingByPo = await loadPendingPriceEstimates(rows.map(r => r.poId))
 
   const payables: SupplierPayable[] = rows.map(({ dueAt, ...r }) => {
@@ -107,6 +124,8 @@ export default async function SupplierPayablesPage({
       pricePendingItems: pending?.pendingItems ?? 0,
       estimatedTotal: r.totalAmount + (pending?.extraEstimate ?? 0),
       payments: paymentsByPayable.get(r.id) ?? [],
+      waiveReason: waiveByPayable.get(r.id)?.reason ?? null,
+      waivedByName: waiveByPayable.get(r.id)?.byName ?? null,
     }
   })
 
@@ -141,6 +160,7 @@ export default async function SupplierPayablesPage({
       <SupplierPayablesClient
         payables={payables}
         canPay={hasPermission(payload, 'payable.pay')}
+        canWaive={hasPermission(payload, 'payable.supplier_waive')}
         paymentMethods={methods}
         supplierCredits={supplierCredits}
         today={todayWibDate()}
