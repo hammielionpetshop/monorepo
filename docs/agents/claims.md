@@ -23,8 +23,8 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 |---|---|
 | `petshop` | `feat/recurring-costs` (F2-5a Biaya Rutin, 2026-11-11) |
 | `auth` | — |
-| `logistics` | — |
-| `hris` | — |
+| `logistics` | `feat/hris-vehicle-rental` (F2-5b Sewa Mobil, 2026-11-11) |
+| `hris` | `feat/hris-vehicle-rental` (F2-5b Sewa Mobil, 2026-11-11) |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/hris-vehicle-rental | Claude (sesi owner) | Logistik HRIS (Sewa Mobil per ritase, F2-5b; dasar `dev_hris`) | `apps/hris/app/(app)/logistik/sewa-mobil/**`, `apps/hris/app/(app)/logistik/mobil-rute/**`, `apps/hris/app/api/logistics/vehicle-rental*/**` + API mobil (kepemilikan, tarif sewa), `apps/hris/modules/logistics/{rules,server,ui}/vehicle-rental*`, `apps/hris/modules/logistics/ui/fleet*`/layar Mobil & Rute, `packages/logistics/src/schema/index.ts`, migrasi logistics `0020`, migrasi hris `0057` (hak `logistics.vehicle_rental.pay`/`.view`), `apps/hris/lib/{authz,nav,new-features}.ts`, `apps/hris/changelog.d/feat-hris-vehicle-rental.md`; spec `docs/work/specs/2026-11-11-f2-5-biaya-rutin-sewa-mobil-design.md` §3 | 2026-11-11 |
 | feat/recurring-costs | Claude (sesi owner) | Keuangan (Biaya Rutin, F2-5a) + Arus Kas | `apps/backoffice/app/(dashboard)/recurring-costs/**`, `apps/backoffice/app/api/bo/recurring-costs/**`, `apps/backoffice/lib/services/recurring-cost*`, `apps/backoffice/lib/services/cash-flow*` + `app/api/bo/cash-flow/entries/**` (tolak batal catatan Biaya Rutin, kategori sistem), `packages/db/src/schema/recurring_costs.ts` + `schema/index.ts`, migrasi petshop `0066`, `sidebar.tsx`, `lib/new-features.ts`; spec `docs/work/specs/2026-11-11-f2-5-biaya-rutin-sewa-mobil-design.md` | 2026-11-11 |
 
 
