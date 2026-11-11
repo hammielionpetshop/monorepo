@@ -7,6 +7,10 @@ export interface PayablePayment {
   notes: string | null
   paidAt: string
   paidByName: string | null
+  /** Diketik orang (bukan baris otomatis Retur/Saldo/Setoran/Susulan/Batal) — hanya ini yang bisa dibatalkan. */
+  isManual: boolean
+  /** Terisi bila pembayaran manual ini sudah dibatalkan (baris BATAL BAYAR). */
+  cancelled: { at: string; byName: string | null; reason: string | null } | null
 }
 
 export interface WaiveInfo {
