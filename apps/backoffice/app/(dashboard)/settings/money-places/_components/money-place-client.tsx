@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MoneyPlaceHeldBy, MoneyPlaceKind, MoneyPlaceRow, PaymentLinkMatrix } from '@/lib/services/money-place-service'
 import { NewBadge } from '@/components/ui/new-badge'
+import type { OpeningBalanceRow } from '@/lib/services/money-place-opening-balance-service'
+import { OpeningBalanceCell, OpeningBalanceDialog } from './opening-balance-cell'
 
 interface Props {
   initialPlaces: MoneyPlaceRow[]
@@ -11,6 +13,10 @@ interface Props {
   canManage: boolean
   /** F2-2: tujuan bawaan setoran tunai per cabang (baris Tunai). */
   initialCashDefaults: { branchId: number; moneyPlaceId: number }[]
+  /** F2-6a-1: saldo awal 1 Nov 2026 (berlaku + batal). */
+  initialOpeningBalances: OpeningBalanceRow[]
+  /** Owner/GM: isi & batalkan saldo awal. */
+  canManageOpening: boolean
 }
 
 const KIND_LABEL: Record<MoneyPlaceKind, string> = { DRAWER: 'Laci kasir', CASH: 'Tunai', BANK: 'Rekening' }
@@ -41,7 +47,11 @@ function maskAccount(n: string | null): string {
   return n.length <= 4 ? n : `•••• ${n.slice(-4)}`
 }
 
-export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchOptions, canManage, initialCashDefaults }: Props) {
+export default function MoneyPlaceClient({
+  initialPlaces, initialMatrix, branchOptions, canManage, initialCashDefaults, initialOpeningBalances, canManageOpening,
+}: Props) {
+  const [openingBalances, setOpeningBalances] = useState(initialOpeningBalances)
+  const [openingFor, setOpeningFor] = useState<MoneyPlaceRow | null>(null)
   const [cashDefaults, setCashDefaults] = useState(initialCashDefaults)
   const [tab, setTab] = useState<'list' | 'links'>('list')
   const [places, setPlaces] = useState(initialPlaces)
@@ -84,6 +94,19 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
   async function refreshPlaces() {
     const res = await fetch('/api/bo/settings/money-places')
     if (res.ok) setPlaces(await res.json())
+  }
+
+  const openingByPlace = useMemo(() => {
+    const map = new Map<number, OpeningBalanceRow[]>()
+    for (const r of openingBalances) map.set(r.moneyPlaceId, [...(map.get(r.moneyPlaceId) ?? []), r])
+    return map
+  }, [openingBalances])
+
+  async function refreshOpeningBalances(text: string) {
+    const res = await fetch('/api/bo/settings/money-places/opening-balances')
+    if (res.ok) setOpeningBalances(await res.json())
+    setOpeningFor(null)
+    setMessage({ kind: 'ok', text })
   }
 
   function openNew() {
@@ -287,6 +310,9 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
                         <th className="text-left font-medium px-4 py-2">Jenis</th>
                         <th className="text-left font-medium px-4 py-2">Rekening</th>
                         <th className="text-left font-medium px-4 py-2">Dipegang oleh</th>
+                        <th className="text-left font-medium px-4 py-2">
+                          Saldo awal 1 Nov 2026 <NewBadge feature="fitur/saldo-awal-tempat-uang" />
+                        </th>
                         <th className="text-left font-medium px-4 py-2">Status</th>
                         {canManage && <th className="text-right font-medium px-4 py-2">Aksi</th>}
                       </tr>
@@ -324,6 +350,18 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
                           <td className="px-4 py-2 text-muted-foreground">
                             {HELD_BY_LABEL[p.heldBy]}
                             {p.holderNote && <span className="block text-xs">{p.holderNote}</span>}
+                          </td>
+                          <td className="px-4 py-2">
+                            {p.kind === 'DRAWER' ? (
+                              <span className="text-xs text-muted-foreground" title="Uang laci dihitung per shift">—</span>
+                            ) : (
+                              <OpeningBalanceCell
+                                place={p}
+                                rows={openingByPlace.get(p.id) ?? []}
+                                canManage={canManageOpening}
+                                onOpen={() => setOpeningFor(p)}
+                              />
+                            )}
                           </td>
                           <td className="px-4 py-2">
                             {p.isActive
@@ -556,6 +594,15 @@ export default function MoneyPlaceClient({ initialPlaces, initialMatrix, branchO
             </form>
           </div>
         </div>
+      )}
+      {openingFor && (
+        <OpeningBalanceDialog
+          place={openingFor}
+          rows={openingByPlace.get(openingFor.id) ?? []}
+          canManage={canManageOpening}
+          onClose={() => setOpeningFor(null)}
+          onChanged={refreshOpeningBalances}
+        />
       )}
     </>
   )
