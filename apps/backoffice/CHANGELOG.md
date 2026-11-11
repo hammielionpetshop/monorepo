@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.130] - 2026-11-11
+
+### Changed
+- **Kembalikan Modal** di detail PO Selesai kini sekaligus membetulkan HPP sisa stok dari PO itu ke modal yang dikembalikan, jadi nilai stok dan untung saat barang dijual memakai modal, bukan harga beli PO. Barang yang sudah terjual tidak diubah; nilai sisa stok sebelum dan sesudah ditampilkan di hasilnya.
+
 ## [1.107.129] - 2026-11-11
 
 ### Added
