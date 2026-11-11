@@ -9,6 +9,7 @@ import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-st
 import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
 import type { SupplierPayable, Option, SupplierCredit } from './types'
 import { SupplierPaymentDialog } from './supplier-payment-dialog'
+import { SupplierWaiveDialog } from './supplier-waive-dialog'
 import { ProofPhotoLink } from '@/components/ui/proof-photo-field'
 import { NewBadge } from '@/components/ui/new-badge'
 
@@ -27,6 +28,7 @@ const TABS = [
   { key: 'OVERDUE', label: 'Terlambat' },
   { key: 'WAITING', label: 'Menunggu Faktur' },
   { key: 'PAID',    label: 'Lunas' },
+  { key: 'WAIVED',  label: 'Dihapus' },
   { key: 'all',     label: 'Semua' },
 ]
 
@@ -35,12 +37,15 @@ const isOpen = (p: SupplierPayable) => p.status === 'UNPAID' || p.status === 'PA
 // belum bisa dibayar (DP ditulis saat faktur diisi — keputusan owner).
 const isWaiting = (p: SupplierPayable) => isOpen(p) && p.pricePendingItems > 0
 const isPayable = (p: SupplierPayable) => isOpen(p) && p.pricePendingItems === 0
+// Bebaskan hutang hanya untuk tagihan final yang belum dibayar sama sekali (sama dengan server).
+const isWaivable = (p: SupplierPayable) => p.status === 'UNPAID' && p.paidAmount === 0 && p.pricePendingItems === 0
 const remainingOf = (p: SupplierPayable) => Math.max(p.totalAmount - p.paidAmount, 0)
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
 interface Props {
   payables: SupplierPayable[]
   canPay: boolean
+  canWaive: boolean
   paymentMethods: Option[]
   supplierCredits: SupplierCredit[]
   /** Tanggal hari ini (WIB, YYYY-MM-DD) dari server — batas atas tanggal bayar. */
@@ -49,7 +54,7 @@ interface Props {
   initialSearch: string | null
 }
 
-export function SupplierPayablesClient({ payables, canPay, paymentMethods, supplierCredits, today, initialSearch }: Props) {
+export function SupplierPayablesClient({ payables, canPay, canWaive, paymentMethods, supplierCredits, today, initialSearch }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'OPEN')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL)
@@ -58,6 +63,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
 
   const [payingRow, setPayingRow] = useState<SupplierPayable | null>(null)
   const [historyRow, setHistoryRow] = useState<SupplierPayable | null>(null)
+  const [waivingRow, setWaivingRow] = useState<SupplierPayable | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -85,7 +91,13 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
     document.body.style.overflow = 'hidden'
   }, [])
 
+  const openWaiveModal = useCallback((row: SupplierPayable) => {
+    setWaivingRow(row)
+    document.body.style.overflow = 'hidden'
+  }, [])
+
   const closeModal = useCallback(() => {
+    setWaivingRow(null)
     setPayingRow(null)
     setHistoryRow(null)
     document.body.style.overflow = ''
@@ -264,11 +276,20 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
             </span>
           )
         }
-        const st = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
+        const p = row.original
+        const st = STATUS_CONFIG[p.status] ?? { label: p.status, color: 'bg-gray-100 text-gray-600' }
         return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.color}`}>
-            {st.label}
-          </span>
+          <div className="max-w-[16rem]">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.color}`}>
+              {st.label}
+            </span>
+            {p.status === 'WAIVED' && p.waiveReason && (
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2" title={p.waiveReason}>
+                {p.waiveReason}
+                {p.waivedByName && <span> — {p.waivedByName}</span>}
+              </p>
+            )}
+          </div>
         )
       },
     },
@@ -296,6 +317,16 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
               >
                 Isi harga dulu →
               </a>
+            )}
+            {canWaive && isWaivable(p) && (
+              <button
+                type="button"
+                onClick={() => openWaiveModal(p)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-destructive hover:underline whitespace-nowrap"
+                title="Relakan tagihan tanpa uang keluar (alasan wajib)"
+              >
+                Bebaskan Hutang <NewBadge feature="fitur/bebaskan-hutang-supplier" />
+              </button>
             )}
             {canPay && isPayable(p) && (
               <button
@@ -444,6 +475,23 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
         />
       )}
 
+      {waivingRow && (
+        <SupplierWaiveDialog
+          target={{
+            id: waivingRow.id,
+            poNumber: waivingRow.poNumber,
+            supplierName: waivingRow.supplierName,
+            amount: waivingRow.totalAmount,
+          }}
+          onClose={closeModal}
+          onSaved={(message) => {
+            closeModal()
+            setSuccessMsg(message)
+            router.refresh()
+          }}
+        />
+      )}
+
       {historyRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeModal}>
           <div
@@ -465,6 +513,9 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                     <th className="text-right font-medium px-3 py-2">Nominal</th>
                     <th className="text-left font-medium px-3 py-2">Metode</th>
                     <th className="text-left font-medium px-3 py-2">
+                      <span className="inline-flex items-center gap-1.5">Dibayar dari <NewBadge feature="fitur/dibayar-dari-supplier" /></span>
+                    </th>
+                    <th className="text-left font-medium px-3 py-2">
                       <span className="inline-flex items-center gap-1.5">Bukti / Keterangan <NewBadge feature="fitur/foto-bukti-transfer" /></span>
                     </th>
                     <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
@@ -476,6 +527,15 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                       <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
                       <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
                       <td className="px-3 py-2">{pay.method}</td>
+                      <td className="px-3 py-2">
+                        {pay.noMoney ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : pay.moneyPlaceName ? (
+                          pay.moneyPlaceName
+                        ) : (
+                          <span className="italic text-muted-foreground">belum diketahui</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
                         {pay.note && <div>{pay.note}</div>}

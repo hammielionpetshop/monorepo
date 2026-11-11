@@ -6,6 +6,7 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     actions: [
       { value: 'EDIT_TRANSACTION', label: 'Edit transaksi' },
       { value: 'OVERSELL', label: 'Jual melebihi stok (oversell)' },
+      { value: 'BELOW_COST_SALE', label: 'Jual di bawah modal' },
       { value: 'VOID_TRANSACTION', label: 'Void transaksi' },
       { value: 'VOID_REQUEST_APPROVED', label: 'Permintaan void disetujui' },
       { value: 'VOID_REQUEST_REJECTED', label: 'Permintaan void ditolak' },
@@ -54,6 +55,9 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
       { value: 'PO_RECEIVING_REVERSED', label: 'Penerimaan PO dibatalkan' },
       { value: 'PO_CANCELLED', label: 'PO dibatalkan' },
       { value: 'PO_ITEMS_UPDATED', label: 'Isi PO diubah' },
+      { value: 'PO_COST_RESTORED', label: 'Modal dikembalikan dari PO' },
+      { value: 'PO_RESTORE_BATCH_COST', label: 'HPP sisa stok PO disamakan dengan modal' },
+      { value: 'SUPPLIER_PAYABLE_WAIVED', label: 'Hutang supplier dibebaskan' },
     ],
   },
   {
@@ -74,6 +78,19 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     ],
   },
   {
+    group: 'Setoran',
+    actions: [
+      { value: 'CASH_DEPOSIT_REPORT', label: 'Setoran tunai dilaporkan (POS)' },
+      { value: 'CASH_DEPOSIT_VERIFY', label: 'Setoran tunai diverifikasi' },
+      { value: 'CASH_DEPOSIT_RECEIVE', label: 'Terima Setoran (langsung terverifikasi)' },
+      { value: 'CASH_DEPOSIT_CANCEL', label: 'Setoran tunai dibatalkan' },
+      { value: 'CASH_DEPOSIT_CORRECT', label: 'Setoran tunai dikoreksi' },
+      { value: 'NONCASH_AWAITING_FUNDS', label: 'Non-tunai: dana belum cair' },
+      { value: 'NONCASH_VERIFY', label: 'Non-tunai diverifikasi' },
+      { value: 'NONCASH_CORRECT', label: 'Verifikasi non-tunai dikoreksi' },
+    ],
+  },
+  {
     group: 'Pengguna & Pengaturan',
     actions: [
       { value: 'USER_PIN_RESET', label: 'Reset PIN pengguna' },
@@ -85,6 +102,9 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
       { value: 'MONEY_PLACE_DEACTIVATE', label: 'Tempat Uang dinonaktifkan' },
       { value: 'MONEY_PLACE_LINK_SET', label: 'Metode bayar ditautkan ke Tempat Uang' },
       { value: 'MONEY_PLACE_LINK_REMOVE', label: 'Tautan metode bayar dilepas' },
+      { value: 'CASH_DEPOSIT_DEFAULT_SET', label: 'Tujuan setoran tunai cabang diatur' },
+      { value: 'CASH_DEPOSIT_DEFAULT_REMOVE', label: 'Tujuan setoran tunai cabang dilepas' },
+      { value: 'DEPOSIT_SETTINGS_UPDATE', label: 'Pengaturan Setoran diubah' },
     ],
   },
 ]

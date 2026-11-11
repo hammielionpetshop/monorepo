@@ -44,6 +44,7 @@ import {
   HandCoins,
   CreditCard,
   Wallet,
+  Landmark,
   Barcode,
   PackageX,
   PackageMinus,
@@ -159,6 +160,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/cash-flow', label: 'Pendapatan & Pengeluaran', icon: HandCoins },
+      { href: '/cash-flow/transfers', label: 'Pindah Dana', icon: ArrowLeftRight, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/expenses', label: 'Pengeluaran Shift', icon: Banknote, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
       { href: '/cash-flow/categories', label: 'Kategori Kas', icon: FolderOpen, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
@@ -170,6 +172,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/shift-history', label: 'Riwayat Shift', icon: Clock, roles: ['OWNER', 'GM', 'FINANCE'] },
+      { href: '/deposits', label: 'Setoran', icon: Landmark, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/cashier-variance', label: 'Minus Kasir', icon: Scale, roles: ['OWNER', 'GM', 'FINANCE'] },
     ],
   },

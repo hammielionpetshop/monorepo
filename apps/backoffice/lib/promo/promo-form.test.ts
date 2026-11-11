@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildPromoPayload, describePromo, emptyPromoForm, formatPromoPeriod, parseWholeNumber,
-  promoPricePreview, timeToMinute, wibDateTime, type PromoFormState,
+  buildPromoDatesPayload, buildPromoPayload, describePromo, emptyPromoForm, formatPromoPeriod, parseWholeNumber,
+  promoPricePreview, promoToForm, timeToMinute, wibDateTime, type PromoFormState,
 } from './promo-form'
 
 const A = { productId: 1, uomId: 10 }
@@ -217,5 +217,62 @@ describe('kelompok campur di form promo', () => {
       rewards: [{ ...D, type: 'GRATIS', value: 0, qty: 1, productName: 'Sekop', uomCode: 'PCS' }],
     })
     expect(lines[0]).toBe('Syarat: 3 PCS campur dari Pasir 10L Lavender / Pasir 10L Apel')
+  })
+})
+
+describe('salin promo jadi isian form', () => {
+  const NOW = new Date('2026-11-10T05:00:00Z') // 10 Nov 12.00 WIB
+  const roundTrip = (f: PromoFormState) => {
+    const built = buildPromoPayload(f)
+    if ('error' in built) throw new Error(built.error)
+    const copied = promoToForm(built.payload, '2026-11-10', NOW, [1, 2])
+    expect(copied).not.toBeNull()
+    const again = buildPromoPayload(copied!)
+    if ('error' in again) throw new Error(again.error)
+    expect(again.payload).toEqual(built.payload)
+    return copied!
+  }
+
+  it('semua bentuk promo tersalin persis (kiriman ulang sama dengan aslinya)', () => {
+    const base = { startDate: '2026-11-12', startTime: '08:00', endDate: '2026-11-20', endTime: '21:30', note: 'catatan' }
+    expect(roundTrip(form({ ...base, shape: 'POTONGAN', target: A, cutType: 'HARGA_JADI', cutValue: '15000' })).shape).toBe('POTONGAN')
+    expect(roundTrip(form({ ...base, shape: 'MULAI_N', target: A, minQty: '3' })).shape).toBe('MULAI_N')
+    expect(roundTrip(form({ ...base, shape: 'FLASH_SALE', target: A, useDailyHours: true, dailyFrom: '22:00', dailyTo: '02:00' })).shape).toBe('FLASH_SALE')
+    expect(roundTrip(form({
+      ...base, shape: 'BELI_A_POTONG_B', conditions: [{ ...A, minQty: '2' }], rewards: [{ ...B, qty: '1' }], isMultiple: true, maxPerNote: '3',
+      quotaKind: 'PCS', quotaPerBranch: '25', requireStock: true,
+    })).shape).toBe('BELI_A_POTONG_B')
+    expect(roundTrip(form({ ...base, shape: 'BELI_GRATIS', conditions: [{ ...A, minQty: '2' }], rewards: [{ ...A, qty: '1' }] })).shape).toBe('BELI_GRATIS')
+    expect(roundTrip(form({
+      ...base, shape: 'BUNDLING', conditions: [{ ...A, minQty: '1' }],
+      conditionGroups: [{ members: [{ productId: 3, uomId: 10 }, { productId: 4, uomId: 10 }], minQty: '2' }],
+      rewards: [{ ...B, qty: '1' }],
+    })).shape).toBe('BUNDLING')
+  })
+
+  it('promo yang sudah berakhir digeser mulai hari ini dengan lama hari yang sama; cabang di luar pilihan dibuang', () => {
+    const copied = promoToForm({
+      name: 'Lama', kind: 'POTONGAN', note: null, branchIds: [1, 9],
+      startsAt: '2026-10-01T01:00:00Z', endsAt: '2026-10-05T14:00:00Z',
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: false, maxPerNote: null,
+      quotaKind: null, quotaPerBranch: null, requireStock: false,
+      conditions: [{ ...A, minQty: 1 }], rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 1000, qty: null }],
+    }, '2026-11-10', NOW, [1, 2])!
+    expect(copied).toMatchObject({ startDate: '2026-11-10', startTime: '08:00', endDate: '2026-11-14', endTime: '21:00', branchIds: [1] })
+  })
+
+  it('bentuk yang belum bisa dibuat lewat layar tidak bisa disalin', () => {
+    expect(promoToForm({
+      name: 'X', kind: 'HADIAH_PILIHAN', note: null, branchIds: [1], startsAt: '2026-11-12T00:00:00Z', endsAt: '2026-11-20T00:00:00Z',
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: false, maxPerNote: null,
+      conditions: [{ ...A, minQty: 1 }], rewards: [{ ...B, type: 'GRATIS', value: 0, qty: 1 }],
+    }, '2026-11-10', NOW, [1])).toBeNull()
+  })
+
+  it('isian ubah tanggal: berakhir harus sesudah mulai dan di masa depan', () => {
+    expect(buildPromoDatesPayload({ startDate: '2026-11-01', startTime: '00:00', endDate: '2026-11-30', endTime: '23:59' }, NOW))
+      .toEqual({ payload: { startsAt: '2026-11-01T00:00:00+07:00', endsAt: '2026-11-30T23:59:00+07:00' } })
+    expect(buildPromoDatesPayload({ startDate: '2026-11-01', startTime: '00:00', endDate: '2026-11-09', endTime: '23:59' }, NOW)).toHaveProperty('error')
+    expect(buildPromoDatesPayload({ startDate: '2026-11-20', startTime: '00:00', endDate: '2026-11-19', endTime: '23:59' }, NOW)).toHaveProperty('error')
   })
 })

@@ -17,6 +17,13 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
   'fitur/langkah-pengiriman': '2026-11-04', // langkah Pengiriman sebelum layar bayar kasir: ambil sendiri / kurir + pengantar + ongkir / truk (samakan dengan tanggal rilis saat merge)
   'fitur/cara-kirim': '2026-11-04', // pilihan wajib Cara kirim (bayar, Bulk Sale, Kirim PO Internal) + kolom/saringan Riwayat Transaksi + Ubah cara kirim (samakan dengan tanggal rilis saat merge)
+  'fitur/utang-lama-jalankan': '2026-11-08', // tombol Jalankan pelunasan susulan + penyaring Utang lama, F2-3b-2
+  'fitur/periksa-harga-jual': '2026-11-10', // tab Harga Jual Perlu Diperiksa di Tinjauan Modal & Margin (samakan dengan tanggal rilis saat merge)
+  'fitur/utang-lama-pratinjau': '2026-11-08', // tombol Utang Lama di Utang Internal, F2-3b-1
+  'fitur/pindah-dana': '2026-11-09', // Arus Kas › Pindah Dana F2-4c
+  '/cash-flow/transfers': '2026-11-09', // menu Pindah Dana F2-4c
+  'fitur/arus-kas-rapi': '2026-11-09', // Arus Kas F2-4b: tanggal uang, untuk bulan, Tempat Uang, batal beralasan, jenis kategori
+  'fitur/dibayar-dari-supplier': '2026-11-09', // isian Dibayar dari (Tempat Uang) di form bayar supplier, F2-4a
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
@@ -30,7 +37,9 @@ export const NEW_FEATURES: Record<string, string> = {
   '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
   '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
   '/settings/money-places': '2026-11-08', // Tempat Uang + tautan metode bayar per cabang, F2-1a (rilis 1.107.118)
+  '/deposits': '2026-11-08', // menu Setoran, F2-2 (samakan dengan tanggal rilis saat merge)
   // POS
+  '/pos/cash-deposits': '2026-11-08', // POS › Setor Tunai, F2-2 (samakan dengan tanggal rilis saat merge)
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
   '/pos/ongkir': '2026-11-04', // menu Ongkir: riwayat ongkir & pengantar cabang (samakan dengan tanggal rilis saat merge)
@@ -87,8 +96,17 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/batalkan-po': '2026-11-05', // tombol Batalkan PO + panduan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
   'fitur/grooming-tahan': '2026-11-05', // tombol Tahan (karcis dulu, nota menyusul) di tab Grooming + tahanan di Sedang Dikerjakan (samakan dengan tanggal rilis saat merge)
   'fitur/promo-kelompok-campur': '2026-11-05', // tombol Kelompok campur (rasa/aroma bebas) di form promo (samakan dengan tanggal rilis saat merge)
+  'fitur/promo-salin-ubah-tanggal': '2026-11-10', // tombol Salin jadi promo baru + Ubah tanggal di daftar Promo — rilis 1.107.123
   'fitur/po-dari-bongkaran': '2026-11-06', // Draft PO dari Laporan Bongkaran HRIS + lampiran foto surat jalan di detail PO (samakan dengan tanggal rilis saat merge)
   'fitur/ubah-isi-po': '2026-11-06', // tombol Ubah Isi PO / Tambah Barang + Buat PO Tambahan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
+  'fitur/pelunasan-otomatis': '2026-11-08', // F2-3: ringkasan sisa utang per cabang + kolom Umur di Utang Internal (samakan dengan tanggal rilis saat merge)
+  'fitur/batal-bayar-utang-internal': '2026-11-11', // tombol Batalkan pembayaran manual di Riwayat Utang Internal (samakan dengan tanggal rilis saat merge)
+  'fitur/po-kembalikan-modal': '2026-11-11', // tombol Kembalikan Modal di detail PO Selesai (samakan dengan tanggal rilis saat merge)
+  'fitur/po-barang-kembali': '2026-11-11', // centang Barang kembali (tidak mengubah modal) di form Buat PO (samakan dengan tanggal rilis saat merge)
+  'fitur/po-duplikat': '2026-11-11', // tombol Duplikat PO di detail PO Batal/Ditolak (samakan dengan tanggal rilis saat merge)
+  'fitur/po-cari-supplier': '2026-11-11', // kolom Cari Supplier di filter daftar Purchase Order (samakan dengan tanggal rilis saat merge)
+  'fitur/bebaskan-hutang-supplier': '2026-11-11', // tombol Bebaskan Hutang + tab Dihapus di Hutang Supplier (samakan dengan tanggal rilis saat merge)
+  'fitur/po-dokumen-harga': '2026-11-11', // centang Tampilkan harga di PDF/foto PO Supplier (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

@@ -101,7 +101,12 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'debt.payment_void', name: 'Void Pembayaran Hutang', description: 'Void pembayaran hutang customer', roles: ['OWNER', 'GM'] },
   { code: 'payable.pay', name: 'Bayar Hutang', description: 'Bayar hutang supplier/antar-cabang', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
   { code: 'payable.waive', name: 'Hapus Hutang Antar-Cabang', description: 'Waive hutang antar-cabang', roles: ['OWNER', 'GM'] },
+  { code: 'po.returned_goods', name: 'PO Barang Kembali', description: 'Membuat PO yang tidak mengubah modal (HPP memakai modal cabang)', roles: ['OWNER', 'GM'] },
+  { code: 'payable.supplier_waive', name: 'Bebaskan Hutang Supplier', description: 'Membebaskan hutang supplier yang belum dibayar (tanpa uang keluar), dengan alasan', roles: ['OWNER', 'GM'] },
+  { code: 'payable.payment_cancel', name: 'Batalkan Pembayaran Utang Internal', description: 'Membatalkan pembayaran manual utang antar cabang, dengan alasan', roles: ['OWNER', 'GM'] },
   { code: 'cashflow.category.manage', name: 'Kelola Kategori Kas', description: 'CRUD kategori cash flow', roles: ['OWNER', 'GM', 'MANAGER'] },
+  { code: 'cashflow.record', name: 'Catat Arus Kas', description: 'Mencatat uang masuk/keluar di Arus Kas dan Pindah Dana (semua cabang)', roles: ['OWNER', 'GM', 'FINANCE'] },
+  { code: 'cashflow.cancel', name: 'Batalkan Catatan Arus Kas', description: 'Membatalkan catatan Arus Kas orang lain atau hari sebelumnya, dengan alasan', roles: ['OWNER', 'GM'] },
   // Pengeluaran shift dicatat kasir dari POS, tapi yang memeriksanya lintas shift/cabang adalah
   // atasan. `read` karena itu lebih longgar dari `manage`: FINANCE perlu melihat, tidak mengubah.
   { code: 'shift_expense.read', name: 'Lihat Pengeluaran Shift', description: 'Lihat daftar pengeluaran shift', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
@@ -116,6 +121,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // FINANCE yang menerima setoran fisik dari kasir. Ikut memberi akses baca Riwayat Shift,
   // tapi dibatasi cabang sendiri lewat branchScope (lihat api/bo/shifts).
   { code: 'shift.deposit.verify', name: 'Verifikasi Setoran Shift', description: 'Catat kas setoran shift yang diterima finance', roles: ['OWNER', 'GM', 'FINANCE'] },
+  { code: 'deposit.report', name: 'Laporkan Setoran Tunai', description: 'Melaporkan setoran tunai ke bank dari POS (cabang sendiri)', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
   // F2-1 Tempat Uang (migrasi 0055). Finance ikut mengelola atas keputusan owner 2026-11-08.
   { code: 'money_place.read', name: 'Lihat Tempat Uang', description: 'Melihat daftar Tempat Uang dan tautan metode bayar per cabang', roles: ['OWNER', 'GM', 'FINANCE'] },
   { code: 'money_place.manage', name: 'Kelola Tempat Uang', description: 'Menambah, mengubah, menonaktifkan Tempat Uang dan menautkan metode bayar per cabang', roles: ['OWNER', 'GM', 'FINANCE'] },

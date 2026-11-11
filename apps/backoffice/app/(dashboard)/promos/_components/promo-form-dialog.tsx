@@ -56,18 +56,23 @@ function UomSelect({ items, value, onChange }: { items: PromoItemOption[]; value
   )
 }
 
-/** Form buat promo baru (popup). Promo yang sudah dibuat tidak bisa diubah. */
+/**
+ * Form buat promo baru (popup). Isi promo yang sudah dibuat tidak bisa diubah; `copyFrom` mengisi
+ * form dari promo lama ("Salin jadi promo baru") dan bisa sekaligus menonaktifkan promo lama itu.
+ */
 export default function PromoFormDialog({
-  items, branches, today, defaultBranchIds, onClose, onCreated,
+  items, branches, today, defaultBranchIds, copyFrom, onClose, onCreated,
 }: {
   items: PromoItemOption[]
   branches: BranchOption[]
   today: string
   defaultBranchIds: number[]
+  copyFrom?: { id: number; name: string; isActive: boolean; form: PromoFormState }
   onClose: () => void
   onCreated: (name: string) => void
 }) {
-  const [form, setForm] = useState<PromoFormState>(() => emptyPromoForm(today, defaultBranchIds))
+  const [form, setForm] = useState<PromoFormState>(() => copyFrom?.form ?? emptyPromoForm(today, defaultBranchIds))
+  const [replaceOld, setReplaceOld] = useState(copyFrom?.isActive ?? false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [losses, setLosses] = useState<{ payload: PromoPayload; rows: PromoLoss[] } | null>(null)
@@ -99,7 +104,7 @@ export default function PromoFormDialog({
       const res = await fetch('/api/bo/promos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(copyFrom && replaceOld ? { ...payload, replacePromoId: copyFrom.id } : payload),
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string; losses?: PromoLoss[] }
       if (res.status === 409 && data.code === 'PROMO_LOSS') {
@@ -162,7 +167,23 @@ export default function PromoFormDialog({
       <div role="dialog" aria-modal="true" aria-labelledby="promo-form-title" className="mx-4 w-full max-w-2xl rounded-lg bg-background shadow-xl">
         <div className="h-1.5 rounded-t-lg bg-primary" />
         <div className="space-y-5 p-6">
-          <h3 id="promo-form-title" className="text-base font-semibold text-foreground">Buat promo</h3>
+          <h3 id="promo-form-title" className="text-base font-semibold text-foreground">
+            {copyFrom ? 'Salin jadi promo baru' : 'Buat promo'}
+          </h3>
+          {copyFrom && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <p>
+                Isian disalin dari <b>{copyFrom.name}</b>. Ubah yang perlu, lalu simpan — tersimpan sebagai promo baru dengan
+                kuota mulai dari nol. Promo lama dan nota yang memakainya tidak berubah.
+              </p>
+              {copyFrom.isActive && (
+                <label className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" checked={replaceOld} onChange={(e) => setReplaceOld(e.target.checked)} />
+                  Nonaktifkan promo lama <b>{copyFrom.name}</b> setelah promo baru tersimpan
+                </label>
+              )}
+            </div>
+          )}
 
           <fieldset>
             <legend className={labelClass}>Bentuk promo</legend>

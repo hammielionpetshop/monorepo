@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import { resolvePaidAt } from "@/lib/payment-date";
+import { PaymentSourceError, assertPaymentSource } from "../../_source";
 import { proofPhotoUrlSchema } from "@/lib/proof-photo";
 import {
   PAYMENT_METHOD_SALDO,
@@ -35,6 +36,8 @@ const paySchema = z.object({
     .optional(),
   // Bayar dari saldo supplier (kelebihan retur) — metode otomatis "SALDO SUPPLIER".
   useSupplierCredit: z.boolean().optional(),
+  // F2-4a: Tempat Uang asal pembayaran — wajib kecuali bayar dari Saldo Supplier.
+  moneyPlaceId: z.number().int().positive().optional(),
 });
 
 export async function POST(
@@ -75,7 +78,7 @@ export async function POST(
       );
     }
 
-    const { amount, referenceNumber, note, paidDate, useSupplierCredit, proofPhotoUrl } =
+    const { amount, referenceNumber, note, paidDate, useSupplierCredit, proofPhotoUrl, moneyPlaceId } =
       parsed.data;
     const method = useSupplierCredit ? PAYMENT_METHOD_SALDO : parsed.data.method;
     // Metode retur, saldo, dan batal retur hanya boleh dibuat sistem, bukan diketik manual.
@@ -131,6 +134,10 @@ export async function POST(
         if (amount > balance) throw new Error("CREDIT_EXCEEDS_BALANCE");
       }
 
+      const sourcePlaceId = useSupplierCredit
+        ? null
+        : await assertPaymentSource(tx, method, moneyPlaceId);
+
       const [updated] = await tx
         .update(supplierPayables)
         .set({
@@ -157,6 +164,7 @@ export async function POST(
           referenceNumber: referenceNumber ?? null,
           note: note ?? null,
           proofPhotoUrl: useSupplierCredit ? null : proofPhotoUrl ?? null,
+          moneyPlaceId: sourcePlaceId,
           paidById: payload.userId,
           paidAt,
         })
@@ -186,6 +194,8 @@ export async function POST(
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof PaymentSourceError)
+      return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof Error) {
       if (error.message === "PAYABLE_NOT_FOUND")
         return NextResponse.json(

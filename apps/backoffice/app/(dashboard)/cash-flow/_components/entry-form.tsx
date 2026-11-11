@@ -1,32 +1,73 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { TYPE_LABELS, type CashFlowCategoryOption, type CashFlowType } from './types'
+import {
+  TYPE_LABELS, REPORT_KIND_LABELS, monthChoices, monthLabel,
+  type BranchOption, type CashFlowCategoryOption, type CashFlowType, type MoneyPlaceOption,
+} from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { ProofPhotoField } from '@/components/ui/proof-photo-field'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface Props {
   categories: CashFlowCategoryOption[]
+  places: MoneyPlaceOption[]
+  branches: BranchOption[]
   currentUserName: string
+  activeBranchId: number
+  isOwner: boolean
+  today: string
   onSuccess: () => void
   onError: (msg: string) => void
 }
 
-export default function EntryForm({ categories, currentUserName, onSuccess, onError }: Props) {
+const SHARED = 'shared'
+const inputClass = 'w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30'
+
+function Label({ htmlFor, children, required }: { htmlFor?: string; children: React.ReactNode; required?: boolean }) {
+  return (
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-foreground mb-1">
+      {children} {required ? <span className="text-destructive">*</span> : <span className="text-muted-foreground font-normal">(opsional)</span>}
+    </label>
+  )
+}
+
+export default function EntryForm({ categories, places, branches, currentUserName, activeBranchId, isOwner, today, onSuccess, onError }: Props) {
   const [type, setType] = useState<CashFlowType>('EXPENSE')
   const [categoryId, setCategoryId] = useState<string>('')
   const [amount, setAmount] = useState<string>('')
   const [note, setNote] = useState<string>('')
+  const [occurredOn, setOccurredOn] = useState(today)
+  const [forMonth, setForMonth] = useState(today.slice(0, 7))
+  const [forMonthTouched, setForMonthTouched] = useState(false)
+  const [branch, setBranch] = useState<string>(String(activeBranchId))
+  const [placeId, setPlaceId] = useState<string>('')
+  const [photo, setPhoto] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const filteredCategories = useMemo(
-    () => categories.filter((c) => c.type === type),
-    [categories, type]
+    () => categories.filter((c) => c.type === type && c.isActive && !c.isSystem && (!c.ownerOnly || isOwner)),
+    [categories, type, isOwner]
   )
+  const selectedCategory = categories.find((c) => String(c.id) === categoryId)
+  const minDate = useMemo(() => {
+    if (isOwner) return undefined
+    const d = new Date(`${today}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() - 7)
+    return d.toISOString().slice(0, 10)
+  }, [today, isOwner])
 
   function changeType(t: CashFlowType) {
     setType(t)
     setCategoryId('')
+  }
+
+  function changeOccurredOn(value: string) {
+    setOccurredOn(value)
+    // "Untuk bulan" mengikuti tanggal uang sampai pengguna memilihnya sendiri.
+    if (!forMonthTouched && value) setForMonth(value.slice(0, 7))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -34,19 +75,13 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
     if (isSubmitting) return
     setErrorMsg(null)
 
-    if (!categoryId) {
-      setErrorMsg('Kategori wajib dipilih')
-      return
-    }
+    if (!categoryId) return setErrorMsg('Kategori wajib dipilih')
     const amountNum = Number(amount)
-    if (!amount || !Number.isFinite(amountNum) || amountNum <= 0) {
-      setErrorMsg('Total harus lebih dari 0')
-      return
-    }
-    if (!Number.isInteger(amountNum)) {
-      setErrorMsg('Total harus berupa angka bulat')
-      return
-    }
+    if (!amount || !Number.isInteger(amountNum) || amountNum <= 0) return setErrorMsg('Total harus lebih dari 0')
+    if (!occurredOn || occurredOn > today) return setErrorMsg('Tanggal uang tidak boleh melewati hari ini')
+    if (!placeId) return setErrorMsg(type === 'EXPENSE' ? 'Pilih "Dibayar dari"' : 'Pilih "Masuk ke"')
+    if (selectedCategory?.noteRequired && !note.trim()) return setErrorMsg('Catatan wajib diisi untuk kategori ini')
+    if (photoUploading) return setErrorMsg('Tunggu foto selesai diunggah')
 
     setIsSubmitting(true)
     try {
@@ -58,6 +93,11 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
           categoryId: Number(categoryId),
           amount: amountNum,
           note: note.trim() || undefined,
+          occurredOn,
+          forMonth,
+          branchId: branch === SHARED ? null : Number(branch),
+          moneyPlaceId: Number(placeId),
+          proofPhotoUrl: photo ?? undefined,
         }),
       })
       const data = await res.json()
@@ -68,6 +108,7 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
       setCategoryId('')
       setAmount('')
       setNote('')
+      setPhoto(null)
       onSuccess()
     } catch {
       onError('Terjadi kesalahan jaringan, silakan coba lagi')
@@ -79,9 +120,7 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-foreground mb-1">
-          Tipe <span className="text-destructive">*</span>
-        </label>
+        <Label required>Tipe</Label>
         <div className="grid grid-cols-2 gap-2">
           {(['INCOME', 'EXPENSE'] as CashFlowType[]).map((t) => (
             <button
@@ -103,28 +142,17 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
 
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">Diinput oleh</label>
-        <input
-          type="text"
-          value={currentUserName}
-          readOnly
-          disabled
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-muted/40 text-muted-foreground"
-        />
+        <input type="text" value={currentUserName} readOnly disabled className="w-full px-3 py-2 text-sm border border-border rounded-md bg-muted/40 text-muted-foreground" />
       </div>
 
       <div>
-        <label htmlFor="entry-category" className="block text-sm font-medium text-foreground mb-1">
-          Kategori <span className="text-destructive">*</span>
-        </label>
-        <select
-          id="entry-category"
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        >
+        <Label htmlFor="entry-category" required>Kategori</Label>
+        <select id="entry-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
           <option value="">— Pilih kategori —</option>
           {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <option key={c.id} value={c.id}>
+              {c.name}{c.reportKind ? ` · ${REPORT_KIND_LABELS[c.reportKind]}` : ''}
+            </option>
           ))}
         </select>
         {filteredCategories.length === 0 && (
@@ -132,12 +160,13 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
             Belum ada kategori {TYPE_LABELS[type].toLowerCase()}. Tambahkan dulu di menu Kategori.
           </p>
         )}
+        {selectedCategory && !selectedCategory.reportKind && (
+          <p className="text-xs text-amber-700 mt-1">Jenis laporan kategori ini belum dipilih (Biaya / Bukan biaya) — atur di menu Kategori.</p>
+        )}
       </div>
 
       <div>
-        <label htmlFor="entry-amount" className="block text-sm font-medium text-foreground mb-1">
-          Total (Rp) <span className="text-destructive">*</span>
-        </label>
+        <Label htmlFor="entry-amount" required>Total (Rp)</Label>
         <input
           id="entry-amount"
           type="text"
@@ -145,14 +174,63 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
           value={formatRupiahInput(amount)}
           onChange={(e) => setAmount(digitsOnly(e.target.value))}
           placeholder="0"
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className={inputClass}
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="entry-date" required>Tanggal uang <NewBadge feature="fitur/arus-kas-rapi" /></Label>
+          <input id="entry-date" type="date" value={occurredOn} max={today} min={minDate} onChange={(e) => changeOccurredOn(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <Label htmlFor="entry-month" required>Untuk bulan</Label>
+          <select
+            id="entry-month"
+            value={forMonth}
+            onChange={(e) => { setForMonth(e.target.value); setForMonthTouched(true) }}
+            className={inputClass}
+          >
+            {monthChoices(occurredOn || today).map((m) => (
+              <option key={m} value={m}>{monthLabel(m)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="-mt-2 text-xs text-muted-foreground">
+        Tanggal uang = kapan uangnya keluar/masuk. Untuk bulan = biaya bulan apa (mis. sewa Oktober dibayar 1 November).
+        {!isOwner && ' Tanggal paling jauh 7 hari ke belakang.'}
+      </p>
+
       <div>
-        <label htmlFor="entry-note" className="block text-sm font-medium text-foreground mb-1">
-          Catatan <span className="text-muted-foreground font-normal">(opsional)</span>
-        </label>
+        <Label htmlFor="entry-branch" required>Cabang yang menanggung</Label>
+        <select id="entry-branch" value={branch} onChange={(e) => setBranch(e.target.value)} className={inputClass}>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+          <option value={SHARED}>Bersama (beberapa cabang)</option>
+        </select>
+      </div>
+
+      <div>
+        <Label htmlFor="entry-place" required>{type === 'EXPENSE' ? 'Dibayar dari' : 'Masuk ke'}</Label>
+        <select id="entry-place" value={placeId} onChange={(e) => setPlaceId(e.target.value)} className={inputClass}>
+          <option value="">— Pilih Tempat Uang —</option>
+          {places.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} ({p.kind === 'CASH' ? 'Tunai' : 'Rekening'})
+            </option>
+          ))}
+        </select>
+        {places.length === 0 && (
+          <p className="text-xs text-muted-foreground mt-1">Belum ada Tempat Uang. Tambahkan di Pengaturan › Tempat Uang.</p>
+        )}
+      </div>
+
+      <ProofPhotoField value={photo} onChange={setPhoto} onUploadingChange={setPhotoUploading} disabled={isSubmitting} label="Foto Bukti" />
+
+      <div>
+        <Label htmlFor="entry-note" required={selectedCategory?.noteRequired}>Catatan</Label>
         <textarea
           id="entry-note"
           value={note}
@@ -160,7 +238,7 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
           maxLength={255}
           rows={2}
           placeholder="Keterangan tambahan"
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+          className={`${inputClass} resize-none`}
         />
       </div>
 

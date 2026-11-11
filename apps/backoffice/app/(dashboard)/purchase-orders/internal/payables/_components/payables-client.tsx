@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { NewBadge } from '@/components/ui/new-badge'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
-import type { Payable, BranchOption } from './types'
+import type { Payable, PayablePayment, BranchOption } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 const ALL_BRANCHES = 'ALL'
@@ -35,23 +36,37 @@ interface Props {
   payables: Payable[]
   canPay: boolean
   canWaive: boolean
+  /** Owner/GM: batalkan pembayaran manual dari Riwayat. */
+  canCancelPayment: boolean
   /** Metode bayar selain hutang — wajib dipilih saat mencatat pembayaran. */
   paymentMethods: { id: number; name: string }[]
   /** Tanggal hari ini (WIB, YYYY-MM-DD) dari server — batas atas tanggal bayar. */
   today: string
+  /** F2-3: umur utang (hari) yang ditandai merah. */
+  redAgeDays: number
+  /** F2-3: utang yang lahir sejak tanggal ini dilunasi otomatis dari Setoran. */
+  autoStartDate: string
 }
+
+/** Tanggal WIB (YYYY-MM-DD) dari ISO. */
+const wibDate = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3600_000).toISOString().slice(0, 10)
+const daysBetween = (from: string, to: string) =>
+  Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000))
+const ageBucket = (days: number) => (days <= 7 ? '0–7 hari' : days <= 30 ? '8–30 hari' : '> 30 hari')
 
 type Modal =
   | { kind: 'pay'; row: Payable }
   | { kind: 'history'; row: Payable }
   | { kind: 'waive'; row: Payable }
+  | { kind: 'cancelPayment'; row: Payable; payment: PayablePayment }
   | null
 
-export function PayablesClient({ payables, canPay, canWaive, paymentMethods, today }: Props) {
+export function PayablesClient({ payables, canPay, canWaive, canCancelPayment, paymentMethods, today, redAgeDays, autoStartDate }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
   const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
+  const [legacyOnly, setLegacyOnly] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'legacyOnly', '')
 
   const [modal, setModal] = useState<Modal>(null)
   const [payAmount, setPayAmount] = useState('')
@@ -60,6 +75,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   const [payRef, setPayRef] = useState('')
   const [payNotes, setPayNotes] = useState('')
   const [waiveReason, setWaiveReason] = useState('')
+  const [cancelReason, setCancelReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -79,6 +95,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
       setPayNotes('')
     }
     if (next.kind === 'waive') setWaiveReason('')
+    if (next.kind === 'cancelPayment') setCancelReason('')
     setFormError(null)
     setModal(next)
     document.body.style.overflow = 'hidden'
@@ -114,11 +131,13 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   }, [payables])
 
   // Hanya sisi penerima (debitur) yang disaring — sama seperti pembatasan di query.
+  // "Utang lama" = lahir sebelum pelunasan otomatis berjalan (F2-3b): sisanya dibayar manual / dihapus.
   const branchScoped = useMemo(() => {
-    if (branchFilter === ALL_BRANCHES) return payables
+    const scoped = legacyOnly ? payables.filter(p => wibDate(p.createdAt) < autoStartDate) : payables
+    if (branchFilter === ALL_BRANCHES) return scoped
     const id = Number(branchFilter)
-    return payables.filter(p => p.debtorBranchId === id)
-  }, [payables, branchFilter])
+    return scoped.filter(p => p.debtorBranchId === id)
+  }, [payables, branchFilter, legacyOnly, autoStartDate])
 
   const statusScoped = useMemo(() =>
     activeTab === 'all' ? branchScoped : branchScoped.filter(p => p.status === activeTab),
@@ -139,6 +158,20 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   // akan membantah isi tabel begitu satu cabang dipilih.
   const outstandingRows = branchScoped.filter(isOutstanding)
   const totalUnpaid = outstandingRows.reduce((sum, p) => sum + remainingOf(p), 0)
+  const debtorSummary = (() => {
+    const map = new Map<string, { name: string; remaining: number; oldestDate: string }>()
+    for (const p of outstandingRows) {
+      const name = p.debtorBranchName ?? `Cabang #${p.debtorBranchId}`
+      const born = wibDate(p.createdAt)
+      const cur = map.get(name) ?? { name, remaining: 0, oldestDate: born }
+      cur.remaining += remainingOf(p)
+      if (born < cur.oldestDate) cur.oldestDate = born
+      map.set(name, cur)
+    }
+    return [...map.values()]
+      .map(d => ({ ...d, oldestDays: daysBetween(d.oldestDate, today) }))
+      .sort((a, b) => b.remaining - a.remaining)
+  })()
 
   async function handlePay(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -209,6 +242,38 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
     }
   }
 
+  async function handleCancelPayment(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (modal?.kind !== 'cancelPayment' || submitting) return
+    const reason = cancelReason.trim()
+    if (reason.length < 5) return setFormError('Alasan pembatalan wajib diisi (minimal 5 huruf)')
+
+    setSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(`/api/bo/inter-branch-payables/${modal.row.id}/payments/${modal.payment.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFormError(data.error || 'Terjadi kesalahan')
+        return
+      }
+      closeModal()
+      const credit = typeof data.creditApplied === 'number' && data.creditApplied > 0
+        ? ` Saldo Internal ${rupiah(data.creditApplied)} langsung memotong tagihan.`
+        : ''
+      setSuccessMsg(`Pembayaran ${rupiah(modal.payment.amount)} dibatalkan.${credit}`)
+      router.refresh()
+    } catch {
+      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const payableColumns: ColumnDef<Payable>[] = [
     {
       accessorKey: 'ibtNumber',
@@ -234,6 +299,22 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
           {formatDateTime(row.original.createdAt)}
         </a>
       ),
+    },
+    {
+      id: 'age',
+      header: 'Umur',
+      cell: ({ row }) => {
+        if (!isOutstanding(row.original)) return <span className="text-muted-foreground">-</span>
+        const born = wibDate(row.original.createdAt)
+        const days = daysBetween(born, today)
+        return (
+          <span className={`whitespace-nowrap text-xs ${days > redAgeDays ? 'font-semibold text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+            {days} hari
+            <span className="block font-normal">{ageBucket(days)}</span>
+            {born < autoStartDate && <span className="block font-normal text-amber-700 dark:text-amber-400">lama · bayar manual</span>}
+          </span>
+        )
+      },
     },
     {
       accessorKey: 'debtorBranchName',
@@ -268,7 +349,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
         const sisa = remainingOf(p)
         return (
           <div className="text-right font-semibold whitespace-nowrap">
-            {sisa > 0 ? <span className="text-red-600">{rupiah(sisa)}</span> : '-'}
+            {sisa > 0 ? <span className="text-red-600 dark:text-red-400">{rupiah(sisa)}</span> : '-'}
           </div>
         )
       },
@@ -337,7 +418,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Belum Lunas</p>
-          <p className="text-lg font-semibold text-red-600 mt-1">{rupiah(totalUnpaid)}</p>
+          <p className="text-lg font-semibold text-red-600 dark:text-red-400 mt-1">{rupiah(totalUnpaid)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{outstandingRows.length} transfer</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -348,6 +429,23 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
           )}
         </div>
       </div>
+
+      {debtorSummary.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4 text-sm">
+          <p className="flex items-center gap-2 font-medium text-foreground">Sisa utang per cabang penerima <NewBadge feature="fitur/pelunasan-otomatis" /></p>
+          <ul className="mt-1 space-y-0.5">
+            {debtorSummary.map(d => (
+              <li key={d.name} className={d.oldestDays > redAgeDays ? 'text-red-600 dark:text-red-400' : 'text-foreground'}>
+                {d.name}: <b>{rupiah(d.remaining)}</b>, paling lama dari {d.oldestDate} ({d.oldestDays} hari)
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sejak {autoStartDate}, utang dilunasi otomatis saat setoran cabang diverifikasi di menu Setoran (paling lama dulu,
+            tercatat sebagai SETORAN di Riwayat). Utang sebelum tanggal itu tetap dibayar manual. Merah = lebih dari {redAgeDays} hari.
+          </p>
+        </div>
+      )}
 
       {/* Tabs + filter cabang */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border">
@@ -371,6 +469,10 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
           })}
         </div>
         <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-1.5 text-sm text-foreground whitespace-nowrap" title={`Utang yang lahir sebelum ${autoStartDate}`}>
+            <input type="checkbox" checked={legacyOnly === '1'} onChange={e => setLegacyOnly(e.target.checked ? '1' : '')} />
+            Utang lama <NewBadge feature="fitur/utang-lama-jalankan" />
+          </label>
           <input
             type="text"
             value={search}
@@ -396,7 +498,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
 
       <DataTable
         data={filtered}
-        resetPageKey={JSON.stringify([activeTab, branchFilter, search])}
+        resetPageKey={JSON.stringify([activeTab, branchFilter, search, legacyOnly])}
         columns={payableColumns}
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-internal-payables"
@@ -408,6 +510,10 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
             <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} bayar ke{' '}
             {modal.row.creditorBranchName} — sisa hutang:{' '}
             <span className="font-semibold text-foreground">{rupiah(remainingOf(modal.row))}</span>
+          </p>
+          <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Pelunasan biasa berjalan otomatis dari Setoran. Catat manual hanya untuk uang yang <b>tidak</b> lewat Setoran
+            (mis. dibayar langsung ke rekening pemasok), supaya uang tidak terhitung dua kali.
           </p>
           <FormError message={formError} />
           <form onSubmit={handlePay} className="space-y-4">
@@ -484,6 +590,49 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
         </ModalShell>
       )}
 
+      {modal?.kind === 'cancelPayment' && (
+        <ModalShell title="Batalkan Pembayaran" onClose={submitting ? undefined : closeModal}>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} ke{' '}
+            {modal.row.creditorBranchName}
+          </p>
+          <div className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm space-y-0.5">
+            <p>Nominal <span className="font-semibold text-foreground">{rupiah(modal.payment.amount)}</span></p>
+            <p className="text-muted-foreground">
+              Dibayar {formatDateTime(modal.payment.paidAt)} · {modal.payment.methodName ?? 'metode tidak tercatat'}
+              {modal.payment.referenceNumber && <> · ref {modal.payment.referenceNumber}</>}
+            </p>
+          </div>
+          <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive space-y-1">
+            <p className="font-medium">Yang terjadi:</p>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>Sisa hutang naik lagi {rupiah(modal.payment.amount)}; status kembali Sebagian / Belum Bayar.</li>
+              {modal.payment.methodName && (
+                <li>Catatan Arus Kas pembayaran ini di {modal.row.debtorBranchName} dan {modal.row.creditorBranchName} ditandai Batal.</li>
+              )}
+              <li>Riwayat mencatat baris BATAL BAYAR hari ini; pembayaran asal tetap terlihat, dicoret.</li>
+              <li>Bila ada Saldo Internal {modal.row.debtorBranchName} di {modal.row.creditorBranchName}, saldo itu langsung memotong tagihan.</li>
+              <li>Pembatalan ini tidak bisa diurungkan — bila ternyata keliru, catat pembayaran baru.</li>
+            </ul>
+          </div>
+          <FormError message={formError} />
+          <form onSubmit={handleCancelPayment} className="space-y-4">
+            <Field label="Alasan Pembatalan" required>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Contoh: salah input nominal, seharusnya Rp 250.000"
+                className={inputClass}
+                required
+              />
+            </Field>
+            <FormButtons onCancel={closeModal} submitting={submitting} submitLabel="Ya, Batalkan Pembayaran" destructive />
+          </form>
+        </ModalShell>
+      )}
+
       {modal?.kind === 'history' && (
         <ModalShell title="Riwayat Hutang Internal" onClose={closeModal} wide>
           <p className="text-sm text-muted-foreground mb-4">
@@ -516,20 +665,40 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
                     <th className="text-left font-medium px-3 py-2">Metode</th>
                     <th className="text-left font-medium px-3 py-2">Bukti / Keterangan</th>
                     <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
+                    {canCancelPayment && <th className="px-3 py-2"><span className="sr-only">Aksi</span></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {modal.row.payments.map(pay => (
                     <tr key={pay.id} className="border-t border-border align-top">
                       <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
-                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
+                      <td className={`px-3 py-2 text-right font-medium whitespace-nowrap ${pay.cancelled ? 'line-through text-muted-foreground' : ''}`}>{rupiah(pay.amount)}</td>
                       <td className="px-3 py-2">{pay.methodName ?? <span className="text-muted-foreground">tidak tercatat</span>}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
                         {pay.notes && <div>{pay.notes}</div>}
-                        {!pay.referenceNumber && !pay.notes && '-'}
+                        {!pay.referenceNumber && !pay.notes && !pay.cancelled && '-'}
+                        {pay.cancelled && (
+                          <div className="mt-0.5 text-destructive">
+                            Dibatalkan {formatDateTime(pay.cancelled.at)} oleh {pay.cancelled.byName ?? '-'}
+                            {pay.cancelled.reason && <> — &ldquo;{pay.cancelled.reason}&rdquo;</>}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{pay.paidByName ?? '-'}</td>
+                      {canCancelPayment && (
+                        <td className="px-3 py-2 text-right">
+                          {pay.isManual && !pay.cancelled && modal.row.status !== 'WAIVED' && (
+                            <button
+                              type="button"
+                              onClick={() => openModal({ kind: 'cancelPayment', row: modal.row, payment: pay })}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline"
+                            >
+                              Batalkan <NewBadge feature="fitur/batal-bayar-utang-internal" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -544,7 +713,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
               <span className="text-muted-foreground">Total <span className="font-semibold text-foreground">{rupiah(modal.row.totalAmount)}</span></span>
               <span className="text-muted-foreground">Dibayar <span className="font-semibold text-green-600">{rupiah(modal.row.paidAmount)}</span></span>
               {modal.row.status !== 'WAIVED' && (
-                <span className="text-muted-foreground">Sisa <span className="font-semibold text-red-600">{rupiah(remainingOf(modal.row))}</span></span>
+                <span className="text-muted-foreground">Sisa <span className="font-semibold text-red-600 dark:text-red-400">{rupiah(remainingOf(modal.row))}</span></span>
               )}
             </div>
             <button

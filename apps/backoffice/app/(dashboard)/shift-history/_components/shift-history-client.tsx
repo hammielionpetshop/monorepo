@@ -10,6 +10,8 @@ import SettlementPrint from '@/components/pos/settlement-print'
 import { printSettlement } from '@/lib/print-settlement'
 import { warmUpQz } from '@/lib/print-receipt'
 import { DepositVerification, type DepositInfo } from './deposit-verification'
+import { DepositStatusPanel, type ShiftDepositStatusView } from './deposit-status-panel'
+import Link from 'next/link'
 import { groupEstafetShifts, groupTotals, type ShiftGroupTotals, type ShiftRowGroup } from './shift-history-groups'
 import { ShiftDayDetail } from './shift-day-detail'
 import { ShiftTransactionsModal } from './shift-transactions-modal'
@@ -31,6 +33,10 @@ type ShiftListItem = {
   totalVariance: number | null
   cashierCount: number
   settlementNotes: string | null
+  /** F2-2: shift ini diverifikasi lewat menu Setoran. */
+  depositFlow?: boolean
+  cashDepositStatus?: string | null
+  cashDepositNumber?: string | null
 } & DepositInfo
 
 type CashierBreakdown = {
@@ -113,6 +119,7 @@ type ShiftDetail = {
   debtPaymentsReceived?: DebtPaymentReceived[]
   totalDebtPaymentCash?: number
   dayRecap?: ShiftDayRecap | null
+  depositStatus?: ShiftDepositStatusView
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -223,7 +230,21 @@ function GroupDepositCell({ totals }: { totals: ShiftGroupTotals }) {
 }
 
 function DepositCell({ shift }: { shift: ShiftListItem }) {
-  if (shift.status === 'OPEN' || shift.origin === 'BACKOFFICE') return <span className="text-muted-foreground">-</span>
+  if (shift.status === 'OPEN') return <span className="text-muted-foreground">-</span>
+  if (shift.depositFlow) {
+    if (shift.cashDepositStatus === 'VERIFIED') {
+      return <Link href="/deposits?tab=history" className="text-green-600 text-xs font-medium hover:underline">✓ {shift.cashDepositNumber}</Link>
+    }
+    return (
+      <Link
+        href={shift.cashDepositStatus === 'PENDING' ? '/deposits' : '/deposits?tab=undeposited'}
+        className="inline-block px-2 py-0.5 text-xs font-medium rounded-md border bg-amber-500/10 text-amber-700 border-amber-500/20 hover:underline"
+      >
+        {shift.cashDepositStatus === 'PENDING' ? 'Menunggu verifikasi' : 'Belum disetor'}
+      </Link>
+    )
+  }
+  if (shift.origin === 'BACKOFFICE') return <span className="text-muted-foreground">-</span>
   if (shift.depositVerifiedAt == null) {
     return (
       <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-md border bg-amber-500/10 text-amber-700 border-amber-500/20">
@@ -909,7 +930,9 @@ export function ShiftHistoryClient({
                   </div>
                 </div>
 
-                {detail.shift.status !== 'OPEN' && detail.shift.origin !== 'BACKOFFICE' && (
+                {/* F2-2: verifikasi baru lewat menu Setoran; panel lama hanya untuk shift yang sudah diverifikasi cara lama. */}
+                {detail.depositStatus && !detail.shift.depositVerifiedAt && <DepositStatusPanel status={detail.depositStatus} />}
+                {detail.shift.status !== 'OPEN' && detail.shift.origin !== 'BACKOFFICE' && detail.shift.depositVerifiedAt && (
                   <DepositVerification
                     key={detail.shift.id}
                     shiftId={detail.shift.id}

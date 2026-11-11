@@ -21,6 +21,8 @@ import { PoUnloadingPanel, type PoAttachment, type PoUnloadingInfo } from './po-
 import { PoItemsEditor } from './po-items-editor';
 import { canEditPoItems } from '@/lib/services/po-item-edit-rules';
 import { CreatePODialog } from '../../_components/create-po-dialog';
+import { poLineQty } from '@/lib/po-total';
+import { PoCostRestoreDialog } from './po-cost-restore-dialog';
 
 const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
 
@@ -70,6 +72,8 @@ interface PO {
   poNumber: string;
   status: string;
   totalAmount: string;
+  /** PO Barang kembali: tidak mengubah modal, HPP memakai modal cabang. */
+  keepCurrentCost: boolean;
   notes: string | null;
   rejectionNote: string | null;
   /** Diisi untuk PO Dibatalkan lewat tombol Batalkan PO (dari audit log). */
@@ -119,13 +123,16 @@ export function PODetailClient({
   canCancel,
   canManage,
   followUp,
+  canReturnedGoods,
   paymentMethods,
   supplierCreditBalance,
   today,
 }: {
+  /** Hak po.returned_goods — boleh membuat PO Barang kembali (PO Tambahan / Duplikat). */
+  canReturnedGoods: boolean;
   /** Hak po.manage — ubah isi Draft, tandai perubahan bongkaran sudah diperiksa. */
   canManage: boolean;
-  /** Pilihan supplier/cabang untuk "Buat PO Tambahan" — hanya terisi untuk PO Selesai. */
+  /** Pilihan supplier/cabang untuk "Buat PO Tambahan" (PO Selesai) / "Duplikat PO" (PO Batal/Ditolak). */
   followUp: { suppliers: { id: number; name: string }[]; branches: { id: number; name: string }[] } | null;
   po: PO;
   currentUserId: number;
@@ -161,6 +168,8 @@ export function PODetailClient({
 
   const refresh = () => startRefresh(() => router.refresh());
   const [showFollowUp, setShowFollowUp] = useState(false);
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showCostRestore, setShowCostRestore] = useState(false);
 
   useEffect(() => {
     if (!successMsg) return;
@@ -286,6 +295,7 @@ export function PODetailClient({
       productSku: item.productSku,
       uomCode: item.uomCode ?? '',
       qtyOrdered: Number(item.qtyOrdered),
+      unitCost: isPricePending(item) ? null : effectiveUnitCost(item),
     })),
   };
   const canMatchInvoice =
@@ -336,7 +346,7 @@ export function PODetailClient({
       {isNew && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-foreground print:hidden">
           <span className="font-semibold">Purchase Order berhasil dibuat.</span>{' '}
-          Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga tidak ikut tercetak.
+          Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga hanya tercetak bila &quot;Tampilkan harga&quot; dicentang.
         </div>
       )}
 
@@ -360,6 +370,14 @@ export function PODetailClient({
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
                 {statusInfo.label}
               </span>
+              {po.keepCurrentCost && (
+                <span
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800"
+                  title="Harga PO = nilai sebenarnya (hutang & PDF). Modal di Manajemen Harga tidak berubah; HPP stok memakai modal cabang."
+                >
+                  Barang kembali — tidak mengubah modal
+                </span>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               {formatWIB(po.createdAt, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -459,7 +477,7 @@ export function PODetailClient({
         )}
 
         <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <p className="text-xs text-muted-foreground">Kirim ke supplier (tanpa harga):</p>
+          <p className="text-xs text-muted-foreground">Kirim ke supplier:</p>
           <PoDocumentExport data={documentData} />
         </div>
 
@@ -565,6 +583,11 @@ export function PODetailClient({
                   {parseFloat(item.qtyReceived) > 0 ? (
                     <span className={parseFloat(item.qtyReceived) < parseFloat(item.qtyOrdered) ? 'text-orange-600' : 'text-green-600'}>
                       {parseFloat(item.qtyReceived).toFixed(0)} {item.uomCode}
+                      {parseFloat(item.qtyReceived) > parseFloat(item.qtyOrdered) && (
+                        <span className="ml-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                          (lebih {(parseFloat(item.qtyReceived) - parseFloat(item.qtyOrdered)).toFixed(0)})
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
@@ -580,7 +603,7 @@ export function PODetailClient({
                 <td className="px-4 py-3 text-right font-medium">
                   {isPricePending(item)
                     ? '-'
-                    : `Rp ${(parseFloat(item.qtyOrdered) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
+                    : `Rp ${(poLineQty(item) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
                 </td>
               </tr>
             ))}
@@ -644,10 +667,39 @@ export function PODetailClient({
           branches={followUp.branches}
           currentUserId={currentUserId}
           role={role}
-          initial={{ supplierId: po.supplier.id, branchId: po.branch.id, notes: `PO Tambahan dari ${po.poNumber}`, title: 'Buat PO Tambahan' }}
+          canReturnedGoods={canReturnedGoods}
+          initial={{ supplierId: po.supplier.id, branchId: po.branch.id, notes: `PO Tambahan dari ${po.poNumber}`, title: 'Buat PO Tambahan', keepCurrentCost: po.keepCurrentCost }}
           onClose={() => setShowFollowUp(false)}
           onSuccess={(newPoId) => {
             setShowFollowUp(false);
+            router.push(`/purchase-orders/${newPoId}?baru=1`);
+          }}
+        />
+      )}
+
+      {showDuplicate && followUp && (
+        <CreatePODialog
+          suppliers={followUp.suppliers}
+          branches={followUp.branches}
+          currentUserId={currentUserId}
+          role={role}
+          canReturnedGoods={canReturnedGoods}
+          initial={{
+            supplierId: po.supplier.id,
+            branchId: po.branch.id,
+            notes: (po.notes?.trim() ? `${po.notes.trim()} · ` : '') + `Duplikat dari ${po.poNumber}`,
+            title: 'Duplikat PO',
+            keepCurrentCost: po.keepCurrentCost,
+            items: po.items.map(item => ({
+              productId: item.productId,
+              uomId: item.uomId,
+              qtyOrdered: Number(item.qtyOrdered),
+              unitCost: isPricePending(item) ? 0 : effectiveUnitCost(item),
+            })),
+          }}
+          onClose={() => setShowDuplicate(false)}
+          onSuccess={(newPoId) => {
+            setShowDuplicate(false);
             router.push(`/purchase-orders/${newPoId}?baru=1`);
           }}
         />
@@ -766,6 +818,21 @@ export function PODetailClient({
           <p className="text-sm text-destructive">PO ini telah ditolak.</p>
         )}
 
+        {(po.status === 'CANCELLED' || po.status === 'REJECTED') && followUp && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Buat PO baru dengan supplier, cabang, barang, qty, dan harga yang sama — bisa diubah dulu sebelum disimpan.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDuplicate(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-muted/50 transition-colors"
+            >
+              Duplikat PO <NewBadge feature="fitur/po-duplikat" />
+            </button>
+          </div>
+        )}
+
         {po.status === 'IN_TRANSIT' && (
           canReceive ? (
             <Link
@@ -783,6 +850,30 @@ export function PODetailClient({
           <p className="text-sm text-green-600 font-medium">
             Penerimaan telah disetujui. Stok sudah diperbarui.
           </p>
+        )}
+
+        {po.status === 'COMPLETED' && canReturnedGoods && !po.keepCurrentCost && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Harga beli PO ini bukan modal yang wajar (mis. barang kembali dari rekan)? Kembalikan modal semua barangnya ke sebelum PO ini masuk, HPP sisa stoknya ikut — harga PO dan hutang tetap.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCostRestore(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-muted/50 transition-colors"
+            >
+              Kembalikan Modal <NewBadge feature="fitur/po-kembalikan-modal" />
+            </button>
+          </div>
+        )}
+
+        {showCostRestore && (
+          <PoCostRestoreDialog
+            poId={po.id}
+            poNumber={po.poNumber}
+            onClose={() => setShowCostRestore(false)}
+            onDone={() => { setShowCostRestore(false); refresh(); }}
+          />
         )}
 
         {po.status === 'COMPLETED' && followUp && (

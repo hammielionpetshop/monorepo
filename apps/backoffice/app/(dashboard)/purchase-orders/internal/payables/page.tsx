@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getAuth, hasPermission, scopeFilterAny } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { NewBadge } from '@/components/ui/new-badge'
@@ -20,6 +21,8 @@ import {
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { listInternalCreditBalances } from '@/lib/services/internal-credit-service'
+import { getAutoSettlementSettings } from '@/lib/services/deposit-settlement-service'
+import { LEGACY_REVIEW_ROLES } from '@/lib/services/legacy-settlement-rules'
 import { PayablesClient } from './_components/payables-client'
 import type { PayablePayment, WaiveInfo } from './_components/types'
 
@@ -79,6 +82,7 @@ export default async function InterBranchPayablesPage() {
       notes: interBranchPayments.notes,
       paidAt: interBranchPayments.paidAt,
       paidByName: users.name,
+      reversalOfPaymentId: interBranchPayments.reversalOfPaymentId,
     })
     .from(interBranchPayments)
     .leftJoin(paymentMethods, eq(interBranchPayments.paymentMethodId, paymentMethods.id))
@@ -90,6 +94,18 @@ export default async function InterBranchPayablesPage() {
     RETUR_INTERNAL: 'RETUR INTERNAL',
     SALDO_INTERNAL: 'SALDO INTERNAL',
     BATAL_RETUR: 'BATAL RETUR INTERNAL',
+    SETORAN: 'SETORAN',
+    BATAL_SETORAN: 'BATAL SETORAN',
+    SUSULAN: 'SUSULAN',
+    BATAL_SUSULAN: 'BATAL SUSULAN',
+    BATAL_BAYAR: 'BATAL BAYAR',
+  }
+  // Pembayaran manual yang sudah dibatalkan: siapa, kapan, alasan — dari baris BATAL_BAYAR-nya.
+  const cancelByPayment = new Map<number, NonNullable<PayablePayment['cancelled']>>()
+  for (const p of paymentRows) {
+    if (p.reversalOfPaymentId === null) continue
+    const reason = p.notes?.match(/^Batal bayar #\d+ \([^)]*\): ([\s\S]*)$/)?.[1] ?? p.notes
+    cancelByPayment.set(p.reversalOfPaymentId, { at: p.paidAt.toISOString(), byName: p.paidByName, reason })
   }
   const paymentsByPayable = new Map<number, PayablePayment[]>()
   for (const p of paymentRows) {
@@ -103,6 +119,8 @@ export default async function InterBranchPayablesPage() {
       notes: p.notes,
       paidAt: p.paidAt.toISOString(),
       paidByName: p.paidByName,
+      isManual: p.sourceType === null,
+      cancelled: cancelByPayment.get(p.id) ?? null,
     })
     paymentsByPayable.set(p.payableId, list)
   }
@@ -164,15 +182,27 @@ export default async function InterBranchPayablesPage() {
     .where(ne(paymentMethods.type, 'DEBT'))
     .orderBy(asc(paymentMethods.id))
 
+  const autoSettlement = await getAutoSettlementSettings()
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Hutang Piutang Transfer Internal</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {payload.branchScope === 'ALL'
-            ? 'Pencatatan hutang antar cabang dari transfer stok internal, seluruh cabang'
-            : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Hutang Piutang Transfer Internal</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {payload.branchScope === 'ALL'
+              ? 'Pencatatan hutang antar cabang dari transfer stok internal, seluruh cabang'
+              : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
+          </p>
+        </div>
+        {LEGACY_REVIEW_ROLES.includes(payload.role) && (
+          <Link
+            href="/purchase-orders/internal/payables/legacy"
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+          >
+            Utang Lama (sebelum {autoSettlement.startDate}) <NewBadge feature="fitur/utang-lama-pratinjau" />
+          </Link>
+        )}
       </div>
       {creditBalances.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4 text-sm">
@@ -194,8 +224,11 @@ export default async function InterBranchPayablesPage() {
         payables={serialized}
         canPay={hasPermission(payload, 'payable.pay')}
         canWaive={hasPermission(payload, 'payable.waive')}
+        canCancelPayment={hasPermission(payload, 'payable.payment_cancel')}
         paymentMethods={methods}
         today={todayWibDate()}
+        redAgeDays={autoSettlement.redAgeDays}
+        autoStartDate={autoSettlement.startDate}
       />
     </div>
   )

@@ -16,6 +16,8 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
+import BulkSaleBelowCostDialog from './bulk-sale-below-cost-dialog'
+import type { BelowCostLine } from '@/lib/below-cost'
 import { deliveryPrintLine, type DeliveryPrintLine, type SaleDeliveryMethod } from '@/lib/delivery-method'
 import {
   internalRetailWarning,
@@ -409,6 +411,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [lastPrices, setLastPrices] = useState<Map<string, LastBulkPrice>>(new Map())
   const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Server menolak karena ada barang di bawah modal: tampilkan 2× konfirmasi, lalu kirim ulang.
+  const [belowCost, setBelowCost] = useState<{ lines: BelowCostLine[]; deliveryMethod: SaleDeliveryMethod | null } | null>(null)
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [transactionResponse, setTransactionResponse] = useState<TransactionResponse | null>(null)
@@ -1359,7 +1363,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   }
   openReviewRef.current = openReview
 
-  async function submitBulkSale(deliveryMethod: SaleDeliveryMethod | null) {
+  async function submitBulkSale(deliveryMethod: SaleDeliveryMethod | null, belowCostConfirmed = false) {
     if (!selectedCustomer || !validateSale()) {
       setShowReview(false)
       return
@@ -1398,6 +1402,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           sourceIbtId: sourceIbt?.id ?? null,
           sourceOrderId: sourceOrder?.id ?? null,
           deliveryMethod,
+          belowCostConfirmed,
           items,
           totals: {
             subtotal: totals.subtotal,
@@ -1410,6 +1415,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       const data: unknown = await response.json()
 
       if (!response.ok) {
+        if (!belowCostConfirmed && isRecord(data) && data.code === 'BELOW_COST' && Array.isArray(data.lines)) {
+          setBelowCost({ lines: data.lines as BelowCostLine[], deliveryMethod })
+          return
+        }
         setErrorMsg(isRecord(data) && typeof data.error === 'string' ? data.error : 'Gagal membuat bulk sale')
         return
       }
@@ -2180,6 +2189,18 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           discountAmount={String(printableBulkSale.discountTotal)}
           customerName={printableBulkSale.customerName}
           delivery={printableBulkSale.delivery}
+        />
+      )}
+
+      {belowCost && (
+        <BulkSaleBelowCostDialog
+          lines={belowCost.lines}
+          onCancel={() => setBelowCost(null)}
+          onConfirm={() => {
+            const { deliveryMethod } = belowCost
+            setBelowCost(null)
+            void submitBulkSale(deliveryMethod, true)
+          }}
         />
       )}
 

@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
 import { hasPermission } from '@/lib/authz';
+import { countOpenPriceReviewsForSource } from '@/lib/services/price-review-record';
+import PriceReviewNotice from './_components/price-review-notice';
 import {
   db,
   purchaseOrders,
@@ -53,6 +55,8 @@ export default async function PODetailPage({
   const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
   const canCancel = payload ? hasPermission(payload, 'po.approve') : false;
   const canManage = payload ? hasPermission(payload, 'po.manage') : false;
+  const canReviewPrice = payload ? hasPermission(payload, 'master.price.manage') : false;
+  const canReturnedGoods = payload ? hasPermission(payload, 'po.returned_goods') : false;
   const today = todayWibDate();
   let methods: { id: number; name: string }[] = [];
   let creditBalance = 0;
@@ -68,6 +72,7 @@ export default async function PODetailPage({
           poNumber: purchaseOrders.poNumber,
           status: purchaseOrders.status,
           totalAmount: purchaseOrders.totalAmount,
+          keepCurrentCost: purchaseOrders.keepCurrentCost,
           notes: purchaseOrders.notes,
           rejectionNote: purchaseOrders.rejectionNote,
           invoiceNumber: purchaseOrders.invoiceNumber,
@@ -264,8 +269,9 @@ export default async function PODetailPage({
   }
 
   // PO Selesai tidak bisa diubah isinya; barang susulan lewat PO Tambahan (spec 2026-11-06-po-edit-items).
+  // PO Batal/Ditolak bisa diduplikat jadi PO baru — pilihan supplier/cabangnya sama.
   let followUp: { suppliers: { id: number; name: string }[]; branches: { id: number; name: string }[] } | null = null;
-  if (!error && po?.status === 'COMPLETED' && canManage) {
+  if (!error && ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(po?.status) && canManage) {
     try {
       const [supplierRows, branchRows] = await Promise.all([
         db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(eq(suppliers.isActive, true)).orderBy(suppliers.name),
@@ -287,8 +293,11 @@ export default async function PODetailPage({
     );
   }
 
+  const priceReviewCount = await countOpenPriceReviewsForSource(['PO_RECEIVING', 'PO_INVOICE'], poId).catch(() => 0);
+
   return (
     <div className="p-6 max-w-5xl">
+      <PriceReviewNotice count={priceReviewCount} canReview={canReviewPrice} />
       <PODetailClient
         po={po}
         currentUserId={currentUserId}
@@ -299,6 +308,7 @@ export default async function PODetailPage({
         canCancel={canCancel}
         canManage={canManage}
         followUp={followUp}
+        canReturnedGoods={canReturnedGoods}
         paymentMethods={methods}
         supplierCreditBalance={creditBalance}
         today={today}

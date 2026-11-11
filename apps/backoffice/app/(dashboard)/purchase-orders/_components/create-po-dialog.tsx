@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import PoProductPicker, { type PoPickChoice, type PoProduct } from './po-product-picker';
 import { defaultUnitCost, type PoProductUom } from './po-item-defaults';
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input';
+import { NewBadge } from '@/components/ui/new-badge';
 
 /** Pengingat modal terakhir satuan terpilih (dari Manajemen Harga), di samping kolom harga. */
 function lastCostLabel(uoms: PoProductUom[], uomId: number): string {
@@ -30,8 +31,45 @@ interface CreatePODialogProps {
   role: string;
   onClose: () => void;
   onSuccess: (poId: number) => void;
-  /** Isian awal, mis. "Buat PO Tambahan" dari PO Selesai (supplier & cabang sama, catatan rujukan). */
-  initial?: { supplierId?: number | null; branchId?: number; notes?: string; title?: string };
+  /** Boleh membuat PO Barang kembali (hak po.returned_goods). */
+  canReturnedGoods?: boolean;
+  /**
+   * Isian awal, mis. "Buat PO Tambahan" dari PO Selesai (supplier & cabang sama, catatan rujukan)
+   * atau "Duplikat PO" (ikut barang, qty, harga, dan tanda Barang kembali).
+   */
+  initial?: {
+    supplierId?: number | null;
+    branchId?: number;
+    notes?: string;
+    title?: string;
+    items?: { productId: number; uomId: number; qtyOrdered: number; unitCost: number }[];
+    keepCurrentCost?: boolean;
+  };
+}
+
+type InitialItem = NonNullable<NonNullable<CreatePODialogProps['initial']>['items']>[number];
+
+/** Muat satuan & modal terakhir cabang untuk barang isian awal (Duplikat PO). */
+async function loadInitialItems(branchId: string, initialItems: InitialItem[]): Promise<{ items: POItem[]; skipped: number }> {
+  const ids = initialItems.map(i => i.productId).join(',');
+  const res = await fetch(`/api/bo/purchase-orders/products?branchId=${branchId}&ids=${ids}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Gagal memuat barang');
+  const products = new Map((data as PoProduct[]).map(p => [p.id, p]));
+  const items: POItem[] = [];
+  for (const it of initialItems) {
+    const product = products.get(it.productId);
+    if (!product || !product.uoms.some(u => u.uomId === it.uomId)) continue;
+    items.push({
+      productId: product.id,
+      productName: product.name,
+      availableUoms: product.uoms,
+      uomId: it.uomId,
+      qtyOrdered: String(it.qtyOrdered),
+      unitCost: it.unitCost > 0 ? String(it.unitCost) : '',
+    });
+  }
+  return { items, skipped: initialItems.length - items.length };
 }
 
 export function CreatePODialog({
@@ -41,6 +79,7 @@ export function CreatePODialog({
   role,
   onClose,
   onSuccess,
+  canReturnedGoods = false,
   initial,
 }: CreatePODialogProps) {
   // Supplier yang sudah nonaktif tidak ada di daftar — biarkan kosong supaya dipilih ulang.
@@ -51,8 +90,30 @@ export function CreatePODialog({
   const [targetDeliveryDate, setTargetDeliveryDate] = useState('');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [items, setItems] = useState<POItem[]>([]);
+  const [keepCurrentCost, setKeepCurrentCost] = useState(() => canReturnedGoods && initial?.keepCurrentCost === true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [initialNote, setInitialNote] = useState('');
+
+  // Duplikat PO: barang diisi dari PO asal (satuan & modal terakhir mengikuti cabang terpilih).
+  const initialItems = initial?.items;
+  useEffect(() => {
+    if (!initialItems?.length || !branchId) return;
+    let cancelled = false;
+    setLoadingInitial(true);
+    loadInitialItems(branchId, initialItems)
+      .then(({ items: loaded, skipped }) => {
+        if (cancelled) return;
+        setItems(loaded);
+        setInitialNote(skipped > 0 ? `${skipped} barang tidak ikut karena produk/satuannya sudah tidak aktif.` : '');
+      })
+      .catch((e: Error) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoadingInitial(false); });
+    return () => { cancelled = true; };
+    // Hanya sekali saat dialog dibuka; ganti cabang sesudahnya tidak menimpa isian pengguna.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [showPicker, setShowPicker] = useState(false);
 
@@ -142,6 +203,7 @@ export function CreatePODialog({
           })),
           notes: notes.trim() || null,
           targetDeliveryDate: targetDeliveryDate || null,
+          ...(keepCurrentCost && { keepCurrentCost: true }),
         }),
       });
 
@@ -235,6 +297,24 @@ export function CreatePODialog({
                 />
               </div>
             </div>
+
+            {canReturnedGoods && (
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={keepCurrentCost}
+                  onChange={e => setKeepCurrentCost(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border"
+                />
+                <span>
+                  <span className="font-medium text-foreground">Barang kembali (tidak mengubah modal)</span>{' '}
+                  <NewBadge feature="fitur/po-barang-kembali" />
+                  <span className="block text-xs text-muted-foreground">
+                    Harga di PO = nilai sebenarnya (hutang & PDF). Modal di Manajemen Harga tidak berubah; HPP stok memakai modal cabang.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {/* Items */}
             <div>
@@ -361,9 +441,11 @@ export function CreatePODialog({
                 </div>
               )}
 
+              {initialNote && <p className="mt-2 text-xs text-amber-700">{initialNote}</p>}
+
               {items.length === 0 && (
                 <div className="border border-dashed border-border rounded-lg py-8 text-center text-sm text-muted-foreground">
-                  Belum ada item. Cari produk di atas untuk menambahkan.
+                  {loadingInitial ? 'Memuat barang dari PO asal…' : 'Belum ada item. Cari produk di atas untuk menambahkan.'}
                 </div>
               )}
             </div>

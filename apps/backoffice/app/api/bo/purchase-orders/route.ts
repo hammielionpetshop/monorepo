@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { serviceProductMessage } from '@/lib/service-product-guard'
 import { z } from "zod";
-import { getAuth, requirePermission } from "@/lib/authz";
+import { getAuth, hasPermission, requirePermission } from "@/lib/authz";
 import {
   db,
   purchaseOrders,
@@ -32,6 +32,8 @@ const createPOSchema = z.object({
     .min(1, "Item Purchase Order wajib diisi"),
   notes: z.string().max(1000).nullable().optional(),
   targetDeliveryDate: z.iso.date().nullable().optional(),
+  // PO Barang kembali: tidak mengubah modal (hak po.returned_goods).
+  keepCurrentCost: z.boolean().optional(),
 });
 
 export async function GET(req: Request) {
@@ -132,6 +134,13 @@ export async function POST(req: Request) {
     }
 
     const { supplierId, items, notes, targetDeliveryDate } = parsed.data;
+    const keepCurrentCost = parsed.data.keepCurrentCost === true;
+    if (keepCurrentCost && !hasPermission(payload, "po.returned_goods")) {
+      return NextResponse.json(
+        { error: "Hanya Owner/GM yang dapat membuat PO Barang kembali" },
+        { status: 403 },
+      );
+    }
 
     const [supplier] = await db
       .select({ isActive: suppliers.isActive })
@@ -169,6 +178,7 @@ export async function POST(req: Request) {
           supplierId,
           createdById: payload.userId,
           totalAmount: Math.round(totalAmount),
+          keepCurrentCost,
           notes: notes || null,
           targetDeliveryDate: targetDeliveryDate
             ? new Date(targetDeliveryDate)

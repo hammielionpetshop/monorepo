@@ -2,6 +2,112 @@
 
 # Changelog
 
+## [1.107.130] - 2026-11-11
+
+### Changed
+- **Kembalikan Modal** di detail PO Selesai kini sekaligus membetulkan HPP sisa stok dari PO itu ke modal yang dikembalikan, jadi nilai stok dan untung saat barang dijual memakai modal, bukan harga beli PO. Barang yang sudah terjual tidak diubah; nilai sisa stok sebelum dan sesudah ditampilkan di hasilnya.
+
+## [1.107.129] - 2026-11-11
+
+### Added
+- Detail PO Selesai: tombol **Kembalikan Modal** (Owner/GM). Modal semua barang di PO itu kembali ke angka sebelum PO masuk dalam sekali klik, tanpa mengubah harga beli, total PO, maupun hutang. Cocok untuk PO yang harga belinya bukan modal wajar, misalnya barang kembali dari rekan. Alasan wajib dan tercatat di Audit Log; barang yang modalnya sudah diperbarui barang masuk lain atau belum punya modal sebelumnya ditampilkan untuk dicek manual.
+
+## [1.107.128] - 2026-11-11
+
+### Added
+- Purchase Order: centang **Barang kembali (tidak mengubah modal)** di form Buat PO (Owner/GM). Harga di PO tetap nilai sebenarnya untuk hutang dan PDF, tetapi modal di Manajemen Harga tidak berubah dan HPP stok memakai modal cabang. Cocok untuk barang yang dikembalikan rekan/pihak lain.
+- Detail PO Batal/Ditolak: tombol **Duplikat PO** untuk membuat PO baru dengan supplier, cabang, barang, qty, dan harga yang sama tanpa input ulang.
+- Hutang Supplier: tombol **Bebaskan Hutang** (Owner/GM) untuk merelakan tagihan PO yang belum dibayar tanpa uang keluar, misalnya barang modal owner yang dikembalikan rekan. Alasan wajib diisi; status hutang menjadi **Dihapus** (ada tab sendiri, alasan dan pelakunya tampil), tidak tercatat di Arus Kas, sedangkan barang, stok, modal, dan nilai PO tetap tercatat.
+- Daftar Purchase Order: kolom **Cari Supplier** di filter.
+
+### Fixed
+- Total PO dan subtotal per barang kini ikut bertambah bila barang yang datang melebihi pesanan. Total PO lama yang berlebih ikut dibetulkan.
+
+## [1.107.127] - 2026-11-11
+
+### Added
+- PDF dan foto Purchase Order kini bisa menampilkan harga: centang **Tampilkan harga** di detail PO sebelum menyimpan untuk mencetak harga satuan, subtotal, dan total. Tanpa centang, dokumen tetap tanpa harga seperti sebelumnya.
+
+## [1.107.126] - 2026-11-11
+
+### Added
+- Utang Internal › Riwayat: Owner dan GM dapat **membatalkan pembayaran manual** yang salah input, dengan alasan wajib. Sisa hutang kembali, Riwayat mencatat baris BATAL BAYAR (pembayaran asal tetap terlihat, dicoret), dan catatan Arus Kas pembayaran itu di kedua cabang ditandai Batal. Saldo Internal yang masih ada langsung memotong tagihan yang terbuka lagi. Pembayaran otomatis (Setoran, Retur, Saldo, Susulan) tetap dibatalkan dari dokumen asalnya.
+
+## [1.107.125] - 2026-11-10
+
+### Added
+- Larangan jual di bawah modal. Kasir: nota ditolak bila harga bersih barang (sesudah ubah harga atau diskon manual) lebih rendah dari modal cabang, dengan pesan "Harga di bawah modal — hubungi kantor untuk memeriksa harga" beserta nama barang, harga, dan modalnya. Promo resmi tetap boleh. Bulk Sale: muncul dua jendela konfirmasi berturut-turut (daftar barang di bawah modal, lalu "Penjualan ini RUGI Rp X"); penjualan rugi yang disimpan tercatat di Audit Log sebagai "Jual di bawah modal". PO Internal dan jasa tidak diperiksa.
+- Tinjauan Modal & Margin › tab baru **Harga Jual Perlu Diperiksa** (Owner/GM): setiap barang yang modalnya naik dari barang masuk (PO, faktur PO, terima transfer internal, penambahan stok) otomatis masuk daftar ini per cabang. Tiap satuan dan jenis harga menampilkan harga lama, modal baru, margin, dan usulan harga yang mempertahankan persentase untung lama, dibulatkan ke atas ke Rp 100. **Setujui harga** langsung mengubah harga di Manajemen Harga (tercatat di riwayat harga), dan modal yang masih ditahan (naik 30% atau lebih) ikut disetujui. Tersedia juga Setujui banyak sekaligus, **Tetap harga lama** (alasan wajib; ditolak bila harga di bawah modal baru), dan **Tolak kenaikan modal**.
+- Detail PO dan detail transfer internal menampilkan "X barang modalnya naik — harga jualnya menunggu diperiksa manajemen".
+
+### Changed
+- Peringatan "Harga beda jauh" di Terima Barang PO menjelaskan bahwa modal yang berubah 30% atau lebih ditahan sampai disetujui Owner/GM dan harga jualnya menunggu diperiksa.
+
+## [1.107.124] - 2026-11-10
+
+### Changed
+- Terima Barang PO Supplier: barang yang datang melebihi qty pesanan sekarang bisa dicatat (mis. hasil negosiasi owner atau supplier lebih kirim). Muncul peringatan "datang melebihi pesanan" dan alasan wajib diisi di Catatan; kelebihan ikut masuk stok dan hutang supplier. Baris yang pesanannya sudah terpenuhi tetap bisa diisi, jumlah dari Laporan Bongkaran tidak lagi dipotong ke sisa pesanan, dan detail PO menandai "(lebih X)".
+
+## [1.107.123] - 2026-11-10
+
+### Added
+- Promo: tombol **Ubah tanggal** untuk mengubah masa berlaku promo. Waktu berakhir bisa diperpanjang (promo yang sudah berakhir bisa berjalan lagi, dengan sisa kuota yang sama); waktu mulai bisa diubah selama promo belum mulai. Barang, potongan, cabang, dan kuota tetap tidak bisa diubah.
+- Promo: tombol **Salin jadi promo baru** — membuka form yang sudah terisi dari promo lama, cukup ubah yang perlu lalu simpan. Bisa sekaligus menonaktifkan promo lama. Promo baru punya kuota dan laporan sendiri.
+
+## [1.107.122] - 2026-11-09
+
+### Added
+- **Pendapatan & Pengeluaran (Arus Kas) dirapikan**: setiap catatan kini punya **Tanggal uang** (paling jauh 7 hari ke belakang; lebih dari itu hanya Owner), **Untuk bulan** (mis. sewa Oktober dibayar 1 November), **Cabang yang menanggung** (termasuk "Bersama"), **Dibayar dari / Masuk ke** (Tempat Uang, wajib; laci kasir tidak ditawarkan), dan **Foto bukti** (dianjurkan). Catatan lama bertanda Tempat Uang "belum diketahui".
+- Daftar Arus Kas untuk Owner/GM/Finance memuat semua cabang dengan saringan tanggal, cabang, Tempat Uang, dan "tampilkan yang batal".
+- **Batalkan catatan** dengan alasan wajib: catatan tetap terlihat bertanda Batal dan tidak dihitung. Pencatat bisa membatalkan catatannya sendiri pada hari yang sama; sesudahnya hanya Owner/GM. Catatan tidak bisa diubah atau dihapus (dijaga database).
+- **Jenis laporan kategori**: Biaya / Bukan biaya (pengeluaran), Pendapatan lain / Bukan pendapatan (pemasukan); kategori lama bertanda "Belum dipilih" untuk diisi Owner. Kategori bisa ditambah, diganti nama, dan dinonaktifkan; tipe & jenis hanya bisa diganti selama belum dipakai. Pilihan "Hanya Owner" dan "Catatan wajib" per kategori.
+- **Daftar kategori bawaan** (Listrik, Air/PDAM, Internet & pulsa, Perbaikan & perawatan, …, Sewa (sementara), Diambil Owner / pribadi, Modal masuk dari Owner, Pinjaman masuk, dll.).
+- **Sambungan kategori Pengeluaran Kasir** ke kategori Arus Kas di layar Kategori (tampilan kasir tidak berubah).
+- Menu **Keuangan › Pindah Dana** (Owner/GM/Finance): catat uang yang pindah antar Tempat Uang — Brankas → rekening (setor bank), rekening → Brankas (tarik tunai), Brankas → kas pegangan — dengan jumlah, tanggal uang (paling jauh 7 hari ke belakang; lebih dari itu hanya Owner), catatan, dan foto bukti. Bukan biaya dan bukan pendapatan; laci kasir tidak ditawarkan (setoran toko tetap lewat Setoran).
+- Pindah Dana tidak bisa diubah atau dihapus; yang salah **dibatalkan dengan alasan** (pencatat sendiri pada hari yang sama, sesudahnya Owner/GM) dan tetap terlihat bertanda Batal. Setiap pindah juga tercatat sebagai perpindahan uang agar saldo Tempat Uang nanti terbaca di Finance.
+- **Dibayar dari** di Catat Pembayaran ke Supplier (Hutang Supplier dan detail PO): setiap pembayaran memakai uang wajib memilih Tempat Uang asalnya. Tunai hanya dari tempat uang Tunai (mis. Brankas), transfer/cek hanya dari Rekening; laci kasir tidak ditawarkan. Pilihan terakhir diingat sebagai bawaan. Bayar dari Saldo Supplier tidak memakai Tempat Uang.
+- Riwayat pembayaran supplier menampilkan kolom **Dibayar dari**; pembayaran lama bertanda "belum diketahui" (tidak diisi tebakan).
+
+### Changed
+- Mencatat Arus Kas kini hanya untuk Owner, GM, dan Finance (hak baru `cashflow.record`); yang lain tetap bisa melihat catatan cabangnya. Staf perlu keluar-masuk lagi agar hak baru terbaca.
+
+## [1.107.121] - 2026-11-08
+
+### Added
+- Utang Internal › **Utang Lama** (Owner/GM): pratinjau utang antar cabang yang lahir sebelum pelunasan otomatis (sebelum 1 November 2026). Per cabang tampil utang lama terbuka, kas shift yang sudah diverifikasi Finance, kas yang belum diverifikasi (keterangan), non-tunai, pelunasan manual yang sudah dicatat, uang tersedia, dan hasilnya bila dipakai melunasi (nota mana jadi lunas, sisa utang, setoran bebas) — berantai sama seperti pelunasan otomatis. Tanggal mulai bisa dipilih (4 Okt / 24 Okt / tanggal lain), ada "Cara membaca" dan unduh Excel. Hanya pratinjau: tidak ada data yang berubah.
+- Utang Internal › Utang Lama: tombol **Jalankan pelunasan susulan** (Owner saja). Memakai tanggal mulai dan centang yang sedang dipilih di pratinjau; Owner mengetik ulang total yang dilunasi dan menulis catatan. Nota utang lama yang terlunasi tercatat di Riwayat pembayaran dengan tanda **SUSULAN** (bukan uang kas baru, tidak masuk Pendapatan & Pengeluaran), berantai sama seperti pelunasan otomatis. Bila data berubah sejak halaman dibuka, pelaksanaan ditolak dan diminta muat ulang. Hanya satu pelaksanaan boleh berlaku.
+- **Batalkan pelunasan susulan** (Owner, alasan wajib): semua pelunasannya dibalik dengan tanda **BATAL SUSULAN** (tidak ada yang dihapus), nota kembali terbuka, lalu bisa dijalankan ulang dengan pilihan lain. Riwayat pelaksanaan yang dibatalkan tetap terlihat.
+- Utang Internal: penyaring **Utang lama** (utang yang lahir sebelum pelunasan otomatis) untuk menyelesaikan sisanya lewat Bayar manual atau Hapus Hutang.
+
+## [1.107.120] - 2026-11-08
+
+### Added
+- Pelunasan otomatis utang internal dari Setoran: saat Finance memverifikasi setoran tunai atau non-tunai sebuah cabang, uangnya langsung melunasi utang internal cabang itu mulai dari tagihan paling lama, lalu diteruskan ke utang pemasoknya (mis. Toko Pusat ke Gudang). Sisanya dicatat sebagai setoran bebas. Hanya utang sejak 1 November 2026 dan hanya uang yang sampai di Tempat Uang yang dipegang Finance.
+- Rincian pelunasan di Setoran › Riwayat dan pesan ringkas sesudah Verifikasi; koreksi setoran membalik pelunasannya (tercatat BATAL SETORAN) lalu melunasi ulang.
+- Utang Internal: kolom Umur (merah lewat 30 hari), ringkasan sisa utang per cabang, label SETORAN di riwayat bayar, dan pengingat bahwa bayar manual hanya untuk uang di luar Setoran.
+
+### Changed
+- Setoran › Tunai belum disetor hanya memuat shift sejak 1 November 2026; shift lama sebelum itu dibiarkan.
+
+### Fixed
+- Baris berwarna di Setoran (Tunai belum disetor, Non-tunai) kini terbaca di mode gelap.
+
+## [1.107.119] - 2026-11-08
+
+### Added
+- Menu baru **Shift › Setoran** untuk Owner, GM, dan Finance dengan 4 tab: **Menunggu Verifikasi**, **Non-tunai**, **Tunai belum disetor**, dan **Riwayat**. Finance mengetik uang yang benar-benar diterima, merinci sebab selisih (biaya setor bank, kurang/lebih dari kasir, lainnya), lalu menekan Verifikasi — perpindahan uang dari Laci ke tujuan tercatat otomatis.
+- Tombol **Terima Setoran** untuk uang tunai yang diantar ke kantor (termasuk tunai Bulk Sale Gudang): pilih cabang dan shift, tujuan Brankas/Tunai, ketik uang diterima — langsung terverifikasi.
+- Menu baru **POS › Setor Tunai** untuk tim cabang yang menyetor tunai ke bank: centang shift yang disetor, pilih rekening, nominal, tanggal, dan foto slip (opsional), lalu kirim ke Finance. Bisa dibatalkan selama belum diverifikasi.
+- Verifikasi **non-tunai per shift per metode** (QRIS, transfer, e-wallet) dari mutasi rekening, termasuk pelunasan non-tunai dari Back Office tanpa shift. Bisa disimpan sebagai **Dana belum cair** lalu diselesaikan kemudian; tanda merah bila lewat batas hari.
+- Peringatan tunai belum disetor (bawaan 5 hari atau Rp25 juta) dan badge jumlah setoran menunggu verifikasi di menu Setoran.
+- Kolom **Tunai (setoran)** di Pengaturan › Tempat Uang › Metode Bayar per Cabang untuk tujuan bawaan setoran tunai tiap cabang.
+- Detail Shift menampilkan status tunai (belum disetor / menunggu verifikasi / terverifikasi + nomor setoran) dan status non-tunai per metode, termasuk tanda bila angka sistem berubah sesudah diverifikasi.
+
+### Changed
+- Verifikasi setoran di Riwayat Shift diganti tautan ke menu Setoran; shift yang sudah diverifikasi cara lama tetap tampil seperti sebelumnya. Shift lama yang belum diverifikasi ikut masuk Tunai belum disetor dengan tanda *lama*.
+- Laporan Minus Kasir untuk shift yang disetor lewat menu Setoran membaca rincian sebab dari Finance: hanya kurang/lebih dari kasir dan salah input kasir yang dibebankan ke kasir; biaya bank tidak masuk.
+- Setoran yang sudah terverifikasi hanya bisa dikoreksi Owner/GM dengan setoran koreksi baru; catatan lama tidak ditimpa.
+
 ## [1.107.118] - 2026-11-08
 
 ### Added
