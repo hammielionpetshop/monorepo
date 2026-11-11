@@ -74,8 +74,9 @@ selama web ini khusus staging. Tanpa migrasi.
 
 - App baru `apps/finance` (Next.js, pola HRIS), tayang hanya di staging `https://finance.staginghml.my.id`
   di belakang gerbang Caddy + Basic Auth staging yang sama.
-- Masuk dengan **akun auth pusat yang sama** (cookie `.staginghml.my.id`); boleh masuk bila akun itu
-  tertaut ke pengguna Back Office berperan **OWNER** atau **GM**. Selain itu: halaman "Tidak punya akses".
+- Memakai **sesi auth pusat Back Office staging** (cookie `.staginghml.my.id`): masuk dulu di Back Office, lalu buka
+  Finance. Boleh bila akses Back Office sesi itu milik pengguna berperan **OWNER** atau **GM**; selain itu halaman
+  "Tidak bisa membuka Finance". Finance hanya membaca sesi (tidak memperpanjang/mencatat), karena role-nya baca saja.
 - Tanpa menu di HRIS maupun Back Office (01 §5). Rumus ada di `apps/finance/modules/` (bertes), terpisah
   dari layar, supaya kelak tinggal dipindah ke web resmi.
 - **Hanya membaca, dijaga database**: role baru `finance_app` hanya `SELECT` pada tabel/view yang
@@ -88,7 +89,7 @@ Halaman **Saldo** (beranda):
 
 - Pilih **per tanggal** (bawaan hari ini WIB, tidak sebelum 1 Nov 2026).
 - Daftar Tempat Uang **Tunai & Rekening** (aktif + nonaktif yang masih bersaldo), dikelompokkan per cabang
-  pemilik, berisi: nama, jenis, dipegang oleh, **saldo**, masuk & keluar bulan berjalan. Baris jumlah per
+  pemilik, berisi: nama, jenis, dipegang oleh, **saldo**, masuk & keluar sejak 1 Nov s.d. tanggal pilihan. Baris jumlah per
   cabang dan **Total semua**.
 - Saldo = **saldo awal 1 Nov** + semua uang masuk − semua uang keluar dengan **tanggal uang** 1 Nov s.d.
   tanggal pilihan. Catatan batal dan pembalikan saling meniadakan (tidak tampil sebagai angka ganda).
@@ -128,9 +129,10 @@ bulan) · **Lihat rincian →** (Mutasi / daftar asalnya).
 
 ### 3.5 Staging & deploy
 
-- `infra/staging`: layanan `finance` di compose, `finance.env.example`, `DOMAIN_STAGING_FINANCE=
-  finance.staginghml.my.id`, `check-env` & gerbang Caddy menerima domain itu; `deploy-staging.yml`
-  membangun image Finance. Role `stg_finance_app` dibuat lewat `db-roles` seperti role staging lain.
+- `infra/staging`: layanan `finance-staging` di compose (tanpa `env_file`, tidak ada rahasia sendiri),
+  `STAGING_FINANCE_DATABASE_URL` + `DOMAIN_STAGING_FINANCE=finance.staginghml.my.id` di `.env`,
+  `STG_FINANCE_APP_DB_PASSWORD` di `migrator.env`; `check-env` & gerbang Caddy menerima keduanya;
+  `deploy-staging.yml` membangun image Finance. Role `stg_finance_app` dibuat lewat `db-roles` seperti role staging lain.
 - Tidak menyentuh `deploy-vps.yml`/produksi.
 
 ### 3.6 Tes (non-UI)
