@@ -64,11 +64,13 @@ interface POListClientProps {
   branches: Branch[]
   currentUserId: number
   role: string
+  /** Hak po.returned_goods — centang Barang kembali di form Buat PO. */
+  canReturnedGoods?: boolean
   /** Hari ini (WIB, YYYY-MM-DD) dari server — pembanding jatuh tempo. */
   today?: string
 }
 
-export function POListClient({ pos, suppliers, branches, currentUserId, role, today = todayWibDate() }: POListClientProps) {
+export function POListClient({ pos, suppliers, branches, currentUserId, role, canReturnedGoods = false, today = todayWibDate() }: POListClientProps) {
   const router = useRouter()
   const [storedTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
   const [branchId, setBranchId] = usePersistedFilterState('purchase-orders', 'branchId', '')
@@ -311,6 +313,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
           branches={branches}
           currentUserId={currentUserId}
           role={role}
+          canReturnedGoods={canReturnedGoods}
           onClose={() => setShowCreateDialog(false)}
           onSuccess={(poId) => {
             setShowCreateDialog(false)

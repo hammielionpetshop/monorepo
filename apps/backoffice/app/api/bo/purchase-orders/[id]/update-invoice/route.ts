@@ -14,6 +14,7 @@ import {
   sql,
 } from "@/lib/db";
 import { syncCostFromInbound } from "@/lib/services/cost-sync-service";
+import { poTotalAmount } from "@/lib/po-total";
 import { resolveStockUom } from "@/lib/services/stock-validation";
 
 const invoiceSchema = z.object({
@@ -89,6 +90,7 @@ export async function PATCH(
           id: purchaseOrders.id,
           branchId: purchaseOrders.branchId,
           poNumber: purchaseOrders.poNumber,
+          keepCurrentCost: purchaseOrders.keepCurrentCost,
         });
 
       if (!updatedPO) throw new Error("PO_NOT_FOUND");
@@ -115,22 +117,22 @@ export async function PATCH(
       });
 
       // Hutang = barang bagus yang masuk stok (sama seperti approve-receiving); Total PO di header
-      // = qty pesan × harga efektif, sama dengan subtotal per baris di halaman detail.
+      // = max(qty pesan, qty diterima) × harga efektif, sama dengan subtotal per baris di detail.
       let newTotalAmount = 0;
-      let newPoTotal = 0;
       for (const item of allItems) {
         const cost = Number(item.invoiceUnitCost || item.unitCost);
         newTotalAmount += Math.max(Number(item.qtyReceived) - Number(item.qtyDamaged), 0) * cost;
-        newPoTotal += Number(item.qtyOrdered) * cost;
       }
       await tx
         .update(purchaseOrders)
-        .set({ totalAmount: Math.round(newPoTotal) })
+        .set({ totalAmount: poTotalAmount(allItems) })
         .where(eq(purchaseOrders.id, poId));
 
       // Harga faktur menggantikan harga PO sebagai modal, tapi hanya untuk barang yang sudah masuk
       // stok; waktu penerimaannya jadi pembanding supaya faktur lama tidak menimpa PO yang lebih baru.
-      for (const item of allItems) {
+      // PO Barang kembali: harga faktur hanya mengubah nilai/hutang — HPP batch tetap modal cabang
+      // dan modal Manajemen Harga tidak disentuh.
+      for (const item of updatedPO.keepCurrentCost ? [] : allItems) {
         if (!items.some((i) => i.id === item.id)) continue;
         if (Number(item.qtyReceived) - Number(item.qtyDamaged) <= 0) continue;
         const [received] = await tx
