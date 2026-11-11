@@ -5,14 +5,17 @@ import { FileDown, ImageDown } from 'lucide-react'
 import type { PoDocumentData } from '@/lib/po-document-layout'
 import { renderPoDocumentImages, renderPoDocumentPdf } from '@/lib/po-document-image'
 import DocumentImageExport from '../../../transactions/_components/document-image-export'
+import { NewBadge } from '@/components/ui/new-badge'
 
 const BUTTON =
   'inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50'
 
-/** Simpan PO untuk dikirim ke supplier — PDF atau foto, keduanya tanpa harga. */
-export default function PoDocumentExport({ data }: { data: PoDocumentData }) {
+/** Simpan PO untuk dikirim ke supplier — PDF atau foto; harga ikut tercetak hanya bila dipilih. */
+export default function PoDocumentExport({ data: baseData }: { data: PoDocumentData }) {
   const [savingPdf, setSavingPdf] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPrices, setShowPrices] = useState(false)
+  const data: PoDocumentData = { ...baseData, showPrices }
 
   async function savePdf() {
     setSavingPdf(true)
@@ -36,6 +39,16 @@ export default function PoDocumentExport({ data }: { data: PoDocumentData }) {
 
   return (
     <div className="flex flex-wrap items-start gap-2">
+      <label className="inline-flex cursor-pointer items-center gap-2 self-center text-sm text-foreground">
+        <input
+          type="checkbox"
+          checked={showPrices}
+          onChange={(e) => setShowPrices(e.target.checked)}
+          className="h-4 w-4 rounded border-border"
+        />
+        Tampilkan harga
+        <NewBadge feature="fitur/po-dokumen-harga" />
+      </label>
       <div className="flex flex-col gap-1">
         <button type="button" onClick={() => void savePdf()} disabled={savingPdf} className={BUTTON}>
           <FileDown className="h-4 w-4" />
