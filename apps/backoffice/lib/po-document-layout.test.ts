@@ -25,7 +25,7 @@ function makeData(n: number, extra: Partial<PoDocumentData> = {}): PoDocumentDat
 const allText = (pages: ReturnType<typeof buildPoDocumentPages>) => pages.flat().map((l) => l.text).join('\n')
 
 describe('buildPoDocumentPages', () => {
-  it('memuat supplier, cabang tujuan, item, tanpa harga sama sekali', () => {
+  it('memuat supplier, cabang tujuan, item; bawaannya tanpa harga sama sekali', () => {
     const text = allText(buildPoDocumentPages(makeData(3)))
     expect(text).toContain('PURCHASE ORDER')
     expect(text).toContain('PO-20261005-0001')
@@ -46,6 +46,25 @@ describe('buildPoDocumentPages', () => {
     expect(numbers).toEqual(Array.from({ length: 120 }, (_, i) => i + 1))
     expect(allText([pages[0]])).toContain(`Hal 1/${pages.length}`)
     expect(allText([pages.at(-1)!])).toContain('Supplier')
+  })
+
+  it('dengan showPrices: harga satuan, subtotal, dan total; harga menyusul tidak ikut total', () => {
+    const pages = buildPoDocumentPages(
+      makeData(0, {
+        showPrices: true,
+        items: [
+          { productName: 'Pakan A', productSku: 'A1', uomCode: 'SAK', qtyOrdered: 2.5, unitCost: 125_001 },
+          { productName: 'Pakan B', productSku: 'B1', uomCode: 'DUS', qtyOrdered: 3, unitCost: null },
+        ],
+      }),
+    )
+    for (const line of pages.flat()) expect(line.text.length).toBeLessThanOrEqual(PO_DOC_WIDTH)
+    const text = allText(pages)
+    expect(text).toMatch(/Harga\s+Subtotal/)
+    expect(text).toMatch(/Pakan A .*125\.001\s+312\.503$/m)
+    expect(text).toMatch(/Pakan B .*menyusul\s+-$/m)
+    expect(text).toContain('TOTAL: Rp 312.503')
+    expect(text).toContain('1 barang harga menyusul')
   })
 
   it('nama produk panjang dipotong, qty & satuan tetap utuh', () => {

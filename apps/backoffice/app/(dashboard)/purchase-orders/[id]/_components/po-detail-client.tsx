@@ -286,6 +286,7 @@ export function PODetailClient({
       productSku: item.productSku,
       uomCode: item.uomCode ?? '',
       qtyOrdered: Number(item.qtyOrdered),
+      unitCost: isPricePending(item) ? null : effectiveUnitCost(item),
     })),
   };
   const canMatchInvoice =
@@ -336,7 +337,7 @@ export function PODetailClient({
       {isNew && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-foreground print:hidden">
           <span className="font-semibold">Purchase Order berhasil dibuat.</span>{' '}
-          Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga tidak ikut tercetak.
+          Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga hanya tercetak bila &quot;Tampilkan harga&quot; dicentang.
         </div>
       )}
 
@@ -459,7 +460,7 @@ export function PODetailClient({
         )}
 
         <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <p className="text-xs text-muted-foreground">Kirim ke supplier (tanpa harga):</p>
+          <p className="text-xs text-muted-foreground">Kirim ke supplier:</p>
           <PoDocumentExport data={documentData} />
         </div>
 
