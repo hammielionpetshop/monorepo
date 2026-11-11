@@ -87,10 +87,10 @@ Migrasi petshop (satu berkas):
 - Hak `payable.payment_cancel` untuk `OWNER`, `GM`.
 - Trigger `cash_flow_entries_guard` sudah mengizinkan pengisian kolom pembatalan; tidak diubah.
 
-Catatan kas pembayaran asal dicari lewat nomor IBT + nominal + cabang + `occurred_on` di kategori
-sistem; bila tidak ketemu tepat sepasang (data lama), pembatalan ditolak dengan pesan jelas. Bila
-rencana kerja menemukan cara yang lebih pasti (mis. menyimpan id pembayaran pada catatan kas untuk
-pembayaran baru), itu dipakai.
+Catatan kas pembayaran asal dicari lewat kategori sistem + cabang + nominal + waktu catat = `paid_at`
+pembayaran (route Bayar selalu menulis keduanya dengan nilai sama; sebelum 2026-10-10 keduanya
+`now()` di transaksi yang sama). Dua catatan kembar setara; yang dipakai yang belum Batal. Bila tidak
+ketemu, pembatalan ditolak dengan pesan jelas.
 
 ## 6. Tampilan
 
