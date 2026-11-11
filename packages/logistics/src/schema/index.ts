@@ -17,6 +17,11 @@ export const vehicles = logisticsSchema.table(
     name: text('name').notNull(),
     plate: text('plate').notNull(),
     active: boolean('active').notNull().default(true),
+    /** Kepemilikan (F2-5b): OWNED milik sendiri (bawaan) / RENTED sewa per ritase. */
+    ownership: text('ownership').notNull().default('OWNED'),
+    /** Pemilik sewa: nama + catatan (mis. rekening). Wajib bila RENTED; tetap tersimpan bila kembali OWNED. */
+    rentalOwnerName: text('rental_owner_name'),
+    rentalOwnerNote: text('rental_owner_note'),
     /** Kosong = isi awal migrasi. */
     createdByAccountId: integer('created_by_account_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -27,6 +32,8 @@ export const vehicles = logisticsSchema.table(
     uniqueIndex('vehicles_plate_unique').on(sql`upper(${t.plate})`),
     check('vehicles_name_not_blank', sql`btrim(${t.name}) <> ''`),
     check('vehicles_plate_not_blank', sql`btrim(${t.plate}) <> ''`),
+    check('vehicles_ownership', sql`${t.ownership} in ('OWNED', 'RENTED')`),
+    check('vehicles_rental_owner', sql`${t.ownership} <> 'RENTED' or ${t.rentalOwnerName} is not null`),
   ],
 );
 
@@ -1263,5 +1270,72 @@ export const storeDeposits = logisticsSchema.table(
       and (${t.recordedAt} is null or ${t.kind} = 'USE')`),
     check('store_deposits_voided', sql`(${t.voidedAt} is null) = (${t.voidReason} is null) and (${t.voidedAt} is null) = (${t.voidedByAccountId} is null)
       and (${t.voidedAt} is null or (${t.kind} <> 'IN' and ${t.recordedAt} is null))`),
+  ],
+);
+
+/**
+ * Tarif sewa mobil per ritase (F2-5b, spec F2-5 §3.1): pola `trip_rates` per mobil. Kenaikan = baris baru; salah ketik =
+ * baris betulan (FIXED + `fixes_id`); yang belum berlaku boleh dibatalkan. Tidak dihapus.
+ */
+export const vehicleRentalRates = logisticsSchema.table(
+  'vehicle_rental_rates',
+  {
+    id: serial('id').primaryKey(),
+    vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    fixesId: integer('fixes_id'),
+    reason: text('reason'),
+    createdByAccountId: integer('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    endedByAccountId: integer('ended_by_account_id'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: text('end_reason'),
+  },
+  (t) => [
+    uniqueIndex('vehicle_rental_rates_active_unique').on(t.vehicleId, t.effectiveFrom).where(sql`${t.status} = 'ACTIVE'`),
+    index('vehicle_rental_rates_vehicle_idx').on(t.vehicleId),
+    check('vehicle_rental_rates_status', sql`${t.status} in ('ACTIVE', 'CANCELLED', 'FIXED')`),
+    check('vehicle_rental_rates_amount', sql`${t.amount} >= 0`),
+    check('vehicle_rental_rates_fix_reason', sql`(${t.fixesId} is null) = (${t.reason} is null)`),
+    check('vehicle_rental_rates_ended', sql`(${t.status} = 'ACTIVE') = (${t.endedAt} is null)`),
+  ],
+);
+
+/**
+ * Pembayaran sewa mobil per bulan (F2-5b, spec F2-5 §3.3). Menyimpan potret rekap saat dibayar (`trip_count`,
+ * `billed_amount`) agar perubahan sesudahnya terlihat. PAYMENT = bayar pertama (satu yang berlaku per mobil per bulan),
+ * TOP_UP = bayar susulan. `money_place_id` = Tempat Uang Back Office (angka biasa, tanpa FK lintas schema).
+ * Tidak dicatat di Arus Kas; Finance (F2-6) membacanya dengan Untuk bulan = `for_month`.
+ */
+export const vehicleRentalPayments = logisticsSchema.table(
+  'vehicle_rental_payments',
+  {
+    id: serial('id').primaryKey(),
+    vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id),
+    /** Hari pertama bulan rekap. */
+    forMonth: date('for_month', { mode: 'string' }).notNull(),
+    kind: text('kind').notNull(),
+    tripCount: integer('trip_count').notNull(),
+    billedAmount: integer('billed_amount').notNull(),
+    amount: integer('amount').notNull(),
+    differenceReason: text('difference_reason'),
+    moneyPlaceId: integer('money_place_id').notNull(),
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    proofFileId: uuid('proof_file_id'),
+    paidByAccountId: integer('paid_by_account_id').notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    uniqueIndex('vehicle_rental_payments_one_payment').on(t.vehicleId, t.forMonth).where(sql`${t.kind} = 'PAYMENT' and ${t.cancelledAt} is null`),
+    index('vehicle_rental_payments_month_idx').on(t.forMonth),
+    check('vehicle_rental_payments_kind', sql`${t.kind} in ('PAYMENT', 'TOP_UP')`),
+    check('vehicle_rental_payments_month', sql`extract(day from ${t.forMonth}) = 1`),
+    check('vehicle_rental_payments_amount', sql`${t.amount} > 0 and ${t.tripCount} >= 0 and ${t.billedAmount} >= 0`),
+    check('vehicle_rental_payments_cancel', sql`(${t.cancelledAt} is null) = (${t.cancelReason} is null)`),
   ],
 );
