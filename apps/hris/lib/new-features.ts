@@ -227,6 +227,8 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistik/jemput-retur': '2026-11-08', // A2 tugas jemput retur (tayang staging 2026-11-08)
   'fitur/jemput-retur': '2026-11-08', // A2 jemput retur di form trip, rincian trip, Trip Saya
   'fitur/kurang-serah-tindak-lanjut': '2026-11-08', // B3 kurang serah → Potongan Lain / ganti tunai / tidak dipotong (tayang staging 2026-11-08)
+  '/logistik/sewa-mobil': '2026-11-11', // F2-5b Sewa Mobil per ritase (tayang staging 2026-11-11)
+  'fitur/sewa-mobil-pengaturan': '2026-11-11', // F2-5b kepemilikan + tarif sewa di Mobil & Rute
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 

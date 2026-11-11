@@ -400,6 +400,13 @@
       "when": 1794123919854,
       "tag": "0056_f2_1b_money_places",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794414277503,
+      "tag": "0057_f2_5b_vehicle_rental",
+      "breakpoints": true
     }
   ]
 }

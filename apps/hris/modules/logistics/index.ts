@@ -25,6 +25,12 @@ export {
 } from './server/rates';
 export { RatesScreen } from './ui/rates-screen';
 export {
+  cancelRentalRate, cancelVehicleRentalPayment, createRentalRate, fixRentalRate, openRentalProof, payVehicleRental, setVehicleOwnership,
+  vehicleRentalScreen, vehicleRentalSettings, type RentalPayInput, type VehicleRentalScreenData, type VehicleRentalSettings,
+} from './server/vehicle-rental';
+export { VehicleRentalScreen } from './ui/vehicle-rental-screen';
+export { VehicleRentalPanel } from './ui/vehicle-rental-panel';
+export {
   checkDeposit, depositAttention, depositUsesToRecord, depositsScreen, pendingDeposits, recordDepositUse, refundDeposit, applyDeposit, voidDeposit,
   type DepositStoreView,
 } from './server/store-deposits';
