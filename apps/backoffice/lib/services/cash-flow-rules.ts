@@ -59,9 +59,19 @@ function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
 }
 
-function monthIndex(yyyyMm: string): number {
+export function monthIndex(yyyyMm: string): number {
   const [y, m] = yyyyMm.split('-').map(Number)
   return y * 12 + (m - 1)
+}
+
+/** Aturan tanggal uang bersama (Arus Kas, Pindah Dana, Biaya Rutin): tidak masa depan, mundur ≤ 7 hari kecuali Owner. */
+export function checkOccurredOn(occurredOn: string, today: string, isOwner: boolean): string | null {
+  if (!validDate(occurredOn)) return 'Tanggal uang tidak valid'
+  if (occurredOn > today) return 'Tanggal uang tidak boleh melewati hari ini'
+  if (daysBetween(occurredOn, today) > BACKDATE_DAYS && !isOwner) {
+    return `Tanggal uang paling jauh ${BACKDATE_DAYS} hari ke belakang; lebih dari itu hanya Owner`
+  }
+  return null
 }
 
 /** Kembalikan pesan galat pertama, atau null bila catatan sah. */
@@ -74,11 +84,8 @@ export function checkEntry(input: EntryRuleInput): string | null {
   if (category.ownerOnly && !input.isOwner) return 'Kategori ini hanya boleh dicatat Owner'
   if (category.noteRequired && !input.note?.trim()) return 'Catatan wajib diisi untuk kategori ini'
 
-  if (!validDate(input.occurredOn)) return 'Tanggal uang tidak valid'
-  if (input.occurredOn > input.today) return 'Tanggal uang tidak boleh melewati hari ini'
-  if (daysBetween(input.occurredOn, input.today) > BACKDATE_DAYS && !input.isOwner) {
-    return `Tanggal uang paling jauh ${BACKDATE_DAYS} hari ke belakang; lebih dari itu hanya Owner`
-  }
+  const dateError = checkOccurredOn(input.occurredOn, input.today, input.isOwner)
+  if (dateError) return dateError
 
   if (!MONTH_RE.test(input.forMonth)) return 'Untuk bulan tidak valid'
   const gap = Math.abs(monthIndex(input.forMonth) - monthIndex(input.occurredOn.slice(0, 7)))
@@ -153,10 +160,7 @@ export function checkTransfer(input: TransferRuleInput): string | null {
   if (from.id === to.id) return 'Tempat Uang asal dan tujuan tidak boleh sama'
   if (from.kind === 'DRAWER' || to.kind === 'DRAWER') return 'Laci kasir tidak dipakai di Pindah Dana (uang laci lewat Setoran)'
   if (!from.isActive || !to.isActive) return 'Tempat Uang sudah nonaktif'
-  if (!validDate(input.occurredOn)) return 'Tanggal uang tidak valid'
-  if (input.occurredOn > input.today) return 'Tanggal uang tidak boleh melewati hari ini'
-  if (daysBetween(input.occurredOn, input.today) > BACKDATE_DAYS && !input.isOwner) {
-    return `Tanggal uang paling jauh ${BACKDATE_DAYS} hari ke belakang; lebih dari itu hanya Owner`
-  }
+  const dateError = checkOccurredOn(input.occurredOn, input.today, input.isOwner)
+  if (dateError) return dateError
   return null
 }

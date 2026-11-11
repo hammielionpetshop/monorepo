@@ -4,7 +4,7 @@ import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { checkCancel } from '@/lib/services/cash-flow-rules'
 import { createdOnWibSql } from '@/lib/services/cash-flow-sql'
-import { db, cashFlowEntries, cashFlowCategories, eq, and, isNull, sql } from '@/lib/db'
+import { db, cashFlowEntries, cashFlowCategories, recurringCostPayments, eq, and, isNull, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,9 +57,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .from(cashFlowCategories)
         .where(eq(cashFlowCategories.id, entry.categoryId))
         .limit(1)
+      // Catatan dari Biaya Rutin dibatalkan lewat layar Biaya Rutin supaya tagihannya ikut terbuka lagi.
+      const [fromRecurring] = await trx
+        .select({ id: recurringCostPayments.id })
+        .from(recurringCostPayments)
+        .where(eq(recurringCostPayments.cashFlowEntryId, entryId))
+        .limit(1)
       const error = checkCancel({
         isCancelled: entry.cancelledAt !== null,
-        isSystemCategory: category?.isSystem ?? false,
+        isSystemCategory: (category?.isSystem ?? false) || !!fromRecurring,
         createdBy: entry.createdBy,
         createdOn: entry.createdOn,
         actorId: payload.userId,
