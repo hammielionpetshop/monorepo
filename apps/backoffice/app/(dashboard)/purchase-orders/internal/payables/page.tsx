@@ -82,6 +82,7 @@ export default async function InterBranchPayablesPage() {
       notes: interBranchPayments.notes,
       paidAt: interBranchPayments.paidAt,
       paidByName: users.name,
+      reversalOfPaymentId: interBranchPayments.reversalOfPaymentId,
     })
     .from(interBranchPayments)
     .leftJoin(paymentMethods, eq(interBranchPayments.paymentMethodId, paymentMethods.id))
@@ -97,6 +98,14 @@ export default async function InterBranchPayablesPage() {
     BATAL_SETORAN: 'BATAL SETORAN',
     SUSULAN: 'SUSULAN',
     BATAL_SUSULAN: 'BATAL SUSULAN',
+    BATAL_BAYAR: 'BATAL BAYAR',
+  }
+  // Pembayaran manual yang sudah dibatalkan: siapa, kapan, alasan — dari baris BATAL_BAYAR-nya.
+  const cancelByPayment = new Map<number, NonNullable<PayablePayment['cancelled']>>()
+  for (const p of paymentRows) {
+    if (p.reversalOfPaymentId === null) continue
+    const reason = p.notes?.match(/^Batal bayar #\d+ \([^)]*\): ([\s\S]*)$/)?.[1] ?? p.notes
+    cancelByPayment.set(p.reversalOfPaymentId, { at: p.paidAt.toISOString(), byName: p.paidByName, reason })
   }
   const paymentsByPayable = new Map<number, PayablePayment[]>()
   for (const p of paymentRows) {
@@ -110,6 +119,8 @@ export default async function InterBranchPayablesPage() {
       notes: p.notes,
       paidAt: p.paidAt.toISOString(),
       paidByName: p.paidByName,
+      isManual: p.sourceType === null,
+      cancelled: cancelByPayment.get(p.id) ?? null,
     })
     paymentsByPayable.set(p.payableId, list)
   }
@@ -213,6 +224,7 @@ export default async function InterBranchPayablesPage() {
         payables={serialized}
         canPay={hasPermission(payload, 'payable.pay')}
         canWaive={hasPermission(payload, 'payable.waive')}
+        canCancelPayment={hasPermission(payload, 'payable.payment_cancel')}
         paymentMethods={methods}
         today={todayWibDate()}
         redAgeDays={autoSettlement.redAgeDays}

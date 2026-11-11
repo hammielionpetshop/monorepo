@@ -101,6 +101,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'debt.payment_void', name: 'Void Pembayaran Hutang', description: 'Void pembayaran hutang customer', roles: ['OWNER', 'GM'] },
   { code: 'payable.pay', name: 'Bayar Hutang', description: 'Bayar hutang supplier/antar-cabang', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
   { code: 'payable.waive', name: 'Hapus Hutang Antar-Cabang', description: 'Waive hutang antar-cabang', roles: ['OWNER', 'GM'] },
+  { code: 'payable.payment_cancel', name: 'Batalkan Pembayaran Utang Internal', description: 'Membatalkan pembayaran manual utang antar cabang, dengan alasan', roles: ['OWNER', 'GM'] },
   { code: 'cashflow.category.manage', name: 'Kelola Kategori Kas', description: 'CRUD kategori cash flow', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'cashflow.record', name: 'Catat Arus Kas', description: 'Mencatat uang masuk/keluar di Arus Kas dan Pindah Dana (semua cabang)', roles: ['OWNER', 'GM', 'FINANCE'] },
   { code: 'cashflow.cancel', name: 'Batalkan Catatan Arus Kas', description: 'Membatalkan catatan Arus Kas orang lain atau hari sebelumnya, dengan alasan', roles: ['OWNER', 'GM'] },

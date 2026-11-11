@@ -125,6 +125,8 @@ export async function loadLegacyPreviewData(fromDate: string, executor: Executor
       LEFT JOIN petshop.payment_methods m ON m.id = x.payment_method_id
       LEFT JOIN petshop.users u ON u.id = x.paid_by_user_id
       WHERE x.source_type IS NULL
+        -- Pembayaran manual yang sudah dibatalkan (BATAL_BAYAR) tidak memakai uang setoran.
+        AND NOT EXISTS (SELECT 1 FROM petshop.inter_branch_payments r WHERE r.reversal_of_payment_id = x.id)
         AND ${wibDate(sql`p.created_at`)} < ${cutoffDate}
         AND ${wibDate(sql`x.paid_at`)} >= ${fromDate}
       ORDER BY x.paid_at, x.id
