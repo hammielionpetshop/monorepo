@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
 import { restoreCostBeforePO } from '@/lib/services/cost-sync-service'
+import { fixPoBatchCostsToModal } from '@/lib/services/po-cost-restore'
 import { db, purchaseOrders, products, auditLogs, eq, inArray } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -20,9 +21,10 @@ class RestoreError extends Error {
   }
 }
 
-// Kembalikan Modal: modal barang-barang di PO Selesai kembali ke angka sebelum PO itu masuk, tanpa
-// mengubah harga PO, hutang, maupun HPP batch. PO lalu ditandai keep_current_cost supaya perubahan
-// harga faktur berikutnya tidak menaikkan modal lagi. Hak po.returned_goods (OWNER/GM).
+// Kembalikan Modal: modal barang-barang di PO Selesai kembali ke angka sebelum PO itu masuk, lalu
+// HPP sisa stok dari PO itu disamakan dengan modal tersebut. Harga PO & hutang tidak berubah. PO lalu
+// ditandai keep_current_cost supaya perubahan harga faktur berikutnya tidak menaikkan modal lagi.
+// Hak po.returned_goods (OWNER/GM).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const gate = await requirePermission('po.returned_goods')
@@ -76,6 +78,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         reason,
       })
 
+      const batchFix = await fixPoBatchCostsToModal(tx, {
+        poId: po.id,
+        poNumber: po.poNumber,
+        branchId: po.branchId,
+        actorUserId: payload.userId,
+        reason,
+        skipProductIds: restore.skipped.filter((s) => s.reason !== 'NEWER').map((s) => s.productId),
+      })
+
       await tx
         .update(purchaseOrders)
         .set({ keepCurrentCost: true, updatedAt: new Date() })
@@ -88,10 +99,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         tableName: 'purchase_orders',
         recordId: String(po.id),
         oldData: JSON.stringify({ keepCurrentCost: false }),
-        newData: JSON.stringify({ poNumber: po.poNumber, reason, keepCurrentCost: true, ...restore }),
+        newData: JSON.stringify({ poNumber: po.poNumber, reason, keepCurrentCost: true, ...restore, batchFix }),
       })
 
-      return restore
+      return { ...restore, batchFix }
     })
 
     const ids = [...result.restored, ...result.pendingClosed, ...result.skipped.map((s) => s.productId)]
@@ -106,6 +117,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       restored: result.restored.map(nameOf),
       pendingClosed: result.pendingClosed.map(nameOf),
       skipped: result.skipped.map((s) => ({ name: nameOf(s.productId), reason: s.reason })),
+      batchFix: result.batchFix,
     })
   } catch (error) {
     if (error instanceof RestoreError) {

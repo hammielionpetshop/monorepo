@@ -855,7 +855,7 @@ export function PODetailClient({
         {po.status === 'COMPLETED' && canReturnedGoods && !po.keepCurrentCost && (
           <div className="mt-3 space-y-2">
             <p className="text-xs text-muted-foreground">
-              Harga beli PO ini bukan modal yang wajar (mis. barang kembali dari rekan)? Kembalikan modal semua barangnya ke sebelum PO ini masuk — harga PO dan hutang tetap.
+              Harga beli PO ini bukan modal yang wajar (mis. barang kembali dari rekan)? Kembalikan modal semua barangnya ke sebelum PO ini masuk, HPP sisa stoknya ikut — harga PO dan hutang tetap.
             </p>
             <button
               type="button"
