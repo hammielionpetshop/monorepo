@@ -56,6 +56,7 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
       { value: 'PO_CANCELLED', label: 'PO dibatalkan' },
       { value: 'PO_ITEMS_UPDATED', label: 'Isi PO diubah' },
       { value: 'PO_COST_RESTORED', label: 'Modal dikembalikan dari PO' },
+      { value: 'PO_RESTORE_BATCH_COST', label: 'HPP sisa stok PO disamakan dengan modal' },
       { value: 'SUPPLIER_PAYABLE_WAIVED', label: 'Hutang supplier dibebaskan' },
     ],
   },

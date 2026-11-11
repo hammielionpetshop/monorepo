@@ -93,7 +93,7 @@ describe('Kembalikan Modal dari PO (DB lokal)', () => {
     expect((await restoreCostRoute(json({ reason: ' ' }), params(poId))).status).toBe(400)
   })
 
-  it('mengembalikan modal ke sebelum PO; harga PO, hutang, dan HPP batch tetap', async () => {
+  it('mengembalikan modal ke sebelum PO + HPP sisa stok; harga PO dan hutang tetap', async () => {
     const [payableBefore] = await db.select({ total: supplierPayables.totalAmount }).from(supplierPayables).where(eq(supplierPayables.poId, poId))
     const batchesBefore = await db.select({ id: productStockBatches.id, cost: productStockBatches.costPrice }).from(productStockBatches)
       .where(eq(productStockBatches.purchaseOrderId, poId))
@@ -101,6 +101,9 @@ describe('Kembalikan Modal dari PO (DB lokal)', () => {
     const res = await restoreCostRoute(json({ reason: 'harga beli rekan, bukan modal' }), params(poId))
     expect(res.status).toBe(200)
     const body = await res.json()
+    // Sisa stok 2 SAK = 50 PCS per barang. A: 480 → 400, B: 600 → 400 (modal tak pernah berubah),
+    // C: dulu tanpa modal → tetap 320.
+    expect(body.batchFix).toEqual({ batches: 2, valueBefore: 50 * (480 + 600 + 320), valueAfter: 50 * (400 + 400 + 320) })
     expect(body.restored).toEqual([`KM A ${run}`])
     expect(body.pendingClosed).toEqual([`KM B ${run}`])
     expect(body.skipped).toEqual([{ name: `KM C ${run}`, reason: 'NO_OLD' }])
@@ -118,9 +121,15 @@ describe('Kembalikan Modal dari PO (DB lokal)', () => {
     expect(items.find(i => i.id === itemId.A)!.invoiceUnitCost).toBe(12_000)
     const [payableAfter] = await db.select({ total: supplierPayables.totalAmount }).from(supplierPayables).where(eq(supplierPayables.poId, poId))
     expect(payableAfter.total).toBe(payableBefore.total)
-    const batchesAfter = await db.select({ id: productStockBatches.id, cost: productStockBatches.costPrice }).from(productStockBatches)
-      .where(eq(productStockBatches.purchaseOrderId, poId))
-    expect(batchesAfter).toEqual(expect.arrayContaining(batchesBefore))
+    const batchCost = async (productId: number) => {
+      const [b] = await db.select({ cost: productStockBatches.costPrice }).from(productStockBatches)
+        .where(and(eq(productStockBatches.purchaseOrderId, poId), eq(productStockBatches.productId, productId)))
+      return b.cost
+    }
+    expect(batchesBefore).toHaveLength(3)
+    expect(await batchCost(product.A)).toBe(400)
+    expect(await batchCost(product.B)).toBe(400)
+    expect(await batchCost(product.C)).toBe(320)
 
     const [audit] = await db.select().from(auditLogs).where(and(eq(auditLogs.action, 'PO_COST_RESTORED'), eq(auditLogs.recordId, String(poId))))
     expect(JSON.parse(audit.newData!).reason).toBe('harga beli rekan, bukan modal')
