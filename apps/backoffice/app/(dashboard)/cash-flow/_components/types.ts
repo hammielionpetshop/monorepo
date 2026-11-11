@@ -47,6 +47,8 @@ export interface CashFlowEntry {
   cancelledByName: string | null
   cancelReason: string | null
   canCancel: boolean
+  /** Dicatat lewat Biaya Rutin; dibatalkan dari layar Biaya Rutin. */
+  fromRecurringCost: boolean
 }
 
 export const TYPE_LABELS: Record<CashFlowType, string> = {
