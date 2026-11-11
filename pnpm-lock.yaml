@@ -126,6 +126,61 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/finance:
+    dependencies:
+      big.js:
+        specifier: 7.0.1
+        version: 7.0.1
+      next:
+        specifier: 15.5.28
+        version: 15.5.28(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-dom:
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.5
+      '@petshop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.4
+      '@types/big.js':
+        specifier: 6.2.2
+        version: 6.2.2
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9
+        version: 9.39.4(jiti@2.7.0)
+      eslint-config-next:
+        specifier: 15.5.28
+        version: 15.5.28(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.4
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@20.19.39)(happy-dom@20.9.0)(lightningcss@1.32.0)
+
   apps/hris:
     dependencies:
       '@petshop/auth':

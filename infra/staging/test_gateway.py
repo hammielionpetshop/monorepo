@@ -19,13 +19,14 @@ class GatewayTests(unittest.TestCase):
             'DOMAIN_STAGING_BACKOFFICE': 'bo.staginghml.my.id',
             'DOMAIN_STAGING_HRIS': 'hris.staginghml.my.id',
             'DOMAIN_STAGING_ORDER_WEB': 'order.staginghml.my.id',
+            'DOMAIN_STAGING_FINANCE': 'finance.staginghml.my.id',
         }
 
     def test_gerbang_melindungi_unggahan_dan_menolak_job_sebelum_autentikasi(self):
         text = gateway.render(self.values)
-        self.assertEqual(text.count('basic_auth'), 3)
-        self.assertEqual(text.count('respond @jobs 404'), 3)
-        for site in text.split('\n}\n')[:3]:
+        self.assertEqual(text.count('basic_auth'), 4)
+        self.assertEqual(text.count('respond @jobs 404'), 4)
+        for site in text.split('\n}\n')[:4]:
             self.assertLess(site.index('respond @jobs'), site.index('basic_auth'))
         self.assertLess(text.index('basic_auth'), text.index('handle_path /uploads/'))
         self.assertIn('/srv/staging-uploads', text)

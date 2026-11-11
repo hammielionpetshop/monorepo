@@ -13,7 +13,7 @@ import postgres from 'postgres'
 import dotenv from 'dotenv'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
-const BASE_ROLES = ['bo_app', 'order_app', 'hris_app']
+const BASE_ROLES = ['bo_app', 'order_app', 'hris_app', 'finance_app']
 
 export async function applyRoles(url, env = process.env, log = console.log) {
   const sql = postgres(url, { max: 1, onnotice: () => {} })

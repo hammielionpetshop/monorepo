@@ -14,8 +14,9 @@ DECLARE
   prefix text := CASE WHEN current_database() LIKE '%\_staging' THEN 'stg_' ELSE '' END;
   role_name text;
   schema_name text;
+  rel_name text;
 BEGIN
-  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
+  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app', 'finance_app'] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = prefix || role_name) THEN
       EXECUTE format('CREATE ROLE %I LOGIN', prefix || role_name);
     END IF;
@@ -42,7 +43,31 @@ BEGIN
     EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', schema_name, role_name);
   END LOOP;
 
-  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
+  -- Finance (spec F2-6 §3.1) hanya membaca: SELECT pada daftar pintu baca di bawah, tanpa hak tulis apa pun.
+  -- Daftar = tabel yang dibaca apps/finance/modules; tabel yang belum ada di DB ini (mis. aliran belum dimigrasi) dilewati.
+  role_name := prefix || 'finance_app';
+  FOREACH schema_name IN ARRAY ARRAY['petshop', 'hris', 'logistics', 'auth'] LOOP
+    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', schema_name, role_name);
+  END LOOP;
+  FOREACH rel_name IN ARRAY ARRAY[
+    'petshop.branches', 'petshop.users', 'petshop.roles', 'petshop.payment_methods',
+    'petshop.money_places', 'petshop.money_place_opening_balances', 'petshop.money_movements',
+    'petshop.cash_deposits', 'petshop.noncash_verifications',
+    'petshop.cash_flow_entries', 'petshop.cash_flow_categories',
+    'petshop.supplier_payable_payments', 'petshop.supplier_payables', 'petshop.suppliers', 'petshop.purchase_orders',
+    'hris.payslip_payments', 'hris.advance_handovers', 'hris.advance_movements', 'hris.advances', 'hris.employees',
+    'hris.unloading_payments', 'hris.unloading_overpayment_uses', 'hris.unloading_overpayments',
+    'logistics.vehicle_rental_payments', 'logistics.vehicles', 'logistics.fuel_expenses',
+    'auth.sessions', 'auth.session_app_access', 'auth.account_links'
+  ] LOOP
+    IF to_regclass(rel_name) IS NOT NULL THEN
+      EXECUTE format('GRANT SELECT ON %s TO %I', rel_name, role_name);
+    END IF;
+  END LOOP;
+  -- Akun: hanya kolom yang perlu untuk memeriksa sesi (bukan hash kata sandi).
+  EXECUTE format('GRANT SELECT (id, is_active) ON auth.accounts TO %I', role_name);
+
+  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app', 'finance_app'] LOOP
     EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), prefix || role_name);
   END LOOP;
 END $$;

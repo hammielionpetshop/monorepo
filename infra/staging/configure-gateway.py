@@ -30,6 +30,7 @@ def render(values):
         ('DOMAIN_STAGING_BACKOFFICE', 'bo-staging'),
         ('DOMAIN_STAGING_HRIS', 'hris-staging'),
         ('DOMAIN_STAGING_ORDER_WEB', 'order-staging'),
+        ('DOMAIN_STAGING_FINANCE', 'finance-staging'),
     ]:
         domain = values.get(key, '')
         if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.staginghml\.my\.id', domain):
