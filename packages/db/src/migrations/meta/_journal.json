@@ -449,6 +449,13 @@
       "when": 1793628800000,
       "tag": "0063_ibp_payment_cancel",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793715200000,
+      "tag": "0064_supplier_payable_waive",
+      "breakpoints": true
     }
   ]
 }
