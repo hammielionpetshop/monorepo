@@ -7,7 +7,7 @@ import { formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { NewBadge } from '@/components/ui/new-badge'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
-import type { Payable, BranchOption } from './types'
+import type { Payable, PayablePayment, BranchOption } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 const ALL_BRANCHES = 'ALL'
@@ -36,6 +36,8 @@ interface Props {
   payables: Payable[]
   canPay: boolean
   canWaive: boolean
+  /** Owner/GM: batalkan pembayaran manual dari Riwayat. */
+  canCancelPayment: boolean
   /** Metode bayar selain hutang — wajib dipilih saat mencatat pembayaran. */
   paymentMethods: { id: number; name: string }[]
   /** Tanggal hari ini (WIB, YYYY-MM-DD) dari server — batas atas tanggal bayar. */
@@ -56,9 +58,10 @@ type Modal =
   | { kind: 'pay'; row: Payable }
   | { kind: 'history'; row: Payable }
   | { kind: 'waive'; row: Payable }
+  | { kind: 'cancelPayment'; row: Payable; payment: PayablePayment }
   | null
 
-export function PayablesClient({ payables, canPay, canWaive, paymentMethods, today, redAgeDays, autoStartDate }: Props) {
+export function PayablesClient({ payables, canPay, canWaive, canCancelPayment, paymentMethods, today, redAgeDays, autoStartDate }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
@@ -72,6 +75,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
   const [payRef, setPayRef] = useState('')
   const [payNotes, setPayNotes] = useState('')
   const [waiveReason, setWaiveReason] = useState('')
+  const [cancelReason, setCancelReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -91,6 +95,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
       setPayNotes('')
     }
     if (next.kind === 'waive') setWaiveReason('')
+    if (next.kind === 'cancelPayment') setCancelReason('')
     setFormError(null)
     setModal(next)
     document.body.style.overflow = 'hidden'
@@ -229,6 +234,38 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
       }
       closeModal()
       setSuccessMsg(`Hutang ${modal.row.ibtNumber ?? ''} dihapuskan`)
+      router.refresh()
+    } catch {
+      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleCancelPayment(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (modal?.kind !== 'cancelPayment' || submitting) return
+    const reason = cancelReason.trim()
+    if (reason.length < 5) return setFormError('Alasan pembatalan wajib diisi (minimal 5 huruf)')
+
+    setSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(`/api/bo/inter-branch-payables/${modal.row.id}/payments/${modal.payment.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFormError(data.error || 'Terjadi kesalahan')
+        return
+      }
+      closeModal()
+      const credit = typeof data.creditApplied === 'number' && data.creditApplied > 0
+        ? ` Saldo Internal ${rupiah(data.creditApplied)} langsung memotong tagihan.`
+        : ''
+      setSuccessMsg(`Pembayaran ${rupiah(modal.payment.amount)} dibatalkan.${credit}`)
       router.refresh()
     } catch {
       setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
@@ -553,6 +590,49 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
         </ModalShell>
       )}
 
+      {modal?.kind === 'cancelPayment' && (
+        <ModalShell title="Batalkan Pembayaran" onClose={submitting ? undefined : closeModal}>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} ke{' '}
+            {modal.row.creditorBranchName}
+          </p>
+          <div className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm space-y-0.5">
+            <p>Nominal <span className="font-semibold text-foreground">{rupiah(modal.payment.amount)}</span></p>
+            <p className="text-muted-foreground">
+              Dibayar {formatDateTime(modal.payment.paidAt)} · {modal.payment.methodName ?? 'metode tidak tercatat'}
+              {modal.payment.referenceNumber && <> · ref {modal.payment.referenceNumber}</>}
+            </p>
+          </div>
+          <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive space-y-1">
+            <p className="font-medium">Yang terjadi:</p>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>Sisa hutang naik lagi {rupiah(modal.payment.amount)}; status kembali Sebagian / Belum Bayar.</li>
+              {modal.payment.methodName && (
+                <li>Catatan Arus Kas pembayaran ini di {modal.row.debtorBranchName} dan {modal.row.creditorBranchName} ditandai Batal.</li>
+              )}
+              <li>Riwayat mencatat baris BATAL BAYAR hari ini; pembayaran asal tetap terlihat, dicoret.</li>
+              <li>Bila ada Saldo Internal {modal.row.debtorBranchName} di {modal.row.creditorBranchName}, saldo itu langsung memotong tagihan.</li>
+              <li>Pembatalan ini tidak bisa diurungkan — bila ternyata keliru, catat pembayaran baru.</li>
+            </ul>
+          </div>
+          <FormError message={formError} />
+          <form onSubmit={handleCancelPayment} className="space-y-4">
+            <Field label="Alasan Pembatalan" required>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Contoh: salah input nominal, seharusnya Rp 250.000"
+                className={inputClass}
+                required
+              />
+            </Field>
+            <FormButtons onCancel={closeModal} submitting={submitting} submitLabel="Ya, Batalkan Pembayaran" destructive />
+          </form>
+        </ModalShell>
+      )}
+
       {modal?.kind === 'history' && (
         <ModalShell title="Riwayat Hutang Internal" onClose={closeModal} wide>
           <p className="text-sm text-muted-foreground mb-4">
@@ -585,20 +665,40 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
                     <th className="text-left font-medium px-3 py-2">Metode</th>
                     <th className="text-left font-medium px-3 py-2">Bukti / Keterangan</th>
                     <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
+                    {canCancelPayment && <th className="px-3 py-2"><span className="sr-only">Aksi</span></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {modal.row.payments.map(pay => (
                     <tr key={pay.id} className="border-t border-border align-top">
                       <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
-                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
+                      <td className={`px-3 py-2 text-right font-medium whitespace-nowrap ${pay.cancelled ? 'line-through text-muted-foreground' : ''}`}>{rupiah(pay.amount)}</td>
                       <td className="px-3 py-2">{pay.methodName ?? <span className="text-muted-foreground">tidak tercatat</span>}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
                         {pay.notes && <div>{pay.notes}</div>}
-                        {!pay.referenceNumber && !pay.notes && '-'}
+                        {!pay.referenceNumber && !pay.notes && !pay.cancelled && '-'}
+                        {pay.cancelled && (
+                          <div className="mt-0.5 text-destructive">
+                            Dibatalkan {formatDateTime(pay.cancelled.at)} oleh {pay.cancelled.byName ?? '-'}
+                            {pay.cancelled.reason && <> — &ldquo;{pay.cancelled.reason}&rdquo;</>}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{pay.paidByName ?? '-'}</td>
+                      {canCancelPayment && (
+                        <td className="px-3 py-2 text-right">
+                          {pay.isManual && !pay.cancelled && modal.row.status !== 'WAIVED' && (
+                            <button
+                              type="button"
+                              onClick={() => openModal({ kind: 'cancelPayment', row: modal.row, payment: pay })}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline"
+                            >
+                              Batalkan <NewBadge feature="fitur/batal-bayar-utang-internal" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

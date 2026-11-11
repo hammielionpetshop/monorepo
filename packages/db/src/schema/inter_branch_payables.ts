@@ -1,4 +1,4 @@
-import { serial, integer, varchar, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { serial, integer, varchar, text, timestamp, uniqueIndex, index, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -35,9 +35,12 @@ export const interBranchPayments = petshop.table('inter_branch_payments', {
   // Baris otomatis Retur Internal (migrasi 0034) — bukan uang kas, tanpa metode bayar & tanpa
   // catatan Pendapatan/Pengeluaran: RETUR_INTERNAL (potongan dari Barang Dikembalikan / Revisi
   // Harga Beli), SALDO_INTERNAL (pemakaian Saldo Internal), BATAL_RETUR (pembalikan, nominal
-  // negatif). NULL = pembayaran biasa yang diinput manusia.
+  // negatif). NULL = pembayaran biasa yang diinput manusia. BATAL_BAYAR = pembatalan pembayaran
+  // manual (negatif, menunjuk asalnya lewat `reversalOfPaymentId`, migrasi 0063).
   sourceType: varchar('source_type', { length: 20 }),
   referenceNumber: varchar('reference_number', { length: 100 }),
   notes: text('notes'),
   paidAt: timestamp('paid_at').defaultNow().notNull(),
+  /** Hanya pada baris BATAL_BAYAR: pembayaran manual yang dibatalkan (UNIQUE — sekali batal). */
+  reversalOfPaymentId: integer('reversal_of_payment_id').unique().references((): AnyPgColumn => interBranchPayments.id),
 });
