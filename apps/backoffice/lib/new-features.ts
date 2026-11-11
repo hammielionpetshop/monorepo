@@ -101,6 +101,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/ubah-isi-po': '2026-11-06', // tombol Ubah Isi PO / Tambah Barang + Buat PO Tambahan di detail PO Supplier (samakan dengan tanggal rilis saat merge)
   'fitur/pelunasan-otomatis': '2026-11-08', // F2-3: ringkasan sisa utang per cabang + kolom Umur di Utang Internal (samakan dengan tanggal rilis saat merge)
   'fitur/batal-bayar-utang-internal': '2026-11-11', // tombol Batalkan pembayaran manual di Riwayat Utang Internal (samakan dengan tanggal rilis saat merge)
+  'fitur/po-dokumen-harga': '2026-11-11', // centang Tampilkan harga di PDF/foto PO Supplier (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

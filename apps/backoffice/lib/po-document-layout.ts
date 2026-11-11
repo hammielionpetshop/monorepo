@@ -1,7 +1,8 @@
 // Dokumen Purchase Order untuk dikirim ke supplier (foto/PDF) sebagai grid teks monospace per
-// halaman A4. SENGAJA tanpa harga satuan & subtotal: harga beli adalah urusan internal —
-// supplier mengirim faktur dengan harganya sendiri, lalu admin mencocokkannya di sistem.
+// halaman A4. Bawaannya tanpa harga (harga beli urusan internal; supplier mengirim faktur dengan
+// harganya sendiri). Pengguna bisa memilih menampilkan harga satuan, subtotal, dan total.
 
+import Big from 'big.js'
 import { formatDateTime } from '@petshop/shared'
 import { paginateItems, wrapLabeled, type DeliveryNoteLine } from '@/lib/delivery-note-layout'
 
@@ -10,6 +11,8 @@ export type PoDocumentItem = {
   productSku: string | null
   uomCode: string
   qtyOrdered: number
+  /** Harga beli per satuan (harga faktur bila ada, selain itu harga PO); null = harga menyusul. */
+  unitCost?: number | null
 }
 
 export type PoDocumentData = {
@@ -23,6 +26,8 @@ export type PoDocumentData = {
   targetDate?: string | null
   notes?: string | null
   items: PoDocumentItem[]
+  /** Tampilkan kolom harga satuan, subtotal, dan total. */
+  showPrices?: boolean
   printedAt?: Date | string
 }
 
@@ -64,14 +69,31 @@ export function buildPoDocumentPages(data: PoDocumentData): PoDocumentPage[] {
   const width = PO_DOC_WIDTH
   const rule = '-'.repeat(width)
 
+  const withPrice = data.showPrices === true
+  const hasPrice = (i: PoDocumentItem) => i.unitCost != null && i.unitCost > 0
+  const subtotalOf = (i: PoDocumentItem) => Number(new Big(i.qtyOrdered).times(i.unitCost ?? 0).round(0))
+  const priceText = (i: PoDocumentItem) => (hasPrice(i) ? fmt(i.unitCost!) : 'menyusul')
+  const subtotalText = (i: PoDocumentItem) => (hasPrice(i) ? fmt(subtotalOf(i)) : '-')
+  const pendingCount = data.items.filter((i) => !hasPrice(i)).length
+  const total = data.items.filter(hasPrice).reduce((sum, i) => sum.plus(subtotalOf(i)), new Big(0))
+
   const noW = Math.max(2, String(data.items.length).length)
   const qtyW = Math.max(3, ...data.items.map((i) => fmt(i.qtyOrdered).length))
   const uomW = Math.max(6, ...data.items.map((i) => (i.uomCode ?? '').length))
-  const skuW = Math.min(14, Math.max(3, ...data.items.map((i) => (i.productSku ?? '').length)))
-  const nameW = width - noW - skuW - qtyW - uomW - 4
+  const skuW = Math.min(withPrice ? 10 : 14, Math.max(3, ...data.items.map((i) => (i.productSku ?? '').length)))
+  const priceW = withPrice ? Math.max(8, ...data.items.map((i) => priceText(i).length)) : 0
+  const subW = withPrice ? Math.max(8, ...data.items.map((i) => subtotalText(i).length)) : 0
+  const nameW = width - noW - skuW - qtyW - uomW - 4 - (withPrice ? priceW + subW + 2 : 0)
 
-  const row = (no: string, sku: string, name: string, qty: string, uom: string) =>
-    [padEnd(no, noW), padEnd(sku, skuW), padEnd(name, nameW), padStart(qty, qtyW), padEnd(uom, uomW)].join(' ')
+  const row = (no: string, sku: string, name: string, qty: string, uom: string, price = '', subtotal = '') =>
+    [
+      padEnd(no, noW),
+      padEnd(sku, skuW),
+      padEnd(name, nameW),
+      padStart(qty, qtyW),
+      padEnd(uom, uomW),
+      ...(withPrice ? [padStart(price, priceW), padStart(subtotal, subW)] : []),
+    ].join(' ')
 
   const infoBlock: DeliveryNoteLine[] = [
     { text: leftRight(`Kepada : ${data.supplierName}`, data.supplierPhone ? `Telp: ${data.supplierPhone}` : '', width), bold: true },
@@ -92,19 +114,29 @@ export function buildPoDocumentPages(data: PoDocumentData): PoDocumentPage[] {
       { text: leftRight(`No. PO: ${data.poNumber}`, `Tanggal: ${data.poDate}`, width), bold: true },
       ...(pageNo === 1 ? infoBlock : [{ text: padEnd(`Kepada : ${data.supplierName}`, width) }]),
       { text: rule },
-      { text: row('No', 'SKU', 'Nama Produk', 'Qty', 'Satuan'), bold: true },
+      { text: row('No', 'SKU', 'Nama Produk', 'Qty', 'Satuan', 'Harga', 'Subtotal'), bold: true },
       { text: rule },
     ]
   }
 
   const itemRows: DeliveryNoteLine[] = data.items.map((item, i) => ({
-    text: row(String(i + 1), item.productSku ?? '', item.productName, fmt(item.qtyOrdered), item.uomCode),
+    text: row(
+      String(i + 1),
+      item.productSku ?? '',
+      item.productName,
+      fmt(item.qtyOrdered),
+      item.uomCode,
+      withPrice ? priceText(item) : '',
+      withPrice ? subtotalText(item) : '',
+    ),
   }))
 
   const half = Math.floor(width / 2)
   const lastFooter: DeliveryNoteLine[] = [
     { text: rule },
-    { text: padEnd(`Jumlah: ${data.items.length} produk`, width) },
+    withPrice
+      ? { text: leftRight(`Jumlah: ${data.items.length} produk`, `TOTAL: Rp ${fmt(Number(total))}`, width), bold: true }
+      : { text: padEnd(`Jumlah: ${data.items.length} produk`, width) },
     { text: '' },
     { text: center('Dipesan oleh', half) + center('Supplier', width - half) },
   ]
@@ -113,7 +145,16 @@ export function buildPoDocumentPages(data: PoDocumentData): PoDocumentPage[] {
     { text: center('( ................. )', half) + center('( ................. )', width - half) },
     { text: '' },
     { text: padEnd('* Mohon konfirmasi ketersediaan & tanggal kirim.', width) },
-    { text: padEnd('* Harga mengikuti faktur supplier.', width) },
+    {
+      text: padEnd(
+        !withPrice
+          ? '* Harga mengikuti faktur supplier.'
+          : pendingCount > 0
+            ? `* ${pendingCount} barang harga menyusul, belum masuk total.`
+            : '* Harga final mengikuti faktur supplier.',
+        width,
+      ),
+    },
     { text: padStart(`Dicetak: ${formatDateTime(data.printedAt ?? new Date())}`, width) },
   )
 
