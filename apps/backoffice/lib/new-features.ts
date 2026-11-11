@@ -20,7 +20,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/utang-lama-jalankan': '2026-11-08', // tombol Jalankan pelunasan susulan + penyaring Utang lama, F2-3b-2
   'fitur/periksa-harga-jual': '2026-11-10', // tab Harga Jual Perlu Diperiksa di Tinjauan Modal & Margin (samakan dengan tanggal rilis saat merge)
   'fitur/utang-lama-pratinjau': '2026-11-08', // tombol Utang Lama di Utang Internal, F2-3b-1
-  '/recurring-costs': '2026-11-11', // menu Keuangan › Biaya Rutin F2-5a (ganti tanggal rilis produksi di branch rilis)
+  '/recurring-costs': '2026-11-12', // menu Keuangan › Biaya Rutin F2-5a (tanggal rilis produksi)
   'fitur/pindah-dana': '2026-11-09', // Arus Kas › Pindah Dana F2-4c
   '/cash-flow/transfers': '2026-11-09', // menu Pindah Dana F2-4c
   'fitur/arus-kas-rapi': '2026-11-09', // Arus Kas F2-4b: tanggal uang, untuk bulan, Tempat Uang, batal beralasan, jenis kategori
