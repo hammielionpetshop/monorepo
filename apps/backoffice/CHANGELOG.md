@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.127] - 2026-11-11
+
+### Added
+- PDF dan foto Purchase Order kini bisa menampilkan harga: centang **Tampilkan harga** di detail PO sebelum menyimpan untuk mencetak harga satuan, subtotal, dan total. Tanpa centang, dokumen tetap tanpa harga seperti sebelumnya.
+
 ## [1.107.126] - 2026-11-11
 
 ### Added
