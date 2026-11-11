@@ -25,6 +25,9 @@ export const purchaseOrders = petshop.table('purchase_orders', {
   targetDeliveryDate: timestamp('target_delivery_date'),
   invoiceNumber: varchar('invoice_number', { length: 100 }),
   invoiceUpdatedAt: timestamp('invoice_updated_at'),
+  // PO "Barang kembali": harga PO = nilai sebenarnya (hutang, PDF), tapi modal Manajemen Harga
+  // tidak disentuh dan HPP batch memakai modal cabang saat penerimaan disetujui.
+  keepCurrentCost: boolean('keep_current_cost').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

@@ -456,6 +456,13 @@
       "when": 1793715200000,
       "tag": "0064_supplier_payable_waive",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1793801600000,
+      "tag": "0065_po_returned_goods",
+      "breakpoints": true
     }
   ]
 }
