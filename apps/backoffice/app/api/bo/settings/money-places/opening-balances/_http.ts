@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { getAuth } from '@/lib/authz'
 import { OPENING_BALANCE_ROLES, OpeningBalanceError } from '@/lib/services/money-place-opening-balance-service'
 
@@ -15,6 +16,8 @@ export async function requireOpeningBalanceManager(): Promise<Payload | NextResp
 }
 
 export function openingBalanceErrorResponse(error: unknown, context: string): NextResponse {
+  const closedMonth = closedMonthMessage(error)
+  if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
   if (error instanceof OpeningBalanceError) {
     return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
   }

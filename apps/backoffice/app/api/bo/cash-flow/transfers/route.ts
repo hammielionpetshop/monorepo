@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { z } from 'zod'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { proofPhotoUrlSchema } from '@/lib/proof-photo'
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
     )
     return NextResponse.json(created, { status: 201 })
   } catch (error) {
+    const closedMonth = closedMonthMessage(error)
+    if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
     if (error instanceof MoneyTransferError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('POST /api/bo/cash-flow/transfers error:', error)
     return NextResponse.json({ error: 'Gagal menyimpan Pindah Dana' }, { status: 500 })
