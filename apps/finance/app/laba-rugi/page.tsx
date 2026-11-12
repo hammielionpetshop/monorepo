@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const PL_NOTES = [
   'Gaji, bongkaran, bensin dan sewa mobil berasal dari HRIS/Logistik yang baru ada di staging; di produksi belum berisi data nyata.',
   'Biaya dihitung untuk bulannya, bukan tanggal bayar (sewa Oktober dibayar 1 November masuk Oktober).',
-  'Belum ada tutup bulan: angka bulan lalu bisa berubah bila ada pembatalan atau koreksi. Beli aset tidak masuk biaya (penyusutan belum ada).',
+  'Belum ada tutup bulan: angka bulan lalu bisa berubah bila ada pembatalan atau koreksi. Beli aset tidak masuk biaya; harganya dibagi rata per bulan selama umur pakai (Penyusutan aset).',
 ];
 
 const ORIGIN: Record<string, string> = {
@@ -29,6 +29,9 @@ const ORIGIN: Record<string, string> = {
   UNLOADING: 'laporan bongkaran aktif/dibayar di HRIS dengan tanggal kerja bulan ini, sebesar upahnya.',
   FUEL: 'pengisian bensin yang berlaku di Logistik, dibebankan ke cabang garasi saat dicatat.',
   VEHICLE_RENTAL: 'pembayaran sewa mobil (termasuk susulan) untuk bulan ini di Logistik › Sewa Mobil, dibebankan ke cabang garasi.',
+  DEPRECIATION: 'aset di Back Office › Keuangan › Aset: harga ÷ umur pakai (bulan), mulai bulan beli, sampai umur habis atau bulan sebelum aset rusak/hilang/dijual. Bukan uang keluar bulan ini.',
+  ASSET_LOSS: 'aset yang rusak, hilang, atau dijual bulan ini sebelum umurnya habis: sisa nilainya dikurangi uang hasil jual (Back Office › Keuangan › Aset).',
+  ASSET_GAIN: 'aset yang dijual bulan ini dengan uang hasil jual lebih besar dari sisa nilainya (Back Office › Keuangan › Aset).',
 };
 
 function explain(pl: ProfitLoss, l: Line, c: Column, monthLabel: string, month: string): Explanation {
@@ -71,7 +74,7 @@ function explain(pl: ProfitLoss, l: Line, c: Column, monthLabel: string, month: 
     default:
       return {
         meaning: `${l.kind === 'INCOME' ? 'pendapatan lain' : 'biaya'} "${l.label}" yang ditanggung ${scope}, ${monthLabel}.`,
-        origin: l.kind === 'INCOME' ? ORIGIN.INCOME : ORIGIN[l.group ?? 'CATEGORY'],
+        origin: l.group === 'ASSET_LOSS' && l.kind === 'INCOME' ? ORIGIN.ASSET_GAIN : l.kind === 'INCOME' ? ORIGIN.INCOME : ORIGIN[l.group ?? 'CATEGORY'],
         calc: `jumlah catatannya = ${rupiah(v)}${c.key === TOTAL_KEY ? ' (semua cabang + Kantor)' : ''}.`,
         notes,
         detail,

@@ -52,7 +52,7 @@ function costItems(costs: CostItem[]): BridgeItem[] {
     .filter((c) => c.amount !== 0)
     .map((c) => ({
       branchId: c.branchId,
-      line: c.kind === 'INCOME' ? 'other-income' : c.ref.startsWith('se:') ? 'cashier-costs' : 'costs-elsewhere',
+      line: c.ref.startsWith('fa:') ? 'assets' : c.kind === 'INCOME' ? 'other-income' : c.ref.startsWith('se:') ? 'cashier-costs' : 'costs-elsewhere',
       amount: c.kind === 'INCOME' ? -c.amount : c.amount,
       date: c.date,
       label: c.label,
