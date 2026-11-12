@@ -146,3 +146,17 @@ aset yang dijual menampilkan Kerugian/Untung aset; Setoran vs Laba tetap tanpa s
 - F2-6d-2 `feat/finance-asset-depreciation` (dasar `origin/dev_hris`): `apps/finance/modules/profit-loss/**`,
   `apps/finance/modules/deposit-bridge/**`, `apps/finance/app/laba-rugi/**`, `apps/finance/app/setoran-vs-laba/**`,
   grant `finance_app` di `packages/db-roles/src/roles.sql`.
+
+## 6. Catatan implementasi (2026-11-12)
+
+- **Hak**: tidak ada hak baru (§1.5 butir hak diganti) agar pengguna tidak perlu keluar-masuk. Catat pembelian =
+  `cashflow.record` (Owner/GM/Finance); ubah keadaan & batal = `cashflow.cancel` (Owner/GM). Pembantu di
+  `apps/backoffice/lib/services/asset-access.ts`.
+- **Tanggal beli** mundur > 7 hari hanya Owner/GM (aturan tanggal Arus Kas); paling awal 1 Nov 2026 (CHECK DB).
+- **Rumus**: `apps/backoffice/lib/services/asset-rules.ts`; web Finance memakai salinan kecil
+  `apps/finance/modules/profit-loss/assets.ts` (Finance tidak bergantung pada package shared), dijaga tes contoh spec
+  di kedua sisi.
+- **Laba Rugi**: kelompok `DEPRECIATION` (Penyusutan aset) dan `ASSET_LOSS` (Kerugian aset; di sisi pendapatan tampil
+  "Untung jual aset"), ref `fa:<id>` bertaut ke BO › Aset. **Setoran vs Laba**: baris B `assets`.
+- Batal aset ditulis langsung ke catatan Arus Kas tertaut; layar Arus Kas sudah menolak membatalkan kategori sistem
+  ("dibatalkan lewat asalnya").
