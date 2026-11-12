@@ -4,7 +4,7 @@ import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { proofPhotoUrlSchema } from '@/lib/proof-photo'
 import { checkCancel, checkEntry, monthStart } from '@/lib/services/cash-flow-rules'
-import { db, cashFlowEntries, cashFlowCategories, moneyPlaces, branches, users, eq, and, desc, gte, lte, isNull } from '@/lib/db'
+import { db, cashFlowEntries, cashFlowCategories, moneyPlaces, branches, users, recurringCostPayments, eq, and, desc, gte, lte, isNull } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { createdOnWibSql } from '@/lib/services/cash-flow-sql'
 
@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         cancelledAt: cashFlowEntries.cancelledAt,
         cancelledByName: canceller.name,
         cancelReason: cashFlowEntries.cancelReason,
+        recurringCostId: recurringCostPayments.recurringCostId,
       })
       .from(cashFlowEntries)
       .leftJoin(cashFlowCategories, eq(cashFlowEntries.categoryId, cashFlowCategories.id))
@@ -88,17 +89,19 @@ export async function GET(req: NextRequest) {
       .leftJoin(canceller, eq(cashFlowEntries.cancelledBy, canceller.id))
       .leftJoin(branches, eq(cashFlowEntries.branchId, branches.id))
       .leftJoin(moneyPlaces, eq(cashFlowEntries.moneyPlaceId, moneyPlaces.id))
+      .leftJoin(recurringCostPayments, eq(recurringCostPayments.cashFlowEntryId, cashFlowEntries.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(cashFlowEntries.occurredOn), desc(cashFlowEntries.createdAt), desc(cashFlowEntries.id))
       .limit(500)
 
     const today = todayWibDate()
-    const result = rows.map(({ createdOn, ...r }) => ({
+    const result = rows.map(({ createdOn, recurringCostId, ...r }) => ({
       ...r,
+      fromRecurringCost: recurringCostId !== null,
       canCancel:
         checkCancel({
           isCancelled: r.cancelledAt !== null,
-          isSystemCategory: r.categoryIsSystem ?? false,
+          isSystemCategory: (r.categoryIsSystem ?? false) || recurringCostId !== null,
           createdBy: r.createdBy,
           createdOn,
           actorId: payload.userId,

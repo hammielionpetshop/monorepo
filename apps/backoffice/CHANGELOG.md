@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.107.132] - 2026-11-12
+
+### Added
+- **Saldo awal Tempat Uang** (Pengaturan › Tempat Uang): kolom baru *Saldo awal 1 Nov 2026* untuk setiap kas Tunai dan Rekening — titik mulai saldo yang nanti dibaca modul Finance. Diisi Owner/GM (jumlah, catatan, foto bukti dianjurkan); tidak bisa diubah, bila salah dibatalkan dengan alasan lalu diisi ulang, dan riwayat yang dibatalkan tetap terlihat. Tempat yang belum diisi bertanda kuning "belum diisi". Laci kasir tidak memakai saldo awal karena uangnya dihitung per shift.
+
+## [1.107.131] - 2026-11-11
+
+### Added
+- Menu **Keuangan › Biaya Rutin** (Owner, GM, Finance) untuk biaya yang angkanya tetap tiap bulan: sewa toko, sewa kendaraan, sewa lain. Owner/GM mengatur nama, kategori, cabang yang menanggung (atau Bersama), jumlah per bulan, tanggal jatuh tempo, dan masa berlaku. Setiap bulan muncul tagihan; yang lewat jatuh tempo berwarna merah, yang tinggal 3 hari kuning.
+- Tombol **Sudah dibayar** (Owner, GM, Finance): pilih Dibayar dari, tanggal uang, dan foto bukti; bisa sekaligus beberapa bulan (bayar di muka sampai 12 bulan). Setiap bulan otomatis tercatat di Pendapatan & Pengeluaran untuk bulan tagihannya. Jumlah yang berbeda dari tagihan wajib diberi alasan.
+- **Ubah jumlah** mulai bulan tertentu tanpa mengubah tagihan bulan sebelumnya. Pembayaran yang salah dibatalkan dengan alasan dari layar Biaya Rutin (catatan Pendapatan & Pengeluarannya ikut Batal).
+
+### Changed
+- Kategori Pendapatan & Pengeluaran baru **Sewa toko**, **Sewa kendaraan**, **Sewa lain** hanya dipakai lewat Biaya Rutin. Kategori **Sewa (sementara)** dinonaktifkan untuk catatan baru; catatan lamanya tetap terlihat.
+- Catatan Pendapatan & Pengeluaran yang berasal dari Biaya Rutin bertanda "dari Biaya Rutin" dan dibatalkan dari layar Biaya Rutin.
+
 ## [1.107.130] - 2026-11-11
 
 ### Changed

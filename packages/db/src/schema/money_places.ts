@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, boolean, index, uniqueIndex, primaryKey } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, boolean, date, text, index, uniqueIndex, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { petshop } from './_schema';
 import { branches } from './branches';
@@ -49,4 +49,25 @@ export const paymentMethodMoneyPlaces = petshop.table('payment_method_money_plac
 }, (t) => [
   primaryKey({ columns: [t.paymentMethodId, t.branchId] }),
   index('idx_payment_method_money_places_place').on(t.moneyPlaceId),
+]);
+
+/**
+ * F2-6a-1 Saldo awal Tempat Uang (spec docs/work/specs/2026-11-12-f2-6-modul-finance-design.md §2): saldo
+ * Tunai/Rekening per 1 November 2026 awal hari, titik mulai saldo yang dibaca Finance. Tidak diubah/dihapus
+ * (trigger migrasi 0067); salah = batal beralasan lalu isi ulang. Satu yang berlaku per tempat.
+ */
+export const moneyPlaceOpeningBalances = petshop.table('money_place_opening_balances', {
+  id: serial('id').primaryKey(),
+  moneyPlaceId: integer('money_place_id').references(() => moneyPlaces.id).notNull(),
+  asOf: date('as_of').notNull().default('2026-11-01'),
+  amount: integer('amount').notNull(),
+  note: text('note'),
+  proofPhotoUrl: varchar('proof_photo_url', { length: 300 }),
+  createdBy: integer('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelledBy: integer('cancelled_by').references(() => users.id),
+  cancelReason: text('cancel_reason'),
+}, (t) => [
+  uniqueIndex('money_place_opening_balances_active_unique').on(t.moneyPlaceId).where(sql`${t.cancelledAt} is null`),
 ]);

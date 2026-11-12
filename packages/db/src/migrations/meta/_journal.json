@@ -463,6 +463,20 @@
       "when": 1793801600000,
       "tag": "0065_po_returned_goods",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1793888000000,
+      "tag": "0066_recurring_costs",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1793974400000,
+      "tag": "0067_money_place_opening_balances",
+      "breakpoints": true
     }
   ]
 }

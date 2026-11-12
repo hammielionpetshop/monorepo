@@ -180,6 +180,7 @@ export default function EntryClient({ categories, places, branches, currentUserN
           <div className="text-xs text-muted-foreground">
             {row.original.reportKind ? REPORT_KIND_LABELS[row.original.reportKind] : 'jenis belum dipilih'}
           </div>
+          {row.original.fromRecurringCost && <div className="text-xs text-primary">dari Biaya Rutin</div>}
         </div>
       ),
     },
