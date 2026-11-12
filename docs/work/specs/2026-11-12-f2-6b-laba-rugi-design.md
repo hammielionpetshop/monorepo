@@ -4,7 +4,7 @@ PRD: `docs/hris_planning/PRD/fase_2/07-modul-finance.md` §2–§5, `06-biaya-ru
 `00-ringkasan-fase-2.md` §10 butir 8. Lanjutan spec F2-6a
 (`docs/work/specs/2026-11-12-f2-6-modul-finance-design.md`, di `origin/staging`).
 
-Status: **draf — menunggu persetujuan owner.**
+Status: **disetujui owner 2026-11-12** (butir 1 "ok", butir 2–8 "ok saya setuju").
 
 Sudah diputuskan sebelumnya (F2-6a, owner 2026-11-12): web Finance khusus staging, hanya Owner/GM, hanya
 membaca; **biaya bersama berdiri sendiri sebagai "Kantor"** — laba tiap cabang tanpa biaya bersama,
@@ -14,14 +14,14 @@ Gabungan = jumlah cabang − Kantor; tutup bulan belakangan.
 
 | No | Hal | Saran |
 |---|---|---|
-| 1 | Gaji masuk Laba Rugi bulan apa | Slip bulanan 26 Okt–25 Nov = **November** (bulan akhir periode). Slip mingguan = bulan hari terakhirnya |
-| 2 | Angka gaji yang dihitung | **Pendapatan slip** (gaji kotor, termasuk ritase & bonus), hanya slip yang **sudah ditutup**. Potongan (kasbon, denda, minus kas) tidak mengubah biaya di tahap ini |
-| 3 | Gaji orang yang tempat kerjanya bukan cabang kasir | Masuk **Kantor** |
-| 4 | Bensin & sewa mobil ditanggung siapa | **Cabang garasi Logistik** (bensin sudah dicatat begitu; sewa mobil ikut) |
-| 5 | Biaya Rutin bulan itu belum dibayar | Tetap dihitung sebesar **tagihannya**, bertanda "belum dibayar" (sesuai PRD 06 §4) |
-| 6 | Sewa mobil bulan itu belum dibayar | Tidak dihitung, bertanda "ada ritase, sewa belum dibayar" (rekapnya baru pasti saat dibayar) |
-| 7 | Penjualan ke cabang sendiri di Gabungan | **Dikeluarkan** dari Penjualan dan Harga pokok Gabungan (laba tidak berubah, omzet tidak berlipat) |
-| 8 | Bulan pertama | **November 2026** (sama dengan saldo Finance); bulan sebelumnya tidak ditawarkan |
+| 1 | Gaji masuk Laba Rugi bulan apa | ✅ owner 2026-11-12 — Slip bulanan 26 Okt–25 Nov = **November** (bulan akhir periode). Slip mingguan = bulan hari terakhirnya |
+| 2 | Angka gaji yang dihitung | ✅ **Pendapatan slip** (gaji kotor, termasuk ritase & bonus), hanya slip yang **sudah ditutup**. Potongan (kasbon, denda, minus kas) tidak mengubah biaya di tahap ini |
+| 3 | Gaji orang yang tempat kerjanya bukan cabang kasir | ✅ Masuk **Kantor** |
+| 4 | Bensin & sewa mobil ditanggung siapa | ✅ **Cabang garasi Logistik** (bensin sudah dicatat begitu; sewa mobil ikut) |
+| 5 | Biaya Rutin bulan itu belum dibayar | ✅ Tetap dihitung sebesar **tagihannya**, bertanda "belum dibayar" (sesuai PRD 06 §4) |
+| 6 | Sewa mobil bulan itu belum dibayar | ✅ Tidak dihitung, bertanda "ada ritase, sewa belum dibayar" (rekapnya baru pasti saat dibayar) |
+| 7 | Penjualan ke cabang sendiri di Gabungan | ✅ **Dikeluarkan** dari Penjualan dan Harga pokok Gabungan (laba tidak berubah, omzet tidak berlipat) |
+| 8 | Bulan pertama | ✅ **November 2026** (sama dengan saldo Finance); bulan sebelumnya tidak ditawarkan |
 
 ## 1. Keadaan sekarang
 
