@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { MoneyTransferError, cancelMoneyTransfer } from '@/lib/services/money-transfer-service'
 
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
     return NextResponse.json({ success: true })
   } catch (error) {
+    const closedMonth = closedMonthMessage(error)
+    if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
     if (error instanceof MoneyTransferError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('POST /api/bo/cash-flow/transfers/[id]/cancel error:', error)
     return NextResponse.json({ error: 'Gagal membatalkan Pindah Dana' }, { status: 500 })
