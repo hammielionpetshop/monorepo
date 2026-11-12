@@ -133,3 +133,15 @@ Alasan wajib, tanpa batas waktu. Ditolak bila penyesuaiannya masih aktif. Yang b
   `apps/finance/app/page.tsx`, `apps/finance/app/hitung-kas/**`, `apps/finance/app/mutasi/**`, navigasi Finance.
 - Urutan: spec disetujui → klaim terpublikasi di `origin/staging` → 6e-1 → merge lokal staging → 6e-2 → merge lokal
   dev_hris & staging → push sekali → uji owner → (6e-1) PR rilis Back Office.
+
+## 6. Catatan implementasi (2026-11-12)
+
+- Arus Kas menolak membatalkan catatan berkategori sistem ("dibatalkan lewat asalnya"), jadi penyesuaian **dibatalkan
+  dari Hitung Kas**: tombol **Batalkan penyesuaian** (Owner/GM, alasan wajib) menandai catatan Arus Kas-nya Batal;
+  hitungan bisa disesuaikan lagi (kolom tautan boleh berganti selama hitungan belum batal — dijaga trigger).
+- **Batalkan hitungan** yang punya penyesuaian aktif tidak ditolak, tetapi ikut membatalkan penyesuaiannya (pola Aset),
+  agar satu langkah cukup. Langkah uji §4 no. 6 menjadi: Batalkan penyesuaian → Catat penyesuaian lagi → Batalkan
+  hitungan (penyesuaian ikut batal) → catat ulang tanggal yang sama berhasil.
+- Laba Rugi Finance membaca penyesuaian tanpa perubahan kode (jenis kategori COST/INCOME); di kolom cabang pemilik
+  Tempat Uang.
+- Tanda 7 hari di Finance dihitung terhadap tanggal pilihan halaman Saldo; di Back Office terhadap hari ini.
