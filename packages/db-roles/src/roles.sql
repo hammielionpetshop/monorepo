@@ -75,6 +75,8 @@ BEGIN
     'petshop.cash_deposit_shifts',
     -- Aset & Penyusutan F2-6d-2: penyusutan & kerugian aset di Laba Rugi.
     'petshop.fixed_assets',
+    -- Hitung Kas F2-6e-2: uang nyata Tunai/Rekening untuk selisih terhadap saldo.
+    'petshop.cash_counts',
     'auth.sessions', 'auth.session_app_access', 'auth.account_links'
   ] LOOP
     IF to_regclass(rel_name) IS NOT NULL THEN

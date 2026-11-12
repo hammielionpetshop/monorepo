@@ -4,7 +4,10 @@ import { backofficeUrl, hrisUrl } from '@/lib/access';
 import { getSql } from '@/lib/db';
 import { rupiah, tanggal } from '@/lib/format';
 import { gate } from '@/lib/gate';
-import { balanceBoard, isDate, loadLines, loadPlaces, loadUnplaced, START_DATE, todayWib, type PlaceBalance } from '@/modules/money';
+import {
+  balanceBoard, countCheck, countFreshness, COUNT_STALE_DAYS, isDate, latestCount, loadCashCounts, loadLines, loadPlaces, loadUnplaced,
+  START_DATE, todayWib, type CashCount, type MoneyLine, type PlaceBalance,
+} from '@/modules/money';
 import { loadPendingFunds, pendingByPlace } from '@/modules/pending-funds';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +18,30 @@ function calc(r: PlaceBalance) {
   const parts = [`saldo awal ${rupiah(r.opening)}`, `+ masuk ${rupiah(r.inTotal)}`, `− keluar ${rupiah(r.outTotal)}`];
   if (r.transferNet !== 0) parts.push(`${r.transferNet > 0 ? '+' : '−'} pindahan ${rupiah(Math.abs(r.transferNet))}`);
   return `${parts.join(' ')} = ${rupiah(r.balance)}`;
+}
+
+/** Kolom Hitung terakhir (spec F2-6e §2): uang nyata, selisih pada hari hitung, tanda 7 hari. */
+function LastCount({ r, counts, lines, to }: { r: PlaceBalance; counts: CashCount[]; lines: MoneyLine[]; to: string }) {
+  const last = latestCount(counts, r.place.id, to);
+  const fresh = countFreshness(last?.countedOn ?? null, to);
+  const badge = fresh === 'FRESH' ? null : (
+    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+      {fresh === 'NEVER' ? 'belum pernah dihitung' : `belum dihitung ${COUNT_STALE_DAYS} hari`}
+    </span>
+  );
+  if (!last) return badge;
+  const check = countCheck(r.place, lines, last);
+  return (
+    <div className="text-xs">
+      <Link href={`/hitung-kas?bulan=${last.countedOn.slice(0, 7)}&tempat=${r.place.id}`} className="hover:text-primary hover:underline">
+        {tanggal(last.countedOn)}: {rupiah(last.amount)}
+      </Link>
+      <div className={check.variance < 0 ? 'text-red-600' : check.variance > 0 ? 'text-blue-700' : 'text-muted-foreground'}>
+        {check.variance === 0 ? 'cocok' : `${check.variance < 0 ? 'kurang' : 'lebih'} ${rupiah(Math.abs(check.variance))}`}
+      </div>
+      {badge}
+    </div>
+  );
 }
 
 export default async function SaldoPage({ searchParams }: { searchParams: Promise<{ tanggal?: string }> }) {
@@ -28,7 +55,9 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
   if (to > today) to = today;
 
   const sql = getSql();
-  const [places, lines, unplaced, pendingRows] = await Promise.all([loadPlaces(sql), loadLines(sql, to), loadUnplaced(sql, to), loadPendingFunds(sql, today)]);
+  const [places, lines, unplaced, pendingRows, counts] = await Promise.all([
+    loadPlaces(sql), loadLines(sql, to), loadUnplaced(sql, to), loadPendingFunds(sql, today), loadCashCounts(sql, to),
+  ]);
   // Dana belum cair selalu per hari ini (bukan per tanggal pilihan): keterangan saja, saldo tidak berubah (spec F2-6c §0.7).
   const pending = new Map(pendingByPlace(pendingRows, today).groups.filter((x) => x.placeId != null).map((x) => [x.placeId as number, x]));
   const board = balanceBoard(places, lines, to);
@@ -89,13 +118,14 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                 Jumlah: <span className="font-semibold tabular-nums">{rupiah(group.total)}</span>
               </div>
             </div>
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b border-border">
                   <th className="px-4 py-2 text-left font-medium">Tempat Uang</th>
                   <th className="px-4 py-2 text-left font-medium">Dipegang</th>
                   <th className="px-4 py-2 text-right font-medium">Masuk</th>
                   <th className="px-4 py-2 text-right font-medium">Keluar</th>
+                  <th className="px-4 py-2 text-left font-medium">Hitung terakhir</th>
                   <th className="px-4 py-2 text-right font-medium">Saldo</th>
                 </tr>
               </thead>
@@ -123,6 +153,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                     <td className="px-4 py-2 text-muted-foreground">{HELD_BY[r.place.heldBy] ?? r.place.heldBy}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{rupiah(r.inTotal)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{rupiah(r.outTotal)}</td>
+                    <td className="px-4 py-2"><LastCount r={r} counts={counts} lines={lines} to={to} /></td>
                     <td className="px-4 py-2 text-right">
                       <div className={`font-semibold tabular-nums ${r.balance < 0 ? 'text-red-600' : ''}`}>{rupiah(r.balance)}</div>
                       <div className="flex justify-end">

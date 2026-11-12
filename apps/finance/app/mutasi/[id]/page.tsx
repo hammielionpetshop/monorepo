@@ -4,7 +4,7 @@ import { getSql } from '@/lib/db';
 import { rupiah, tanggal } from '@/lib/format';
 import { gate } from '@/lib/gate';
 import { originLink } from '@/lib/links';
-import { isDate, ledger, loadLines, loadPlaces, START_DATE, todayWib } from '@/modules/money';
+import { countCheck, isDate, ledger, loadCashCounts, loadLines, loadPlaces, START_DATE, todayWib, type LedgerRow } from '@/modules/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export default async function MutasiPage({
   if (from > to) from = to;
 
   const sql = getSql();
-  const [places, lines] = await Promise.all([loadPlaces(sql), loadLines(sql, to)]);
+  const [places, lines, counts] = await Promise.all([loadPlaces(sql), loadLines(sql, to), loadCashCounts(sql, to)]);
   const place = places.find((p) => p.id === Number(id));
   if (!place) {
     return <p className="text-sm text-muted-foreground">Tempat Uang tidak ditemukan. <Link href="/" className="text-primary">Kembali ke Saldo</Link></p>;
@@ -35,6 +35,19 @@ export default async function MutasiPage({
   const result = ledger(place, lines, from, to);
   const inSum = result.rows.filter((r) => r.amount > 0).reduce((a, r) => a + r.amount, 0);
   const outSum = result.rows.filter((r) => r.amount < 0).reduce((a, r) => a - r.amount, 0);
+  // Penanda Hitung Kas (F2-6e-2) di akhir hari hitungnya; bukan baris uang, saldo berjalan tidak berubah.
+  const checks = counts
+    .filter((c) => c.placeId === place.id && c.countedOn >= from && c.countedOn <= to)
+    .map((c) => countCheck(place, lines, c))
+    .sort((a, b) => a.count.countedOn.localeCompare(b.count.countedOn));
+  type Item = { type: 'line'; row: LedgerRow } | { type: 'count'; check: (typeof checks)[number] };
+  const items: Item[] = [];
+  let next = 0;
+  for (const row of result.rows) {
+    while (next < checks.length && checks[next].count.countedOn < row.date) items.push({ type: 'count', check: checks[next++] });
+    items.push({ type: 'line', row });
+  }
+  while (next < checks.length) items.push({ type: 'count', check: checks[next++] });
 
   return (
     <div>
@@ -81,7 +94,27 @@ export default async function MutasiPage({
               </td>
               <td className="px-4 py-2 text-right font-semibold tabular-nums">{rupiah(result.startBalance)}</td>
             </tr>
-            {result.rows.map((r) => {
+            {items.map((item) => {
+              if (item.type === 'count') {
+                const { count, systemBalance, variance } = item.check;
+                return (
+                  <tr key={`hk:${count.id}`} className="border-b border-border bg-sky-50 text-xs last:border-0">
+                    <td className="whitespace-nowrap px-4 py-2">{tanggal(count.countedOn)}</td>
+                    <td className="px-4 py-2" colSpan={4}>
+                      <Link href={`/hitung-kas?bulan=${count.countedOn.slice(0, 7)}&tempat=${place.id}`} className="font-medium hover:underline">
+                        Dihitung nyata (Hitung Kas #{count.id}): {rupiah(count.amount)}
+                      </Link>
+                      {' · '}saldo menurut catatan akhir hari itu {rupiah(systemBalance)} ·{' '}
+                      <span className={variance < 0 ? 'text-red-600' : variance > 0 ? 'text-blue-700' : ''}>
+                        {variance === 0 ? 'cocok' : `${variance < 0 ? 'kurang' : 'lebih'} ${rupiah(Math.abs(variance))}`}
+                      </span>
+                      <span className="text-muted-foreground"> — penanda saja, tidak mengubah saldo</span>
+                    </td>
+                    <td />
+                  </tr>
+                );
+              }
+              const r = item.row;
               const link = originLink(r.kind);
               return (
                 <tr key={`${r.ref}:${r.kind}`} className="border-b border-border last:border-0">
