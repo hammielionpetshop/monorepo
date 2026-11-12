@@ -7,6 +7,7 @@ interface ShiftExpenseItem {
   id: number
   cashierId: number
   cashierName: string | null
+  categoryId: number | null
   categoryName: string | null
   categoryCustom: string | null
   amount: number
@@ -136,6 +137,9 @@ export default function ShiftExpenseList({ shiftId, cashierId, refreshKey = 0 }:
                   <p className="text-sm font-medium text-foreground break-words">
                     {item.categoryName ?? item.categoryCustom ?? item.note}
                   </p>
+                  {item.categoryName && item.note && (
+                    <p className="text-xs text-foreground/80 break-words">{item.note}</p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {formatTime(item.createdAt)} · {item.cashierName ?? `Kasir #${item.cashierId}`}
                   </p>
@@ -153,6 +157,7 @@ export default function ShiftExpenseList({ shiftId, cashierId, refreshKey = 0 }:
                             id: item.id,
                             amount: item.amount,
                             keterangan: item.categoryCustom ?? item.note,
+                            categoryId: item.categoryId,
                           })
                         }
                         className="min-h-[32px] px-2.5 rounded-md border border-border text-xs font-medium text-foreground hover:bg-accent transition-colors"

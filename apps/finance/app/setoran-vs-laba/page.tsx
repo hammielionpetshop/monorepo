@@ -41,6 +41,10 @@ const ORIGIN: Record<BridgeLineKey, { meaning: string; origin: string }> = {
     meaning: 'pendapatan lain menambah laba, tetapi uangnya dicatat lewat Arus Kas, bukan lewat setoran kasir.',
     origin: 'Laba Rugi bulan ini: Arus Kas jenis Pendapatan lain. Untuk Gabungan termasuk pendapatan Kantor.',
   },
+  assets: {
+    meaning: 'penyusutan aset dan kerugian aset rusak/hilang/dijual mengurangi laba, tetapi tidak mengeluarkan uang bulan ini (uangnya keluar saat aset dibeli, dicatat "Beli aset" yang bukan biaya). Untung jual aset mengurangi baris ini.',
+    origin: 'Laba Rugi bulan ini: baris Penyusutan aset, Kerugian aset, dan Untung jual aset (Back Office › Keuangan › Aset).',
+  },
   'internal-sales': {
     meaning: 'penjualan ke cabang lain (Bulk Sale / PO Internal) masuk laba penjual, tetapi dibayar lewat utang internal, bukan uang ke laci. Uangnya baru datang lewat baris "diteruskan" saat cabang pembeli menyetor.',
     origin: 'nota Selesai bulan ini ke pelanggan "cabang internal", dikurangi returnya dan koreksi Revisi Harga Beli.',

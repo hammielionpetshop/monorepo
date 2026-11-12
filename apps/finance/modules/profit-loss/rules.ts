@@ -8,7 +8,7 @@ import Big from 'big.js';
 /** Bulan pertama Laba Rugi (§0 butir 8). */
 export const FIRST_MONTH = '2026-11';
 
-export type CostGroup = 'CATEGORY' | 'PAYROLL' | 'UNLOADING' | 'FUEL' | 'VEHICLE_RENTAL';
+export type CostGroup = 'CATEGORY' | 'PAYROLL' | 'UNLOADING' | 'FUEL' | 'VEHICLE_RENTAL' | 'DEPRECIATION' | 'ASSET_LOSS';
 
 /** Penjualan per cabang, setara BO › Laporan Laba Rugi (getProfitLossReport). */
 export type SalesRow = {
@@ -53,7 +53,14 @@ export const GROUP_LABEL: Record<Exclude<CostGroup, 'CATEGORY'>, string> = {
   UNLOADING: 'Bongkaran',
   FUEL: 'Bensin',
   VEHICLE_RENTAL: 'Sewa mobil',
+  DEPRECIATION: 'Penyusutan aset',
+  ASSET_LOSS: 'Kerugian aset',
 };
+
+/** Nama baris kelompok; pelepasan aset di sisi pendapatan = untung jual (F2-6d-2). */
+export function groupLabel(group: Exclude<CostGroup, 'CATEGORY'>, kind: 'COST' | 'INCOME'): string {
+  return group === 'ASSET_LOSS' && kind === 'INCOME' ? 'Untung jual aset' : GROUP_LABEL[group];
+}
 
 export function columnKey(branchId: number | null): string {
   return branchId == null ? OFFICE_KEY : `b${branchId}`;
@@ -141,7 +148,8 @@ export function buildProfitLoss(input: {
     add(adjustment, k, s.costAdjustment);
   }
 
-  // Baris biaya: kategori Arus Kas (urut nama) lalu Gaji · Bongkaran · Bensin · Sewa mobil; pendapatan lain per kategori.
+  // Baris biaya: kategori Arus Kas (urut nama) lalu Gaji · Bongkaran · Bensin · Sewa mobil · Penyusutan · Kerugian aset;
+  // pendapatan lain per kategori.
   const costLines = new Map<string, Line>();
   const incomeLines = new Map<string, Line>();
   for (const c of input.costs) {
@@ -152,7 +160,7 @@ export function buildProfitLoss(input: {
     if (!line) {
       line = {
         key: lineKey,
-        label: c.group === 'CATEGORY' ? (c.category ?? 'Tanpa kategori') : GROUP_LABEL[c.group],
+        label: c.group === 'CATEGORY' ? (c.category ?? 'Tanpa kategori') : groupLabel(c.group, c.kind),
         sign: c.kind === 'COST' ? '−' : '+',
         group: c.group,
         category: c.category,
@@ -163,7 +171,7 @@ export function buildProfitLoss(input: {
     }
     add(line.values, columnKey(c.branchId), c.amount);
   }
-  const groupOrder: CostGroup[] = ['CATEGORY', 'PAYROLL', 'UNLOADING', 'FUEL', 'VEHICLE_RENTAL'];
+  const groupOrder: CostGroup[] = ['CATEGORY', 'PAYROLL', 'UNLOADING', 'FUEL', 'VEHICLE_RENTAL', 'DEPRECIATION', 'ASSET_LOSS'];
   const sortLines = (ls: Line[]) =>
     ls.sort((a, b) => groupOrder.indexOf(a.group!) - groupOrder.indexOf(b.group!) || a.label.localeCompare(b.label, 'id'));
   const costList = sortLines([...costLines.values()]);

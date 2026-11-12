@@ -10,7 +10,7 @@ export type BridgeGroup = 'A' | 'B' | 'C' | 'D';
 
 export type BridgeLineKey =
   | 'goods' | 'settled'
-  | 'costs-elsewhere' | 'cashier-costs' | 'other-income'
+  | 'costs-elsewhere' | 'cashier-costs' | 'other-income' | 'assets'
   | 'internal-sales' | 'receivables' | 'cashier-expenses' | 'variances' | 'cash-undeposited' | 'cash-prior'
   | 'noncash-pending' | 'noncash-before-start' | 'non-finance'
   | 'received' | 'legacy';
@@ -21,6 +21,7 @@ export const LINE_DEFS: { key: BridgeLineKey; group: BridgeGroup; label: string 
   { key: 'costs-elsewhere', group: 'B', label: 'Biaya yang dibayar dari tempat lain' },
   { key: 'cashier-costs', group: 'B', label: 'Pengeluaran Kasir yang sudah jadi biaya di Laba Rugi (dipindah ke baris C)' },
   { key: 'other-income', group: 'B', label: 'Pendapatan lain (masuk lewat Arus Kas, bukan setoran)' },
+  { key: 'assets', group: 'B', label: 'Penyusutan & kerugian aset (bukan uang keluar dari setoran)' },
   { key: 'internal-sales', group: 'C', label: 'Penjualan ke cabang lain (dibayar lewat utang internal)' },
   { key: 'receivables', group: 'C', label: 'Piutang pelanggan bertambah (nota kredit − pelunasan piutang)' },
   { key: 'cashier-expenses', group: 'C', label: 'Pengeluaran Kasir dari laci' },

@@ -96,6 +96,20 @@ export async function POST(
     if ((!categoryId && !categoryCustom) || !note) {
       return NextResponse.json({ error: 'Keterangan wajib diisi' }, { status: 400 });
     }
+    // POS web wajib memilih kategori; categoryCustom tanpa kategori tetap diterima dari aplikasi desktop lama.
+    if (categoryId != null) {
+      if (!Number.isInteger(categoryId)) {
+        return NextResponse.json({ error: 'Kategori tidak valid' }, { status: 400 });
+      }
+      const [category] = await db
+        .select({ id: expenseCategories.id })
+        .from(expenseCategories)
+        .where(eq(expenseCategories.id, categoryId))
+        .limit(1);
+      if (!category) {
+        return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 400 });
+      }
+    }
 
     const amount = Number(body.amount);
     if (!Number.isInteger(amount) || amount <= 0) {
