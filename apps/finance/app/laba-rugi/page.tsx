@@ -165,6 +165,9 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
                     <td key={c.key} className={`px-3 py-2 text-right ${c.key === TOTAL_KEY ? 'bg-muted' : ''}`}>
                       <div className={`tabular-nums ${v < 0 && (l.key === 'net' || l.key === 'gross') ? 'text-red-600' : ''}`}>{rupiah(v)}</div>
                       <CaraMembaca title={`${l.label} — ${c.name}, ${monthLabel}`} e={explain(pl, l, c, monthLabel, month)} />
+                      {l.key === 'net' && c.key !== OFFICE_KEY && (
+                        <a className="mt-1 block text-xs font-normal text-primary hover:underline" href={`/setoran-vs-laba?bulan=${month}${c.key === TOTAL_KEY ? '' : `&kolom=${c.key}`}`}>Kenapa setoran beda? →</a>
+                      )}
                     </td>
                   );
                 })}

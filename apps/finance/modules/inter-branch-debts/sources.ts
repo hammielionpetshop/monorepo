@@ -44,11 +44,12 @@ export async function loadPayments(sql: Sql): Promise<Payment[]> {
 export async function loadSettlementPieces(sql: Sql): Promise<SettlementPiece[]> {
   const rows = await sql<{
     payer_id: number; payer_name: string; level: number; payable_id: number | null; creditor_id: number | null;
-    creditor_name: string | null; amount: number; date: string | null;
+    creditor_name: string | null; amount: number; date: string | null; source_type: string; source_ref: string;
   }[]>`
     select s.payer_branch_id as payer_id, pb.name as payer_name, s.level, s.payable_id,
       p.creditor_branch_id as creditor_id, cb.name as creditor_name, s.amount,
-      coalesce(to_char(cd.deposit_date, 'YYYY-MM-DD'), to_char(nv.business_date, 'YYYY-MM-DD'), ${sql.unsafe(WIB('lr.created_at'))}) as date
+      coalesce(to_char(cd.deposit_date, 'YYYY-MM-DD'), to_char(nv.business_date, 'YYYY-MM-DD'), ${sql.unsafe(WIB('lr.created_at'))}) as date,
+      s.source_type, coalesce(cd.deposit_number, 'NT-' || nv.id, 'susulan #' || lr.id, s.source_type || ' #' || s.source_id) as source_ref
     from petshop.deposit_settlements s
     join petshop.branches pb on pb.id = s.payer_branch_id
     left join petshop.inter_branch_payables p on p.id = s.payable_id
@@ -62,6 +63,6 @@ export async function loadSettlementPieces(sql: Sql): Promise<SettlementPiece[]>
       payerId: Number(r.payer_id), payerName: r.payer_name, level: Number(r.level),
       payableId: r.payable_id == null ? null : Number(r.payable_id),
       creditorId: r.creditor_id == null ? null : Number(r.creditor_id), creditorName: r.creditor_name,
-      amount: Number(r.amount), date: r.date as string,
+      amount: Number(r.amount), date: r.date as string, sourceType: r.source_type, sourceRef: r.source_ref,
     }));
 }

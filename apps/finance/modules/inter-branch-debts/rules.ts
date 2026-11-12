@@ -186,6 +186,10 @@ export type SettlementPiece = {
   amount: number;
   /** Tanggal uang setoran asal (WIB). Pembalikan ikut tanggal asalnya. */
   date: string;
+  /** CASH_DEPOSIT · NONCASH_VERIFICATION · LEGACY_RUN (dipakai jembatan F2-6c-2). */
+  sourceType?: string;
+  /** Nomor setoran / NT-id / susulan #id. */
+  sourceRef?: string;
 };
 
 export type FreeDepositRow = {
