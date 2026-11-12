@@ -105,7 +105,7 @@ export default async function ArusUangPage({ searchParams }: { searchParams: Pro
           <h1 className="text-xl font-semibold">Arus Uang</h1>
           <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
             Uang masuk dan keluar {monthLabel} menurut <strong>Tempat Uang</strong>: {scopeLabel}. Ini bukan laba rugi — biaya
-            per cabang yang menanggung (termasuk &quot;Kantor&quot;) ada di Laba Rugi (tahap berikutnya).
+            per cabang yang menanggung (termasuk &quot;Kantor&quot;) ada di halaman Laba Rugi.
           </p>
         </div>
         <form className="flex flex-wrap items-end gap-2 text-sm">

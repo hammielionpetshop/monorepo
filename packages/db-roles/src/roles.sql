@@ -58,6 +58,14 @@ BEGIN
     'hris.payslip_payments', 'hris.advance_handovers', 'hris.advance_movements', 'hris.advances', 'hris.employees',
     'hris.unloading_payments', 'hris.unloading_overpayment_uses', 'hris.unloading_overpayments',
     'logistics.vehicle_rental_payments', 'logistics.vehicles', 'logistics.fuel_expenses',
+    -- Laba Rugi F2-6b: penjualan/retur/HPP setara BO, barang rusak, revisi harga internal, Pengeluaran Kasir,
+    -- Biaya Rutin, slip gaji, bongkaran, garasi & trip Logistik.
+    'petshop.transactions', 'petshop.transaction_items', 'petshop.returns', 'petshop.return_items',
+    'petshop.products', 'petshop.product_uom_costs', 'petshop.product_uom_conversions', 'petshop.customers',
+    'petshop.damaged_goods', 'petshop.internal_returns', 'petshop.internal_return_items', 'petshop.inter_branch_transfer_items',
+    'petshop.shifts', 'petshop.shift_expenses', 'petshop.expense_categories',
+    'petshop.recurring_costs', 'petshop.recurring_cost_amounts', 'petshop.recurring_cost_payments',
+    'hris.payslips', 'hris.branches', 'hris.unloading_reports', 'logistics.config', 'logistics.trips',
     'auth.sessions', 'auth.session_app_access', 'auth.account_links'
   ] LOOP
     IF to_regclass(rel_name) IS NOT NULL THEN
