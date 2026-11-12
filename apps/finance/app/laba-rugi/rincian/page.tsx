@@ -4,7 +4,7 @@ import { bulan, rupiah, tanggal } from '@/lib/format';
 import { gate } from '@/lib/gate';
 import { todayWib } from '@/modules/money';
 import {
-  columnKey, FIRST_MONTH, GROUP_LABEL, isMonth, loadBranches, loadCosts, OFFICE_KEY, TOTAL_KEY, type CostItem,
+  columnKey, FIRST_MONTH, groupLabel, isMonth, loadBranches, loadCosts, OFFICE_KEY, TOTAL_KEY, type CostItem,
 } from '@/modules/profit-loss';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +22,7 @@ function origin(ref: string): { href: string; label: string } | null {
     case 'ur': return hris('/gaji/bongkaran', 'Bongkaran (HRIS)');
     case 'ff': return hris('/logistik/bensin-mobil', 'Bensin (Logistik)');
     case 'vr': return hris('/logistik/sewa-mobil', 'Sewa Mobil (Logistik)');
+    case 'fa': return bo('/assets', 'Aset');
     default: return null;
   }
 }
@@ -69,7 +70,7 @@ export default async function RincianPage({ searchParams }: { searchParams: Prom
     if (kolom !== TOTAL_KEY) items = items.filter((c) => columnKey(c.branchId) === kolom);
     if (q.baris && q.baris !== 'all') items = items.filter((c) => lineKeyOf(c) === q.baris);
     const first = items[0];
-    const lineLabel = q.baris === 'all' || !first ? 'Semua biaya & pendapatan lain' : first.group === 'CATEGORY' ? first.category ?? '' : GROUP_LABEL[first.group];
+    const lineLabel = q.baris === 'all' || !first ? 'Semua biaya & pendapatan lain' : first.group === 'CATEGORY' ? first.category ?? '' : groupLabel(first.group, first.kind);
     title = `${lineLabel} — ${colName(kolom)}`;
   }
   items = [...items].sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'id'));

@@ -73,6 +73,8 @@ BEGIN
     'petshop.debt_payments', 'petshop.customer_debts', 'petshop.payment_method_money_places',
     -- Setoran bebas vs laba F2-6c-2: shift di dalam setoran tunai (kas shift belum/sudah disetor).
     'petshop.cash_deposit_shifts',
+    -- Aset & Penyusutan F2-6d-2: penyusutan & kerugian aset di Laba Rugi.
+    'petshop.fixed_assets',
     'auth.sessions', 'auth.session_app_access', 'auth.account_links'
   ] LOOP
     IF to_regclass(rel_name) IS NOT NULL THEN

@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { depreciationFor, disposalLossIn, type AssetRow } from './assets';
 import { monthRange, payslipMonth, type CostItem, type SalesRow } from './rules';
 
 /**
@@ -237,9 +238,45 @@ async function logisticsItems(sql: Sql, month: string): Promise<ItemRow[]> {
   return out;
 }
 
+/**
+ * Aset BO (F2-6d-2): penyusutan bulan ini per aset dan kerugian/untung pelepasan di bulan kejadian. Pembeliannya
+ * ("Beli aset", Bukan biaya) tidak dihitung di Arus Kas. Aset dibatalkan tidak dibaca.
+ */
+async function assetItems(sql: Sql, month: string): Promise<ItemRow[]> {
+  if (!(await hasTable(sql, 'petshop.fixed_assets'))) return [];
+  const { from, to } = monthRange(month);
+  const rows = await sql<{ id: number; name: string; branch_id: number | null; branch_name: string | null; purchase_price: number; useful_life_months: number; purchased_on: string; status: AssetRow['status']; disposed_on: string | null; sale_amount: number | null }[]>`
+    select a.id, a.name, a.branch_id, b.name as branch_name, a.purchase_price, a.useful_life_months,
+      to_char(a.purchased_on, 'YYYY-MM-DD') as purchased_on, a.status, to_char(a.disposed_on, 'YYYY-MM-DD') as disposed_on, a.sale_amount
+    from petshop.fixed_assets a
+    left join petshop.branches b on b.id = a.branch_id
+    where a.cancelled_at is null and a.purchased_on <= ${to}::date`;
+  const out: ItemRow[] = [];
+  for (const r of rows) {
+    const a: AssetRow = {
+      id: Number(r.id), name: r.name, branchId: r.branch_id == null ? null : Number(r.branch_id), branchName: r.branch_name,
+      purchasePrice: Number(r.purchase_price), usefulLifeMonths: Number(r.useful_life_months), purchasedOn: r.purchased_on,
+      status: r.status, disposedOn: r.disposed_on, saleAmount: r.sale_amount == null ? null : Number(r.sale_amount),
+    };
+    const where = a.branchName ?? 'Kantor';
+    const dep = depreciationFor(a, month);
+    if (dep > 0) {
+      out.push({ branch_id: a.branchId, grp: 'DEPRECIATION', kind: 'COST', category: null, amount: dep, date: from,
+        label: `Penyusutan ${a.name} — ${where} (harga ${a.purchasePrice.toLocaleString('id-ID')}, ${a.usefulLifeMonths} bulan)`, source: 'BO', ref: `fa:${a.id}` });
+    }
+    const loss = disposalLossIn(a, month);
+    if (loss !== null && loss !== 0) {
+      const what = a.status === 'SOLD' ? `dijual ${(a.saleAmount ?? 0).toLocaleString('id-ID')}` : a.status === 'LOST' ? 'hilang' : 'rusak';
+      out.push({ branch_id: a.branchId, grp: 'ASSET_LOSS', kind: loss > 0 ? 'COST' : 'INCOME', category: null, amount: Math.abs(loss),
+        date: a.disposedOn!, label: `${a.name} ${what} — ${where}`, source: 'BO', ref: `fa:${a.id}` });
+    }
+  }
+  return out;
+}
+
 export async function loadCosts(sql: Sql, month: string): Promise<CostItem[]> {
-  const [bo, hris, logistics] = await Promise.all([backofficeItems(sql, month), hrisItems(sql, month), logisticsItems(sql, month)]);
-  return [...bo, ...hris, ...logistics].map(toItem);
+  const [bo, hris, logistics, assets] = await Promise.all([backofficeItems(sql, month), hrisItems(sql, month), logisticsItems(sql, month), assetItems(sql, month)]);
+  return [...bo, ...hris, ...logistics, ...assets].map(toItem);
 }
 
 export type Flag = { key: string; label: string; count: number; amount: number | null };
