@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { CashCountError, type CashCountActor } from './cash-count-service'
 
@@ -34,6 +35,8 @@ export async function requireCashCountManager(): Promise<Payload | NextResponse>
 }
 
 export function cashCountErrorResponse(error: unknown, where: string, fallback: string) {
+  const closedMonth = closedMonthMessage(error)
+  if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
   if (error instanceof CashCountError) return NextResponse.json({ error: error.message }, { status: error.status })
   console.error(`${where} error:`, error)
   return NextResponse.json({ error: fallback }, { status: 500 })

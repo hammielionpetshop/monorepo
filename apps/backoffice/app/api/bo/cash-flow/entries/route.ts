@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { z } from 'zod'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
@@ -196,6 +197,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(created[0], { status: 201 })
   } catch (error: unknown) {
+    const closedMonth = closedMonthMessage(error)
+    if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
     if (error instanceof EntryRuleError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }

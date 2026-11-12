@@ -34,4 +34,5 @@ export * from './money_places';
 export * from './recurring_costs';
 export * from './fixed_assets';
 export * from './cash_counts';
+export * from './month_closings';
 export * from './deposits';
