@@ -5,6 +5,7 @@ import { getSql } from '@/lib/db';
 import { rupiah, tanggal } from '@/lib/format';
 import { gate } from '@/lib/gate';
 import { balanceBoard, isDate, loadLines, loadPlaces, loadUnplaced, START_DATE, todayWib, type PlaceBalance } from '@/modules/money';
+import { loadPendingFunds, pendingByPlace } from '@/modules/pending-funds';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,9 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
   if (to > today) to = today;
 
   const sql = getSql();
-  const [places, lines, unplaced] = await Promise.all([loadPlaces(sql), loadLines(sql, to), loadUnplaced(sql, to)]);
+  const [places, lines, unplaced, pendingRows] = await Promise.all([loadPlaces(sql), loadLines(sql, to), loadUnplaced(sql, to), loadPendingFunds(sql, today)]);
+  // Dana belum cair selalu per hari ini (bukan per tanggal pilihan): keterangan saja, saldo tidak berubah (spec F2-6c §0.7).
+  const pending = new Map(pendingByPlace(pendingRows, today).groups.filter((x) => x.placeId != null).map((x) => [x.placeId as number, x]));
   const board = balanceBoard(places, lines, to);
   const missingOpening = places.filter((p) => p.isActive && p.opening == null).length;
   const unplacedTotal = unplaced.reduce((a, u) => a + u.amount, 0);
@@ -107,6 +110,14 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                       {!r.place.isActive && <span className="ml-2 text-xs text-muted-foreground">(nonaktif)</span>}
                       {r.place.opening == null && (
                         <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">saldo awal belum diisi</span>
+                      )}
+                      {pending.get(r.place.id) && (
+                        <Link
+                          href={`/dana-belum-cair#tempat-${r.place.id}`}
+                          className={`block text-xs hover:underline ${pending.get(r.place.id)!.overdue ? 'text-red-600' : 'text-muted-foreground'}`}
+                        >
+                          + {rupiah(pending.get(r.place.id)!.total)} dana belum cair/belum diverifikasi (hari ini) →
+                        </Link>
                       )}
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{HELD_BY[r.place.heldBy] ?? r.place.heldBy}</td>
