@@ -4,7 +4,7 @@ PRD: `docs/hris_planning/PRD/fase_2/07-modul-finance.md` §2 (baris "Setoran beb
 `04-pelunasan-otomatis.md` §3. Lanjutan spec F2-6c (`2026-11-12-f2-6c-utang-setoran-bebas-dana-belum-cair-design.md`
 §4, garis besar) dan F2-6b (`2026-11-12-f2-6b-laba-rugi-design.md`), keduanya di `origin/staging`.
 
-Status: **draf — menunggu persetujuan owner.** Catatan urutan: spec F2-6c §0 butir 1 menaruh spec rinci ini sesudah
+Status: **disetujui owner 2026-11-12** ("ok", butir §0.1–7 mengikuti saran agent). Catatan urutan: spec F2-6c §0 butir 1 menaruh spec rinci ini sesudah
 F2-6c-1 lolos uji. Owner 2026-11-12 meminta lanjut ke fase berikutnya sebelum F2-6c-1 di-push/diuji, jadi spec
 ini disusun lebih dulu. **Implementasi tetap menunggu F2-6c-1 tayang staging dan lolos uji owner**, karena
 jembatan ini memakai angka Laba bersih (F2-6b) dan Setoran bebas (F2-6c-1) apa adanya.
@@ -14,7 +14,7 @@ Tetap berlaku: web Finance khusus staging, hanya Owner/GM, hanya membaca (`finan
 
 ## 0. Keputusan yang diminta (saran agent)
 
-| No | Hal | Saran |
+| No | Hal | Keputusan (saran agent, ✅ owner 2026-11-12) |
 |---|---|---|
 | 1 | Susunan jembatan | Lima kelompok tetap (§2): **Barang**, **Biaya & pendapatan di luar setoran**, **Penjualan yang belum jadi setoran**, **Utang internal & rantai**, lalu **Selisih belum terjelaskan**. Setiap baris dihitung dari catatan sumbernya; selisih adalah sisa yang tampil terbuka |
 | 2 | Baris "Barang" | Dihitung tepat sebagai *harga pokok + barang rusak ± penyesuaian modal − pelunasan utang belanja internal dari setoran*. Penjelasan "stok naik / utang internal bertambah / belanja supplier dibayar dari tempat lain" tampil sebagai **rincian bantu** di Cara membaca, dengan baris "lain-lain (opname, koreksi stok)" bila arus barang tidak pas. Alasan: potret stok awal bulan tidak tersimpan, jadi stok naik hanya bisa diperkirakan dari arus barang; angka jembatan utamanya tidak boleh ikut meleset |
