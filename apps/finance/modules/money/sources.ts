@@ -1,5 +1,5 @@
 import type postgres from 'postgres';
-import { START_DATE, type LineKind, type MoneyLine, type Place, type Source } from './rules';
+import { START_DATE, type CashCount, type LineKind, type MoneyLine, type Place, type Source } from './rules';
 
 /**
  * Pintu baca Finance (spec F2-6 §1, §3): semua catatan uang yang menyebut Tempat Uang Tunai/Rekening, sejak
@@ -200,4 +200,27 @@ export async function loadUnplaced(sql: Sql, to: string): Promise<Unplaced[]> {
     result.push({ key: 'FUEL', label: 'Bensin Logistik (belum punya Tempat Uang)', count: Number(fuel.count), amount: Number(fuel.amount) });
   }
   return result;
+}
+
+type CountRow = {
+  id: number; money_place_id: number; counted_on: string; amount: number; created_by_name: string | null; note: string | null;
+  adj_type: string | null; adj_amount: number | null;
+};
+
+/** Hitung Kas berlaku (F2-6e-1) dengan tanggal hitung START_DATE s.d. `to`; DB tanpa tabelnya = belum ada hitungan. */
+export async function loadCashCounts(sql: Sql, to: string): Promise<CashCount[]> {
+  if (!(await hasTable(sql, 'petshop.cash_counts'))) return [];
+  const rows = await sql<CountRow[]>`
+    select c.id, c.money_place_id, to_char(c.counted_on, 'YYYY-MM-DD') as counted_on, c.amount, u.name as created_by_name, c.note,
+      e.type as adj_type, e.amount as adj_amount
+    from petshop.cash_counts c
+    left join petshop.users u on u.id = c.created_by
+    left join petshop.cash_flow_entries e on e.id = c.adjustment_cash_flow_entry_id and e.cancelled_at is null
+    where c.cancelled_at is null and c.counted_on between ${START_DATE}::date and ${to}::date
+    order by c.counted_on desc, c.id desc`;
+  return rows.map((r) => ({
+    id: Number(r.id), placeId: Number(r.money_place_id), countedOn: r.counted_on, amount: Number(r.amount),
+    createdByName: r.created_by_name, note: r.note,
+    adjustment: r.adj_type ? { direction: r.adj_type === 'EXPENSE' ? ('SHORT' as const) : ('OVER' as const), amount: Number(r.adj_amount) } : null,
+  }));
 }

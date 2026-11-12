@@ -26,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/setoran-vs-laba" className="hover:text-primary">Setoran vs Laba</Link>
               <Link href="/utang-antar-cabang" className="hover:text-primary">Utang Antar Cabang</Link>
               <Link href="/dana-belum-cair" className="hover:text-primary">Dana Belum Cair</Link>
+              <Link href="/hitung-kas" className="hover:text-primary">Hitung Kas</Link>
             </nav>
           </div>
         </header>
