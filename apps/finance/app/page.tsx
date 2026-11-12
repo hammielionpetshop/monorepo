@@ -2,13 +2,15 @@ import Link from 'next/link';
 import { CaraMembaca, COMMON_NOTES } from '@/components/explain';
 import { backofficeUrl, hrisUrl } from '@/lib/access';
 import { getSql } from '@/lib/db';
-import { rupiah, tanggal } from '@/lib/format';
+import { bulan, rupiah, tanggal } from '@/lib/format';
 import { gate } from '@/lib/gate';
 import {
   balanceBoard, countCheck, countFreshness, COUNT_STALE_DAYS, isDate, latestCount, loadCashCounts, loadLines, loadPlaces, loadUnplaced,
   START_DATE, todayWib, type CashCount, type MoneyLine, type PlaceBalance,
 } from '@/modules/money';
 import { loadPendingFunds, pendingByPlace } from '@/modules/pending-funds';
+import { loadClosings, overdueMonths } from '@/modules/month-close';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +60,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
   const [places, lines, unplaced, pendingRows, counts] = await Promise.all([
     loadPlaces(sql), loadLines(sql, to), loadUnplaced(sql, to), loadPendingFunds(sql, today), loadCashCounts(sql, to),
   ]);
+  const overdue = overdueMonths((await loadClosings(sql)).map((c) => c.month), today);
   // Dana belum cair selalu per hari ini (bukan per tanggal pilihan): keterangan saja, saldo tidak berubah (spec F2-6c §0.7).
   const pending = new Map(pendingByPlace(pendingRows, today).groups.filter((x) => x.placeId != null).map((x) => [x.placeId as number, x]));
   const board = balanceBoard(places, lines, to);
@@ -71,6 +74,12 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
 
   return (
     <div>
+      {overdue.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠️ Belum ditutup padahal sudah lewat tanggal 10: {overdue.map((m) => bulan(m)).join(', ')}.{' '}
+          <Link href="/tutup-bulan" className="font-medium text-primary hover:underline">Tutup Bulan →</Link>
+        </div>
+      )}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Saldo Tempat Uang</h1>

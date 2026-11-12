@@ -8,6 +8,7 @@ import {
   addMonths, buildProfitLoss, cell, FIRST_MONTH, isMonth, loadBranches, loadCosts, loadFlags, loadInternalSales, loadSales,
   monthRange, OFFICE_KEY, TOTAL_KEY, type Column, type Line, type ProfitLoss,
 } from '@/modules/profit-loss';
+import { liveProfitLoss, loadClosings, netChange, profitLossChanges, type Change } from '@/modules/month-close';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const PL_NOTES = [
   'Gaji, bongkaran, bensin dan sewa mobil berasal dari HRIS/Logistik yang baru ada di staging; di produksi belum berisi data nyata.',
   'Biaya dihitung untuk bulannya, bukan tanggal bayar (sewa Oktober dibayar 1 November masuk Oktober).',
-  'Belum ada tutup bulan: angka bulan lalu bisa berubah bila ada pembatalan atau koreksi. Beli aset tidak masuk biaya; harganya dibagi rata per bulan selama umur pakai (Penyusutan aset).',
+  'Bulan yang sudah ditutup (Finance › Tutup Bulan) menampilkan salinan angka saat ditutup; perubahan sesudahnya tampil terpisah sebagai "Perubahan sesudah ditutup". Bulan yang belum ditutup bisa berubah bila ada pembatalan atau koreksi. Beli aset tidak masuk biaya; harganya dibagi rata per bulan selama umur pakai (Penyusutan aset).',
 ];
 
 const ORIGIN: Record<string, string> = {
@@ -93,9 +94,20 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
   if (month > thisMonth) month = thisMonth;
 
   const sql = getSql();
+  const closings = await loadClosings(sql);
+  const closing = closings.find((c) => c.month === month) ?? null;
   const [branches, sales, costs] = await Promise.all([loadBranches(sql), loadSales(sql, month), loadCosts(sql, month)]);
-  const [internalSales, flags] = await Promise.all([loadInternalSales(sql, month, sales), loadFlags(sql, month, costs)]);
-  const pl = buildProfitLoss({ branches, sales, costs, internalSales });
+  const [internalSales, liveFlags] = await Promise.all([loadInternalSales(sql, month, sales), loadFlags(sql, month, costs)]);
+  const live = buildProfitLoss({ branches, sales, costs, internalSales });
+  // Bulan tertutup: tabel = salinan saat ditutup (spec F2-6f §0 butir 6); angka hidup hanya untuk kotak perubahan.
+  const pl = closing ? closing.snapshot.profitLoss : live;
+  const flags = closing ? closing.snapshot.flags : liveFlags;
+  const changes: Change[] = closing ? profitLossChanges(closing.snapshot.profitLoss, live) : [];
+  // Bulan berjalan: peringatan bila bulan tertutup berubah sesudah ditutup.
+  const changedClosed = month === thisMonth
+    ? (await Promise.all(closings.map(async (c) => ({ month: c.month, delta: netChange(profitLossChanges(c.snapshot.profitLoss, (await liveProfitLoss(sql, c.month)).profitLoss)) }))))
+      .filter((x) => x.delta !== 0)
+    : [];
   const monthLabel = bulan(`${month}-01`);
   const months: string[] = [];
   for (let m = thisMonth; m >= FIRST_MONTH; m = addMonths(m, -1)) months.push(m);
@@ -129,6 +141,25 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
           <button className="rounded-md bg-primary px-3 py-1.5 font-medium text-white">Tampilkan</button>
         </form>
       </div>
+
+      {closing && (
+        <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+          🔒 {monthLabel} sudah ditutup{closing.withNotes ? ' dengan catatan' : ''} oleh {closing.closedByName}. Angka di tabel adalah salinan saat ditutup.{' '}
+          <a className="font-medium text-primary hover:underline" href={`/tutup-bulan?bulan=${month}`}>Rincian tutup bulan</a>
+        </div>
+      )}
+      {changedClosed.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠️ Bulan yang sudah ditutup berubah sesudah ditutup (laba bersih Gabungan):{' '}
+          {changedClosed.map((x, i) => (
+            <span key={x.month}>
+              {i > 0 && ', '}
+              <a className="font-medium text-primary hover:underline" href={`/laba-rugi?bulan=${x.month}`}>{bulan(`${x.month}-01`)}</a>{' '}
+              <span className="tabular-nums">{x.delta > 0 ? '+' : '−'}{rupiah(Math.abs(x.delta))}</span>
+            </span>
+          ))}. Koreksinya dicatat di bulan berjalan.
+        </div>
+      )}
 
       {flags.length > 0 && (
         <ul className="mb-5 space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -179,6 +210,37 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
           </tbody>
         </table>
       </div>
+
+      {closing && changes.length > 0 && (
+        <div className="mt-5 overflow-x-auto rounded-lg border border-amber-300 bg-card">
+          <div className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <strong>Perubahan sesudah ditutup</strong> — angka hidup sekarang berbeda dari salinan, mis. karena retur nota lama, slip gaji
+            atau koreksi yang masuk belakangan. Tabel di atas tidak ikut berubah.
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="px-3 py-2 font-semibold">Baris</th>
+                <th className="px-3 py-2 font-semibold">Kolom</th>
+                <th className="px-3 py-2 text-right font-semibold">Saat ditutup</th>
+                <th className="px-3 py-2 text-right font-semibold">Sekarang</th>
+                <th className="px-3 py-2 text-right font-semibold">Perubahan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changes.map((c) => (
+                <tr key={`${c.lineKey}-${c.columnKey}`} className="border-b border-border">
+                  <td className="px-3 py-2">{c.label}</td>
+                  <td className="px-3 py-2">{c.columnName}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{rupiah(c.closed)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{rupiah(c.live)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${c.delta < 0 ? 'text-red-600' : 'text-blue-700'}`}>{c.delta > 0 ? '+' : '−'}{rupiah(Math.abs(c.delta))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
