@@ -62,6 +62,7 @@ import {
   Scale,
   Bike,
   type LucideIcon,
+  Armchair,
 } from 'lucide-react'
 
 interface NavItem {
@@ -163,6 +164,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/cash-flow', label: 'Pendapatan & Pengeluaran', icon: HandCoins },
       { href: '/cash-flow/transfers', label: 'Pindah Dana', icon: ArrowLeftRight, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/recurring-costs', label: 'Biaya Rutin', icon: CalendarClock, roles: ['OWNER', 'GM', 'FINANCE'] },
+      { href: '/assets', label: 'Aset', icon: Armchair, roles: ['OWNER', 'GM', 'FINANCE'] },
       { href: '/expenses', label: 'Pengeluaran Shift', icon: Banknote, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
       { href: '/cash-flow/categories', label: 'Kategori Kas', icon: FolderOpen, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
