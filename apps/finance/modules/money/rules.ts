@@ -219,3 +219,49 @@ export function isDate(v: unknown): v is string {
   const d = new Date(`${v}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 }
+
+/** Tunai/Rekening yang belum dihitung lebih dari sekian hari bertanda kuning (spec F2-6e §0.7, KEU-37). */
+export const COUNT_STALE_DAYS = 7;
+
+/** Hitung Kas berlaku dari Back Office (F2-6e-1): uang nyata pada akhir hari `countedOn`. */
+export type CashCount = {
+  id: number;
+  placeId: number;
+  countedOn: string;
+  amount: number;
+  createdByName: string | null;
+  note: string | null;
+  /** Penyesuaian aktif (Arus Kas "Selisih kas kurang/lebih"); sudah ikut di baris uang. */
+  adjustment: { direction: 'SHORT' | 'OVER'; amount: number } | null;
+};
+
+export type CountCheck = {
+  count: CashCount;
+  /** Saldo menurut catatan pada akhir hari hitung (penyesuaian aktif sudah ikut). */
+  systemBalance: number;
+  /** Uang nyata − saldo menurut catatan: minus = kurang, plus = lebih. */
+  variance: number;
+};
+
+/** Selisih satu hitungan. Hidup: catatan yang diketik belakangan dengan tanggal ≤ hari hitung ikut mengubahnya. */
+export function countCheck(place: Place, lines: MoneyLine[], count: CashCount): CountCheck {
+  const systemBalance = placeBalance(place, lines, count.countedOn).balance;
+  return { count, systemBalance, variance: new Big(count.amount).minus(systemBalance).toNumber() };
+}
+
+/** Hitungan berlaku terakhir satu tempat s.d. tanggal `to`. */
+export function latestCount(counts: CashCount[], placeId: number, to: string): CashCount | null {
+  return counts
+    .filter((c) => c.placeId === placeId && c.countedOn <= to)
+    .reduce<CashCount | null>((best, c) => (!best || c.countedOn > best.countedOn ? c : best), null);
+}
+
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** NEVER = belum pernah sejak 1 Nov; STALE = terakhir dihitung > 7 hari sebelum `to`. */
+export function countFreshness(lastCountedOn: string | null, to: string): 'NEVER' | 'STALE' | 'FRESH' {
+  if (!lastCountedOn) return 'NEVER';
+  return daysBetween(lastCountedOn, to) > COUNT_STALE_DAYS ? 'STALE' : 'FRESH';
+}
