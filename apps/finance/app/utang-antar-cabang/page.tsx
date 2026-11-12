@@ -299,6 +299,7 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="font-semibold tabular-nums">{rupiah(r.free)}</div>
+                    <a className="text-xs text-primary hover:underline" href={`/setoran-vs-laba?bulan=${month}&kolom=b${r.branchId}`}>Kenapa bukan laba?</a>
                     <div className="flex justify-end">
                       <CaraMembaca
                         title={`Setoran bebas ${r.branchName} — ${bulan(`${month}-01`)}`}
@@ -307,7 +308,7 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
                           origin: 'Back Office › Setoran: rincian Pelunasan tiap setoran tunai & non-tunai terverifikasi (dan pelunasan susulan), menurut tanggal uang setorannya.',
                           calc: `setoran sendiri ${rupiah(r.ownDeposits)} + diterima dari rantai ${rupiah(r.received)} − melunasi utang ${rupiah(r.settled)} = ${rupiah(r.free)}`,
                           notes: [
-                            'Setoran bebas bukan laba: di dalamnya bercampur modal dan laba, dan belum memperhitungkan stok, piutang pelanggan, serta biaya yang dibayar dari tempat lain. Penjelasannya menyusul di layar "Setoran bebas vs laba" (F2-6c-2).',
+                            'Setoran bebas bukan laba: di dalamnya bercampur modal dan laba, dan belum memperhitungkan stok, piutang pelanggan, serta biaya yang dibayar dari tempat lain. Penjelasannya ada di layar Setoran vs Laba ("Kenapa bukan laba?").',
                             '"Diterima dari rantai" = uang setoran cabang lain yang dipakai melunasi utang ke cabang ini, lalu diteruskan melunasi utang cabang ini sendiri (mis. Toko Pusat ke Gudang).',
                             'Hanya setoran yang sampai di Tempat Uang dipegang Finance yang melunasi. Koreksi verifikasi ikut bulan setoran asalnya.',
                           ],
