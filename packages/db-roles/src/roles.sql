@@ -66,6 +66,11 @@ BEGIN
     'petshop.shifts', 'petshop.shift_expenses', 'petshop.expense_categories',
     'petshop.recurring_costs', 'petshop.recurring_cost_amounts', 'petshop.recurring_cost_payments',
     'hris.payslips', 'hris.branches', 'hris.unloading_reports', 'logistics.config', 'logistics.trips',
+    -- Utang Antar Cabang & Dana Belum Cair F2-6c: utang internal, pelunasan otomatis, angka non-tunai per shift.
+    -- app_settings sengaja TIDAK dibuka (menyimpan rahasia); batas & tanggal mulai disalin di modul Finance.
+    'petshop.inter_branch_payables', 'petshop.inter_branch_payments', 'petshop.inter_branch_transfers',
+    'petshop.deposit_settlements', 'petshop.legacy_settlement_runs', 'petshop.transaction_payments',
+    'petshop.debt_payments', 'petshop.customer_debts', 'petshop.payment_method_money_places',
     'auth.sessions', 'auth.session_app_access', 'auth.account_links'
   ] LOOP
     IF to_regclass(rel_name) IS NOT NULL THEN
