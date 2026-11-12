@@ -127,14 +127,21 @@ export default async function ArusUangPage({ searchParams }: { searchParams: Pro
         </form>
       </div>
 
-      <section className="mb-6 grid gap-3 rounded-lg border border-border bg-card p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-6 grid gap-3 rounded-lg border border-border bg-card p-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <div className="text-xs text-muted-foreground">Saldo awal bulan</div>
           <div className="text-lg font-semibold tabular-nums">{rupiah(report.opening)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Masuk − keluar</div>
-          <div className="text-lg font-semibold tabular-nums">{rupiah(report.inTotal - report.outTotal)}</div>
+          <div className="text-xs text-muted-foreground">Uang masuk</div>
+          <div className="text-lg font-semibold tabular-nums text-emerald-600">{rupiah(report.inTotal)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">Uang keluar</div>
+          <div className="text-lg font-semibold tabular-nums text-red-600">{rupiah(report.outTotal)}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Selisih masuk − keluar: <span className="tabular-nums">{rupiah(report.inTotal - report.outTotal)}</span>
+          </div>
         </div>
         <div>
           <div className="text-xs text-muted-foreground">Pindahan masuk / keluar</div>
