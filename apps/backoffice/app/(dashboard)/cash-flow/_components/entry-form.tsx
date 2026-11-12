@@ -176,6 +176,11 @@ export default function EntryForm({ categories, places, branches, currentUserNam
           placeholder="0"
           className={inputClass}
         />
+        {type === 'EXPENSE' && selectedCategory?.reportKind === 'COST' && Number(amount) >= 1_000_000 && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Barang tahan lama? Catat di <a href="/assets" className="text-primary hover:underline">Keuangan › Aset</a> agar biayanya dibagi per bulan.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
