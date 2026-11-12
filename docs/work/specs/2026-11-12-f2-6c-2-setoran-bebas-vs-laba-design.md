@@ -126,3 +126,22 @@ pasti dicatat saat implementasi.
 
 Tutup bulan; potret stok awal bulan (agar stok naik bisa dihitung pasti); hitung fisik kas; tampilan untuk Kepala
 Toko; mengubah ambang warna dari layar Finance; web Finance produksi.
+
+## 7. Catatan implementasi (2026-11-12)
+
+- `feat/finance-profit-deposit-bridge` (`cc6f5972`): menu **Setoran vs Laba** (`/setoran-vs-laba` + `/rincian`),
+  modul `apps/finance/modules/deposit-bridge/`. Tautan dari Laba Rugi (baris Laba bersih: "Kenapa setoran beda?")
+  dan dari kotak Setoran bebas di Utang Antar Cabang ("Kenapa bukan laba?").
+- Baris B dipecah dua agar Pengeluaran Kasir tidak terhitung dua kali: **Biaya yang dibayar dari tempat lain** (semua
+  biaya Laba Rugi kecuali Pengeluaran Kasir) dan **Pengeluaran Kasir yang sudah jadi biaya di Laba Rugi** (dikembalikan
+  dulu); baris C **Pengeluaran Kasir dari laci** tetap memuat semua Pengeluaran Kasir sehingga cocok dengan BO.
+- Selisih setoran dibaca sebagai *diterima − Σ kas shift aktif* setoran tunai terverifikasi (tabel
+  `cash_deposit_shortfalls` di §3 tidak ada; rincian sebabnya di `cash_deposit_variances` tidak perlu dibaca), ditambah
+  *diterima − angka sistem* verifikasi non-tunai, ditambah selisih kas tutup shift.
+- Tunai belum disetor = shift Tutup/Tutup Paksa bulan ini yang tidak masuk setoran tunai **terverifikasi bertanggal
+  bulan ini** (belum disetor, menunggu verifikasi, disetor bulan depan, atau diverifikasi cara lama — tertulis di
+  rinciannya). Non-tunai dengan tanggal shift sebelum 8 Nov 2026 tampil di baris tersendiri **Non-tunai sebelum
+  Setoran non-tunai berlaku** (saling menjelaskan dengan pelunasan susulan bila dicakup).
+- Rincian bantu stok (§0 butir 2) belum dibuat: baris A tetap dihitung tepat dari Laba Rugi; potret stok di luar F2-6c-2.
+- `finance_app` mendapat SELECT `petshop.cash_deposit_shifts`. Tes: aturan 7, integrasi DB 3 (contoh §4.1 selisih
+  nol; shift dilepas dari setoran → tunai belum disetor dan selisih setoran saling menjelaskan; tulis ditolak).
