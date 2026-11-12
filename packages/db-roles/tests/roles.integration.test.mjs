@@ -64,6 +64,9 @@ describe.skipIf(!ADMIN_URL)('roles.sql', () => {
     await expect(sql`insert into petshop.branches (name) values ('x')`).rejects.toThrow(/permission denied/)
     await expect(sql`update petshop.money_places set name = name`).rejects.toThrow(/permission denied/)
     await expect(sql`delete from hris.payslip_payments`).rejects.toThrow(/permission denied/)
+    // Tutup Bulan (F2-6f): boleh menambah penutupan, tidak boleh mengubah/menghapusnya.
+    await expect(sql`update petshop.month_closings set note = note`).rejects.toThrow(/permission denied/)
+    await expect(sql`delete from petshop.month_closings`).rejects.toThrow(/permission denied/)
   })
 
   it('hris_app bisa menulis tabel hris', async () => {
