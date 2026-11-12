@@ -8,6 +8,13 @@ export interface EditableExpense {
   id: number
   amount: number
   keterangan: string
+  /** Kosong untuk catatan lama yang belum berkategori; harus dipilih saat diubah. */
+  categoryId: number | null
+}
+
+interface ExpenseCategoryOption {
+  id: number
+  name: string
 }
 
 interface ExpenseDialogProps {
@@ -31,8 +38,29 @@ export default function ExpenseDialog({
   const isEdit = expense !== undefined
   const [keterangan, setKeterangan] = useState(expense?.keterangan ?? '')
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '')
+  const [categoryId, setCategoryId] = useState(expense?.categoryId ? String(expense.categoryId) : '')
+  const [categories, setCategories] = useState<ExpenseCategoryOption[] | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Kategori dari Back Office (Kategori Arus Kas › Pengeluaran Kasir), agar pengeluaran terbaca di Laba Rugi.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/pos/expense-categories')
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((body: { data: ExpenseCategoryOption[] }) => {
+        if (!cancelled) setCategories(body.data)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCategories([])
+          setError('Gagal memuat kategori pengeluaran. Tutup lalu buka lagi.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Tutup dengan ESC saat tidak mensubmit
   useEffect(() => {
@@ -46,6 +74,12 @@ export default function ExpenseDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (!categoryId) {
+      setError('Pilih kategori pengeluaran')
+      return
+    }
+    const categoryIdNum = parseInt(categoryId, 10)
 
     const cleanKeterangan = keterangan.trim()
     if (!cleanKeterangan) {
@@ -81,14 +115,14 @@ export default function ExpenseDialog({
         ? await fetch(`/api/pos/shifts/${shiftId}/expenses/${expense.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keterangan: cleanKeterangan, amount: amountInt }),
+            body: JSON.stringify({ keterangan: cleanKeterangan, amount: amountInt, categoryId: categoryIdNum }),
           })
         : await fetch(`/api/pos/shifts/${shiftId}/expenses`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               cashierId,
-              categoryId: null,
+              categoryId: categoryIdNum,
               categoryCustom: cleanKeterangan,
               note: cleanKeterangan,
               amount: amountInt,
@@ -147,6 +181,31 @@ export default function ExpenseDialog({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="expense-category" className="block text-sm font-medium text-foreground mb-1">
+              Kategori
+            </label>
+            <select
+              id="expense-category"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
+              disabled={isSubmitting || categories === null}
+            >
+              <option value="">{categories === null ? 'Memuat kategori...' : 'Pilih kategori'}</option>
+              {categories?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {categories !== null && categories.length === 0 && !error && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Belum ada kategori. Minta Owner/GM menambahkannya di Back Office › Kategori Arus Kas › Pengeluaran Kasir.
+              </p>
+            )}
+          </div>
+
           <div>
             <label
               htmlFor="expense-keterangan"
