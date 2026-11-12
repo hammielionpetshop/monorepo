@@ -484,6 +484,13 @@
       "when": 1794060800000,
       "tag": "0068_fixed_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794147200000,
+      "tag": "0069_cash_counts",
+      "breakpoints": true
     }
   ]
 }
