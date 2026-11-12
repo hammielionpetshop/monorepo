@@ -6,7 +6,7 @@ KEU-197 (aset kantor), KEU-22 (beli aset bukan biaya). Lanjutan F2-6b Laba Rugi
 (`2026-11-12-f2-6b-laba-rugi-design.md` §6 "Beli aset tidak masuk biaya (penyusutan belum ada)") dan F2-6c-2
 Setoran vs Laba, keduanya di `origin/staging`.
 
-Status: **draf — menunggu persetujuan owner.**
+Status: **disetujui owner 2026-11-12** ("langsung kerjakan sampai di push"; butir §0.1–12 mengikuti saran agent).
 
 Prinsip Fase 2 tetap berlaku: uang dicatat sekali di modul kejadiannya (pembelian aset = Back Office), Finance hanya
 membaca, setiap angka Finance punya **Cara membaca**, biaya dicatat "untuk bulan apa" terpisah dari "dibayar kapan",
