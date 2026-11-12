@@ -77,12 +77,20 @@ BEGIN
     'petshop.fixed_assets',
     -- Hitung Kas F2-6e-2: uang nyata Tunai/Rekening untuk selisih terhadap saldo.
     'petshop.cash_counts',
+    -- Tutup Bulan F2-6f-2: penutupan & salinan laporan (INSERT-nya di bawah).
+    'petshop.month_closings',
     'auth.sessions', 'auth.session_app_access', 'auth.account_links'
   ] LOOP
     IF to_regclass(rel_name) IS NOT NULL THEN
       EXECUTE format('GRANT SELECT ON %s TO %I', rel_name, role_name);
     END IF;
   END LOOP;
+  -- Satu-satunya tulisan Finance (spec F2-6f §0 butir 1): menambah baris Tutup Bulan. Tanpa UPDATE/DELETE; trigger
+  -- migrasi 0070 menjaga urutan bulan dan menolak ubah/hapus.
+  IF to_regclass('petshop.month_closings') IS NOT NULL THEN
+    EXECUTE format('GRANT INSERT ON petshop.month_closings TO %I', role_name);
+    EXECUTE format('GRANT USAGE ON SEQUENCE petshop.month_closings_id_seq TO %I', role_name);
+  END IF;
   -- Akun: hanya kolom yang perlu untuk memeriksa sesi (bukan hash kata sandi).
   EXECUTE format('GRANT SELECT (id, is_active) ON auth.accounts TO %I', role_name);
 

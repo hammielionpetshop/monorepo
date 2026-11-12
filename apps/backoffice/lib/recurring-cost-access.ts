@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { z } from 'zod'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { RecurringCostError, type CostActor } from '@/lib/services/recurring-cost-service'
@@ -23,6 +24,8 @@ export function costActorOf(payload: Payload): CostActor {
 }
 
 export function recurringCostErrorResponse(error: unknown, where: string, fallback: string) {
+  const closedMonth = closedMonthMessage(error)
+  if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
   if (error instanceof RecurringCostError) return NextResponse.json({ error: error.message }, { status: error.status })
   console.error(`${where} error:`, error)
   return NextResponse.json({ error: fallback }, { status: 500 })

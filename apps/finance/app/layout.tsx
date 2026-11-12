@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Hammielion — Finance (staging)',
-  description: 'Analisa uang Hammielion Petshop: Saldo Tempat Uang, Arus Uang, Laba Rugi, Setoran vs Laba, Utang Antar Cabang, dan Dana Belum Cair. Hanya membaca.',
+  description: 'Analisa uang Hammielion Petshop: Saldo Tempat Uang, Arus Uang, Laba Rugi, Setoran vs Laba, Utang Antar Cabang, Dana Belum Cair, Hitung Kas, dan Tutup Bulan. Hanya membaca, kecuali menutup bulan.',
   robots: { index: false, follow: false },
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <header className="border-b border-border bg-card">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
             <span className="font-semibold">
-              Finance <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">staging · hanya membaca</span>
+              Finance <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">staging · membaca (+ tutup bulan)</span>
             </span>
             <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <Link href="/" className="hover:text-primary">Saldo</Link>
@@ -27,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/utang-antar-cabang" className="hover:text-primary">Utang Antar Cabang</Link>
               <Link href="/dana-belum-cair" className="hover:text-primary">Dana Belum Cair</Link>
               <Link href="/hitung-kas" className="hover:text-primary">Hitung Kas</Link>
+              <Link href="/tutup-bulan" className="hover:text-primary">Tutup Bulan</Link>
             </nav>
           </div>
         </header>
