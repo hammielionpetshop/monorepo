@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, shiftExpenses, shifts, eq, and } from '@/lib/db';
+import { db, shiftExpenses, shifts, expenseCategories, eq, and } from '@/lib/db';
 import {
   MAX_AMOUNT,
   ShiftExpenseServiceError,
@@ -85,7 +85,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 });
     }
 
-    const { keterangan, amount } = body as { keterangan?: unknown; amount?: unknown };
+    const { keterangan, amount, categoryId } = body as { keterangan?: unknown; amount?: unknown; categoryId?: unknown };
 
     const note = typeof keterangan === 'string' ? keterangan.trim() : '';
     if (!note) {
@@ -103,9 +103,26 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Jumlah pengeluaran melebihi batas maksimum yang diperbolehkan' }, { status: 400 });
     }
 
+    // Kategori boleh diganti saat mengubah; tidak dikirim = kategori lama tetap.
+    let category: { categoryId?: number } = {};
+    if (categoryId !== undefined && categoryId !== null) {
+      if (typeof categoryId !== 'number' || !Number.isInteger(categoryId)) {
+        return NextResponse.json({ error: 'Kategori tidak valid' }, { status: 400 });
+      }
+      const [found] = await db
+        .select({ id: expenseCategories.id })
+        .from(expenseCategories)
+        .where(eq(expenseCategories.id, categoryId))
+        .limit(1);
+      if (!found) {
+        return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 400 });
+      }
+      category = { categoryId };
+    }
+
     const updated = await updateShiftExpense(
       auth.expenseId,
-      { amount: amountNum, note, categoryCustom: note },
+      { amount: amountNum, note, categoryCustom: note, ...category },
       { userId: auth.payload.userId },
     );
 
