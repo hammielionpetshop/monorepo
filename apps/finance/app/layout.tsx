@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Hammielion — Finance (staging)',
-  description: 'Analisa uang Hammielion Petshop: Saldo Tempat Uang dan Arus Uang. Hanya membaca.',
+  description: 'Analisa uang Hammielion Petshop: Saldo Tempat Uang, Arus Uang, dan Laba Rugi. Hanya membaca.',
   robots: { index: false, follow: false },
 };
 
@@ -22,6 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <nav className="flex gap-4 text-sm">
               <Link href="/" className="hover:text-primary">Saldo</Link>
               <Link href="/arus-uang" className="hover:text-primary">Arus Uang</Link>
+              <Link href="/laba-rugi" className="hover:text-primary">Laba Rugi</Link>
             </nav>
           </div>
         </header>
