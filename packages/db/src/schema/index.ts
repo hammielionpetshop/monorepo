@@ -33,4 +33,5 @@ export * from './delivery_method_changes';
 export * from './money_places';
 export * from './recurring_costs';
 export * from './fixed_assets';
+export * from './cash_counts';
 export * from './deposits';
