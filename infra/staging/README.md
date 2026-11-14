@@ -2,7 +2,8 @@
 
 Project Docker `hammielion-staging` memakai database `petshop_staging` dan jaringan
 `hammielion_default` yang sudah ada. Tidak membuat Postgres/Caddy kedua dan tidak membuka port
-aplikasi ke host. Gerbang Caddy bersama memakai Basic Auth serta menolak pintu job dari luar.
+aplikasi ke host. Gerbang Caddy bersama menolak pintu job/internal dari luar dan menandai staging `noindex`; tanpa Basic Auth
+(dihapus atas permintaan owner 2026-11-14), akses cukup lewat login aplikasi.
 
 ## Berkas server
 
@@ -34,7 +35,7 @@ Urutan ini dikerjakan setelah owner menyetujui aktivasi/push perubahan staging:
    `PUBLIC`, atas izin owner jalankan `REVOKE CONNECT ON DATABASE petshop_db FROM PUBLIC` dan
    pastikan admin/pengguna produksi yang sah tetap bisa masuk. Jangan mengubah password atau
    menjalankan migrasi skema produksi hanya untuk menutup akses tersebut.
-3. Pasang berkas staging dan isi env dengan password role, kunci sesi/job, serta Basic Auth baru.
+3. Pasang berkas staging dan isi env dengan password role, dan kunci sesi/job.
    Jangan menyalin berkas env produksi. Pastikan semua nama target tetap `petshop_staging`.
 4. Dari `/srv/hammielion-staging`, jalankan `bash refresh-db.sh --bootstrap`. Ini hanya boleh
    saat database staging **belum ada**: dump sumber divalidasi, database staging dibuat dan diisi,
@@ -45,7 +46,7 @@ Urutan ini dikerjakan setelah owner menyetujui aktivasi/push perubahan staging:
    dimulai ulang. Konfigurasi gateway staging baru dipasang sesudah health gate deployment.
 6. Setelah izin push owner, dorong branch `staging` untuk membangun image dan menjalankan workflow.
    Migrator memeriksa URL, menerapkan migrasi/role staging, lalu aplikasi dan cron dinyalakan.
-   Gerbang Basic Auth dipasang terakhir. Verifikasi role `stg_*` ditolak saat mencoba database produksi.
+   Gerbang Caddy dipasang terakhir. Verifikasi role `stg_*` ditolak saat mencoba database produksi.
 
 Bootstrap yang gagal setelah membuat database meninggalkan staging belum siap; jangan menimpa
 database tersebut secara otomatis. Periksa error dan selesaikan pemulihannya sebelum deploy.

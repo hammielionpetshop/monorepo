@@ -14,28 +14,28 @@ spec.loader.exec_module(gateway)
 class GatewayTests(unittest.TestCase):
     def setUp(self):
         self.values = {
-            'STAGING_BASIC_AUTH_USER': 'owner',
-            'STAGING_BASIC_AUTH_HASH': '$2a$14$' + 'A' * 53,
             'DOMAIN_STAGING_BACKOFFICE': 'bo.staginghml.my.id',
             'DOMAIN_STAGING_HRIS': 'hris.staginghml.my.id',
             'DOMAIN_STAGING_ORDER_WEB': 'order.staginghml.my.id',
             'DOMAIN_STAGING_FINANCE': 'finance.staginghml.my.id',
         }
 
-    def test_gerbang_melindungi_unggahan_dan_menolak_job_sebelum_autentikasi(self):
+    def test_tanpa_basic_auth_tetap_menolak_job_dan_tidak_diindeks(self):
         text = gateway.render(self.values)
-        self.assertEqual(text.count('basic_auth'), 4)
+        self.assertNotIn('basic_auth', text)
         self.assertEqual(text.count('respond @jobs 404'), 4)
+        self.assertEqual(text.count('respond @internal 404'), 4)
+        self.assertEqual(text.count('X-Robots-Tag "noindex, nofollow"'), 4)
         for site in text.split('\n}\n')[:4]:
-            self.assertLess(site.index('respond @jobs'), site.index('basic_auth'))
-        self.assertLess(text.index('basic_auth'), text.index('handle_path /uploads/'))
+            self.assertLess(site.index('respond @jobs'), site.index('reverse_proxy'))
         self.assertIn('/srv/staging-uploads', text)
 
     def test_gateway_meneruskan_api_ke_backoffice_dan_sisanya_ke_berkas_statis(self):
         self.assertNotIn('gateway-staging', gateway.render(self.values))
         text = gateway.render({**self.values, 'DOMAIN_STAGING_GATEWAY': 'app.staginghml.my.id'})
         site = text[text.index('app.staginghml.my.id {'):]
-        self.assertLess(site.index('basic_auth'), site.index('handle /api/gateway/*'))
+        self.assertNotIn('basic_auth', site)
+        self.assertIn('X-Robots-Tag', site)
         self.assertLess(site.index('handle /api/gateway/*'), site.index('reverse_proxy bo-staging:3000'))
         self.assertIn('reverse_proxy gateway-staging:80', site)
         for bad in ('app.hammielion.com', 'bo.staginghml.my.id'):
@@ -44,8 +44,6 @@ class GatewayTests(unittest.TestCase):
 
     def test_input_tidak_valid_ditolak_sebelum_mengubah_server(self):
         for key, value in [
-            ('STAGING_BASIC_AUTH_HASH', ''),
-            ('STAGING_BASIC_AUTH_USER', 'owner\n}'),
             ('DOMAIN_STAGING_HRIS', 'hris.hammielion.com'),
             ('DOMAIN_STAGING_HRIS', 'hris.staginghml.my.id {'),
             ('DOMAIN_STAGING_HRIS', 'bo.staginghml.my.id'),
