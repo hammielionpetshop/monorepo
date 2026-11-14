@@ -22,6 +22,8 @@ export const recurringCosts = petshop.table('recurring_costs', {
   /** Bulan terakhir bertagihan (tanggal 1); kosong = terus berjalan. */
   endMonth: date('end_month'),
   note: text('note'),
+  /** Nominal berubah tiap bulan (listrik, air): jumlah per bulan = perkiraan, bayar beda jumlah tanpa alasan (migrasi 0072). */
+  variableAmount: boolean('variable_amount').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdBy: integer('created_by').references(() => users.id).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

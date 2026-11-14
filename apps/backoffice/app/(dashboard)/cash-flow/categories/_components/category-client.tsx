@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { DataTable } from '@/components/ui/data-table'
 import { NewBadge } from '@/components/ui/new-badge'
 import CategoryForm from './category-form'
+import ExpenseCategorySection from './expense-category-section'
 import { TYPE_LABELS, REPORT_KIND_LABELS, type CashFlowCategory, type CashFlowType, type ExpenseLink } from './types'
 
 interface Props {
@@ -20,7 +21,6 @@ export default function CategoryClient({ categories: initialCategories, expenseL
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [savingLinkId, setSavingLinkId] = useState<number | null>(null)
   const [showInactive, setShowInactive] = useState(false)
   const isFormSubmittingRef = useRef(false)
 
@@ -126,26 +126,6 @@ export default function CategoryClient({ categories: initialCategories, expenseL
       setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setDeletingId(null)
-    }
-  }
-
-  async function saveLink(link: ExpenseLink, value: string) {
-    const cashFlowCategoryId = value ? Number(value) : null
-    setSavingLinkId(link.id)
-    try {
-      const res = await fetch('/api/bo/cash-flow/expense-links', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expenseCategoryId: link.id, cashFlowCategoryId }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) return setErrorMsg(data.error ?? 'Gagal menyimpan sambungan')
-      setLinks((ls) => ls.map((l) => (l.id === link.id ? { ...l, cashFlowCategoryId } : l)))
-      setSuccessMsg('Sambungan kategori disimpan')
-    } catch {
-      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
-    } finally {
-      setSavingLinkId(null)
     }
   }
 
@@ -256,40 +236,13 @@ export default function CategoryClient({ categories: initialCategories, expenseL
         {renderTable('EXPENSE')}
       </div>
 
-      <div className="mt-8 border-t border-border pt-6">
-        <h2 className="text-base font-semibold text-foreground inline-flex items-center gap-2">
-          Sambungan kategori Pengeluaran Kasir <NewBadge feature="fitur/arus-kas-rapi" />
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1 mb-3">
-          Pengeluaran dari laci kasir punya daftar kategori sendiri. Sambungkan tiap kategori ke satu kategori Arus Kas supaya satu biaya
-          hanya punya satu nama di laporan Finance. Tampilan kasir tidak berubah.
-        </p>
-        {links.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada kategori Pengeluaran Kasir.</p>
-        ) : (
-          <div className="max-w-2xl border border-border rounded-md divide-y divide-border">
-            {links.map((l) => (
-              <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm">
-                <span className="text-foreground">
-                  {l.name}
-                  {l.cashFlowCategoryId === null && <span className="ml-2 text-xs text-amber-700">belum disambungkan</span>}
-                </span>
-                <select
-                  value={l.cashFlowCategoryId ?? ''}
-                  disabled={savingLinkId === l.id}
-                  onChange={(e) => saveLink(l, e.target.value)}
-                  className="px-2 py-1.5 border border-border rounded-md bg-background min-w-[220px]"
-                >
-                  <option value="">— Belum disambungkan —</option>
-                  {expenseOptions.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ExpenseCategorySection
+        links={links}
+        setLinks={setLinks}
+        expenseOptions={expenseOptions}
+        onSuccess={(text) => { setErrorMsg(null); setSuccessMsg(text) }}
+        onError={(text) => { setSuccessMsg(null); setErrorMsg(text) }}
+      />
 
       {showForm && (
         <div
