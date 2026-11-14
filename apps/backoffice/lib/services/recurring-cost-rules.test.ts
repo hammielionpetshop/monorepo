@@ -63,6 +63,11 @@ describe('Biaya Rutin — bayar', () => {
     expect(checkPay({ ...base, billed: [{ month: '2026-10', amount: null }] })).toMatch(/belum diatur/)
   })
 
+  it('nominal berubah tiap bulan: jumlah beda dari perkiraan tanpa alasan diterima', () => {
+    expect(checkPay({ ...base, amount: 1_800_000, variableAmount: true })).toBeNull()
+    expect(checkPay({ ...base, amount: 0, variableAmount: true })).toMatch(/lebih dari 0/)
+  })
+
   it('jumlah dibayar dibagi per bulan, total selalu sama', () => {
     expect(splitPaid([2_000_000, 2_000_000], 4_000_000)).toEqual([2_000_000, 2_000_000])
     const parts = splitPaid([2_000_000, 2_000_000, 2_000_000], 5_000_000)

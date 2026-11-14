@@ -42,4 +42,5 @@ export const costSchema = z.object({
   startMonth: z.string().regex(MONTH_RE, 'Berlaku mulai tidak valid'),
   endMonth: z.string().regex(MONTH_RE, 'Berlaku sampai tidak valid').nullable(),
   note: z.string().trim().max(255, 'Catatan maksimal 255 karakter').nullable().optional(),
+  variableAmount: z.boolean().optional().default(false),
 })

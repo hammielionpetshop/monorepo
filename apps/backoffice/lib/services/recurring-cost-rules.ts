@@ -91,6 +91,8 @@ export interface PayCheckInput {
   billed: { month: string; amount: number | null }[]
   amount: number
   differenceReason: string | null
+  /** Nominal berubah tiap bulan: jumlah beda dari perkiraan tidak butuh alasan. */
+  variableAmount?: boolean
 }
 
 /** Pesan galat pertama untuk Bayar beberapa bulan berurutan, atau null bila sah. */
@@ -110,7 +112,7 @@ export function checkPay(input: PayCheckInput): string | null {
   if (!Number.isInteger(input.amount) || input.amount <= 0) return 'Jumlah dibayar harus lebih dari 0'
   const total = input.billed.reduce((sum, b) => sum + (b.amount ?? 0), 0)
   if (input.amount < input.billed.length) return 'Jumlah dibayar terlalu kecil untuk dibagi ke semua bulan'
-  if (input.amount !== total && !input.differenceReason?.trim()) {
+  if (input.amount !== total && !input.variableAmount && !input.differenceReason?.trim()) {
     return 'Jumlah dibayar berbeda dari tagihan; alasan wajib diisi'
   }
   return null

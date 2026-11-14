@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, expenseCategories, asc } from '@/lib/db';
+import { db, expenseCategories, asc, eq } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +20,7 @@ export async function GET() {
     const data = await db
       .select({ id: expenseCategories.id, name: expenseCategories.name })
       .from(expenseCategories)
+      .where(eq(expenseCategories.isActive, true))
       .orderBy(asc(expenseCategories.name));
     return NextResponse.json({ data });
   } catch (error: unknown) {

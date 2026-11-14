@@ -289,7 +289,7 @@ export default function RecurringCostClient(props: Props) {
               ) : data.costs.filter((c) => matchesBranch(c.branchId)).map((c) => (
                 <tr key={c.id} className={`border-t border-border align-top ${c.isActive ? '' : 'text-muted-foreground'}`}>
                   <td className="px-3 py-2">
-                    <div className="font-medium">{c.name} {!c.isActive && <span className="ml-1 text-xs font-normal">(nonaktif)</span>}</div>
+                    <div className="font-medium">{c.name} {c.variableAmount && <span className="ml-1 text-xs font-normal text-muted-foreground">(nominal berubah)</span>} {!c.isActive && <span className="ml-1 text-xs font-normal">(nonaktif)</span>}</div>
                     <div className="text-xs text-muted-foreground">{c.categoryName}{c.note ? ` · ${c.note}` : ''}</div>
                   </td>
                   <td className="px-3 py-2">{c.branchName ?? 'Bersama'}</td>
@@ -367,6 +367,7 @@ function CostForm({ cost, categories, branches, temporaryRent, today, onClose, o
   const [endMonth, setEndMonth] = useState(cost?.endMonth ?? '')
   const [note, setNote] = useState(cost?.note ?? '')
   const [isActive, setIsActive] = useState(cost?.isActive ?? true)
+  const [variableAmount, setVariableAmount] = useState(cost?.variableAmount ?? false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -390,6 +391,7 @@ function CostForm({ cost, categories, branches, temporaryRent, today, onClose, o
       startMonth,
       endMonth: endMonth || null,
       note: note.trim() || null,
+      variableAmount,
       ...(cost ? { isActive } : { amount: Number(amount) }),
     }
     setBusy(true)
@@ -427,7 +429,7 @@ function CostForm({ cost, categories, branches, temporaryRent, today, onClose, o
         <div className="grid grid-cols-2 gap-3">
           {!cost && (
             <div>
-              <label className="block text-sm font-medium mb-1">Jumlah per bulan (Rp) <span className="text-destructive">*</span></label>
+              <label className="block text-sm font-medium mb-1">{variableAmount ? 'Perkiraan jumlah per bulan' : 'Jumlah per bulan'} (Rp) <span className="text-destructive">*</span></label>
               <input type="text" inputMode="numeric" value={formatRupiahInput(amount)} onChange={(e) => setAmount(digitsOnly(e.target.value))} placeholder="0" className={inputClass} />
             </div>
           )}
@@ -467,6 +469,13 @@ function CostForm({ cost, categories, branches, temporaryRent, today, onClose, o
           <label className="block text-sm font-medium mb-1">Catatan <span className="text-muted-foreground font-normal">(opsional)</span></label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={255} rows={2} className={`${inputClass} resize-none`} placeholder="Mis. pemilik sewa, nomor rekening tujuan" />
         </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={variableAmount} onChange={(e) => setVariableAmount(e.target.checked)} />
+          <span>
+            <span className="inline-flex items-center gap-2 font-medium">Nominal berubah tiap bulan <NewBadge feature="fitur/biaya-rutin-nominal-berubah" /></span>
+            <span className="block text-muted-foreground">Untuk listrik, air, dan tagihan sejenis. Jumlah per bulan menjadi perkiraan; saat Sudah dibayar isi jumlah sebenarnya tanpa alasan.</span>
+          </span>
+        </label>
         {cost && !hasPayments && (
           <label className="inline-flex items-center gap-2 text-sm">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
@@ -547,6 +556,8 @@ function PayForm({ bill, cost, paidMonths, places, isOwner, today, prepayLimit, 
 
   const paid = amount === '' ? billedTotal : Number(amount)
   const differs = paid !== billedTotal
+  // Nominal berubah tiap bulan: tagihan hanya perkiraan, jadi beda jumlah tidak butuh alasan.
+  const needsReason = differs && !cost.variableAmount
   const minDate = useMemo(() => {
     if (isOwner) return undefined
     const d = new Date(`${today}T00:00:00Z`)
@@ -560,7 +571,7 @@ function PayForm({ bill, cost, paidMonths, places, isOwner, today, prepayLimit, 
     setError(null)
     if (!placeId) return setError('Pilih "Dibayar dari" (Tempat Uang)')
     if (!paid || paid <= 0) return setError('Jumlah dibayar harus lebih dari 0')
-    if (differs && !reason.trim()) return setError('Jumlah dibayar berbeda dari tagihan; alasan wajib diisi')
+    if (needsReason && !reason.trim()) return setError('Jumlah dibayar berbeda dari tagihan; alasan wajib diisi')
     if (uploading) return setError('Tunggu foto selesai diunggah')
     setBusy(true)
     const err = await send('/api/bo/recurring-costs/pay', 'POST', {
@@ -570,7 +581,7 @@ function PayForm({ bill, cost, paidMonths, places, isOwner, today, prepayLimit, 
       occurredOn,
       moneyPlaceId: Number(placeId),
       amount: paid,
-      differenceReason: differs ? reason.trim() : null,
+      differenceReason: differs && reason.trim() ? reason.trim() : null,
       proofPhotoUrl: photo ?? undefined,
     })
     setBusy(false)
@@ -594,7 +605,7 @@ function PayForm({ bill, cost, paidMonths, places, isOwner, today, prepayLimit, 
           </div>
         </div>
         <div className="text-sm">
-          Tagihan {months.length} bulan: <span className="font-semibold">{IDR.format(billedTotal)}</span>
+          {cost.variableAmount ? 'Perkiraan' : 'Tagihan'} {months.length} bulan: <span className="font-semibold">{IDR.format(billedTotal)}</span>
           {months.length > 1 && <span className="text-muted-foreground"> (dicatat per bulan; uang keluar satu kali)</span>}
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -609,7 +620,9 @@ function PayForm({ bill, cost, paidMonths, places, isOwner, today, prepayLimit, 
         </div>
         {differs && (
           <div>
-            <label className="block text-sm font-medium mb-1">Alasan jumlah berbeda <span className="text-destructive">*</span></label>
+            <label className="block text-sm font-medium mb-1">
+              {needsReason ? <>Alasan jumlah berbeda <span className="text-destructive">*</span></> : <>Keterangan <span className="text-muted-foreground font-normal">(opsional — nominal berubah tiap bulan)</span></>}
+            </label>
             <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className={inputClass} placeholder="Mis. potongan dari pemilik" />
           </div>
         )}

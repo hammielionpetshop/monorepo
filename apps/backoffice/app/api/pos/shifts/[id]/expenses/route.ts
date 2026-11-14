@@ -102,12 +102,15 @@ export async function POST(
         return NextResponse.json({ error: 'Kategori tidak valid' }, { status: 400 });
       }
       const [category] = await db
-        .select({ id: expenseCategories.id })
+        .select({ id: expenseCategories.id, isActive: expenseCategories.isActive })
         .from(expenseCategories)
         .where(eq(expenseCategories.id, categoryId))
         .limit(1);
       if (!category) {
         return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 400 });
+      }
+      if (!category.isActive) {
+        return NextResponse.json({ error: 'Kategori ini sudah nonaktif, pilih kategori lain' }, { status: 400 });
       }
     }
 

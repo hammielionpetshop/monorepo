@@ -27,6 +27,8 @@ export interface ExpenseLink {
   id: number
   name: string
   cashFlowCategoryId: number | null
+  /** Nonaktif = tidak bisa dipilih kasir; catatan lama tetap. */
+  isActive: boolean
 }
 
 export const TYPE_LABELS: Record<CashFlowType, string> = {
