@@ -9,14 +9,24 @@ Bagian HRIS berlaku pada `dev_hris`/`staging`; package, perintah, dan dokumen HR
 ```
 hammielion-monorepo/
 ├── apps/
-│   ├── backoffice/       # Next.js 15 — dashboard admin & manajemen
-│   ├── pos-desktop/      # Electron + Vite + React 19 — POS offline desktop
-│   └── db-compare/       # CLI utility — compare & migrate DB
+│   ├── backoffice/       # Next.js 15 — Back Office + POS web (app/pos/), port 6969; juga API /api/gateway/*
+│   ├── hris/             # Next.js — HRIS (port 7171); satu app dua alamat: HRIS & Logistik (F2-7b)
+│   ├── finance/          # Next.js — web Finance baca-saja (port 7272), role DB finance_app (SELECT saja)
+│   ├── gateway/          # React + Vite — Halaman Awal app.* (port 6980), image Caddy statis (F2-7a)
+│   ├── order-web/        # Next.js — portal pesanan pelanggan (port 7070)
+│   └── pos-desktop/      # Electron — DIBEKUKAN, dikecualikan dari build/typecheck/lint/test umum
 ├── packages/
-│   ├── @petshop/db       # Drizzle ORM — schema & DB factory
+│   ├── @petshop/db       # Drizzle ORM — schema petshop & DB factory
+│   ├── @petshop/auth     # Akun pusat, sesi, kredensial (schema auth)
+│   ├── @petshop/hris-db  # Schema & akses DB hris
+│   ├── @petshop/logistics # Schema & aturan logistics
+│   ├── @petshop/db-roles # Role DB per aplikasi (stg_*/app roles)
 │   └── @petshop/shared   # Shared types, Zod schemas, utilities
 └── docs/
 ```
+
+App HRIS, Finance, dan Gateway dikembangkan lewat `dev_hris` dan baru tayang di staging; produksi
+menunggu rilis HRIS (lihat `docs/work/WIP.md`). Alamat staging dan env-nya: `infra/staging/README.md`.
 
 **Versi dependency:** cek `package.json` dan lockfile; tabel di bawah adalah referensi historis, bukan patokan upgrade.
 

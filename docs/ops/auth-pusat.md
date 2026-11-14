@@ -46,6 +46,24 @@ divalidasi `check-env.mjs` sebelum migrasi; lihat `infra/staging/README.md`.
 4. Periksa: login password, login PIN, pilih cabang, onboarding akun baru, logout, dan sesi HRIS.
 5. Pantau `auth.login_events` dan galat aplikasi selama jam sibuk pertama.
 
+## Sesudah cutover: web lain (Fase 2)
+
+Halaman Awal (gateway), Finance, dan web Logistik hanya bekerja dalam mode `central`, jadi baru
+dipasang di produksi **sesudah** cutover di atas dan bersama rilis HRIS (keputusan owner 2026-11-14:
+waktunya ditentukan owner). Sampai 2026-11-14 konfigurasinya **hanya ada di staging**
+(`infra/staging/docker-compose.yml`, `infra/staging/README.md` bagian Web gateway & Web Logistik);
+konfigurasi produksi belum dibuat dan menjadi bagian pekerjaan rilis HRIS:
+
+1. Situs Caddy produksi `app.`, `finance.`, `logistik.`, `hris.hammielion.com` (wildcard DNS sudah
+   mengarah ke VPS) dengan pola yang sama seperti staging: `/api/gateway/*` diteruskan ke backoffice,
+   `/api/internal` ditolak dari luar.
+2. Padanan produksi dari `STAGING_GATEWAY_ORIGIN`, `STAGING_FINANCE_ORIGIN`, `STAGING_LOGISTICS_ORIGIN`
+   (origin tepercaya dan tujuan tombol Pindah web).
+3. Role DB `finance_app` (SELECT saja, `packages/db-roles`) dengan password produksi sendiri, dibuat
+   lewat migrator — bukan dari laptop.
+4. Spec acuan: F2-6 (`docs/work/specs/2026-11-12-f2-6-modul-finance-design.md`), F2-7a, F2-7b
+   (`docs/work/specs/2026-11-14-f2-7{a,b}-*.md`).
+
 ## Rollback
 
 Membalik env saja **tidak cukup**: sesi yang hidup bisa menghidupkan kembali akses yang

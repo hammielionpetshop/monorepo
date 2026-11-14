@@ -63,11 +63,14 @@ ditampilkan di hris, sampai ada webnya, jika web sudah ada baru disambungkan".
 - ✅ Rumus & pembacaan data Finance dibuat sebagai modul tersendiri (bertes), tidak di HRIS, tidak
   di menu mana pun.
 - 💡 Ditambah **web Finance sederhana khusus staging** (hanya Owner/GM, tanpa domain produksi)
-  supaya owner bisa menguji angka; tidak masuk produksi sampai web resmi siap. ❓ belum diputuskan.
+  supaya owner bisa menguji angka; tidak masuk produksi sampai web resmi siap. ✅ disetujui di spec F2-6
+  (2026-11-12); web Finance ikut produksi saat rilis HRIS (keputusan owner 2026-11-14).
 
 ## 6. Alamat web
 
-**Diputuskan dev asli** ✅ — PRD tidak menetapkan domain/subdomain.
+**Diputuskan dev asli** ✅ — PRD tidak menetapkan domain/subdomain. Ditetapkan di spec F2-7a/F2-7b
+(2026-11-14): Halaman Awal `app.hammielion.com` (staging `app.staginghml.my.id`), Finance
+`finance.…`, Logistik `logistik.…` (satu app HRIS dua alamat).
 
 ## 7. Kriteria selesai (bagian Belakangan)
 
@@ -78,5 +81,5 @@ ditampilkan di hris, sampai ada webnya, jika web sudah ada baru disambungkan".
 
 ## 8. Pertanyaan terbuka
 
-- ❓ Web Finance khusus staging untuk uji (§5).
-- 🗣️ Siapa saja yang mendapat hak web Finance dan Logistik (dibahas saat F2-6 / pemisahan).
+- ✅ Web Finance khusus staging untuk uji (§5) — spec F2-6.
+- ✅ Hak web: Finance tetap Owner/GM (spec F2-7a); hak Logistik dari hak jabatan (spec F2-7b).

@@ -83,5 +83,5 @@ Bahan diskusi (belum keputusan):
 
 ## 8. Pertanyaan terbuka
 
-- ❓ Utang lama (§7).
-- ❓ Batas umur "merah" di Back Office (mis. > 30 hari)?
+- ✅ Utang lama (§7) — spec F2-3b (disetujui owner 2026-11-08).
+- ✅ Batas umur merah Utang Internal **30 hari** (bisa diubah di pengaturan) — spec F2-3.

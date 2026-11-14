@@ -64,5 +64,6 @@ Setiap kotak angka punya tombol **Cara membaca** dengan susunan tetap:
 
 ## 6. Pertanyaan terbuka
 
-- ❓ Web Finance khusus staging untuk uji (01 §5).
+- ✅ Web Finance khusus staging untuk uji (01 §5) — spec F2-6; bagian-bagiannya F2-6a s.d. F2-6f
+  (status di README).
 - 🗣️ Hal-hal §4.
