@@ -15,6 +15,7 @@ interface Props {
   categories: CashFlowCategoryOption[]
   places: MoneyPlaceOption[]
   branches: BranchOption[]
+  closedMonths: string[]
   currentUserName: string
   activeBranchId: number
   canRecord: boolean
@@ -39,7 +40,7 @@ function formatDate(value: string): string {
   return formatWIB(`${value}T12:00:00+07:00`, { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function EntryClient({ categories, places, branches, currentUserName, activeBranchId, canRecord, isOwner, today }: Props) {
+export default function EntryClient({ categories, places, branches, closedMonths, currentUserName, activeBranchId, canRecord, isOwner, today }: Props) {
   const [entries, setEntries] = useState<CashFlowEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterType>('ALL')
@@ -149,6 +150,11 @@ export default function EntryClient({ categories, places, branches, currentUserN
         <div className="whitespace-nowrap">
           <div className={row.original.cancelledAt ? 'line-through text-muted-foreground' : 'text-foreground'}>{formatDate(row.original.occurredOn)}</div>
           <div className="text-xs text-muted-foreground">untuk {monthLabel(row.original.forMonth)}</div>
+          {row.original.correctionReason && (
+            <div className="mt-1 max-w-[220px] whitespace-normal rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">
+              <span className="font-semibold">Koreksi {monthLabel(row.original.forMonth)}:</span> {row.original.correctionReason}
+            </div>
+          )}
         </div>
       ),
     },
@@ -259,6 +265,7 @@ export default function EntryClient({ categories, places, branches, currentUserN
               categories={categories}
               places={places}
               branches={branches}
+              closedMonths={closedMonths}
               currentUserName={currentUserName}
               activeBranchId={activeBranchId}
               isOwner={isOwner}

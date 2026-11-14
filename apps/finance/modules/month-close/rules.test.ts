@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildProfitLoss } from '@/modules/profit-loss';
-import { checkClose, closableMonth, confirmLabel, countOpenItems, monthStates, netChange, overdueMonths, profitLossChanges } from './rules';
+import {
+  checkClose, closableMonth, confirmLabel, correctionEffect, countOpenItems, monthStates, netChange, overdueMonths, profitLossChanges,
+  restatement, type Correction,
+} from './rules';
 
 describe('urutan bulan', () => {
   it('bulan berjalan tidak bisa ditutup; yang bisa = bulan lewat tertua yang belum ditutup', () => {
@@ -70,3 +73,34 @@ describe('Hitung Kas akhir bulan', () => {
     ]);
   });
 });
+
+describe('Koreksi bulan lalu & penyajian kembali (F2-6f §5)', () => {
+  const branches = [{ id: 1, name: 'Toko A', isActive: true }];
+  const sale = { branchId: 1, sales: 1_000_000, returns: 0, revisionRevenue: 0, cogs: 600_000, returnCogs: 0, damaged: 0, costAdjustment: 0 };
+  const fix = (over: Partial<Correction> = {}): Correction => ({
+    id: 1, occurredOn: '2026-12-03', branchName: 'Toko A', category: 'Listrik', type: 'EXPENSE', reportKind: 'COST',
+    amount: 20_000, reason: 'listrik November lupa dicatat', createdByName: 'Finance', ...over,
+  });
+  const listrik = { branchId: 1, group: 'CATEGORY' as const, kind: 'COST' as const, category: 'Listrik', amount: 20_000, date: '2026-12-03', label: 'Listrik', source: 'BO' as const, ref: 'cf:1' };
+
+  it('pengaruh ke laba: biaya mengurangi, pendapatan lain menambah, jenis lain nol', () => {
+    expect(correctionEffect(fix())).toBe(-20_000);
+    expect(correctionEffect(fix({ type: 'INCOME', reportKind: 'INCOME' }))).toBe(20_000);
+    expect(correctionEffect(fix({ reportKind: 'NON_COST' }))).toBe(0);
+  });
+
+  it('saat ditutup → koreksi → perubahan lain → disajikan kembali', () => {
+    const closed = buildProfitLoss({ branches, sales: [sale], costs: [], internalSales: 0 });
+    // Sesudah ditutup: listrik lupa dicatat (koreksi) dan satu slip HRIS ditutup terlambat (perubahan lain).
+    const live = buildProfitLoss({
+      branches,
+      sales: [sale],
+      costs: [listrik, { branchId: null, group: 'PAYROLL', kind: 'COST', category: null, amount: 50_000, date: '2026-11-25', label: 'slip', source: 'HRIS', ref: 'p1' }],
+      internalSales: 0,
+    });
+    expect(restatement(closed, live, [fix()])).toEqual({ closed: 400_000, corrections: -20_000, other: -50_000, restated: 330_000 });
+    // Tanpa perubahan apa pun.
+    expect(restatement(closed, closed, [])).toEqual({ closed: 400_000, corrections: 0, other: 0, restated: 400_000 });
+  });
+});
+
