@@ -33,14 +33,14 @@ function sameSecret(given: string | null, expected: string): boolean {
 
 /**
  * Pagar pintu internal HRIS (dipanggil Back Office di jaringan dalam). Semua penolakan = false, rute menjawab 404 polos.
- * Berlapis: kunci layanan, host internal, dan tanpa header proxy (permintaan dari luar selalu lewat Caddy).
+ * Berlapis: Caddy menolak `/api/internal` dari luar, host harus alamat dalam, dan kunci layanan. Header
+ * `x-forwarded-*` tidak bisa dipakai pembeda karena server Next.js mengisinya sendiri untuk setiap permintaan.
  */
 export function internalCallAllowed(req: Request): boolean {
   const key = process.env.HRIS_INTERNAL_KEY;
   const hosts = (process.env.INTERNAL_ALLOWED_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
   if (!key || key.length < 32 || !hosts.length) return false;
   if (!hosts.includes((req.headers.get('host') ?? '').toLowerCase())) return false;
-  if (req.headers.get('x-forwarded-for') || req.headers.get('x-forwarded-host')) return false;
   return sameSecret(req.headers.get('x-internal-key'), key);
 }
 
