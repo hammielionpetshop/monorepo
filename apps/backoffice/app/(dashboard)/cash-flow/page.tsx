@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
-import { db, cashFlowCategories, moneyPlaces, branches, eq, ne, and, asc } from '@/lib/db'
+import { db, cashFlowCategories, moneyPlaces, branches, monthClosings, eq, ne, and, asc, desc } from '@/lib/db'
 import EntryClient from './_components/entry-client'
 import type { BranchOption, CashFlowCategoryOption, MoneyPlaceOption } from './_components/types'
 
@@ -14,6 +14,7 @@ export default async function CashFlowPage() {
   let categories: CashFlowCategoryOption[] = []
   let places: MoneyPlaceOption[] = []
   let branchOptions: BranchOption[] = []
+  let closedMonths: string[] = []
   let error: string | null = null
 
   try {
@@ -41,6 +42,9 @@ export default async function CashFlowPage() {
       .from(branches)
       .where(eq(branches.isActive, true))
       .orderBy(asc(branches.name))
+    // F2-6f-3: bulan yang sudah ditutup di Finance (pilihan bulan asal Koreksi bulan lalu), terbaru dulu.
+    closedMonths = (await db.select({ month: monthClosings.month }).from(monthClosings).orderBy(desc(monthClosings.month)))
+      .map((r) => String(r.month).slice(0, 7))
   } catch (e) {
     console.error('CashFlowPage error:', e)
     error = 'Terjadi kesalahan saat mengambil data'
@@ -71,6 +75,7 @@ export default async function CashFlowPage() {
         categories={categories}
         places={places}
         branches={branchOptions}
+        closedMonths={closedMonths}
         currentUserName={payload.userName}
         activeBranchId={payload.branchId}
         canRecord={canRecord}

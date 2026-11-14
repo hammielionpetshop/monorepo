@@ -111,6 +111,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/bebaskan-hutang-supplier': '2026-11-11', // tombol Bebaskan Hutang + tab Dihapus di Hutang Supplier (samakan dengan tanggal rilis saat merge)
   'fitur/po-dokumen-harga': '2026-11-11', // centang Tampilkan harga di PDF/foto PO Supplier (samakan dengan tanggal rilis saat merge)
   'fitur/saldo-awal-tempat-uang': '2026-11-12', // kolom Saldo awal 1 Nov 2026 di Tempat Uang, F2-6a-1 (rilis 1.107.132)
+  'fitur/koreksi-bulan-lalu': '2026-11-14', // Koreksi bulan lalu di Arus Kas, F2-6f-3 (ganti tanggal rilis produksi saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

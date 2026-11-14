@@ -117,4 +117,33 @@ describe('Tutup Bulan (DB lokal)', () => {
     // Sesudah transaksi dibatalkan (November terbuka lagi di DB uji), catatan lama bisa dibatalkan seperti biasa.
     await db.update(moneyTransfers).set(cancel).where(eq(moneyTransfers.id, oldTransfer.id))
   })
+
+  it('Koreksi bulan lalu (F2-6f-3): boleh ke bulan tertutup, ditolak ke bulan terbuka, dan bisa dibatalkan', async () => {
+    const reason = 'listrik November lupa dicatat'
+    await withNovemberClosed(async (tx) => {
+      // Catatan biasa Untuk bulan November tetap ditolak, pesannya mengarahkan ke Koreksi bulan lalu.
+      await expectClosed(tx, (sp) => sp.insert(cashFlowEntries).values(entry({ occurredOn: '2026-12-03' })))
+      const [fix] = await tx.insert(cashFlowEntries)
+        .values(entry({ occurredOn: '2026-12-03', correctionReason: reason })).returning()
+      expect(fix.correctionReason).toBe(reason)
+      // Tanggal uang di bulan tertutup tetap ditolak walau koreksi.
+      await expectClosed(tx, (sp) => sp.insert(cashFlowEntries).values(entry({ occurredOn: '2026-11-30', forMonth: '2026-10-01', correctionReason: reason })))
+      // Batal koreksi (tanggal uang Desember) diterima.
+      await tx.update(cashFlowEntries).set({ cancelledAt: new Date(), cancelledBy: userId, cancelReason: 'salah jumlah' })
+        .where(eq(cashFlowEntries.id, fix.id))
+    })
+
+    // Bulan asal yang belum ditutup: HM002.
+    let caught: unknown = null
+    try {
+      await db.insert(cashFlowEntries).values(entry({ occurredOn: '2026-12-03', correctionReason: reason }))
+    } catch (error) {
+      caught = error
+    }
+    expect(closedMonthMessage(caught)).toMatch(/^Koreksi bulan lalu hanya untuk bulan yang sudah ditutup/)
+
+    // CHECK: alasan pendek atau bulan asal tidak sebelum tanggal uang ditolak.
+    await expect(db.insert(cashFlowEntries).values(entry({ occurredOn: '2026-12-03', correctionReason: 'abc' }))).rejects.toThrow()
+    await expect(db.insert(cashFlowEntries).values(entry({ occurredOn: '2026-11-05', correctionReason: reason }))).rejects.toThrow()
+  })
 })

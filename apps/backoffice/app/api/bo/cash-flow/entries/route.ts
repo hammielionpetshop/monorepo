@@ -22,6 +22,8 @@ const createSchema = z.object({
   branchId: z.number().int().positive().nullable(),
   moneyPlaceId: z.number({ message: 'Tempat Uang wajib dipilih' }).int().positive('Tempat Uang wajib dipilih'),
   proofPhotoUrl: proofPhotoUrlSchema,
+  // F2-6f-3: diisi = Koreksi bulan lalu (Untuk bulan = bulan asal yang sudah ditutup).
+  correctionReason: z.string().trim().max(255, 'Alasan koreksi maksimal 255 karakter').optional(),
 })
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
         cancelledAt: cashFlowEntries.cancelledAt,
         cancelledByName: canceller.name,
         cancelReason: cashFlowEntries.cancelReason,
+        correctionReason: cashFlowEntries.correctionReason,
         recurringCostId: recurringCostPayments.recurringCostId,
       })
       .from(cashFlowEntries)
@@ -144,6 +147,7 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data
     const note = data.note?.trim() ? data.note.trim() : null
+    const correctionReason = data.correctionReason === undefined ? null : data.correctionReason.trim()
 
     const created = await db.transaction(async (trx) => {
       const [category] = await trx
@@ -175,6 +179,7 @@ export async function POST(req: NextRequest) {
         place: place ?? null,
         isOwner: payload.role === 'OWNER',
         today: todayWibDate(),
+        correctionReason,
       })
       if (error) throw new EntryRuleError(error)
 
@@ -190,6 +195,7 @@ export async function POST(req: NextRequest) {
           forMonth: monthStart(data.forMonth),
           moneyPlaceId: data.moneyPlaceId,
           proofPhotoUrl: data.proofPhotoUrl ?? null,
+          correctionReason,
           createdBy: payload.userId,
         })
         .returning()
