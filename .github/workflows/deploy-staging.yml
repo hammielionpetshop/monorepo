@@ -39,6 +39,10 @@ jobs:
           - image: finance
             target: runner
             app_name: finance
+          - image: gateway
+            target: runner
+            app_name: gateway
+            file: apps/gateway/Dockerfile
           - image: migrator
             target: migrator
             app_name: backoffice
@@ -63,7 +67,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/apps/Dockerfile
+          file: ${{ matrix.file || 'infra/apps/Dockerfile' }}
           target: ${{ matrix.target }}
           build-args: APP_NAME=${{ matrix.app_name }}
           push: true
