@@ -3,14 +3,17 @@ import { redirect } from 'next/navigation';
 import { NewBadge } from '@/components/ui/new-badge';
 import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
+import { isLogisticsPath, webOriginsFromEnv } from '@/lib/web-split';
+import { currentWeb } from '@/lib/web-split-server';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { followupAttention, kasirChangeAttention, logisticsAttention, moneyCheckAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, shortHandoverAttention, unrecordedCounts, depositAttention } from '@/modules/logistics';
+import { followupAttention, kasirChangeAttention, logisticsAttention, moneyCheckAttention, myTripMenuVisible, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, shortHandoverAttention, unrecordedCounts, depositAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
 import { missingSalaryCount, myPayAttention, objectionAttention, overpayAttention, rupiah, tripWageAttention, unloadingAttention, weeklyPayCard } from '@/modules/payroll';
 import { waitingSummary } from '@/modules/requests';
+import { shellSettingsToday } from '@/modules/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +30,10 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
+  // Web Logistik di alamat sendiri (spec F2-7b §4): kartu Logistik hanya di Beranda Logistik, sisanya hanya di HRIS.
+  const origins = webOriginsFromEnv();
+  const web = await currentWeb();
+  const split = !!origins.logistics;
   const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck, shortHandover, deposits] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
@@ -144,6 +151,12 @@ export default async function HomePage() {
   // Keberatan slip disetujui lebih dari 2 hari tanpa pembetulan (GAJ-111).
   if (objection.system) system.push({ key: 'objection-late', ...objection.system, tone: 'danger', badge: 'fitur/beranda-keberatan-slip' });
 
+  const forWeb = (cards: AttentionCard[]) => (split ? cards.filter((card) => isLogisticsPath(card.href) === (web === 'logistik')) : cards);
+  const mineHere = forWeb(mine);
+  const systemHere = forWeb(system);
+  // Kotak pintas driver/kenek ke web Logistik (PRD Fase 2 §3).
+  const tripShortcut = split && web === 'hris' && actor ? await myTripMenuVisible(actor, (await shellSettingsToday()).today) : false;
+
   const cardList = (cards: AttentionCard[]) => (
     <div className="grid gap-2 sm:grid-cols-2">
       {cards.map((card) => (
@@ -161,11 +174,18 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Beranda" description="Ringkasan hal yang perlu perhatian Anda." />
+      <PageHeader title={web === 'logistik' ? 'Beranda Logistik' : 'Beranda'} description="Ringkasan hal yang perlu perhatian Anda." />
+
+      {tripShortcut && (
+        <a href={`${origins.logistics}/trip-saya`} className="block rounded-card border border-l-4 border-line border-l-brand-600 bg-surface p-4 hover:bg-canvas">
+          <p className="flex items-center gap-2 font-medium">Trip Saya hari ini <NewBadge feature="fitur/web-logistik" /></p>
+          <p className="text-sm text-ink-muted">Buka web Logistik untuk trip, foto, dan uang toko</p>
+        </a>
+      )}
 
       <section className="space-y-2">
         <h2 className="flex items-center gap-2 font-semibold">Perlu perhatian saya <NewBadge feature="fitur/beranda-perlu-perhatian" /></h2>
-        {mine.length ? cardList(mine) : (
+        {mineHere.length ? cardList(mineHere) : (
           <Card><EmptyState title="Tidak ada yang menunggu Anda" /></Card>
         )}
       </section>
@@ -173,7 +193,7 @@ export default async function HomePage() {
       {actor?.fullAccess && (
         <section className="space-y-2">
           <h2 className="font-semibold">Perlu perhatian sistem</h2>
-          {system.length ? cardList(system) : <p className="text-sm text-ink-muted">Tidak ada.</p>}
+          {systemHere.length ? cardList(systemHere) : <p className="text-sm text-ink-muted">Tidak ada.</p>}
         </section>
       )}
 

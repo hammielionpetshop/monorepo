@@ -9,6 +9,8 @@
  *   rilis produksi di branch rilis.
  */
 export const NEW_FEATURES: Record<string, string> = {
+  // F2-7b web Logistik di alamat sendiri: kotak pintas Trip Saya di Beranda HRIS (tayang staging 2026-11-14)
+  'fitur/web-logistik': '2026-11-14',
   // F2-7a tombol Pindah web ke gateway (tayang staging 2026-11-14)
   'fitur/pindah-web': '2026-11-14',
   // L2e Pengaturan bertanggal (tayang staging 2026-11-01)

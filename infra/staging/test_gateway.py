@@ -42,6 +42,17 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 gateway.render({**self.values, 'DOMAIN_STAGING_GATEWAY': bad})
 
+    def test_logistik_diteruskan_ke_hris_dan_pintu_internal_ditolak(self):
+        self.assertNotIn('logistik.staginghml.my.id', gateway.render(self.values))
+        text = gateway.render({**self.values, 'DOMAIN_STAGING_LOGISTICS': 'logistik.staginghml.my.id'})
+        site = text[text.index('logistik.staginghml.my.id {'):]
+        self.assertLess(site.index('respond @internal 404'), site.index('reverse_proxy hris-staging:3000'))
+        self.assertIn('respond @jobs 404', site)
+        self.assertIn('X-Robots-Tag', site)
+        for bad in ('logistik.hammielion.com', 'hris.staginghml.my.id'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gateway.render({**self.values, 'DOMAIN_STAGING_LOGISTICS': bad})
+
     def test_input_tidak_valid_ditolak_sebelum_mengubah_server(self):
         for key, value in [
             ('DOMAIN_STAGING_HRIS', 'hris.hammielion.com'),

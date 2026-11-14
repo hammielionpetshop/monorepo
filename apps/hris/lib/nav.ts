@@ -188,6 +188,28 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** Menu yang tetap ada di web Logistik selain kelompok Logistik (spec F2-7b §4). */
+const LOGISTICS_WEB_MENU = ['/', '/trip-saya', '/pemberitahuan'];
+
+/**
+ * Menu per web bila Logistik punya alamat sendiri (spec F2-7b §3): web Logistik hanya Beranda, Trip Saya,
+ * Pemberitahuan, dan kelompok Logistik; HRIS tanpa kelompok Logistik dan Trip Saya. `split` false = tidak berubah.
+ */
+export function navForWeb(groups: NavGroup[], web: 'hris' | 'logistik', split: boolean): NavGroup[] {
+  if (!split) return groups;
+  return groups
+    .map((group) => {
+      const logistics = group.id === 'logistics';
+      return {
+        ...group,
+        items: group.items.filter((item) => (web === 'logistik'
+          ? logistics || LOGISTICS_WEB_MENU.includes(item.href)
+          : !logistics && item.href !== '/trip-saya')),
+      };
+    })
+    .filter((group) => group.items.length > 0);
+}
+
 /** Bilah bawah HP memuat paling banyak sekian tombol (termasuk tombol Menu). */
 export const MOBILE_BAR_SLOTS = 4;
 

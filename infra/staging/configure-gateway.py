@@ -74,6 +74,26 @@ def render(values):
     }}
 }}
 ''')
+    # Web Logistik F2-7b: dijalankan container HRIS di alamat sendiri; opsional seperti gateway.
+    logistics_domain = values.get('DOMAIN_STAGING_LOGISTICS', '')
+    if logistics_domain:
+        if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.staginghml\.my\.id', logistics_domain):
+            raise ValueError('Domain staging harus subdomain staginghml.my.id yang valid.')
+        domains.append(logistics_domain)
+        sites.append(f'''{logistics_domain} {{
+    encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow"
+    route {{
+        @jobs path /api/jobs /api/jobs/*
+        respond @jobs 404
+        @internal path /api/internal /api/internal/*
+        respond @internal 404
+        handle {{
+            reverse_proxy hris-staging:3000
+        }}
+    }}
+}}
+''')
     if len(set(domains)) != len(domains):
         raise ValueError('Setiap aplikasi staging harus punya domain berbeda.')
     return '\n'.join(sites)

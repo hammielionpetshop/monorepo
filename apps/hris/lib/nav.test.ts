@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_GROUPS, mobileBar, visibleNav, type NavGroup } from './nav';
+import { NAV_GROUPS, mobileBar, navForWeb, visibleNav, type NavGroup } from './nav';
 
 const groups: NavGroup[] = [
   { id: 'main', items: [{ href: '/', label: 'Beranda', icon: 'home', mobile: true }] },
@@ -56,4 +56,24 @@ describe('mobileBar', () => {
 it('tiap alamat menu hanya muncul sekali', () => {
   const hrefs = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.href));
   expect(hrefs.filter((href, index) => hrefs.indexOf(href) !== index)).toEqual([]);
+});
+
+describe('navForWeb (F2-7b §3)', () => {
+  const hrefs = (groups: ReturnType<typeof navForWeb>) => groups.flatMap((group) => group.items.map((item) => item.href));
+
+  it('tanpa pemisahan: menu tidak berubah', () => {
+    expect(navForWeb(NAV_GROUPS, 'logistik', false)).toBe(NAV_GROUPS);
+  });
+
+  it('web Logistik: hanya Beranda, Trip Saya, Pemberitahuan, dan kelompok Logistik', () => {
+    const list = hrefs(navForWeb(NAV_GROUPS, 'logistik', true));
+    expect(list).toEqual(expect.arrayContaining(['/', '/trip-saya', '/pemberitahuan', '/logistik/trip', '/logistik/sewa-mobil']));
+    expect(list.every((href) => ['/', '/trip-saya', '/pemberitahuan'].includes(href) || href.startsWith('/logistik/'))).toBe(true);
+  });
+
+  it('web HRIS: tanpa kelompok Logistik dan Trip Saya; Absen Trip dan Upah Ritase tetap', () => {
+    const list = hrefs(navForWeb(NAV_GROUPS, 'hris', true));
+    expect(list.some((href) => href.startsWith('/logistik') || href === '/trip-saya')).toBe(false);
+    expect(list).toEqual(expect.arrayContaining(['/kehadiran/absen-trip', '/gaji/upah-ritase', '/pengaturan/tarif-ritase']));
+  });
 });
