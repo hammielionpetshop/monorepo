@@ -149,11 +149,11 @@ export function ProfileScreen({ profile, identity }: { profile: OwnProfile; iden
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">Data identitas</h2>
             {identity.pendingId ? (
-              <Link href={`/pengajuan/${identity.pendingId}`}><Badge tone="warn">Menunggu HR</Badge></Link>
+              <Link href={`/requests/${identity.pendingId}`}><Badge tone="warn">Menunggu HR</Badge></Link>
             ) : identity.canRequest && (
               <span className="flex items-center gap-2">
                 <NewBadge feature="fitur/ajukan-ubah-data-diri" />
-                <Link href="/pengajuan/baru/identity_change" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Ajukan perubahan</Link>
+                <Link href="/requests/new/identity_change" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Ajukan perubahan</Link>
               </span>
             )}
           </div>

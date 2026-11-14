@@ -168,10 +168,10 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
         if (account) {
           await notify(tx, [account], {
             kind: 'payslip.paid', title: `Gaji ${slipPhrase(slip)} ${rupiah(net)} sudah dibayar.`,
-            body: `Tanggal ${longDate(moneyDate)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]}.`, entity: 'payslip', entityId: slip.id, link: `/pendapatan/slip/${slip.id}`,
+            body: `Tanggal ${longDate(moneyDate)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]}.`, entity: 'payslip', entityId: slip.id, link: `/earnings/payslips/${slip.id}`,
           }, actor.accountId);
         }
-        if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menandai Dibayar slip gajinya sendiri ${slip.number}`, link: `/gaji/slip/${slip.id}`, entity: 'payslip', entityId: slip.id });
+        if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menandai Dibayar slip gajinya sendiri ${slip.number}`, link: `/payroll/payslips/${slip.id}`, entity: 'payslip', entityId: slip.id });
         return net;
       });
       outcomes.push(out('PAID', `${rupiah(paid)} dibayar`, paid));
@@ -214,10 +214,10 @@ export async function cancelPayment(actor: Actor | null, slipId: number, reasonI
     if (account) {
       await notify(tx, [account], {
         kind: 'payslip.payment_cancelled', title: `Pembayaran gaji ${slipPhrase(slip)} dibatalkan.`, body: `Alasan: ${reason}`,
-        entity: 'payslip', entityId: slip.id, link: `/pendapatan/slip/${slip.id}`,
+        entity: 'payslip', entityId: slip.id, link: `/earnings/payslips/${slip.id}`,
       }, actor!.accountId);
     }
-    await announce(tx, actor!.accountId, { what: `membatalkan pembayaran slip ${slip.number} ${person.name} ${rupiah(payment.amount)}: ${reason}`, link: `/gaji/slip/${slip.id}`, entity: 'payslip', entityId: slip.id });
+    await announce(tx, actor!.accountId, { what: `membatalkan pembayaran slip ${slip.number} ${person.name} ${rupiah(payment.amount)}: ${reason}`, link: `/payroll/payslips/${slip.id}`, entity: 'payslip', entityId: slip.id });
     return { ok: true as const, data: { effect: `Pembayaran ${rupiah(payment.amount)} dibatalkan. Slip ${slip.number} kembali Ditutup dan masuk Jadwal Bayar. ${person.name} dan pemilik lain diberi tahu.` } };
   });
 }
@@ -465,7 +465,7 @@ export async function runPayslipPayReminder(now: Date = new Date()) {
     const since = late.reduce((min, u) => (u.due < min ? u.due : min), late[0].due);
     await db.transaction((tx) => notify(tx, [...owners.values()], {
       kind: 'payslip.pay_reminder', title: `Ada ${late.length} slip ${g.label} belum ditandai Dibayar, sejak ${longDate(since)}.`,
-      body: `Jumlah ${rupiah(late.reduce((s, u) => s + (u.slip.net ?? 0), 0))}.`, link: '/gaji/jadwal-bayar',
+      body: `Jumlah ${rupiah(late.reduce((s, u) => s + (u.slip.net ?? 0), 0))}.`, link: '/payroll/pay-schedule',
     }, null));
     sent.push({ period: g.period, count: late.length });
   }

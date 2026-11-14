@@ -27,7 +27,7 @@ export function SalaryCorrectionForm({ data }: { data: Data }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const back = `/gaji/${data.person.id}`;
+  const back = `/payroll/${data.person.id}`;
   const typeName = new Map(data.types.map((t) => [t.id, t.name]));
   const parsed: SalaryLine[] = lines.map((l) => ({ componentTypeId: l.componentTypeId, amount: Number(l.amount.replace(/\D/g, '')) }));
   const unused = data.types.filter((t) => !lines.some((l) => l.componentTypeId === t.id));

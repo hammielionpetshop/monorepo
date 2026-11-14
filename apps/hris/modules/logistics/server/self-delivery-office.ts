@@ -156,13 +156,13 @@ export async function closeSelfTrip(actor: Actor | null, tripId: number, reason:
       await notify(tx, await accountsOf([trip.employeeId]), {
         kind: 'logistics.self_closed', title: `Perjalanan antar ${trip.number} ditutup kantor`,
         body: `${clean.text}. Tujuan yang belum selesai kembali ke daftar tugas.${cash > 0 ? ` Serahkan tunai ${rupiah(cash)} ke laci cabang.` : ''}`,
-        link: '/logistik/antar-sendiri', entity: 'self_trip', entityId: tripId,
+        link: '/logistics/self-delivery', entity: 'self_trip', entityId: tripId,
       }, actor.accountId);
       if (cash > 0) {
         await notify(tx, (await branchAccounts(trip.branchId, CASH)).filter((a) => a !== trip.accountId), {
           kind: 'logistics.self_cash', title: `Terima tunai ${rupiah(cash)} dari antar ${trip.number}`,
           body: 'Perjalanan ditutup kantor. Hitung uangnya, masukkan ke laci, lalu tekan Sudah diterima.',
-          link: '/logistik/antar-sendiri/kantor?tab=CASH', entity: 'self_trip', entityId: tripId,
+          link: '/logistics/self-delivery/office?tab=CASH', entity: 'self_trip', entityId: tripId,
         }, actor.accountId);
       }
       return { ok: true as const, data: { cash } };
@@ -212,7 +212,7 @@ export async function handoverSelfTrip(actor: Actor | null, tripId: number, toEm
       });
       await notify(tx, [account, ...(await accountsOf([trip.employeeId]))], {
         kind: 'logistics.self_handover', title: `PJ antar ${trip.number} dialihkan`,
-        body: `${clean.text}. Lanjutkan Foto 2 dan Foto 3 dari Antar Sendiri.`, link: '/logistik/antar-sendiri', entity: 'self_trip', entityId: tripId,
+        body: `${clean.text}. Lanjutkan Foto 2 dan Foto 3 dari Antar Sendiri.`, link: '/logistics/self-delivery', entity: 'self_trip', entityId: tripId,
       }, actor.accountId);
       return { ok: true as const, data: undefined };
     });

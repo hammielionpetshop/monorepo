@@ -62,7 +62,7 @@ export function DriverFineForm({ today, date, minDate, direct, note, minDescript
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(direct ? 'Denda berlaku. Orangnya diberi tahu.' : String(result.data?.message ?? 'Usulan terkirim.'), 'ok');
-    router.push('/gaji/denda-driver');
+    router.push('/payroll/driver-fines');
     router.refresh();
   }
 
@@ -127,7 +127,7 @@ export function DriverFineForm({ today, date, minDate, direct, note, minDescript
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/denda-driver">Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/driver-fines">Batal</Link>}
         {step < 4 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{direct ? 'Simpan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

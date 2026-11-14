@@ -44,7 +44,7 @@ type Ask =
 /** Layar kantor Antar Sendiri (spec LT1 §15.3). */
 export function SelfDeliveryOfficeScreen({ data }: { data: SelfDeliveryOfficeData }) {
   const [ask, setAsk] = useState<Ask>(null);
-  const tabHref = (tab: OfficeTab) => `/logistik/antar-sendiri/kantor?tab=${tab}${data.branchId ? `&cabang=${data.branchId}` : ''}`;
+  const tabHref = (tab: OfficeTab) => `/logistics/self-delivery/office?tab=${tab}${data.branchId ? `&cabang=${data.branchId}` : ''}`;
   return (
     <div className="space-y-4">
       <nav className="flex flex-wrap gap-2">
@@ -55,7 +55,7 @@ export function SelfDeliveryOfficeScreen({ data }: { data: SelfDeliveryOfficeDat
         ))}
       </nav>
       {data.branches.length > 1 && (
-        <form action="/logistik/antar-sendiri/kantor" className="flex flex-wrap items-end gap-2">
+        <form action="/logistics/self-delivery/office" className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="tab" value={data.tab} />
           <select name="cabang" defaultValue={data.branchId ?? ''} className={selectClass} aria-label="Cabang">
             <option value="">Semua cabang</option>
@@ -74,7 +74,7 @@ export function SelfDeliveryOfficeScreen({ data }: { data: SelfDeliveryOfficeDat
           </ul>
           <p className="mt-1 text-sm">
             Nota mereka tetap bisa dibawa siapa pun di cabang (bertanda pengantar beda dengan kasir), tapi bonus ongkirnya tertahan.
-            {data.canPair && <> <Link href="/bonus/pasangkan" className="text-brand underline">Pasangkan sekarang</Link></>}
+            {data.canPair && <> <Link href="/bonuses/pairings" className="text-brand underline">Pasangkan sekarang</Link></>}
           </p>
         </Alert>
       )}

@@ -26,7 +26,7 @@ function MoneyTab({ money }: { money: Money }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <form className="flex gap-2" action="/gaji/kasbon">
+        <form className="flex gap-2" action="/payroll/advances">
           <input type="hidden" name="tab" value="uang" />
           <select name="bulan" defaultValue={money.month} className="min-h-9 rounded-lg border border-line bg-surface px-3 text-sm">
             {money.months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}
@@ -106,20 +106,20 @@ export function OfficeScreen({ tab, q, counts, rows, funds, canFillFor, canSpeci
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav className="flex flex-wrap gap-1" aria-label="Tab kasbon">
           {tabs.map((t) => (
-            <Link key={t.key} href={`/gaji/kasbon?tab=${t.key}`} className={buttonClass({ variant: t.key === tab ? 'primary' : 'secondary', size: 'sm' })}>
+            <Link key={t.key} href={`/payroll/advances?tab=${t.key}`} className={buttonClass({ variant: t.key === tab ? 'primary' : 'secondary', size: 'sm' })}>
               {t.key === 'uang' ? <><NewBadge feature="fitur/uang-kasbon" /> {t.label}</> : <>{t.label} ({counts[t.key].count}{counts[t.key].amount ? `, ${rupiah(counts[t.key].amount)}` : ''})</>}
             </Link>
           ))}
         </nav>
         <div className="flex flex-wrap gap-2">
-          {canLegacy && <Link href="/gaji/kasbon/bawaan" className={buttonClass({ size: 'sm', variant: 'secondary' })}><NewBadge feature="fitur/kasbon-bawaan" /> Bawaan sistem lama</Link>}
-          {canSpecial && <Link href="/gaji/kasbon/khusus" className={buttonClass({ size: 'sm' })}><NewBadge feature="fitur/kasbon-khusus" /> Kasbon Khusus</Link>}
-          {canFillFor && <Link href="/gaji/kasbon/isikan" className={buttonClass({ size: 'sm', variant: 'secondary' })}>Isikan atas nama</Link>}
+          {canLegacy && <Link href="/payroll/advances/opening-balances" className={buttonClass({ size: 'sm', variant: 'secondary' })}><NewBadge feature="fitur/kasbon-bawaan" /> Bawaan sistem lama</Link>}
+          {canSpecial && <Link href="/payroll/advances/special" className={buttonClass({ size: 'sm' })}><NewBadge feature="fitur/kasbon-khusus" /> Kasbon Khusus</Link>}
+          {canFillFor && <Link href="/payroll/advances/on-behalf" className={buttonClass({ size: 'sm', variant: 'secondary' })}>Isikan atas nama</Link>}
         </div>
       </div>
       {tab === 'uang' && money ? <MoneyTab money={money} /> : (
         <>
-          <form className="flex gap-2" action="/gaji/kasbon">
+          <form className="flex gap-2" action="/payroll/advances">
             <input type="hidden" name="tab" value={tab} />
             <input name="q" defaultValue={q} placeholder="Cari nama atau nomor" className="min-h-9 w-full max-w-xs rounded-lg border border-line bg-surface px-3 text-sm" />
             <button type="submit" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Cari</button>
@@ -160,7 +160,7 @@ export function OfficeScreen({ tab, q, counts, rows, funds, canFillFor, canSpeci
                 <tbody className="divide-y divide-line">
                   {rows.map((r) => (
                     <tr key={r.id}>
-                      <td className="py-1.5 pr-3"><Link className="font-medium text-brand-700" href={r.requestOpen && r.requestId ? `/persetujuan/${r.requestId}` : `/gaji/kasbon/${r.id}`}>{r.number}</Link></td>
+                      <td className="py-1.5 pr-3"><Link className="font-medium text-brand-700" href={r.requestOpen && r.requestId ? `/approvals/${r.requestId}` : `/payroll/advances/${r.id}`}>{r.number}</Link></td>
                       <td className="py-1.5 pr-3">{r.name}<span className="block text-xs text-ink-muted">{r.branchName}</span></td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{amountText(r)}</td>
                       <td className="py-1.5 pr-3">{r.installments}</td>

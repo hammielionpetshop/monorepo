@@ -22,7 +22,7 @@ import { slippedSourceKeys } from './slip-state';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
-const LINK = '/gaji/denda-driver';
+const LINK = '/payroll/driver-fines';
 const isoWib = (date: Date) => new Date(date.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
 
 const canSeeFines = (actor: Actor | null) => !!actor && (actor.fullAccess || hasAction(actor, 'fine.view') || hasAction(actor, 'fine.propose'));
@@ -106,7 +106,7 @@ export async function saveFineKind(actor: Actor | null, input: KindInput, announ
           actorAccountId: actor.accountId, entity: 'driver_fine_kind', entityId: id, action: 'driver_fine_kind.update',
           before: { name: old.name, example: old.example }, after: { name, example, ...(numbersChanged ? { amount, active, effectiveOn } : {}) }, reason: numbersChanged ? reason : undefined,
         });
-        await announce(tx, actor.accountId, { what: `mengubah Jenis Denda ${name}${numbersChanged ? ` (${active ? rupiah(amount) : 'nonaktif'} mulai ${longDate(effectiveOn)})` : ''}`, link: '/pengaturan/jenis-denda', entity: 'driver_fine_kind', entityId: id });
+        await announce(tx, actor.accountId, { what: `mengubah Jenis Denda ${name}${numbersChanged ? ` (${active ? rupiah(amount) : 'nonaktif'} mulai ${longDate(effectiveOn)})` : ''}`, link: '/settings/fine-types', entity: 'driver_fine_kind', entityId: id });
         return { ok: true as const, data: { id } };
       }
       if (!active) return fail(400, 'Jenis baru harus aktif.');
@@ -115,7 +115,7 @@ export async function saveFineKind(actor: Actor | null, input: KindInput, announ
       const [row] = await tx.insert(driverFineKinds).values({ name, example, sortOrder: Number(next), createdByAccountId: actor.accountId }).returning({ id: driverFineKinds.id });
       await tx.insert(driverFineKindVersions).values({ kindId: row.id, effectiveOn, amount, active: true, reason, createdByAccountId: actor.accountId });
       await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'driver_fine_kind', entityId: row.id, action: 'driver_fine_kind.create', before: null, after: { name, amount, effectiveOn }, reason });
-      await announce(tx, actor.accountId, { what: `menambah Jenis Denda ${name} ${rupiah(amount)} mulai ${longDate(effectiveOn)}`, link: '/pengaturan/jenis-denda', entity: 'driver_fine_kind', entityId: row.id });
+      await announce(tx, actor.accountId, { what: `menambah Jenis Denda ${name} ${rupiah(amount)} mulai ${longDate(effectiveOn)}`, link: '/settings/fine-types', entity: 'driver_fine_kind', entityId: row.id });
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {
@@ -137,7 +137,7 @@ export async function cancelFineKindVersion(actor: Actor | null, versionId: numb
     if (Number(live) <= 1) return fail(409, 'Ini satu-satunya nominal jenis ini; nonaktifkan jenisnya bila tidak dipakai.');
     await tx.update(driverFineKindVersions).set({ cancelledAt: now, cancelledByAccountId: actor.accountId }).where(eq(driverFineKindVersions.id, v.id));
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'driver_fine_kind', entityId: v.kindId, action: 'driver_fine_kind.cancel_version', before: { effectiveOn: v.effectiveOn, amount: v.amount, active: v.active }, after: null });
-    await announce(tx, actor.accountId, { what: `membatalkan perubahan Jenis Denda mulai ${longDate(v.effectiveOn)}`, link: '/pengaturan/jenis-denda', entity: 'driver_fine_kind', entityId: v.kindId });
+    await announce(tx, actor.accountId, { what: `membatalkan perubahan Jenis Denda mulai ${longDate(v.effectiveOn)}`, link: '/settings/fine-types', entity: 'driver_fine_kind', entityId: v.kindId });
     return { ok: true as const, data: {} };
   });
 }
@@ -224,7 +224,7 @@ async function announceActive(tx: Tx, row: { id: number; employeeId: number; amo
     kind: 'driver_fine.active',
     title: `${fineText({ kindName, amount: row.amount, occurredOn: row.occurredOn })} berlaku.`,
     body: `Dipotong di slip utama periode tanggal kejadian (atau slip berikutnya bila sudah ditutup). Uraian: ${row.description}. Bila tidak setuju, ajukan keberatan paling lambat ${longDate(isoWib(objectionDeadline(now)))} pukul 23.59.`,
-    link: `/keberatan-potongan/ajukan?jenis=DRIVER_FINE&id=${row.id}`, entity: 'driver_fine', entityId: row.id,
+    link: `/deduction-objections/submit?jenis=DRIVER_FINE&id=${row.id}`, entity: 'driver_fine', entityId: row.id,
   }, actorAccountId);
 }
 

@@ -26,7 +26,7 @@ export function TeamClarificationScreen(props: Props) {
     if (props.branchId) params.set('branch', String(props.branchId));
     if (props.kind) params.set('kind', props.kind);
     const text = params.toString();
-    return `/kehadiran/perlu-dijelaskan${text ? `?${text}` : ''}`;
+    return `/attendance/clarifications${text ? `?${text}` : ''}`;
   };
   const tabs = [
     { key: 'open', label: 'Belum dijelaskan', href: query('open') },
@@ -86,7 +86,7 @@ export function TeamClarificationScreen(props: Props) {
                     <p className="font-medium">{row.name} · {row.branch}</p>
                     <p className="text-sm text-ink-muted">{row.title} {row.dateLabel} · menunggu {row.waitingDays < 1 ? 'kurang dari 1 hari' : `${row.waitingDays} hari`}</p>
                   </div>
-                  {row.canOpen && <Link className={buttonClass({ size: 'sm' })} href={`/persetujuan/${row.requestId}`}>Buka di Persetujuan</Link>}
+                  {row.canOpen && <Link className={buttonClass({ size: 'sm' })} href={`/approvals/${row.requestId}`}>Buka di Persetujuan</Link>}
                 </div>
               </Card>
             ))}

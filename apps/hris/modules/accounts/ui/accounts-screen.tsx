@@ -62,7 +62,7 @@ export function AccountsScreen({ data }: { data: AccountsScreenData }) {
           {
             key: 'employee', header: 'Karyawan',
             render: (row) => row.employee ? (
-              <Link href={`/karyawan/${row.employee.id}`} className="text-brand-700 hover:underline">
+              <Link href={`/employees/${row.employee.id}`} className="text-brand-700 hover:underline">
                 {row.employee.name} <span className="text-ink-muted">({row.employee.code})</span>
               </Link>
             ) : row.isSelf ? <span className="text-ink-muted">Akun Anda</span> : (

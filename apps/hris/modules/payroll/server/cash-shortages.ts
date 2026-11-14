@@ -170,7 +170,7 @@ export async function reviewApproval(actor: Actor | null, id: number, announce: 
       .where(and(eq(cashShortageApprovals.id, id), eq(cashShortageApprovals.status, 'OPEN')));
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'cash_shortage_approval', entityId: id, action: 'cash_shortage.review', before: { status: 'OPEN' }, after: { status: 'REVIEWED' } });
     const [person] = await tx.select({ name: employees.name }).from(employees).where(eq(employees.id, approval.employeeId));
-    await announce(tx, actor!.accountId, { what: `meninjau minus kas ${person?.name ?? ''} periode ${longDate(approval.periodStart)}; menunggu pengesahan`, link: `/potongan/minus-kas?periode=${approval.periodStart}`, entity: 'cash_shortage_approval', entityId: id });
+    await announce(tx, actor!.accountId, { what: `meninjau minus kas ${person?.name ?? ''} periode ${longDate(approval.periodStart)}; menunggu pengesahan`, link: `/deductions/cash-shortages?periode=${approval.periodStart}`, entity: 'cash_shortage_approval', entityId: id });
     return { ok: true as const, data: {} };
   });
 }
@@ -207,10 +207,10 @@ export async function approveApproval(
         kind: 'cash_shortage.approved',
         title: `Minus kas periode ${longDate(approval.periodStart)} disahkan: ${rupiah(result.net)}.`,
         body: `Dari ${rows.length - waived.size} shift POS (minus ${rupiah(result.minus)}, lebih ${rupiah(result.plus)}). Dipotong di slip periode itu. Bila tidak setuju, ajukan keberatan paling lambat 3 hari (pukul 23.59).`,
-        link: `/keberatan-potongan/ajukan?jenis=CASH_SHORTAGE&id=${id}`, entity: 'cash_shortage_approval', entityId: id,
+        link: `/deduction-objections/submit?jenis=CASH_SHORTAGE&id=${id}`, entity: 'cash_shortage_approval', entityId: id,
       }, actor.accountId);
     }
-    await announce(tx, actor.accountId, { what: `mengesahkan minus kas ${person?.name ?? ''} periode ${longDate(approval.periodStart)} (${rupiah(result.net)})`, link: `/potongan/minus-kas?periode=${approval.periodStart}`, entity: 'cash_shortage_approval', entityId: id });
+    await announce(tx, actor.accountId, { what: `mengesahkan minus kas ${person?.name ?? ''} periode ${longDate(approval.periodStart)} (${rupiah(result.net)})`, link: `/deductions/cash-shortages?periode=${approval.periodStart}`, entity: 'cash_shortage_approval', entityId: id });
     return { ok: true as const, data: { net: owner ? 0 : result.net } };
   });
 }
@@ -330,7 +330,7 @@ async function activateManual(tx: Tx, row: { id: number; branchId: number; occur
       kind: 'manual_cash_shortage.active',
       title: `Minus kas ${branchName} ${longDate(row.occurredOn)}: bagian Anda ${rupiah(share.amount)}.`,
       body: row.namedEmployeeId != null ? `Alasan: ${row.reason}. Bila tidak setuju, ajukan keberatan paling lambat 3 hari (pukul 23.59).` : `Alasan: ${row.reason}`,
-      link: row.namedEmployeeId != null ? `/keberatan-potongan/ajukan?jenis=MANUAL_CASH_SHORTAGE&id=${row.id}` : '/panduan/aturan-potongan', entity: 'manual_cash_shortage', entityId: row.id,
+      link: row.namedEmployeeId != null ? `/deduction-objections/submit?jenis=MANUAL_CASH_SHORTAGE&id=${row.id}` : '/guides/deduction-rules', entity: 'manual_cash_shortage', entityId: row.id,
     }, actorAccountId);
   }
   return null;
@@ -350,7 +350,7 @@ export async function recordManualDirect(actor: Actor | null, input: ManualInput
       const problem = await activateManual(tx, { id: row.id, ...checked }, checked.branchName, actor.accountId);
       if (problem) throw new Rollback(problem);
       await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'manual_cash_shortage', entityId: row.id, action: 'manual_cash_shortage.create', before: null, after: { ...checked, status: 'ACTIVE' } });
-      await announce(tx, actor.accountId, { what: `mencatat minus kas ${rupiah(checked.amount)} di ${checked.branchName} (${longDate(checked.occurredOn)})`, link: '/potongan/minus-kas?tab=manual', entity: 'manual_cash_shortage', entityId: row.id });
+      await announce(tx, actor.accountId, { what: `mencatat minus kas ${rupiah(checked.amount)} di ${checked.branchName} (${longDate(checked.occurredOn)})`, link: '/deductions/cash-shortages?tab=manual', entity: 'manual_cash_shortage', entityId: row.id });
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {
@@ -402,7 +402,7 @@ export function manualCashShortageHandler(announce: ChangeAnnounce): RequestHand
       const branchName = await branchNameOf(row.branchId);
       const problem = await activateManual(tx, row, branchName, actorAccountId);
       if (problem) return problem;
-      await announce(tx, actorAccountId, { what: `mengesahkan minus kas ${rupiah(row.amount)} di ${branchName}`, link: '/potongan/minus-kas?tab=manual', entity: 'manual_cash_shortage', entityId: row.id });
+      await announce(tx, actorAccountId, { what: `mengesahkan minus kas ${rupiah(row.amount)} di ${branchName}`, link: '/deductions/cash-shortages?tab=manual', entity: 'manual_cash_shortage', entityId: row.id });
       return { ok: true as const, effect: 'Minus kas berlaku. Penanggung diberi tahu bagiannya.' };
     },
     async close(tx, _actorAccountId, requestId) {
@@ -449,7 +449,7 @@ export async function cancelManual(actor: Actor | null, id: number, reasonInput:
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'manual_cash_shortage', entityId: id, action: 'manual_cash_shortage.cancel', before: { status: 'ACTIVE' }, after: { status: 'CANCELLED' }, reason: reason.reason });
     const accounts = await activeHrisAccounts(shares.map((s) => s.employeeId));
     await notify(tx, [...accounts.values()], { kind: 'manual_cash_shortage.cancelled', title: `Minus kas ${longDate(row.occurredOn)} dibatalkan; tidak dipotong.`, entity: 'manual_cash_shortage', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `membatalkan minus kas ${rupiah(row.amount)} (${longDate(row.occurredOn)})`, link: '/potongan/minus-kas?tab=manual', entity: 'manual_cash_shortage', entityId: id });
+    await announce(tx, actor.accountId, { what: `membatalkan minus kas ${rupiah(row.amount)} (${longDate(row.occurredOn)})`, link: '/deductions/cash-shortages?tab=manual', entity: 'manual_cash_shortage', entityId: id });
     return { ok: true as const, data: {} };
   });
 }

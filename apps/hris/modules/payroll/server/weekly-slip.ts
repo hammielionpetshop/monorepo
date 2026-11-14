@@ -85,7 +85,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
     if (v.status === 'UNRATED') unratedDates.push(v.wageDate);
     const older = v.wageDate < start;
     const details: SlipLineDetails = {
-      date: v.wageDate, tripValueId: v.id, link: `/gaji/upah-ritase?minggu=${weekOf(v.wageDate, weeks).start}`,
+      date: v.wageDate, tripValueId: v.id, link: `/payroll/trip-wages?minggu=${weekOf(v.wageDate, weeks).start}`,
       ...(note || older ? { text: [note, older ? `tanggal asal ${longDate(v.wageDate)}` : null].filter(Boolean).join(' · ') } : {}),
     };
     income.push({
@@ -96,7 +96,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
   }
   if (unratedDates.length) {
     const since = [...unratedDates].sort()[0];
-    holds.push({ kind: 'UNRATED', text: `${HOLD_LABELS.UNRATED.title} (${unratedDates.length}, sejak ${longDate(since)})`, resolver: HOLD_LABELS.UNRATED.resolver, link: '/pengaturan/tarif-ritase', since });
+    holds.push({ kind: 'UNRATED', text: `${HOLD_LABELS.UNRATED.title} (${unratedDates.length}, sejak ${longDate(since)})`, resolver: HOLD_LABELS.UNRATED.resolver, link: '/settings/trip-rates', since });
   }
 
   // ---- Koreksi upah ritase yang sudah masuk slip tertutup lalu dibatalkan / dinilai ulang (spec L7 §3.3) ----
@@ -111,7 +111,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
       deductions.push({
         group: 'a', sourceKey: `tripcorr:${v.id}`, lineKind: 'TRIP_CORRECTION', label: `Koreksi ${line.label}`, date: v.wageDate, amount: line.amount,
         originPeriod: weekOf(v.wageDate, weeks).start,
-        details: { date: v.wageDate, text: `Sudah dibayar ${longDate(v.wageDate)}; ${v.cancelReason ?? 'dibatalkan'}. Upah penggantinya (bila ada) tercatat sebagai baris baru.`, link: `/gaji/upah-ritase?minggu=${weekOf(v.wageDate, weeks).start}` },
+        details: { date: v.wageDate, text: `Sudah dibayar ${longDate(v.wageDate)}; ${v.cancelReason ?? 'dibatalkan'}. Upah penggantinya (bila ada) tercatat sebagai baris baru.`, link: `/payroll/trip-wages?minggu=${weekOf(v.wageDate, weeks).start}` },
       });
     }
   }
@@ -143,7 +143,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
       groups.set(key, g);
     }
     for (const g of groups.values()) {
-      const details: SlipLineDetails = { text: `${g.ids.length} baris Buku Bonus`, bonusIds: g.ids, link: `/gaji/${person.id}/bonus` };
+      const details: SlipLineDetails = { text: `${g.ids.length} baris Buku Bonus`, bonusIds: g.ids, link: `/payroll/${person.id}/bonuses` };
       if (g.sourceKey.includes(':DISCIPLINE_FUND:')) details.fund = 'DISCIPLINE_FUND';
       income.push({ sourceKey: g.sourceKey, lineKind: g.lineKind, label: g.label, amount: g.amount, originPeriod: null, details });
     }
@@ -151,7 +151,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
       .where(and(eq(bonusEntries.employeeId, person.id), inArray(bonusEntries.status, ['PENDING', 'HELD']), lte(bonusEntries.occurredOn, end))) : [];
     if (waiting.length) {
       const since = waiting.map((w) => w.on).sort()[0];
-      holds.push({ kind: 'LAST_SLIP_BONUS', text: `${HOLD_LABELS.LAST_SLIP_BONUS.title} (${waiting.length}, sejak ${longDate(since)})`, resolver: HOLD_LABELS.LAST_SLIP_BONUS.resolver, link: `/gaji/${person.id}/bonus`, since });
+      holds.push({ kind: 'LAST_SLIP_BONUS', text: `${HOLD_LABELS.LAST_SLIP_BONUS.title} (${waiting.length}, sejak ${longDate(since)})`, resolver: HOLD_LABELS.LAST_SLIP_BONUS.resolver, link: `/payroll/${person.id}/bonuses`, since });
     }
 
     // Potongan Lain (kelompok c): cicilan yang jatuh di periode bulanan sampai akhir minggu ini; satu cicilan = satu slip mingguan.
@@ -167,7 +167,7 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
           sql`${otherDeductionInstallments.cancelledAt} is null`));
       const candidates: DeductionInput[] = due.map((d) => ({
         group: 'c' as DeductionGroup, sourceKey: `other:${d.id}`, lineKind: 'OTHER', label: `${d.typeName} (cicilan ${d.sequence} dari ${d.total})`,
-        date: d.createdAt.toISOString().slice(0, 10), amount: d.amount, originPeriod: null, details: { text: d.reason, link: '/potongan/lain' },
+        date: d.createdAt.toISOString().slice(0, 10), amount: d.amount, originPeriod: null, details: { text: d.reason, link: '/deductions/other' },
       }));
       const done = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
       deductions.push(...candidates.filter((c) => !done.has(c.sourceKey)));

@@ -136,8 +136,8 @@ describe.skipIf(!ADMIN_URL)('LT2c: nota berubah di kasir', () => {
     const sent = await kasirNotes('TRX-A');
     expect(sent.map((n) => n.to).sort()).toEqual([ids.kg, ids.driver, ids.kenek].map((x) => x + 1000).sort());
     expect(sent[0].title).toContain('TRX-A berubah di kasir');
-    expect(sent.find((n) => n.to === ids.driver + 1000)!.link).toBe('/trip-saya');
-    expect(sent.find((n) => n.to === ids.kg + 1000)!.link).toBe(`/logistik/trip/${id}`);
+    expect(sent.find((n) => n.to === ids.driver + 1000)!.link).toBe('/my-trips');
+    expect(sent.find((n) => n.to === ids.kg + 1000)!.link).toBe(`/logistics/trips/${id}`);
     expect(await lg.kasirChangeAttention(kg)).toEqual({ count: 1, tripId: id });
     expect(await lg.kasirChangeAttention(await actorOf(ids.driver))).toBeNull();
   });

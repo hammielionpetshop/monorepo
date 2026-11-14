@@ -22,7 +22,7 @@ export function DayRecordScreen({ date, employeeId, people, card, history, canCo
     const params = new URLSearchParams({ date: next.date ?? date });
     const employee = next.employee ?? (employeeId ? String(employeeId) : '');
     if (employee) params.set('employee', employee);
-    router.push(`/kehadiran/catatan-hari?${params}`);
+    router.push(`/attendance/day-notes?${params}`);
   };
   return (
     <div className="space-y-4">
@@ -43,7 +43,7 @@ export function DayRecordScreen({ date, employeeId, people, card, history, canCo
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">{card.name} · {card.workDate}</h2>
             <div className="flex gap-2">
-              {canCorrect && <Link className={buttonClass({ size: 'sm' })} href={`/kehadiran/koreksi?mode=one&employee=${card.employeeId}&date=${card.workDate}`}>Koreksi</Link>}
+              {canCorrect && <Link className={buttonClass({ size: 'sm' })} href={`/attendance/corrections?mode=one&employee=${card.employeeId}&date=${card.workDate}`}>Koreksi</Link>}
               <button type="button" className={buttonClass({ size: 'sm', variant: 'secondary' })} onClick={() => router.back()}>Kembali</button>
             </div>
           </div>

@@ -19,9 +19,9 @@ export function MyOvertimeScreen({ tab, all, counts, cards }: { tab: OvertimeTab
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tabs = [
-    { key: 'open', label: `Belum diklaim (${counts.open})`, href: '/lembur' },
-    { key: 'waiting', label: `Menunggu keputusan (${counts.waiting})`, href: '/lembur?tab=waiting' },
-    { key: 'done', label: `Selesai (${counts.done})`, href: '/lembur?tab=done' },
+    { key: 'open', label: `Belum diklaim (${counts.open})`, href: '/overtime' },
+    { key: 'waiting', label: `Menunggu keputusan (${counts.waiting})`, href: '/overtime?tab=waiting' },
+    { key: 'done', label: `Selesai (${counts.done})`, href: '/overtime?tab=done' },
   ];
   async function markNot(id: number) {
     setBusy(id);
@@ -60,18 +60,18 @@ export function MyOvertimeScreen({ tab, all, counts, cards }: { tab: OvertimeTab
               )}
               {card.note && <p className="text-sm text-ink-muted">{card.note}</p>}
               <div className="flex flex-wrap gap-2">
-                {card.action === 'claim' && <Link className={buttonClass()} href={`/lembur/${card.id}`}>Klaim</Link>}
-                {card.action === 'resubmit' && card.requestId && <Link className={buttonClass()} href={`/lembur/${card.id}?dari=${card.requestId}`}>Ajukan ulang</Link>}
+                {card.action === 'claim' && <Link className={buttonClass()} href={`/overtime/${card.id}`}>Klaim</Link>}
+                {card.action === 'resubmit' && card.requestId && <Link className={buttonClass()} href={`/overtime/${card.id}?dari=${card.requestId}`}>Ajukan ulang</Link>}
                 {card.action && card.choice !== 'NOT_OVERTIME' && (
                   <Button variant="ghost" loading={busy === card.id} onClick={() => void markNot(card.id)}>Bukan lembur</Button>
                 )}
-                {card.requestId && tab !== 'open' && <Link className={buttonClass({ variant: 'ghost' })} href={`/pengajuan/${card.requestId}`}>Lihat pengajuan</Link>}
+                {card.requestId && tab !== 'open' && <Link className={buttonClass({ variant: 'ghost' })} href={`/requests/${card.requestId}`}>Lihat pengajuan</Link>}
               </div>
             </div>
           </Card>
         ))}
       </div>
-      {tab === 'done' && !all && <Link className="text-sm underline" href="/lembur?tab=done&semua=1">Muat periode lama</Link>}
+      {tab === 'done' && !all && <Link className="text-sm underline" href="/overtime?tab=done&semua=1">Muat periode lama</Link>}
     </div>
   );
 }

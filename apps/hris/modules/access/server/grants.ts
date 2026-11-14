@@ -69,7 +69,7 @@ export async function savePositionGrants(
     });
     await announce?.(tx, actor.accountId, {
       what: `mengubah Hak Akses jabatan ${position.name}: ${effective.length} tindakan`,
-      link: '/pengaturan/hak-akses', entity: 'position_grant', entityId: positionId,
+      link: '/settings/access-rights', entity: 'position_grant', entityId: positionId,
     });
     return { ok: true as const, data: { changed: effective.length } };
   });

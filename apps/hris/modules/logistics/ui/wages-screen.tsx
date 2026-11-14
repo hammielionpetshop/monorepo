@@ -48,9 +48,9 @@ export function WagesScreen({ start, end, prev, next, today, rows, people, canMa
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Link href={`/logistik/ritase?minggu=${prev}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>‹</Link>
+          <Link href={`/logistics/trip-counts?minggu=${prev}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>‹</Link>
           <span className="text-sm font-medium">Jumat {start} – Kamis {end}</span>
-          {next <= today && <Link href={`/logistik/ritase?minggu=${next}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>›</Link>}
+          {next <= today && <Link href={`/logistics/trip-counts?minggu=${next}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>›</Link>}
         </div>
         {canManage && <Button size="sm" onClick={() => { setError(null); setManual(true); }}>Ritase tangan</Button>}
       </div>
@@ -80,7 +80,7 @@ export function WagesScreen({ start, end, prev, next, today, rows, people, canMa
                     <td className="py-1.5 pr-3">{r.kindLabel}{r.kind === 'RITASE' ? (r.withAssistant ? ' · berkenek' : ' · tanpa kenek') : ''}</td>
                     <td className="py-1.5 pr-3">{r.route}</td><td className="py-1.5 pr-3">{r.vehicle}</td><td className="py-1.5 pr-3">{r.roleLabel}</td>
                     <td className="py-1.5 pr-3">
-                      {r.tripId ? <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link> : <Badge tone="warn">Ritase tangan</Badge>}
+                      {r.tripId ? <Link href={`/logistics/trips/${r.tripId}`} className="underline">{r.tripNumber}</Link> : <Badge tone="warn">Ritase tangan</Badge>}
                       {r.manualReason && <span className="block text-xs text-ink-muted">{r.manualReason}</span>}
                       {r.cancelled && <span className="block text-xs">Dibatalkan: {r.cancelReason}</span>}
                     </td>

@@ -49,7 +49,7 @@ export function DoctorLetterScreen({ letters }: { letters: Letter[] }) {
         <Card key={letter.id}>
           <p className="font-semibold">Sakit {letter.range}</p>
           <p className="text-sm text-ink-muted">{letter.text}</p>
-          <Link className="text-xs text-brand-700" href={`/pengajuan/${letter.requestId}`}>Lihat pengajuan PJ-{letter.requestId}</Link>
+          <Link className="text-xs text-brand-700" href={`/requests/${letter.requestId}`}>Lihat pengajuan PJ-{letter.requestId}</Link>
           {letter.open && selected !== letter.id && (
             <div className="mt-3"><Button onClick={() => { setSelected(letter.id); choose(null); setError(null); }}>Susulkan surat</Button></div>
           )}

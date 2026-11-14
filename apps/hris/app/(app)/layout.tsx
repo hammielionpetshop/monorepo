@@ -22,7 +22,7 @@ import { logisticsWebAllowed } from '@/lib/web-split-server';
 export const dynamic = 'force-dynamic';
 
 /** Menu mantan karyawan dalam akses terbatas (spec L4g §3.7). */
-const LIMITED_MENU = ['/pendapatan', '/pengajuan', '/pemberitahuan', '/profil'];
+const LIMITED_MENU = ['/earnings', '/requests', '/notifications', '/profile'];
 
 /**
  * Kerangka akses terbatas mantan karyawan: menu terbatas dan bilah peringatan. Penolakan alamat lain ada di
@@ -111,7 +111,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const myPay = await hasMyPay(actor);
   const tripMenu = await myTripMenuVisible(actor, shell.today);
   const groups = navForWeb(visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))
-    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay) && (item.href !== '/trip-saya' || tripMenu)) })), web, split);
+    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/overtime' || overtimeMenu) && (item.href !== '/earnings' || myPay) && (item.href !== '/my-trips' || tripMenu)) })), web, split);
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>

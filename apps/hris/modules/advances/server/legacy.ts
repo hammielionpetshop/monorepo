@@ -105,7 +105,7 @@ export function legacyAdvanceHandler(): RequestHandler {
       if (account) {
         await notify(tx, [account], {
           kind: 'advance.legacy_approved', title: `Sisa kasbon dari sistem lama ${rupiah(row.requestedAmount)} tercatat di HRIS baru.`,
-          body: `Dipotong ${amounts.length} kali mulai gajian ${first}.`, link: '/kasbon', entity: 'advance', entityId: row.id,
+          body: `Dipotong ${amounts.length} kali mulai gajian ${first}.`, link: '/advances', entity: 'advance', entityId: row.id,
         }, actorAccountId);
       }
       return { ok: true as const, effect: `Sisa kasbon bawaan ${plan(row.requestedAmount, row.requestedInstallments)} disahkan; dipotong mulai slip ${first}.` };
@@ -141,7 +141,7 @@ export function legacyAdvanceHandler(): RequestHandler {
   };
 }
 
-// ---- Layar Sisa Kasbon Bawaan (/gaji/kasbon/bawaan) ----
+// ---- Layar Sisa Kasbon Bawaan (/payroll/advances/opening-balances) ----
 
 export async function legacyScreen(actor: Actor | null) {
   if (!actor || !(hasAction(actor, 'advance.legacy_enter') || hasAction(actor, 'advance.decide'))) return null;

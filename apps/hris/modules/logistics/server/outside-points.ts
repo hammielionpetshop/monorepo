@@ -69,7 +69,7 @@ export async function outsideScreen(actor: Actor | null, tab: 'WAITING' | 'DONE'
       const days = Math.max(0, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${on}T00:00:00Z`)) / 86_400_000));
       const crew = (r.crew ?? []).map(Number);
       return {
-        kind: r.kind, id: Number(r.id), tripHref: r.kind === 'TRUCK' ? `/logistik/trip/${r.trip_id}` : `/logistik/antar-sendiri/kantor?trip=${r.trip_id}`,
+        kind: r.kind, id: Number(r.id), tripHref: r.kind === 'TRUCK' ? `/logistics/trips/${r.trip_id}` : `/logistics/self-delivery/office?trip=${r.trip_id}`,
         tripNumber: r.trip_number, store: r.store, on, at: wibClock(done), distanceM: Number(r.distance_m), crew: crew.map((id) => names.get(id) ?? '-').join(', '),
         days, red: !r.verdict && days > OUTSIDE_RED_DAYS, verdict: (r.verdict as OutsideRow['verdict']) ?? null, reason: r.reason,
         reviewedBy: r.reviewed_by, reviewedOn: r.reviewed_at ? wibDate(new Date(r.reviewed_at)) : null,
@@ -102,7 +102,7 @@ export async function reviewOutside(actor: Actor | null, kind: OutsideKind, id: 
       if (verdict === 'NOT_OK') {
         await notify(tx, [...crewAccounts, ...owners], {
           kind: 'logistics.outside_point', title: `Kiriman di luar titik dinilai Tidak wajar: ${row.store}`,
-          body: `${row.trip_number}, ${Number(row.distance_m)} m dari titik toko. Alasan: ${text}`, link: '/logistik/di-luar-titik?tab=DONE',
+          body: `${row.trip_number}, ${Number(row.distance_m)} m dari titik toko. Alasan: ${text}`, link: '/logistics/off-site?tab=DONE',
           entity: 'outside_point_review', entityId: saved.id,
         }, actor.accountId);
       }

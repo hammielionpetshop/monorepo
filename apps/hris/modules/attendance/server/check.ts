@@ -484,7 +484,7 @@ async function notifyTargetHeads(person: RosterPerson, branchId: number, name: s
     kind: 'attendance.assist_chosen',
     title: `${person.name} perbantuan di ${name}`,
     body: `Shift dipilih sendiri: ${shift}. Mohon dicek.`,
-    link: '/kehadiran/perbantuan',
+    link: '/attendance/assistance',
   }, null));
 }
 

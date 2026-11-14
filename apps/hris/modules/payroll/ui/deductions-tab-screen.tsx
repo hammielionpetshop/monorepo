@@ -56,7 +56,7 @@ export function DeductionsTabScreen({ person, period, periods, computedAt, resul
           {result.carried > 0 && <p>Sisa potongan dibawa ke slip berikutnya: <b className="tabular-nums">{rupiah(result.carried)}</b> (disimpan saat slip ditutup; diambil lebih dulu di slip berikutnya).</p>}
         </Card>
       )}
-      <Link className="underline text-sm" href="/panduan/aturan-potongan">Lihat aturan urutan potongan</Link>
+      <Link className="underline text-sm" href="/guides/deduction-rules">Lihat aturan urutan potongan</Link>
     </div>
   );
 }

@@ -9,7 +9,7 @@ type FullRow = Extract<EmployeeListing['rows'][number], { activeToday: boolean }
 type DirectoryRow = Exclude<EmployeeListing['rows'][number], FullRow>;
 
 function PersonLink({ id, name, canOpen }: { id: number; name: string; canOpen: boolean }) {
-  return canOpen ? <Link href={`/karyawan/${id}`} className="font-medium text-brand-700 hover:underline">{name}</Link> : <>{name}</>;
+  return canOpen ? <Link href={`/employees/${id}`} className="font-medium text-brand-700 hover:underline">{name}</Link> : <>{name}</>;
 }
 
 function Permits({ permits }: { permits: { DRIVE: boolean; ASSIST: boolean } }) {
@@ -25,7 +25,7 @@ function Permits({ permits }: { permits: { DRIVE: boolean; ASSIST: boolean } }) 
 function pageHref(filter: EmployeeFilter, page: number) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries({ ...filter, page })) if (value) params.set(key, String(value));
-  return `/karyawan?${params}`;
+  return `/employees?${params}`;
 }
 
 /** KAR-L20 Daftar Karyawan. Saringan dikirim lewat alamat halaman (GET), jadi bisa dibagikan/dimuat ulang. */
@@ -66,7 +66,7 @@ export function EmployeeListScreen({ listing, filter }: { listing: EmployeeListi
             </Field>
             <div className="flex gap-2 sm:col-span-2 lg:col-span-5">
               <button type="submit" className="min-h-11 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700">Terapkan</button>
-              <Link href="/karyawan" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">Hapus saringan</Link>
+              <Link href="/employees" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">Hapus saringan</Link>
             </div>
           </form>
         </Card>

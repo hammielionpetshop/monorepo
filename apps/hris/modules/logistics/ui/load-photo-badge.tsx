@@ -11,7 +11,7 @@ export function LoadPhotoBadge({ load }: { load: LoadPhotoState | null }) {
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <Link href={`/logistik/laporan-muat/${load.reportId}`} className="text-xs underline">
+      <Link href={`/logistics/load-reports/${load.reportId}`} className="text-xs underline">
         📷 Foto muat ({load.photos}){load.done ? '' : ' · masih Proses'}
       </Link>
       <NewBadge feature="fitur/foto-muat-surat-jalan" />

@@ -39,7 +39,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, tripRow
     if (branch) params.set('branch', branch);
     const employee = next.employee === undefined ? selected?.employeeId : next.employee;
     if (employee) params.set('employee', String(employee));
-    return `/kehadiran/rekap?${params}`;
+    return `/attendance/recap?${params}`;
   };
   return (
     <div className="space-y-4">
@@ -98,7 +98,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, tripRow
           </div>
           <p className="text-sm text-ink-muted">
             Driver dan kenek absen lewat trip: hari dengan trip yang berangkat = Jalan, hari lain = Tidak jalan (tanpa akibat). Tanpa telat dan lembur.
-            Rincian per hari di <Link href="/kehadiran/absen-trip" className="text-brand-700">Absen Trip</Link>.
+            Rincian per hari di <Link href="/attendance/trip-attendance" className="text-brand-700">Absen Trip</Link>.
           </p>
           <DataList
             rows={tripRows}
@@ -126,7 +126,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, tripRow
             columns={[
               {
                 key: 'date', header: 'Tanggal', primary: true, render: (day) => (
-                  <Link className="text-brand-700" href={`/kehadiran/catatan-hari?employee=${day.employeeId}&date=${day.workDate}`}>{day.workDate}</Link>
+                  <Link className="text-brand-700" href={`/attendance/day-notes?employee=${day.employeeId}&date=${day.workDate}`}>{day.workDate}</Link>
                 ),
               },
               { key: 'status', header: 'Status', render: (day) => <Badge tone={day.status === 'PRESENT' ? 'ok' : day.status === 'CLOSED' ? 'info' : 'warn'}>{day.statusLabel}</Badge> },

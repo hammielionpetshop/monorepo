@@ -24,6 +24,6 @@ export async function weeklyPayCard(actor: Actor | null, now: Date = new Date())
   return {
     title: `Upah minggu ini: ${rupiah(result.computation.net)} (perkiraan)`,
     detail: `${rows} baris upah · ${longDate(week.start)} – ${longDate(week.end)} · dibayar ${longDate(weeklyPayDate(week.end))}`,
-    href: `/pendapatan?periode=${weekKey(week.start)}`,
+    href: `/earnings?periode=${weekKey(week.start)}`,
   };
 }

@@ -20,13 +20,13 @@ export function TripsScreen({ tab, date, trips, canManage, fence }: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav className="flex flex-wrap gap-1" aria-label="Tab trip">
           {TABS.map((t) => (
-            <Link key={t.key} href={`/logistik/trip?tab=${t.key}`} className={buttonClass({ variant: t.key === tab ? 'primary' : 'secondary', size: 'sm' })}>{t.label}</Link>
+            <Link key={t.key} href={`/logistics/trips?tab=${t.key}`} className={buttonClass({ variant: t.key === tab ? 'primary' : 'secondary', size: 'sm' })}>{t.label}</Link>
           ))}
         </nav>
-        {canManage && <Link href="/logistik/trip/baru" className={buttonClass({ size: 'sm' })}>Buat trip</Link>}
+        {canManage && <Link href="/logistics/trips/new" className={buttonClass({ size: 'sm' })}>Buat trip</Link>}
       </div>
       {tab === 'history' && (
-        <form action="/logistik/trip" className="flex items-center gap-2">
+        <form action="/logistics/trips" className="flex items-center gap-2">
           <input type="hidden" name="tab" value="history" />
           <input type="date" name="tanggal" defaultValue={date} className="min-h-9 rounded-lg border border-line bg-surface px-3 text-sm" />
           <button type="submit" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Tampilkan</button>
@@ -36,7 +36,7 @@ export function TripsScreen({ tab, date, trips, canManage, fence }: {
         <EmptyState title={tab === 'hanging' ? 'Tidak ada trip menggantung' : tab === 'history' ? `Tidak ada trip pada ${date}` : 'Belum ada trip hari ini'}>
           {tab === 'today' && canManage ? 'Buat trip: pilih mobil, rute kirim, supplier belanja, driver, dan kenek.' : undefined}
         </EmptyState>
-      ) : trips.map((t) => <TripCardView key={t.id} card={t} href={`/logistik/trip/${t.id}`} />)}
+      ) : trips.map((t) => <TripCardView key={t.id} card={t} href={`/logistics/trips/${t.id}`} />)}
     </div>
   );
 }

@@ -33,11 +33,11 @@ export function DriverFinesScreen({ tab, counts, rows, canPropose, direct }: {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {(Object.keys(FINE_TAB_LABELS) as FineTab[]).map((t) => (
-          <Link key={t} href={t === 'PENDING' ? '/gaji/denda-driver' : `/gaji/denda-driver?tab=${t}`} className={buttonClass({ variant: t === tab ? 'primary' : 'secondary', size: 'sm' })}>
+          <Link key={t} href={t === 'PENDING' ? '/payroll/driver-fines' : `/payroll/driver-fines?tab=${t}`} className={buttonClass({ variant: t === tab ? 'primary' : 'secondary', size: 'sm' })}>
             {FINE_TAB_LABELS[t]} ({counts[t]})
           </Link>
         ))}
-        {canPropose && <Link className={buttonClass({})} href="/gaji/denda-driver/ajukan">{direct ? 'Catat denda' : 'Ajukan denda'}</Link>}
+        {canPropose && <Link className={buttonClass({})} href="/payroll/driver-fines/submit">{direct ? 'Catat denda' : 'Ajukan denda'}</Link>}
       </div>
       <DataList
         rows={rows}
@@ -67,7 +67,7 @@ export function DriverFinesScreen({ tab, counts, rows, canPropose, direct }: {
           },
           {
             key: 'act', header: '', render: (r) => (r.status === 'PENDING' && r.requestId
-              ? <Link className="underline text-sm" href={`/persetujuan/${r.requestId}`}>Lihat usulan</Link>
+              ? <Link className="underline text-sm" href={`/approvals/${r.requestId}`}>Lihat usulan</Link>
               : r.endAction ? <Button size="sm" variant="ghost" onClick={() => setTarget(r)}>{r.endAction === 'WAIVE' ? 'Tiadakan' : 'Batalkan'}</Button> : null),
           },
         ]}

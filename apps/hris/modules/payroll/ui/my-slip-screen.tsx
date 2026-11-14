@@ -12,12 +12,12 @@ const timeFormat = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', 
 
 /** GAJ-L40 Slip Saya: bentuk slip yang sama dengan kantor, keadaan dan status bayar dari sisi karyawan. */
 export function MySlipScreen({ data }: { data: Data }) {
-  const back = `/pendapatan?periode=${data.view.period.start}`;
+  const back = `/earnings?periode=${data.view.period.start}`;
   if (data.old) {
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          <Link className={buttonClass({ variant: 'ghost' })} href={`/pendapatan/slip/${data.view.slipId}`}>Kembali ke versi terbaru</Link>
+          <Link className={buttonClass({ variant: 'ghost' })} href={`/earnings/payslips/${data.view.slipId}`}>Kembali ke versi terbaru</Link>
         </div>
         <Alert tone="info">Versi {data.view.version} (lama, hanya baca). Versi berlaku sekarang: {data.current}.</Alert>
         <Card><SlipDocument slip={data.view} self /></Card>
@@ -30,7 +30,7 @@ export function MySlipScreen({ data }: { data: Data }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Link className={buttonClass({ variant: 'ghost' })} href={back}>Kembali ke Pendapatan Saya</Link>
-        {data.canDownload && <Link className={buttonClass({ variant: 'secondary' })} href={`/pendapatan/slip/${data.view.slipId}/cetak`} target="_blank">Unduh PDF</Link>}
+        {data.canDownload && <Link className={buttonClass({ variant: 'secondary' })} href={`/earnings/payslips/${data.view.slipId}/print`} target="_blank">Unduh PDF</Link>}
       </div>
       {estimate && <PayIssuesBox issues={data.issues} consequence={data.consequence} />}
       <Card className="space-y-1 text-sm">
@@ -49,7 +49,7 @@ export function MySlipScreen({ data }: { data: Data }) {
           <p className="font-medium">Versi lama</p>
           <ul className="flex flex-wrap gap-2">
             {data.versions.map((v) => (
-              <li key={v}><Link className="underline" href={`/pendapatan/slip/${data.view.slipId}?versi=${v}`}>Lihat versi {v}</Link></li>
+              <li key={v}><Link className="underline" href={`/earnings/payslips/${data.view.slipId}?versi=${v}`}>Lihat versi {v}</Link></li>
             ))}
           </ul>
         </Card>
@@ -68,11 +68,11 @@ function ObjectionCard({ data, slipId }: { data: Extract<Data, { old: false }>['
         <div key={o.kind} className="space-y-1">
           {o.open ? (
             <>
-              <Link className={buttonClass({ variant: 'secondary' })} href={`/pendapatan/slip/${slipId}/keberatan?macam=${o.kind}`}>{o.label}</Link>
+              <Link className={buttonClass({ variant: 'secondary' })} href={`/earnings/payslips/${slipId}/objections?macam=${o.kind}`}>{o.label}</Link>
               <p className="text-xs text-ink-muted">Bisa diajukan {o.until ? `sampai ${o.until}` : 'selama slip masih Perkiraan, lalu sampai 3 hari sesudah ditutup'}.</p>
             </>
           ) : o.pendingRequestId ? (
-            <p>{o.label}: menunggu keputusan. <Link className="underline" href={`/pengajuan/${o.pendingRequestId}`}>Lihat</Link></p>
+            <p>{o.label}: menunggu keputusan. <Link className="underline" href={`/requests/${o.pendingRequestId}`}>Lihat</Link></p>
           ) : (
             <p className="text-xs text-ink-muted">{o.reason}</p>
           )}
@@ -82,7 +82,7 @@ function ObjectionCard({ data, slipId }: { data: Extract<Data, { old: false }>['
         <ul className="divide-y divide-line">
           {data.list.map((x) => (
             <li key={x.requestId} className="py-2">
-              <p><Link className="font-medium underline" href={`/pengajuan/${x.requestId}`}>{x.kind}</Link> · {x.state} · {x.at}</p>
+              <p><Link className="font-medium underline" href={`/requests/${x.requestId}`}>{x.kind}</Link> · {x.state} · {x.at}</p>
               {x.decisionReason && <p className="text-ink-muted">Alasan ditolak: {x.decisionReason}</p>}
               {x.fix && <p>{x.fix}</p>}
             </li>

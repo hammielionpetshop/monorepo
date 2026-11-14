@@ -31,7 +31,7 @@ export function ScheduleScreen(props: {
   const [membership, setMembership] = useState<Record<number, 0 | 1>>({});
   const [groupError, setGroupError] = useState<string | null>(null);
 
-  const go = (branch: number | null, nextWeek: string) => router.push(`/kehadiran/jadwal?branch=${branch ?? ''}&week=${nextWeek}`);
+  const go = (branch: number | null, nextWeek: string) => router.push(`/attendance/schedule?branch=${branch ?? ''}&week=${nextWeek}`);
   const unset = target?.cell.shiftId == null;
 
   async function save() {

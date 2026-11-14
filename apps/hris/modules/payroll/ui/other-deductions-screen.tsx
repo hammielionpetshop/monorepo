@@ -43,7 +43,7 @@ export function OtherDeductionsScreen({ rows, filter, branches, canPropose, maxI
           <Select id="od-status" name="status" defaultValue={filter.status ?? ''}><option value="">Semua</option>{(Object.keys(STATUS) as Status[]).map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}</Select>
         </Field>
         <Button type="submit" variant="secondary">Tampilkan</Button>
-        {canPropose && <Link className={buttonClass({})} href="/potongan/lain/ajukan">Ajukan Potongan Lain</Link>}
+        {canPropose && <Link className={buttonClass({})} href="/deductions/other/submit">Ajukan Potongan Lain</Link>}
       </form>
       <DataList
         rows={rows}
@@ -65,7 +65,7 @@ export function OtherDeductionsScreen({ rows, filter, branches, canPropose, maxI
           },
           { key: 'status', header: 'Status', render: (r) => <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge> },
           {
-            key: 'act', header: '', render: (r) => (r.status === 'PENDING' && r.requestId ? <Link className="underline text-sm" href={`/persetujuan/${r.requestId}`}>Lihat usulan</Link>
+            key: 'act', header: '', render: (r) => (r.status === 'PENDING' && r.requestId ? <Link className="underline text-sm" href={`/approvals/${r.requestId}`}>Lihat usulan</Link>
               : (
                 <span className="flex items-center gap-1">
                   {r.canChange && <Button size="sm" variant="ghost" onClick={() => setTarget({ mode: 'reschedule', row: r })}>Ubah jadwal</Button>}

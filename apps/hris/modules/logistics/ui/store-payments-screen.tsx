@@ -26,7 +26,7 @@ export function StorePaymentsScreen({ date, rows, trips, totals, source, branchI
 }) {
   return (
     <div className="space-y-4">
-      <form action="/logistik/uang-toko" className="flex flex-wrap items-center gap-2">
+      <form action="/logistics/store-money" className="flex flex-wrap items-center gap-2">
         <input type="date" name="tanggal" defaultValue={date} className={selectClass} aria-label="Tanggal" />
         <select name="sumber" defaultValue={source} className={selectClass} aria-label="Sumber">
           {SOURCES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}

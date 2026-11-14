@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: join(__dirname, "../.."),
   // Halaman Apa yang baru membaca changelog dari disk saat jalan; berkasnya wajib ikut bundel.
   outputFileTracingIncludes: {
-    "/apa-yang-baru": ["./CHANGELOG.md", "./changelog.d/*.md"],
+    "/whats-new": ["./CHANGELOG.md", "./changelog.d/*.md"],
   },
 };
 

@@ -37,7 +37,7 @@ const Empty = ({ what }: { what: string }) => <p className="text-sm text-ink-mut
 
 /** GAJ-L39 Pendapatan Saya (HP): pemilih periode, kotak peringatan, tiga angka, lima tab yang selalu tampil. */
 export function MyPayScreen({ data, tab }: { data: Data; tab: MyPayTab }) {
-  const base = `/pendapatan?periode=${data.period.start}`;
+  const base = `/earnings?periode=${data.period.start}`;
   return (
     <div className="space-y-4">
       <form className="flex flex-wrap items-end gap-2" method="get">
@@ -88,7 +88,7 @@ function SummaryTab({ data }: { data: Data }) {
   return (
     <div className="space-y-2">
       {data.slip && (
-        <Link href={`/pendapatan/slip/${data.slip.id}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
+        <Link href={`/earnings/payslips/${data.slip.id}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="font-medium">Slip gaji bulanan {data.slip.number ?? ''}</p>
             <Badge tone={data.slip.state.key === 'PAID' || data.slip.state.key === 'NO_MONEY' ? 'ok' : data.slip.state.key === 'LATE' || data.slip.state.key === 'HELD' ? 'warn' : 'info'}>{data.slip.state.label}</Badge>
@@ -175,7 +175,7 @@ function DeductionsTab({ data }: { data: Data }) {
         <p className="border-t border-line pt-2 font-medium">Jumlah terpotong <span className="tabular-nums">{rupiah(data.potonganTotals.taken)}</span>
           {data.potonganTotals.carried > 0 ? <span className="font-normal text-ink-muted"> · sisa {rupiah(data.potonganTotals.carried)} dibawa ke slip berikutnya</span> : null}</p>
       )}
-      <Link className="underline" href="/panduan/aturan-potongan">Lihat aturan urutan potongan</Link>
+      <Link className="underline" href="/guides/deduction-rules">Lihat aturan urutan potongan</Link>
     </Card>
   );
 }
@@ -213,7 +213,7 @@ function DownloadMany({ periods }: { periods: { start: string; label: string; nu
     <Card className="text-sm">
       <details>
         <summary className="flex cursor-pointer items-center gap-2 font-medium">Unduh beberapa slip <NewBadge feature="fitur/unduh-slip-saya" /></summary>
-        <form action="/pendapatan/cetak" method="get" target="_blank" className="mt-2 space-y-2">
+        <form action="/earnings/print" method="get" target="_blank" className="mt-2 space-y-2">
           <p className="text-ink-muted">Pilih paling banyak 12 slip yang sudah ditutup. Di halaman berikutnya pilih &ldquo;Simpan sebagai PDF&rdquo;.</p>
           <ul className="space-y-1">
             {periods.map((p) => (

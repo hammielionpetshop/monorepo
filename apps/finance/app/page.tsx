@@ -35,7 +35,7 @@ function LastCount({ r, counts, lines, to }: { r: PlaceBalance; counts: CashCoun
   const check = countCheck(r.place, lines, last);
   return (
     <div className="text-xs">
-      <Link href={`/hitung-kas?bulan=${last.countedOn.slice(0, 7)}&tempat=${r.place.id}`} className="hover:text-primary hover:underline">
+      <Link href={`/cash-counts?bulan=${last.countedOn.slice(0, 7)}&tempat=${r.place.id}`} className="hover:text-primary hover:underline">
         {tanggal(last.countedOn)}: {rupiah(last.amount)}
       </Link>
       <div className={check.variance < 0 ? 'text-red-600' : check.variance > 0 ? 'text-blue-700' : 'text-muted-foreground'}>
@@ -69,7 +69,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
   const unplacedLinks: Record<string, string | null> = {
     CASHFLOW: backofficeUrl('/cash-flow'),
     SUPPLIER: backofficeUrl('/purchase-orders/supplier-payables'),
-    FUEL: hrisUrl('/logistik/bensin-mobil'),
+    FUEL: hrisUrl('/logistics/fuel'),
   };
 
   return (
@@ -77,7 +77,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
       {overdue.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           ⚠️ Belum ditutup padahal sudah lewat tanggal 10: {overdue.map((m) => bulan(m)).join(', ')}.{' '}
-          <Link href="/tutup-bulan" className="font-medium text-primary hover:underline">Tutup Bulan →</Link>
+          <Link href="/month-close" className="font-medium text-primary hover:underline">Tutup Bulan →</Link>
         </div>
       )}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -142,7 +142,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                 {group.rows.map((r) => (
                   <tr key={r.place.id} className="border-b border-border align-top last:border-0">
                     <td className="px-4 py-2">
-                      <Link href={`/mutasi/${r.place.id}?sampai=${to}`} className="font-medium hover:text-primary hover:underline">
+                      <Link href={`/movements/${r.place.id}?sampai=${to}`} className="font-medium hover:text-primary hover:underline">
                         {r.place.name}
                       </Link>
                       <span className="ml-2 text-xs text-muted-foreground">{r.place.kind === 'BANK' ? 'Rekening' : 'Tunai'}</span>
@@ -152,7 +152,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                       )}
                       {pending.get(r.place.id) && (
                         <Link
-                          href={`/dana-belum-cair#tempat-${r.place.id}`}
+                          href={`/pending-funds#tempat-${r.place.id}`}
                           className={`block text-xs hover:underline ${pending.get(r.place.id)!.overdue ? 'text-red-600' : 'text-muted-foreground'}`}
                         >
                           + {rupiah(pending.get(r.place.id)!.total)} dana belum cair/belum diverifikasi (hari ini) →
@@ -178,7 +178,7 @@ export default async function SaldoPage({ searchParams }: { searchParams: Promis
                               ...(r.balance < 0 ? ['Saldo minus biasanya berarti ada catatan yang salah Tempat Uang atau belum dicatat.'] : []),
                               ...COMMON_NOTES,
                             ],
-                            detail: { href: `/mutasi/${r.place.id}?sampai=${to}`, label: 'Lihat mutasi' },
+                            detail: { href: `/movements/${r.place.id}?sampai=${to}`, label: 'Lihat mutasi' },
                           }}
                         />
                       </div>

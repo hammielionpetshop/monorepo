@@ -55,7 +55,7 @@ function ShortCard({ v }: { v: ShortHandoverView }) {
           {v.deductions.map((d) => (
             <li key={`d${d.id}`} className="flex flex-wrap items-center gap-2">
               <span>Potongan Lain {d.name} <b className="tabular-nums">{rupiah(d.amount)}</b> · {DEDUCTION_LABELS[d.status] ?? d.status}</span>
-              <Link href="/potongan/lain" className="text-xs underline">Buka</Link>
+              <Link href="/deductions/other" className="text-xs underline">Buka</Link>
             </li>
           ))}
           {v.settlements.map((x) => (
@@ -71,7 +71,7 @@ function ShortCard({ v }: { v: ShortHandoverView }) {
       {v.selfProblem ? <p className="text-xs text-ink-muted">{v.selfProblem}</p> : (
         <div className="flex flex-wrap gap-2">
           {v.canPropose && (
-            <Link href={`/potongan/lain/ajukan?kurang-serah=${v.source}-${v.paymentId}`} className={buttonClass({ size: 'sm' })}>Jadikan Potongan Lain</Link>
+            <Link href={`/deductions/other/submit?kurang-serah=${v.source}-${v.paymentId}`} className={buttonClass({ size: 'sm' })}>Jadikan Potongan Lain</Link>
           )}
           {v.canReplace && <ShortSettleButton target={target} kind="CASH_REPLACED" />}
           {v.canWaive && <ShortSettleButton target={target} kind="WAIVED" />}
@@ -149,7 +149,7 @@ export function MoneyCheckScreen({ tab, source, from, redDays, trips, diffs, sho
   tab: MoneyCheckTab; source: 'ALL' | CheckSource; from: string; redDays: number; trips: Group[]; diffs: Diff[]; shorts: ShortHandoverView[];
   canCheck: boolean; onlyDiff: boolean;
 }) {
-  const href = (t: MoneyCheckTab, s: 'ALL' | CheckSource) => `/logistik/terima-uang?tab=${t}${s !== 'ALL' ? `&sumber=${s}` : ''}`;
+  const href = (t: MoneyCheckTab, s: 'ALL' | CheckSource) => `/logistics/money-checks?tab=${t}${s !== 'ALL' ? `&sumber=${s}` : ''}`;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">

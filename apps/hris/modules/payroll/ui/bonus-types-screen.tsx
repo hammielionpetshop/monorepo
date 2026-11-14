@@ -107,7 +107,7 @@ export function BonusTypesScreen({ types, typed, nextStart, canEdit, canEditType
     <div className="space-y-4">
       <Alert tone="info">
         Jenis bonus Fase 1: Grooming dan Ongkir (dari data kasir), dan Bonus Bebas (diketik). Jabatan GM tidak menerima bonus apa pun; Pemilik hanya bonus grooming.
-        Penerima per jabatan diubah di <Link className="underline" href="/pengaturan/jabatan">Pengaturan Jabatan</Link> (Penerima bonus grooming / ongkir).
+        Penerima per jabatan diubah di <Link className="underline" href="/settings/positions">Pengaturan Jabatan</Link> (Penerima bonus grooming / ongkir).
       </Alert>
       {types.map((t) => (
         <Card key={t.kind} className="space-y-2">

@@ -53,7 +53,7 @@ export function FundChangeForm({ state, initialKind, initialFund }: { state: Fun
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast('Dana diperbarui. Pemilik lain diberi tahu.', 'ok');
-    router.push('/dana');
+    router.push('/funds');
     router.refresh();
   }
 
@@ -107,7 +107,7 @@ export function FundChangeForm({ state, initialKind, initialFund }: { state: Fun
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/dana">Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/funds">Batal</Link>}
         {step < 3 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>Simpan</HoldButton>}
       </div>
     </Card>

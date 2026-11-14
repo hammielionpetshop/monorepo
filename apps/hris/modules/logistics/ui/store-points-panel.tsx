@@ -81,7 +81,7 @@ export function PendingPointsList({ rows, canDecide }: { rows: PointRow[]; canDe
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="space-y-1">
                 <p className="inline-flex flex-wrap items-center gap-1">
-                  <Link href={`/logistik/toko/${r.customerId}`} className="font-medium underline">{r.store}</Link>
+                  <Link href={`/logistics/stores/${r.customerId}`} className="font-medium underline">{r.store}</Link>
                   <Badge tone={r.kindLabel === 'Laporan titik salah' ? 'warn' : 'info'}>{r.kindLabel}</Badge>
                 </p>
                 <p className="text-sm text-ink-muted">{r.by} · {r.on} {r.at}{r.tripNumber ? ` · trip ${r.tripNumber}` : ''}</p>

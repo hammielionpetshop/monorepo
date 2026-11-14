@@ -103,10 +103,10 @@ export function MyAdvancesScreen({ cards, blocked }: { cards: CardData[]; blocke
           )}
           <div className="flex flex-wrap gap-2">
             {c.canWithdraw && c.requestId && <Button variant="danger" size="sm" onClick={() => { setReason(''); setError(null); setAction({ kind: 'withdraw', card: c }); }}>Batalkan</Button>}
-            {c.canResubmit && c.requestId && <Link className={buttonClass({ size: 'sm' })} href={`/kasbon/ajukan?ulang=${c.requestId}`}>Ajukan ulang</Link>}
+            {c.canResubmit && c.requestId && <Link className={buttonClass({ size: 'sm' })} href={`/advances/submit?ulang=${c.requestId}`}>Ajukan ulang</Link>}
             {c.canRequestCancel && <Button variant="secondary" size="sm" onClick={() => { setReason(''); setError(null); setAction({ kind: 'request_cancel', card: c }); }}>Minta dibatalkan</Button>}
             {c.canReportNotReceived && <Button variant="secondary" size="sm" onClick={() => { setReason(''); setError(null); setAction({ kind: 'not_received', card: c }); }}>Uang belum saya terima</Button>}
-            {c.canPostpone && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/kasbon/${c.id}/tunda`}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Minta tunda</Link>}
+            {c.canPostpone && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/advances/${c.id}/defer`}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Minta tunda</Link>}
           </div>
         </div>
       )}
@@ -117,7 +117,7 @@ export function MyAdvancesScreen({ cards, blocked }: { cards: CardData[]; blocke
     <div className="space-y-4">
       {blocked
         ? <Alert tone="warn">{blocked}</Alert>
-        : <Link href="/kasbon/ajukan" className={buttonClass({ block: true })}>Ajukan Kasbon</Link>}
+        : <Link href="/advances/submit" className={buttonClass({ block: true })}>Ajukan Kasbon</Link>}
       {!cards.length && <EmptyState title="Belum ada kasbon">Kasbon dicicil 1 sampai 3 kali lewat slip gaji.</EmptyState>}
       {running.map((c) => renderCard(c))}
       {done.length > 0 && (

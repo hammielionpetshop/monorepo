@@ -48,7 +48,7 @@ export function WorkRequestScreen(props: Props) {
       <div className="flex flex-wrap items-end gap-3">
         {props.branches.length > 1 && (
           <Field id="wr-branch" label="Cabang">
-            <Select id="wr-branch" value={props.branchId ?? ''} onChange={(e) => router.push(`/kehadiran/minta-masuk?branch=${e.target.value}`)}>
+            <Select id="wr-branch" value={props.branchId ?? ''} onChange={(e) => router.push(`/attendance/work-requests?branch=${e.target.value}`)}>
               {props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </Select>
           </Field>

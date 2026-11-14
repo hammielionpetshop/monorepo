@@ -6,7 +6,7 @@ import type { Actor } from './can';
 
 /** Halaman yang terbuka. `/` dialihkan ke Pendapatan Saya oleh tata letak. */
 const LIMITED_PAGES: readonly RegExp[] = [
-  /^\/$/, /^\/pendapatan(\/.*)?$/, /^\/pengajuan$/, /^\/pengajuan\/\d+$/, /^\/pemberitahuan$/, /^\/profil$/,
+  /^\/$/, /^\/earnings(\/.*)?$/, /^\/requests$/, /^\/requests\/\d+$/, /^\/notifications$/, /^\/profile$/,
 ];
 
 /** Pintu API yang dibutuhkan halaman di atas. Isi permintaannya tetap dijaga `can()` dan jenis pengajuan di bawah. */

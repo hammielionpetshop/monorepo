@@ -92,7 +92,7 @@ export function advanceHandler(): RequestHandler {
               if (account) {
                 await notify(saveTx, [account], {
                   kind: 'advance.filled_for', title: `${filler} mengisikan kasbon ${rupiah(amount)} atas nama Anda.`,
-                  body: 'Kalau Anda tidak memintanya, batalkan dari Kasbon Saya.', link: '/kasbon', entity: 'advance', entityId: row.id,
+                  body: 'Kalau Anda tidak memintanya, batalkan dari Kasbon Saya.', link: '/advances', entity: 'advance', entityId: row.id,
                 }, actor.accountId);
               }
             }
@@ -134,7 +134,7 @@ export function advanceHandler(): RequestHandler {
       const finance = await accountsWith(['advance.hand_over'], row.employeeId);
       await notify(tx, finance, {
         kind: 'advance.to_hand_over', title: `Kasbon ${row.number} ${name} ${rupiah(checked.amount)} disetujui: serahkan uangnya.`,
-        body: withoutReview ? 'Diputuskan tanpa pemeriksaan Finance.' : undefined, link: `/gaji/kasbon/${row.id}`, entity: 'advance', entityId: row.id,
+        body: withoutReview ? 'Diputuskan tanpa pemeriksaan Finance.' : undefined, link: `/payroll/advances/${row.id}`, entity: 'advance', entityId: row.id,
       }, actorAccountId);
       const lowered = checked.amount !== row.requestedAmount || checked.installments !== row.requestedInstallments;
       return {
@@ -258,7 +258,7 @@ export function advanceNotReceivedHandler(): RequestHandler {
             }
             await notify(saveTx, ids, {
               kind: 'advance.not_received', title: `${await nameOf(actor.personId)} melapor uang kasbon ${view.row.number} belum diterima.`,
-              body: reason, link: `/gaji/kasbon/${id}`, entity: 'advance', entityId: id,
+              body: reason, link: `/payroll/advances/${id}`, entity: 'advance', entityId: id,
             }, actor.accountId);
           },
         },

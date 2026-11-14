@@ -30,7 +30,7 @@ export function ApprovalsScreen({ data }: { data: Data }) {
         {TABS.map((tab) => (
           <Link
             key={tab.key}
-            href={`/persetujuan?tab=${tab.key}`}
+            href={`/approvals?tab=${tab.key}`}
             aria-current={data.tab === tab.key ? 'page' : undefined}
             className={cn(
               '-mb-px border-b-2 px-3 py-2 text-sm font-medium',
@@ -68,7 +68,7 @@ export function ApprovalsScreen({ data }: { data: Data }) {
           <Input name="q" defaultValue={data.filter.q} placeholder="Cari nama" />
         </label>
         <Button type="submit" size="sm" variant="secondary">Saring</Button>
-        {filtered && <Link href={`/persetujuan?tab=${data.tab}`} className="text-sm text-brand-700">Hapus saringan</Link>}
+        {filtered && <Link href={`/approvals?tab=${data.tab}`} className="text-sm text-brand-700">Hapus saringan</Link>}
       </form>
 
       {data.tab === 'waiting' && (
@@ -85,7 +85,7 @@ export function ApprovalsScreen({ data }: { data: Data }) {
         </Card>
       ) : (
         <div className="space-y-2">
-          {data.cards.map((card) => <RequestCardLink key={card.id} card={card} href={`/persetujuan/${card.id}`} mode="approvals" />)}
+          {data.cards.map((card) => <RequestCardLink key={card.id} card={card} href={`/approvals/${card.id}`} mode="approvals" />)}
         </div>
       )}
     </div>
@@ -103,7 +103,7 @@ export function RequestTypesScreen({ rows }: { rows: TypeRow[] }) {
     <div className="space-y-4">
       <p className="text-sm text-ink-muted">
         Penyetuju tiap jenis = jabatan yang punya hak &quot;Putuskan&quot; jenis itu di{' '}
-        <Link href="/pengaturan/hak-akses" className="text-brand-700">Hak Akses Jabatan</Link>. Menambah jenis baru adalah pekerjaan pembangunan.
+        <Link href="/settings/access-rights" className="text-brand-700">Hak Akses Jabatan</Link>. Menambah jenis baru adalah pekerjaan pembangunan.
       </p>
       {rows.map((row) => (
         <Card key={row.key}>

@@ -173,7 +173,7 @@ export function AttendanceScreen({ branchName, shiftName, hours, state, times, b
     setCode(null);
     setMessage(text);
     // Sesudah foto Pulang langsung ke Laporan Pulang (spec L3d §3).
-    router.replace(wasOut ? '/absen?laporan=1' : '/absen');
+    router.replace(wasOut ? '/clock-in?laporan=1' : '/clock-in');
     router.refresh();
   }, [reset, router]);
 
@@ -235,7 +235,7 @@ export function AttendanceScreen({ branchName, shiftName, hours, state, times, b
     if (code) await postJson('/api/attendance/check', { action: 'wrong_scan', code });
     reset();
     setCode(null);
-    router.replace('/absen');
+    router.replace('/clock-in');
   }
 
   async function send() {

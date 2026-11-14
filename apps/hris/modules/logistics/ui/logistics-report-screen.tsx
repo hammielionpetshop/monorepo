@@ -79,7 +79,7 @@ export function LogisticsReportScreen({ data }: { data: Data }) {
         {data.tabs.map((t) => (
           <Link
             key={t.key}
-            href={`/logistik/laporan?${queryString(data, { tab: t.key })}`}
+            href={`/logistics/reports?${queryString(data, { tab: t.key })}`}
             className={buttonClass({ variant: t.key === data.tab ? 'primary' : 'secondary', size: 'sm' })}
             aria-current={t.key === data.tab ? 'page' : undefined}
           >

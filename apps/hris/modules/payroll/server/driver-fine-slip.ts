@@ -9,7 +9,7 @@ import { slippedSourceKeys } from './slip-state';
 // Denda driver & kenek di slip utama (spec L7 §3.6, L7c): kelompok a, satu baris per denda (`fine:<id>`). Denda yang
 // ditiadakan sesudah terpotong dikembalikan sebagai pendapatan `refund:<kunci>` di slip utama berikutnya (keluar Dana Disiplin).
 
-const LINK = '/gaji/denda-driver';
+const LINK = '/payroll/driver-fines';
 
 /** Denda Berlaku orang itu dengan tanggal kejadian di rentang itu yang belum terpotong di slip tertutup. */
 export async function fineSlipItems(employeeId: number, range: { from?: IsoDate; to: IsoDate }, origin: (occurredOn: IsoDate) => IsoDate | null): Promise<DeductionInput[]> {

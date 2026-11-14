@@ -22,12 +22,12 @@ export function BonusTabScreen({ person, period, periods, rows, summary }: {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <Field id="bt-period" label="Periode">
-          <Select id="bt-period" value={period.start} onChange={(e) => router.push(`/gaji/${person.id}/bonus?periode=${e.target.value}`)}>
+          <Select id="bt-period" value={period.start} onChange={(e) => router.push(`/payroll/${person.id}/bonuses?periode=${e.target.value}`)}>
             {periods.map((p) => <option key={p.start} value={p.start}>{p.label}</option>)}
           </Select>
         </Field>
-        <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/${person.id}`}>Kembali ke Gaji</Link>
-        <Link className={buttonClass({ variant: 'ghost' })} href="/panduan/aturan-potongan">Lihat aturan</Link>
+        <Link className={buttonClass({ variant: 'ghost' })} href={`/payroll/${person.id}`}>Kembali ke Gaji</Link>
+        <Link className={buttonClass({ variant: 'ghost' })} href="/guides/deduction-rules">Lihat aturan</Link>
       </div>
       <Card className="space-y-1 text-sm">
         {summary.byKind.map((k) => <p key={k.kind}>{bonusTitle(k.label)} disahkan: <b className="tabular-nums">{rupiah(k.amount)}</b></p>)}

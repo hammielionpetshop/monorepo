@@ -88,8 +88,8 @@ export function MyHandoversScreen({ tab, cards }: { tab: 'received' | 'sent'; ca
   return (
     <div className="space-y-4">
       <TabNav label="Serah terima" active={tab} tabs={[
-        { key: 'received', label: 'Diterima', href: '/serah-terima' },
-        { key: 'sent', label: 'Dikirim', href: '/serah-terima?tab=dikirim' },
+        { key: 'received', label: 'Diterima', href: '/handovers' },
+        { key: 'sent', label: 'Dikirim', href: '/handovers?tab=dikirim' },
       ]} />
       {!cards.length && <EmptyState title={tab === 'sent' ? 'Belum ada serah terima yang Anda kirim.' : 'Belum ada serah terima untuk Anda.'} />}
       <ul className="space-y-3">
@@ -124,7 +124,7 @@ export function TeamHandoversScreen({ from, to, today, branchId, unread, photo, 
     if (values.unread) params.set('unread', '1');
     if (values.photo) params.set('photo', '1');
     if (values.q.trim()) params.set('q', values.q.trim());
-    router.push(`/kehadiran/serah-terima?${params}`);
+    router.push(`/attendance/handovers?${params}`);
   };
   const groups = new Map<string, typeof cards>();
   for (const card of cards) {

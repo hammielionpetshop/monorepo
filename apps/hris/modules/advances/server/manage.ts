@@ -134,11 +134,11 @@ export async function repayAdvance(actor: Actor | null, advanceId: number, input
       await notify(tx, [account], {
         kind: left === 0 ? 'advance.paid_off' : 'advance.repaid',
         title: left === 0 ? `Kasbon ${view.row.number} sudah lunas.` : `Pelunasan kasbon ${view.row.number} ${rupiah(amount)} diterima. Sisa ${rupiah(left)}.`,
-        body: left === 0 ? `Dilunasi tunai ${rupiah(amount)}.` : 'Cicilan berikutnya di slip sudah disesuaikan.', link: '/kasbon', entity: 'advance', entityId: advanceId,
+        body: left === 0 ? `Dilunasi tunai ${rupiah(amount)}.` : 'Cicilan berikutnya di slip sudah disesuaikan.', link: '/advances', entity: 'advance', entityId: advanceId,
       }, actor.accountId);
     }
     if (view.row.employeeId === actor.personId) {
-      await announce(tx, actor.accountId, { what: `mencatat pelunasan kasbonnya sendiri ${view.row.number} (${rupiah(amount)})`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+      await announce(tx, actor.accountId, { what: `mencatat pelunasan kasbonnya sendiri ${view.row.number} (${rupiah(amount)})`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
     }
     return { ok: true as const, data: { message: `Pelunasan ${rupiah(amount)} tercatat. ${left === 0 ? 'Kasbon lunas.' : `Sisa ${rupiah(left)}.`}` } };
   });
@@ -178,10 +178,10 @@ export async function writeOffAdvance(actor: Actor | null, advanceId: number, in
     if (account) {
       await notify(tx, [account], {
         kind: 'advance.written_off', title: `Utang kasbon ${view.row.number} ${rupiah(amount)} dihapus. ${left === 0 ? 'Kasbon selesai.' : `Sisa ${rupiah(left)}.`}`,
-        body: `Alasan: ${reason.reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
+        body: `Alasan: ${reason.reason}`, link: '/advances', entity: 'advance', entityId: advanceId,
       }, actor!.accountId);
     }
-    await announce(tx, actor!.accountId, { what: `menghapus utang kasbon ${view.row.number} sebesar ${rupiah(amount)}`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+    await announce(tx, actor!.accountId, { what: `menghapus utang kasbon ${view.row.number} sebesar ${rupiah(amount)}`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
     return { ok: true as const, data: { message: `Utang ${rupiah(amount)} dihapus. ${left === 0 ? 'Kasbon selesai.' : `Sisa ${rupiah(left)}.`}` } };
   });
 }
@@ -211,10 +211,10 @@ export async function reverseMovement(actor: Actor | null, advanceId: number, mo
     if (account) {
       await notify(tx, [account], {
         kind: 'advance.movement_reversed', title: `${what} kasbon ${view.row.number} ${rupiah(move.amount)} dibatalkan; jumlahnya kembali dipotong di slip ${where}.`,
-        body: `Alasan: ${reason.reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
+        body: `Alasan: ${reason.reason}`, link: '/advances', entity: 'advance', entityId: advanceId,
       }, actor!.accountId);
     }
-    await announce(tx, actor!.accountId, { what: `membatalkan ${what.toLowerCase()} kasbon ${view.row.number} (${rupiah(move.amount)})`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+    await announce(tx, actor!.accountId, { what: `membatalkan ${what.toLowerCase()} kasbon ${view.row.number} (${rupiah(move.amount)})`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
     return { ok: true as const, data: { message: `${what} dibatalkan. ${rupiah(move.amount)} kembali ke cicilan slip ${where}.` } };
   });
 }
@@ -270,7 +270,7 @@ export async function rescheduleAdvance(actor: Actor | null, advanceId: number, 
     const text = `${count} kali potong mulai gajian ${periodLabel(periods[0], limits.track.kind)} (${amounts.map(rupiah).join(' + ')})`;
     if (account) {
       await notify(tx, [account], {
-        kind: 'advance.rescheduled', title: `Jadwal cicilan kasbon ${view.row.number} diubah: ${text}.`, body: `Alasan: ${reason.reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
+        kind: 'advance.rescheduled', title: `Jadwal cicilan kasbon ${view.row.number} diubah: ${text}.`, body: `Alasan: ${reason.reason}`, link: '/advances', entity: 'advance', entityId: advanceId,
       }, actor!.accountId);
     }
     return { ok: true as const, data: { message: `Jadwal diubah: ${text}.` } };
@@ -330,10 +330,10 @@ export async function createSpecialAdvance(actor: Actor | null, input: SpecialIn
     if (account) {
       await notify(tx, [account], {
         kind: 'advance.special_created', title: `Kasbon Khusus ${number} ${rupiah(amount)} dibuat untuk Anda (${eventKind}).`,
-        body: `Dicicil ${installments} kali lewat slip gaji mulai uangnya diberikan.`, link: '/kasbon', entity: 'advance', entityId: row.id,
+        body: `Dicicil ${installments} kali lewat slip gaji mulai uangnya diberikan.`, link: '/advances', entity: 'advance', entityId: row.id,
       }, actor.accountId);
     }
-    await announce(tx, actor.accountId, { what: `membuat Kasbon Khusus ${number} untuk ${person.name} (${rupiah(amount)}, ${eventKind})`, link: `/gaji/kasbon/${row.id}`, entity: 'advance', entityId: row.id });
+    await announce(tx, actor.accountId, { what: `membuat Kasbon Khusus ${number} untuk ${person.name} (${rupiah(amount)}, ${eventKind})`, link: `/payroll/advances/${row.id}`, entity: 'advance', entityId: row.id });
     return { ok: true as const, data: { message: `Kasbon Khusus ${number} dibuat. Serahkan uangnya dari Rincian Kasbon.`, id: row.id } };
   });
 }
@@ -409,7 +409,7 @@ export async function syncMainSlip(employeeId: number, tx?: Tx, tell = true): Pr
           title: firstNew
             ? `Slip utama Anda berganti ke ${firstNew.kind === 'WEEKLY' ? 'mingguan' : 'bulanan'}: cicilan kasbon ${[...numbers].join(', ')} dipotong mulai slip ${periodLabel(firstNew.period, firstNew.kind)}.`
             : `Cicilan kasbon ${[...numbers].join(', ')} kembali dipotong di slip bulanan.`,
-          body: 'Banyak dan nominal cicilan tetap.', link: '/kasbon', entity: 'advance', entityId: firstId,
+          body: 'Banyak dan nominal cicilan tetap.', link: '/advances', entity: 'advance', entityId: firstId,
         }, null);
       }
     }

@@ -78,7 +78,7 @@ describe('slip L4e-1 (spec L4e §3)', () => {
     const holds = holdsFrom({ outsideReviews: ['2026-11-04', '2026-11-02'], clarifications: [], overtimeClaims: ['2026-11-05'] }, false, 5);
     expect(holds.map((h) => h.kind)).toEqual(['OUTSIDE_REVIEW', 'OVERTIME_CLAIM', 'NO_SALARY']);
     expect(holds[0].since).toBe('2026-11-02');
-    expect(holds[2].link).toBe('/gaji/5');
+    expect(holds[2].link).toBe('/payroll/5');
   });
 });
 
@@ -135,7 +135,7 @@ describe('slip L4e-2 (spec L4e §3.7)', () => {
 
   it('penahan 5: slip terakhir dengan bonus Menunggu/Ditahan; alasan minimal 15 huruf', () => {
     const holds = holdsFrom({ outsideReviews: [], clarifications: [], overtimeClaims: [] }, true, 7, ['2026-11-03']);
-    expect(holds).toEqual([expect.objectContaining({ kind: 'LAST_SLIP_BONUS', link: '/gaji/7/bonus' })]);
+    expect(holds).toEqual([expect.objectContaining({ kind: 'LAST_SLIP_BONUS', link: '/payroll/7/bonuses' })]);
     expect(reasonProblem('terlalu pendek')).toContain('15');
     expect(reasonProblem('Salah hitung lembur tanggal 3')).toBeNull();
   });

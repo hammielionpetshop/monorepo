@@ -10,7 +10,7 @@ describe('urusan gaji saya (GAJ-108)', () => {
   it('Anda dengan tautan Isi sekarang, Kantor tanpa tombol', () => {
     const issues = payIssuesFrom({ ...none, unexplained: ['2026-11-18', '2026-11-12', '2026-11-14', '2026-11-12'], clarifications: ['2026-11-05'] });
     expect(issues).toEqual([
-      { who: 'YOU', text: '3 hari belum dijelaskan (12, 14, 18 November 2026)', link: '/perlu-dijelaskan' },
+      { who: 'YOU', text: '3 hari belum dijelaskan (12, 14, 18 November 2026)', link: '/clarifications' },
       { who: 'OFFICE', text: 'Penjelasan 5 November 2026 menunggu keputusan HR', link: null },
     ]);
   });

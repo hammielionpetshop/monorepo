@@ -100,7 +100,7 @@ export async function turnFenceOff(actor: Actor | null, hours: number, reason: s
     const owners = await accountsOf(await listEmployeesWithAnyAction([]));
     await notify(tx, owners, {
       kind: 'logistics.fence_off', title: `Pemeriksaan titik garasi dimatikan sampai ${wibClock(until)}`, body: reason.trim(),
-      link: '/logistik/mobil-rute', entity: 'fence', entityId: null,
+      link: '/logistics/vehicles-routes', entity: 'fence', entityId: null,
     }, actor.accountId);
   });
   return { ok: true, data: undefined };

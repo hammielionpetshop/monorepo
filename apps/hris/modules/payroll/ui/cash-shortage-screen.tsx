@@ -66,7 +66,7 @@ export function CashShortageScreen(props: {
         <Button size="sm" variant={tab === 'pos' ? 'primary' : 'secondary'} onClick={() => setTab('pos')}>Dari POS</Button>
         <Button size="sm" variant={tab === 'manual' ? 'primary' : 'secondary'} onClick={() => setTab('manual')}>Catat tangan</Button>
         <Button size="sm" variant={tab === 'check' ? 'primary' : 'secondary'} onClick={() => setTab('check')}>Perlu diperiksa{checkCount ? ` (${checkCount})` : ''}</Button>
-        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/potongan/minus-kas/tautan">Tautan Akun Kasir</Link>
+        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/deductions/cash-shortages/cashier-links">Tautan Akun Kasir</Link>
       </div>
 
       {tab === 'pos' && (
@@ -114,7 +114,7 @@ export function CashShortageScreen(props: {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-ink-muted">Hanya untuk kejadian di luar shift POS, dengan alasan yang menjelaskan kenapa tidak lewat POS.</p>
-            {can.record && <Link className={buttonClass({ size: 'sm' })} href="/potongan/minus-kas/catat">Catat Minus Kas</Link>}
+            {can.record && <Link className={buttonClass({ size: 'sm' })} href="/deductions/cash-shortages/record">Catat Minus Kas</Link>}
           </div>
           <DataList
             rows={manual}
@@ -128,7 +128,7 @@ export function CashShortageScreen(props: {
               { key: 'status', header: 'Status', render: (m) => <Badge tone={m.status === 'ACTIVE' ? 'ok' : m.status === 'PENDING' ? 'warn' : 'danger'}>{MANUAL_STATUS[m.status]}</Badge> },
               {
                 key: 'act', header: '', render: (m) => (m.status === 'PENDING' && m.requestId
-                  ? <Link className="underline text-sm" href={`/persetujuan/${m.requestId}`}>Lihat usulan</Link>
+                  ? <Link className="underline text-sm" href={`/approvals/${m.requestId}`}>Lihat usulan</Link>
                   : m.status === 'ACTIVE' && can.approve ? <Button size="sm" variant="ghost" onClick={() => setCancelling(m)}>Batalkan</Button> : null),
               },
             ]}
@@ -140,7 +140,7 @@ export function CashShortageScreen(props: {
         <div className="space-y-3">
           <Card className="space-y-2">
             <h2 className="font-medium">Akun kasir belum ditautkan ke karyawan</h2>
-            <p className="text-sm text-ink-muted">Minusnya menunggu dan tidak hilang. Tautkan di <Link className="underline" href="/potongan/minus-kas/tautan">Tautan Akun Kasir</Link>.</p>
+            <p className="text-sm text-ink-muted">Minusnya menunggu dan tidak hilang. Tautkan di <Link className="underline" href="/deductions/cash-shortages/cashier-links">Tautan Akun Kasir</Link>.</p>
             <ShiftTable rows={unlinked} labels={labels} showUser />
           </Card>
           <Card className="space-y-2">

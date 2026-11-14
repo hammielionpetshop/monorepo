@@ -65,7 +65,7 @@ export function TripForm({ id, initial, vehicles, deliveryRoutes, shoppingRoutes
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(id ? 'Trip diubah.' : 'Trip dibuat. Awak sudah diberi tahu.', 'ok');
-    router.push(`/logistik/trip/${id ?? Number(result.data?.id)}`);
+    router.push(`/logistics/trips/${id ?? Number(result.data?.id)}`);
     router.refresh();
   }
 

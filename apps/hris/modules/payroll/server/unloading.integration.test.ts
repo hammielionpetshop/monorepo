@@ -178,7 +178,7 @@ describe.skipIf(!ADMIN_URL)('L8a: Laporan Bongkaran', () => {
     expect(other.ok).toBe(false);
     const emp = await import('@/modules/employees');
     const dup = await emp.saveCasualWorker(kg, { name: 'Asep', phone: '+62 812-0000-0001' });
-    expect(dup.ok || dup.error).toMatch(/karyawan Budi/);
+    expect(dup.ok || dup.error).toMatch(/employees Budi/);
     const added = await emp.saveCasualWorker(kg, { name: 'Asep', phone: '081299999999' });
     expect(added.ok).toBe(true);
     const casualId = added.ok ? added.data.id : 0;

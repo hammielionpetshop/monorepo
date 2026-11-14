@@ -164,11 +164,11 @@ export function holdsFrom(
     if (!dates.length) return;
     holds.push({ kind, text: `${HOLD_LABELS[kind].title} (${dates.length}, sejak ${longDate(oldest(dates)!)})`, resolver: HOLD_LABELS[kind].resolver, link, since: oldest(dates) });
   };
-  add('OUTSIDE_REVIEW', facts.outsideReviews, '/kehadiran/tinjau');
-  add('CLARIFICATION', facts.clarifications, '/kehadiran/perlu-dijelaskan');
-  add('OVERTIME_CLAIM', facts.overtimeClaims, '/kehadiran/lembur');
-  if (!hasSalary) holds.push({ kind: 'NO_SALARY', text: HOLD_LABELS.NO_SALARY.title, resolver: HOLD_LABELS.NO_SALARY.resolver, link: `/gaji/${employeeId}`, since: null });
-  add('LAST_SLIP_BONUS', lastSlipBonuses, `/gaji/${employeeId}/bonus`);
+  add('OUTSIDE_REVIEW', facts.outsideReviews, '/attendance/review');
+  add('CLARIFICATION', facts.clarifications, '/attendance/clarifications');
+  add('OVERTIME_CLAIM', facts.overtimeClaims, '/attendance/overtime');
+  if (!hasSalary) holds.push({ kind: 'NO_SALARY', text: HOLD_LABELS.NO_SALARY.title, resolver: HOLD_LABELS.NO_SALARY.resolver, link: `/payroll/${employeeId}`, since: null });
+  add('LAST_SLIP_BONUS', lastSlipBonuses, `/payroll/${employeeId}/bonuses`);
   return holds;
 }
 
@@ -209,7 +209,7 @@ export function correctionInputs(
     const label = `Koreksi ${labels[kind].toLowerCase()} periode ${longDate(oldPeriod)}`;
     const details: SlipLineDetails = {
       text: kind === 'BASE' ? 'Gaji tetap periode itu dibetulkan (Pembetulan gaji periode lalu).' : 'Data kehadiran periode itu berubah sesudah slipnya ditutup.',
-      link: `/gaji/periode/${oldPeriod}`,
+      link: `/payroll/periods/${oldPeriod}`,
     };
     const sourceKey = `corr:${oldPeriod}:${kind}`;
     if (delta > 0) income.push({ sourceKey, lineKind: kind, label, amount: delta, originPeriod: oldPeriod, details });

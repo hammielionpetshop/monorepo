@@ -115,7 +115,7 @@ async function proposeCore(
         await notify(tx, await deciderAccounts(), {
           kind: 'logistics.store_point', title: `${input.kind === 'CORRECTION' ? 'Titik salah dilaporkan' : 'Titik toko baru'}: ${visit.destinationName}`,
           body: `${reason?.ok ? `${reason.value}. ` : ''}Setujui atau tolak di Data Toko › Titik menunggu.`,
-          link: '/logistik/toko?tab=titik', entity: 'store_point', entityId: row.id,
+          link: '/logistics/stores?tab=titik', entity: 'store_point', entityId: row.id,
         }, me.accountId);
       }
       return { ok: true as const, data: { status: (direct ? 'APPROVED' : 'PENDING') as PointStatus } };
@@ -155,7 +155,7 @@ export async function decidePoint(actor: Actor | null, pointId: number, decision
     const [name] = await tx.execute<{ name: string }>(sql`select name from logistics.pos_customers where id = ${point.customerId}`);
     await notify(tx, [point.proposedByAccountId], {
       kind: 'logistics.store_point_rejected', title: name ? `Titik toko ${name.name} ditolak` : 'Titik toko ditolak',
-      body: text.slice(0, 300), link: '/trip-saya', entity: 'store_point', entityId: pointId,
+      body: text.slice(0, 300), link: '/my-trips', entity: 'store_point', entityId: pointId,
     }, actor.accountId);
     return { ok: true as const, data: undefined };
   });

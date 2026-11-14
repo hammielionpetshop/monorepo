@@ -28,8 +28,8 @@ import {
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
-const reportLink = (id: number) => `/gaji/bongkaran/${id}`;
-const MY_LINK = '/pendapatan#bongkaran';
+const reportLink = (id: number) => `/payroll/unloading/${id}`;
+const MY_LINK = '/earnings#bongkaran';
 const reasonOf = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const keyOf = (row: { employeeId: number | null; casualWorkerId: number | null }) => (row.employeeId != null ? `E${row.employeeId}` : `C${row.casualWorkerId}`);
 const personOf = (key: string) => (key.startsWith('E') ? { employeeId: Number(key.slice(1)), casualWorkerId: null } : { employeeId: null, casualWorkerId: Number(key.slice(1)) });
@@ -705,7 +705,7 @@ export function unloadingNotReceivedHandler(): RequestHandler {
           save: async (saveTx, requestId) => {
             await saveTx.insert(unloadingReceiptClaims).values({ paymentId, employeeId: actor.personId, requestId, note });
             await notify(saveTx, [payment.paidByAccountId], {
-              kind: 'unloading.not_received', title: `Upah bongkaran ${report.number} dilaporkan belum diterima`, body: note, link: `/persetujuan/${requestId}`, entity: 'unloading_payment', entityId: paymentId,
+              kind: 'unloading.not_received', title: `Upah bongkaran ${report.number} dilaporkan belum diterima`, body: note, link: `/approvals/${requestId}`, entity: 'unloading_payment', entityId: paymentId,
             }, actor.accountId);
           },
         },
@@ -749,7 +749,7 @@ export async function runUnloadingDaily(now: Date = new Date()) {
     const oldest = [unpaid[0].oldest, ...topUps.map((t) => t.workDate)].filter((d): d is string => !!d).sort()[0];
     reminded = await db.transaction(async (tx) => notify(tx, await accountsWith(['unloading.pay']), {
       kind: 'unloading.reminder', title: `Ada ${count} Laporan Bongkaran belum dibayar, ${rupiah(total)}, paling lama sejak ${longDate(oldest)}.`,
-      link: '/gaji/bongkaran', entity: 'unloading_report', entityId: 0,
+      link: '/payroll/unloading', entity: 'unloading_report', entityId: 0,
     }, null));
   }
   const days = Number(await settingOn<number>('payroll.unloading_overpay_flag_days', today) ?? 30);
@@ -760,7 +760,7 @@ export async function runUnloadingDaily(now: Date = new Date()) {
       await tx.update(unloadingOverpayments).set({ flaggedAt: now }).where(inArray(unloadingOverpayments.id, overs.map((o) => o.id)));
       await notify(tx, await ownerAccounts(), {
         kind: 'unloading.overpay_late', title: `${overs.length} lebih bayar bongkaran sudah lewat ${days} hari belum tertagih (${rupiah(overs.reduce((s, o) => s + o.remaining, 0))}).`,
-        body: 'Putuskan: tagih tunai atau hapus.', link: '/gaji/bongkaran?tab=OVERPAY', entity: 'unloading_overpayment', entityId: overs[0].id,
+        body: 'Putuskan: tagih tunai atau hapus.', link: '/payroll/unloading?tab=OVERPAY', entity: 'unloading_overpayment', entityId: overs[0].id,
       }, null);
     });
   }

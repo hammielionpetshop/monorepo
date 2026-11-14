@@ -154,7 +154,7 @@ export function SwapScreen(props: Props) {
                 {props.myDaysOff.map((row) => <option key={row.date} value={row.date}>{row.label}</option>)}
               </Select>
             </Field>
-          ) : <Alert tone="info">Anda belum punya libur yang bisa ditukar. <Link className="underline" href="/libur">Pilih libur</Link></Alert>
+          ) : <Alert tone="info">Anda belum punya libur yang bisa ditukar. <Link className="underline" href="/days-off">Pilih libur</Link></Alert>
         ) : (
           <Field id="sw-sdate" label="Tanggal shift yang ditukar">
             <Input id="sw-sdate" type="date" min={props.today} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -163,7 +163,7 @@ export function SwapScreen(props: Props) {
         {step === 3 && options && (tooLate ? (
           <div className="space-y-2">
             <Alert tone="warn">{TOO_LATE}</Alert>
-            <Link href="/pengajuan" className="underline">Ke Pengajuan Saya</Link>
+            <Link href="/requests" className="underline">Ke Pengajuan Saya</Link>
           </div>
         ) : options.length ? (
           <ul className="space-y-2">

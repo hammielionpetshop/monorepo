@@ -107,10 +107,10 @@ export async function correctPastSalary(
     if (account) {
       await notify(tx, [account], {
         kind: 'salary.corrected', title: `Gaji Anda periode ${when} dibetulkan.`,
-        body: `Alasan: ${reason.reason}. Selisihnya masuk Koreksi Periode Lalu di slip berikutnya.`, entity: 'salary_change', entityId: id, link: '/pendapatan',
+        body: `Alasan: ${reason.reason}. Selisihnya masuk Koreksi Periode Lalu di slip berikutnya.`, entity: 'salary_change', entityId: id, link: '/earnings',
       }, actor!.accountId);
     }
-    await announce(tx, actor!.accountId, { what: `membetulkan gaji ${person.name} periode ${when}: ${reason.reason}`, link: `/gaji/${person.id}`, entity: 'salary_change', entityId: id });
+    await announce(tx, actor!.accountId, { what: `membetulkan gaji ${person.name} periode ${when}: ${reason.reason}`, link: `/payroll/${person.id}`, entity: 'salary_change', entityId: id });
     return {
       ok: true as const,
       data: {

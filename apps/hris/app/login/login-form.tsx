@@ -81,7 +81,7 @@ export function LoginForm({ returnTo = '/' }: { returnTo?: string }) {
         )}
         {error && <Alert tone="danger">{error}</Alert>}
         <Button type="submit" block loading={busy}>{step === 'login' ? 'Masuk' : 'Simpan dan masuk'}</Button>
-        {step === 'login' && <Link href="/lupa-password" className="block text-center text-sm text-brand-700">Lupa password</Link>}
+        {step === 'login' && <Link href="/forgot-password" className="block text-center text-sm text-brand-700">Lupa password</Link>}
       </form>
     </Card>
   );

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // Hanya kembali ke halaman absen; alamat lain diabaikan supaya tautan login tidak bisa dipakai membelokkan orang.
 function safeReturn(next: string | undefined): string {
-  return next && /^\/absen(\?c=[A-Za-z0-9_%-]+)?$/.test(next) ? next : '/';
+  return next && /^\/clock-in(\?c=[A-Za-z0-9_%-]+)?$/.test(next) ? next : '/';
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {

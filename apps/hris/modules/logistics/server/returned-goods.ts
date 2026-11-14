@@ -183,7 +183,7 @@ export async function receiveGoods(
       if (clean.result === 'MISMATCH') {
         await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.trip.manage'])), {
           kind: 'logistics.goods_mismatch', title: `Barang kembali tidak sesuai: ${row.destination} (trip ${row.tripNumber})`,
-          body: `${row.what}. ${clean.note}`, link: '/logistik/barang-kembali', entity: 'goods_receipt', entityId: row.sourceId,
+          body: `${row.what}. ${clean.note}`, link: '/logistics/returned-goods', entity: 'goods_receipt', entityId: row.sourceId,
         }, actor.accountId);
       }
     });

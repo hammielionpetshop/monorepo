@@ -66,7 +66,7 @@ export function IdentityChangeForm({ current, prefill, resubmittedFromId }: {
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Pengajuan gagal dikirim.');
     toast(String(result.data?.message ?? 'Pengajuan terkirim.'), 'ok');
-    router.push(`/pengajuan/${result.data?.id}`);
+    router.push(`/requests/${result.data?.id}`);
     router.refresh();
   }
 

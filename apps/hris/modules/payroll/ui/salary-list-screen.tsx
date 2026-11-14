@@ -58,7 +58,7 @@ export function SalaryListScreen({ rows, branches, positions, filter, divisor, p
         columns={[
           {
             key: 'name', header: 'Nama', primary: true, render: (row) => (
-              <Link className="font-medium text-brand-700 hover:underline" href={`/gaji/${row.id}`}>{row.name}</Link>
+              <Link className="font-medium text-brand-700 hover:underline" href={`/payroll/${row.id}`}>{row.name}</Link>
             ),
           },
           { key: 'position', header: 'Jabatan', render: (row) => `${row.positionName} · ${row.branchName}` },

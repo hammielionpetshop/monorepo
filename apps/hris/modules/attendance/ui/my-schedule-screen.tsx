@@ -22,7 +22,7 @@ export function MyScheduleScreen({ week, today, shiftless, cells, friends, branc
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">{isThisWeek ? 'Minggu ini' : `Minggu ${week}`}</h2>
-        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={isThisWeek ? `/jadwal?week=${addDays(thisWeek, 7)}` : '/jadwal'}>
+        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={isThisWeek ? `/schedule?week=${addDays(thisWeek, 7)}` : '/schedule'}>
           {isThisWeek ? 'Minggu depan' : 'Minggu ini'}
         </Link>
       </div>

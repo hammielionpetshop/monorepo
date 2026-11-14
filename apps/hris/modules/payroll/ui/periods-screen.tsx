@@ -20,7 +20,7 @@ export function PeriodsScreen({ rows, weeks, canOpen, canSummary, from, weeklyFr
           rowKey={(r) => r.start}
           empty="Belum ada periode slip."
           columns={[
-            { key: 'label', header: 'Periode', primary: true, render: (r) => (canOpen ? <Link className="underline" href={`/gaji/periode/${r.start}`}>{r.label}</Link> : r.label) },
+            { key: 'label', header: 'Periode', primary: true, render: (r) => (canOpen ? <Link className="underline" href={`/payroll/periods/${r.start}`}>{r.label}</Link> : r.label) },
             { key: 'status', header: 'Status', render: (r) => r.status },
             ...(canOpen ? [
               { key: 'estimate', header: 'Perkiraan', render: (r: Row) => r.estimate },
@@ -29,7 +29,7 @@ export function PeriodsScreen({ rows, weeks, canOpen, canSummary, from, weeklyFr
             ] : []),
             { key: 'opens', header: 'Tutup aktif mulai', render: (r) => r.opensText },
             // Ringkasan Gaji bentuk Finance (L4f-2): total perusahaan tanpa per cabang dan tanpa gaji Pemilik/GM.
-            ...(canSummary && !canOpen ? [{ key: 'summary', header: 'Ringkasan', render: (r: Row) => (r.closed ? <Link className="underline" href={`/gaji/periode/${r.start}/ringkasan`}>Ringkasan</Link> : '—') }] : []),
+            ...(canSummary && !canOpen ? [{ key: 'summary', header: 'Ringkasan', render: (r: Row) => (r.closed ? <Link className="underline" href={`/payroll/periods/${r.start}/summary`}>Ringkasan</Link> : '—') }] : []),
           ]}
         />
       </section>
@@ -43,7 +43,7 @@ export function PeriodsScreen({ rows, weeks, canOpen, canSummary, from, weeklyFr
           rowKey={(r) => r.key}
           empty="Belum ada minggu slip."
           columns={[
-            { key: 'label', header: 'Minggu', primary: true, render: (r) => (canOpen ? <Link className="underline" href={`/gaji/periode/${r.key}`}>{r.label}</Link> : r.label) },
+            { key: 'label', header: 'Minggu', primary: true, render: (r) => (canOpen ? <Link className="underline" href={`/payroll/periods/${r.key}`}>{r.label}</Link> : r.label) },
             { key: 'status', header: 'Status', render: (r) => r.status },
             ...(canOpen ? [
               { key: 'estimate', header: 'Perkiraan', render: (r: WeekRow) => r.estimate },

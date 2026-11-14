@@ -93,7 +93,7 @@ export function advancePostponeHandler(): RequestHandler {
       if (account) {
         await notify(tx, [account], {
           kind: 'advance.postponed', title: `Cicilan kasbon ${view.row.number} ditunda: mulai gajian ${firstLabel}.`,
-          link: '/kasbon', entity: 'advance', entityId: view.row.id,
+          link: '/advances', entity: 'advance', entityId: view.row.id,
         }, actorAccountId);
       }
       return { ok: true as const, effect: `Semua cicilan kasbon ${view.row.number} bergeser satu gajian; cicilan berikutnya di slip ${firstLabel}.` };

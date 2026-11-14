@@ -25,7 +25,7 @@ import { PO_SYNC_LABELS, type PoSyncStatus } from './unloading-sync';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
-const LINK = '/gaji/bongkaran';
+const LINK = '/payroll/unloading';
 const reportLink = (id: number) => `${LINK}/${id}`;
 const ENDED: UnloadingStatus[] = ['REJECTED', 'WITHDRAWN', 'CANCELLED'];
 
@@ -468,7 +468,7 @@ async function announceWeights(tx: Tx, checked: Checked, actor: Actor, announce:
   if (!flagged.length) return;
   await announce(tx, actor.accountId, {
     what: `mengubah berat per satuan lebih dari ambang di ${number}: ${flagged.map((i) => `${i.productName} ${kgText(i.fromKg ?? '0')} → ${kgText(i.weightKg)} kg per ${i.uomName}`).join('; ')}`,
-    link: `${LINK}/berat?tab=CHANGED`, entity: 'unloading_report', entityId: reportId,
+    link: `${LINK}/weights?tab=CHANGED`, entity: 'unloading_report', entityId: reportId,
   });
 }
 
@@ -873,7 +873,7 @@ export async function changeWeight(actor: Actor | null, input: { productId: unkn
     await saveWeights(tx, actor!, [item], null);
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'unloading_weight', entityId: Number(unit.product_id), action: 'unloading_weight.change', before: { kg: currentKg }, after: { kg: weightKg, uomId: unit.uom_id }, reason });
     if (item.flagged) {
-      await announce(tx, actor!.accountId, { what: `mengubah berat ${unit.name} ${kgText(currentKg ?? '0')} → ${kgText(weightKg)} kg per ${unit.uom_name}`, link: `${LINK}/berat?tab=CHANGED`, entity: 'unloading_weight', entityId: Number(unit.product_id) });
+      await announce(tx, actor!.accountId, { what: `mengubah berat ${unit.name} ${kgText(currentKg ?? '0')} → ${kgText(weightKg)} kg per ${unit.uom_name}`, link: `${LINK}/weights?tab=CHANGED`, entity: 'unloading_weight', entityId: Number(unit.product_id) });
     }
     return { ok: true as const, data: {} };
   });
