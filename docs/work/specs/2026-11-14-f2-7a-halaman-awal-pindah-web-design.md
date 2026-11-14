@@ -131,3 +131,15 @@ selalu sama di semua tempat.
    2026-11-14).
 2. ✅ Finance tetap untuk Owner/GM saja (tanpa tautan baru) — usul agent, diserahkan owner.
 3. ✅ F2-7a dulu (gateway + Pindah web), pemisahan Logistik di F2-7b — usul agent, diserahkan owner.
+
+## 9. Catatan implementasi (2026-11-14)
+
+- **Ganti password awal** tidak dibuat ulang di gateway: gateway menampilkan tombol ke alur yang sudah ada — POS
+  (password + PIN baru, menyalin hash ke tabel lama) bila akun punya Back Office, selain itu HRIS. `POST
+  /api/gateway/change-password` di §2a tidak dibuat.
+- **Login HRIS tetap ada** (dipakai alur absen QR yang kembali ke `/absen?c=`); tombol Pindah web HRIS mengarah ke
+  gateway `?dari=hris` dan hanya tampil bila akun punya tautan web lain.
+- Tombol Pindah web HRIS/Finance membuka gateway (daftar web), bukan menu tarik-turun, karena HRIS/Finance tidak
+  boleh memanggil API Back Office lintas alamat. Back Office memakai menu tarik-turun.
+- `/api/gateway` dijadikan path publik di middleware Back Office; tiap rute memeriksa sesi pusat sendiri.
+- Login gateway menolak akun tanpa satu pun tautan web aktif ("Akun belum punya akses web").
