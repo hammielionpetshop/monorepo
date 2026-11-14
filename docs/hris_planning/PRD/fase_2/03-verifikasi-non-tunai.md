@@ -50,8 +50,8 @@ Verifikasi hanya menyimpan uang **tunai** yang diterima (`shifts.deposit_receive
 
 ## 7. Pertanyaan terbuka
 
-- ❓ Batas waktu "dana belum cair" sebelum ditandai merah (mis. 2 hari kerja)?
-- ❓ Apakah verifikasi non-tunai tetap memakai pola ketik dua kali seperti tunai?
+- ✅ Batas dana belum cair **2 hari**, diatur di Pengaturan — spec F2-2.
+- ✅ Non-tunai **tidak** diketik dua kali — spec F2-2.
 
 ## 8. Keputusan owner 2026-11-08 (sesudah PRD disetujui) — bahan spec F2-2 ✅
 

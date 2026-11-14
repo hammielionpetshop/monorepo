@@ -68,8 +68,8 @@ Semua prinsip Fase 1 (`../fase_1/00-ringkasan-fase-1.md` §6) tetap berlaku. Tam
 | **F2-5** | Biaya Rutin + sewa mobil per ritase | [06](06-biaya-rutin-dan-sewa-mobil.md) | Back Office + Logistik |
 | **F2-6** | Modul Finance (+ web uji staging 💡) | [07](07-modul-finance.md), [01](01-susunan-web.md) | Modul Finance |
 
-**Belakangan (masih Fase 2, sesudah F2-6)** ✅: Halaman Awal + tombol Pindah web, Logistik dipisah
-dari HRIS menjadi web sendiri (01).
+**Belakangan (masih Fase 2, sesudah F2-6)** ✅: Halaman Awal + tombol Pindah web (F2-7a), Logistik dipisah
+dari HRIS menjadi web sendiri (F2-7b) (01).
 
 **Tidak masuk Fase 2**: Kinerja & rekrutmen, fitur pendukung v3, import Excel, fingerprint, pajak
 (tidak diatur v3) — kecuali owner memutuskan lain.
@@ -141,7 +141,11 @@ diputuskan, diangkat di langkah tempat ia dibutuhkan:
 
 ## 12. Pertanyaan terbuka
 
-- ❓ Web Finance khusus staging (hanya Owner/GM) untuk uji, atau modul saja tanpa layar sampai web
-  resmi ada? (01 §5)
-- ❓ Utang lama (§9).
+- ✅ Web Finance khusus staging (hanya Owner/GM) untuk uji — dijawab di spec F2-6
+  (`docs/work/specs/2026-11-12-f2-6-modul-finance-design.md`, disetujui owner 2026-11-12).
+- ✅ Utang lama (§9) — diputuskan di spec F2-3b (`docs/work/specs/2026-11-08-f2-3b-utang-lama-design.md`,
+  disetujui owner 2026-11-08).
+- ✅ Topik §10 no. 1–10 semuanya sudah dijawab di spec langkahnya (Pindah Dana & uang diambil Owner/
+  modal/pinjaman di F2-4, aset di F2-6d, hitung kas di F2-6e, tutup bulan di F2-6f, biaya bersama =
+  "Kantor" di F2-6, Finance libur di F2-1/F2-2).
 - Pertanyaan per langkah ada di akhir tiap dokumen.

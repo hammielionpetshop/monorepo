@@ -42,5 +42,6 @@ trip).
 
 ## 5. Pertanyaan terbuka
 
-- ❓ Satu ritase untuk sewa mobil = sama dengan satu ritase untuk gaji driver?
-- ❓ Siapa yang menekan Bayar sewa mobil: Finance saja?
+- ✅ 1 ritase sewa = 1 trip Selesai mobil itu (ritase tangan kenek tidak menambah) — spec F2-5 §3.2.
+- ✅ Bayar sewa mobil oleh Finance/Owner/GM (hak `logistics.vehicle_rental.pay`; Kepala Gudang
+  hanya melihat) — spec F2-5 §3.3.
