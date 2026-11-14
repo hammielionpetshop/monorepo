@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-14 13:21 -->
+<!-- tayang: 2026-11-14 20:21 -->
 ### Changed
 
 - Logistik sekarang punya web sendiri di alamat terpisah. Semua menu Logistik dan Trip Saya pindah ke web Logistik, dan HRIS berisi absen, gaji, dan kasbon saja. Alamat lama `/logistik/...` di HRIS otomatis membuka web Logistik.
