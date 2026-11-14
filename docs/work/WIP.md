@@ -36,6 +36,10 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
 - **Kelola Kategori Pengeluaran Kasir + Biaya Rutin nominal berubah** (`feat/expense-category-manage`,
   migrasi petshop `0072`): sudah **tayang produksi 1.107.136** atas izin owner; uji owner di
   staging/produksi belum tercatat.
+- **Alamat halaman HRIS/Logistik/Finance ke bahasa Inggris** (owner 2026-11-14 "perbaiki sekarang saja";
+  spec `specs/2026-11-14-english-routes-design.md`, `feat/english-routes`, tanpa migrasi): terintegrasi
+  `dev_hris` & `staging` — **tayang staging — menunggu uji owner** (langkah uji spec §5). Alamat lama dialihkan
+  otomatis. Tes: aturan alamat/menu/akses/jadwal HRIS 167 + Finance 3; typecheck root lulus.
 - Rilis lama **tayang produksi — menunggu uji owner**: 1.107.113 (Grooming Ditahan + shortcut langkah
   Pengiriman) dan 1.107.106 (rincian Minus Kasir per cabang). HRIS L2a (komponen & kerangka tampilan,
   `/komponen`) tercatat menunggu uji owner di staging.
@@ -53,12 +57,10 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   `CASH_SHORTAGE_FROM`, `BONUS_FROM`, `PAYSLIP_FROM` diganti ke periode gaji HRIS pertama (spec L4c/L4d/L4e
   §11); muat data karyawan (L2g, Excel sumber di tangan owner); situs Caddy produksi untuk
   `app.`/`finance.`/`logistik.`/`hris.hammielion.com`.
-- **Alamat halaman ke bahasa Inggris** (owner 2026-11-14 "perbaiki sekarang saja"): HRIS, Logistik, dan
-  Finance — spec `specs/2026-11-14-english-routes-design.md`, branch `feat/english-routes` (dasar
-  `origin/dev_hris`, tanpa migrasi; alamat lama dialihkan otomatis).
-- **Usulan agent yang ditunda owner ("nanti saja", 2026-11-14):** backup foto upload/HRIS + salinan backup
-  ke luar server; panduan pengguna Fase 2 (Setor Tunai, Hitung Kas, Tutup Bulan, Tempat Uang, Biaya Rutin,
-  Aset, Halaman Awal); merapikan worktree lokal yang sudah terintegrasi.
+- **Tugas teknis untuk developer owner** (backup foto + salinan luar server, proteksi GitHub, pengerasan
+  server, persiapan produksi HRIS, utang teknis): [`backlog/2026-11-14-tugas-dev.md`](backlog/2026-11-14-tugas-dev.md).
+- Usulan agent yang ditunda owner ("nanti saja", 2026-11-14): panduan pengguna Fase 2 (Setor Tunai, Hitung Kas,
+  Tutup Bulan, Tempat Uang, Biaya Rutin, Aset, Halaman Awal).
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil
   status lama sebagai klaim aktif.
