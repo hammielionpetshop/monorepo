@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ApiError, loadView, login, logout, nextStep, openWeb, type GatewayView, type Step, type WebEntry } from './api'
 
-const WEB_LABEL: Record<string, string> = { pos: 'POS', hris: 'HRIS', finance: 'Finance' }
+const WEB_LABEL: Record<string, string> = { pos: 'POS', hris: 'HRIS', finance: 'Finance', logistik: 'Logistik' }
 
 /** `?dari=hris` dipasang tombol Pindah web di web lain; web itu diberi tanda "sedang dibuka". */
 function currentFrom(): string | null {
@@ -120,7 +120,7 @@ export function App() {
                     {from === web.code && <span className="tag">Sedang dibuka</span>}
                   </span>
                   <span className="muted small">
-                    {web.needsPassword ? 'Masuk dengan password untuk membuka HRIS' : busy === web.code ? 'Membuka…' : web.description}
+                    {web.needsPassword ? `Masuk dengan password untuk membuka ${web.name}` : busy === web.code ? 'Membuka…' : web.description}
                   </span>
                 </button>
               </li>

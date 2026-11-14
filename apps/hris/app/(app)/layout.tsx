@@ -6,7 +6,7 @@ import { HoldSecondsProvider } from '@/components/ui/hold-button';
 import { NewFeaturesProvider } from '@/components/ui/new-badge';
 import { Alert, EmptyState } from '@/components/ui/surface';
 import { getRequestActor, stagingRestricted } from '@/lib/authz';
-import { NAV_GROUPS, visibleNav } from '@/lib/nav';
+import { NAV_GROUPS, navForWeb, visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { LIMITED_BANNER, hasAction } from '@/modules/access';
 import { hasMyPay } from '@/modules/payroll';
@@ -16,6 +16,8 @@ import { unreadCount } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
 import { webSwitchUrl } from '@/lib/web-switch';
+import { redirectTarget, webForHost, webOriginsFromEnv } from '@/lib/web-split';
+import { logisticsWebAllowed } from '@/lib/web-split-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +47,12 @@ async function LimitedShell({ accountId, children }: { accountId: number; childr
 
 // Semua halaman masuk melewati sini: sesi pusat + tautan HRIS diperiksa satu kali.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Web Logistik di alamat sendiri (spec F2-7b §3): layar yang dibuka di web yang salah dipindah ke web pemiliknya.
+  const head = await headers();
+  const origins = webOriginsFromEnv();
+  const web = webForHost(head.get('host'), origins);
+  const target = redirectTarget(web, head.get('x-hris-path') ?? '/', head.get('x-hris-search') ?? '', origins);
+  if (target) redirect(target);
   const { session, actor } = await getRequestActor();
   if (!session.ok) {
     // Sesi sah tetapi tanpa tautan HRIS: jangan memantul ke login.
@@ -74,9 +82,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </main>
     );
   }
-  if (actor?.limited) return <LimitedShell accountId={session.accountId}>{children}</LimitedShell>;
-  const [shell, unread, waiting, switchUrl] = await Promise.all([
-    shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor), webSwitchUrl(session.accountId),
+  if (actor?.limited) {
+    if (web === 'logistik' && origins.hris) redirect(origins.hris);
+    return <LimitedShell accountId={session.accountId}>{children}</LimitedShell>;
+  }
+  const shell = await shellSettingsToday();
+  const split = !!origins.logistics;
+  const logisticsWeb = split ? await logisticsWebAllowed(actor, shell.today) : false;
+  if (web === 'logistik' && !logisticsWeb) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-sm">
+          <EmptyState title="Akses Logistik belum tersedia" action={origins.hris ? <a href={origins.hris} className="text-brand-700">Buka HRIS</a> : <LogoutButton />}>
+            Jabatan Anda belum punya hak Logistik. Hubungi Owner atau GM.
+          </EmptyState>
+        </div>
+      </main>
+    );
+  }
+  const [unread, waiting, switchUrl] = await Promise.all([
+    unreadCount(session.accountId), waitingSummary(actor), webSwitchUrl(session.accountId, web, web === 'hris' && logisticsWeb),
   ]);
   const checksIn = actor ? await tracksAttendance(actor, shell.today) : false;
   const clarify = checksIn ? await openClarificationCount(actor) : 0;
@@ -85,12 +110,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Pendapatan Saya hanya untuk orang yang punya slip (spec L4g §9 butir 3).
   const myPay = await hasMyPay(actor);
   const tripMenu = await myTripMenuVisible(actor, shell.today);
-  const groups = visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))
-    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay) && (item.href !== '/trip-saya' || tripMenu)) }));
+  const groups = navForWeb(visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))
+    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay) && (item.href !== '/trip-saya' || tripMenu)) })), web, split);
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
-        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }} switchUrl={switchUrl}>{children}</AppShell>
+        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }} switchUrl={switchUrl} title={web === 'logistik' ? 'Logistik' : 'HRIS'}>{children}</AppShell>
       </NewFeaturesProvider>
     </HoldSecondsProvider>
   );

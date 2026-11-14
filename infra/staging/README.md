@@ -113,3 +113,14 @@ sisanya ke `gateway-staging:80`, jadi cookie sesi & CSRF tetap satu alamat. Hany
   Pindah web di HRIS/Finance.
 - `STAGING_FINANCE_ORIGIN=https://finance.staginghml.my.id` — alamat Finance di daftar web; kosong = Finance tidak
   tampil.
+
+## Web Logistik (F2-7b)
+
+`https://logistik.staginghml.my.id` dijalankan container `hris-staging` yang sama (spec
+[F2-7b](../../docs/work/specs/2026-11-14-f2-7b-pisah-logistik-design.md) §3): alamat menentukan isi, layar Logistik
+di HRIS dialihkan ke sini dan sebaliknya. Hak kotak Logistik di gateway ditanyakan `bo-staging` ke pintu internal
+`hris-staging:3000/api/internal/web-access` (kunci `STAGING_HRIS_INTERNAL_KEY`; Caddy menolak `/api/internal` dari
+luar). Tambahkan di `.env` (cadangkan dulu):
+
+- `DOMAIN_STAGING_LOGISTICS=logistik.staginghml.my.id` — tanpa ini situs Logistik tidak dipasang.
+- `STAGING_LOGISTICS_ORIGIN=https://logistik.staginghml.my.id` — kosong = tidak ada pemisahan (Logistik tetap di HRIS).
