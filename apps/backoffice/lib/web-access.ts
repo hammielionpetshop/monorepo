@@ -2,7 +2,7 @@
  * Aturan hak per web untuk gateway dan tombol Pindah web (spec F2-7a §3). Satu-satunya tempat
  * aturan ini, supaya daftar web selalu sama di gateway, Back Office, HRIS, dan Finance.
  */
-export type WebCode = 'pos' | 'hris' | 'finance';
+export type WebCode = 'pos' | 'hris' | 'finance' | 'logistik';
 
 export type WebEntry = {
   code: WebCode;
@@ -23,6 +23,8 @@ export type WebAccessInput = {
   links: { appCode: string }[];
   /** User Back Office yang tertaut (null bila akun tidak punya tautan Back Office). */
   backofficeUser: { isActive: boolean; role: string } | null;
+  /** Hak web Logistik dihitung HRIS dari hak jabatan (spec F2-7b §5); false bila HRIS tidak bisa ditanya. */
+  logistics?: boolean;
 };
 
 export function listWebs(input: WebAccessInput, urls: WebUrls): WebEntry[] {
@@ -34,12 +36,19 @@ export function listWebs(input: WebAccessInput, urls: WebUrls): WebEntry[] {
   }
   if (linked.has('hris') && urls.hris) {
     webs.push({
-      code: 'hris', name: 'HRIS', description: 'Absen, gaji, kasbon, dan logistik', url: urls.hris,
-      needsPassword: input.authMethod !== 'PASSWORD',
+      code: 'hris', name: 'HRIS', description: urls.logistik ? 'Absen, gaji, dan kasbon' : 'Absen, gaji, kasbon, dan logistik',
+      url: urls.hris, needsPassword: input.authMethod !== 'PASSWORD',
     });
   }
   if (backoffice && FINANCE_ROLES.includes(input.backofficeUser!.role) && urls.finance) {
     webs.push({ code: 'finance', name: 'Finance', description: 'Analisa keuangan (hanya membaca)', url: urls.finance, needsPassword: false });
+  }
+  // Logistik dijalankan aplikasi HRIS di alamat sendiri (F2-7b §3), jadi butuh tautan HRIS dan sesi password yang sama.
+  if (linked.has('hris') && input.logistics === true && urls.logistik) {
+    webs.push({
+      code: 'logistik', name: 'Logistik', description: 'Trip, uang toko, bensin, dan sewa mobil', url: urls.logistik,
+      needsPassword: input.authMethod !== 'PASSWORD',
+    });
   }
   return webs;
 }
@@ -61,6 +70,7 @@ export function webUrlsFromEnv(env: Record<string, string | undefined> = process
     pos: cleanUrl(env.BACKOFFICE_PUBLIC_URL),
     hris: cleanUrl(env.HRIS_PUBLIC_URL),
     finance: cleanUrl(env.FINANCE_PUBLIC_URL),
+    logistik: cleanUrl(env.LOGISTICS_PUBLIC_URL),
   };
 }
 
@@ -69,5 +79,5 @@ export function gatewayUrlFromEnv(env: Record<string, string | undefined> = proc
 }
 
 export function isWebCode(value: unknown): value is WebCode {
-  return value === 'pos' || value === 'hris' || value === 'finance';
+  return value === 'pos' || value === 'hris' || value === 'finance' || value === 'logistik';
 }

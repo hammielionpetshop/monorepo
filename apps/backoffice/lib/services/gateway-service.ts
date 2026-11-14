@@ -11,6 +11,28 @@ export type GatewayView = {
   webs: WebEntry[];
 };
 
+/**
+ * Hak web Logistik (spec F2-7b §5) dihitung HRIS dari hak jabatan, lewat pintu internal HRIS yang tertutup dari luar.
+ * Gagal tertutup: HRIS tidak terkonfigurasi, mati, atau lambat = kotak Logistik tidak tampil.
+ */
+async function loadLogisticsAccess(token: string): Promise<boolean> {
+  const base = process.env.HRIS_INTERNAL_URL?.replace(/\/+$/, '');
+  const key = process.env.HRIS_INTERNAL_KEY;
+  if (!base || !key || !webUrlsFromEnv().logistik) return false;
+  try {
+    const res = await fetch(`${base}/api/internal/web-access`, {
+      headers: { 'x-internal-key': key, 'x-actor-session': token },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { logistics?: unknown };
+    return body.logistics === true;
+  } catch {
+    return false;
+  }
+}
+
 async function loadBackofficeUser(localUserId: number | undefined) {
   if (!localUserId) return null;
   const [row] = await db
@@ -31,8 +53,9 @@ export async function loadGatewayView(token: string): Promise<GatewayView | null
   const backofficeUser = await loadBackofficeUser(backofficeLink?.localUserId);
   const [account] = await sql`select username, email from auth.accounts where id = ${session.accountId}`;
   const urls = webUrlsFromEnv();
-  const webs = listWebs({ authMethod: session.authMethod, links: session.links, backofficeUser }, urls);
   const hasHris = session.links.some((link) => link.appCode === 'hris');
+  const logistics = hasHris ? await loadLogisticsAccess(token) : false;
+  const webs = listWebs({ authMethod: session.authMethod, links: session.links, backofficeUser, logistics }, urls);
   return {
     name: backofficeUser?.name ?? account?.username ?? account?.email ?? 'Pengguna',
     mustChangePassword: session.mustChangePassword,
@@ -46,7 +69,7 @@ export type OpenResult = { ok: true; url: string } | { ok: false; status: number
 
 /**
  * Buka akses web tujuan dari sesi pusat yang sama, tanpa login ulang. POS dibuka oleh bootstrap
- * Back Office saat orangnya tiba; HRIS dan Finance dibuka di sini karena keduanya hanya membaca
+ * Back Office saat orangnya tiba; HRIS, Logistik, dan Finance dibuka di sini karena keduanya hanya membaca
  * akses yang sudah ada di sesi.
  */
 export async function openWeb(token: string, code: WebCode): Promise<OpenResult> {
@@ -55,10 +78,11 @@ export async function openWeb(token: string, code: WebCode): Promise<OpenResult>
   if (view.mustChangePassword) return { ok: false, status: 403, error: 'Ganti password awal sebelum membuka aplikasi.' };
   const web = view.webs.find((entry) => entry.code === code);
   if (!web) return { ok: false, status: 403, error: 'Akun belum memiliki akses ke web ini.' };
-  if (web.needsPassword) return { ok: false, status: 403, error: 'Masuk dengan password untuk membuka HRIS.' };
+  if (web.needsPassword) return { ok: false, status: 403, error: `Masuk dengan password untuk membuka ${web.name}.` };
 
   const sql = getAuthSql();
-  if (code === 'hris') {
+  // Logistik = aplikasi HRIS di alamat lain (F2-7b §3): akses sesinya sama dengan HRIS.
+  if (code === 'hris' || code === 'logistik') {
     const opened = await openAppAccess(sql, token, 'hris');
     if (!opened.ok) return { ok: false, status: 403, error: opened.error };
   } else if (code === 'finance') {

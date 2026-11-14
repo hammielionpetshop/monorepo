@@ -85,7 +85,7 @@ export default function WebSwitcher({ webs, current }: { webs: WebEntry[]; curre
               <span className="min-w-0">
                 <span className="block truncate text-foreground">{web.name}</span>
                 <span className="block text-[11px] text-muted-foreground">
-                  {web.needsPassword ? 'Masuk dengan password untuk membuka HRIS' : pending === web.code ? 'Membuka…' : web.description}
+                  {web.needsPassword ? `Masuk dengan password untuk membuka ${web.name}` : pending === web.code ? 'Membuka…' : web.description}
                 </span>
               </span>
               {web.code === current && <Check className="w-4 h-4 flex-shrink-0 text-primary" />}
