@@ -46,6 +46,8 @@ export interface CashFlowEntry {
   cancelledAt: string | null
   cancelledByName: string | null
   cancelReason: string | null
+  /** F2-6f-3: diisi = Koreksi bulan lalu untuk bulan tertutup (forMonth). */
+  correctionReason: string | null
   canCancel: boolean
   /** Dicatat lewat Biaya Rutin; dibatalkan dari layar Biaya Rutin. */
   fromRecurringCost: boolean

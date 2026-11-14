@@ -43,6 +43,7 @@ export interface CostInput {
   startMonth: string
   endMonth: string | null
   note: string | null
+  variableAmount?: boolean
 }
 
 async function checkCategoryAndBranch(tx: Tx, categoryId: number, branchId: number | null) {
@@ -83,6 +84,7 @@ export async function createRecurringCost(input: CostInput & { amount: number },
         startMonth: monthStart(input.startMonth),
         endMonth: input.endMonth ? monthStart(input.endMonth) : null,
         note: input.note,
+        variableAmount: input.variableAmount ?? false,
         createdBy: actor.userId,
       })
       .returning()
@@ -144,6 +146,7 @@ export async function updateRecurringCost(id: number, input: CostInput & { isAct
         startMonth: monthStart(input.startMonth),
         endMonth: input.endMonth ? monthStart(input.endMonth) : null,
         note: input.note,
+        variableAmount: input.variableAmount ?? cost.variableAmount,
         isActive: input.isActive,
         updatedBy: actor.userId,
         updatedAt: sql`now()`,
@@ -210,6 +213,7 @@ export async function payRecurringCost(input: PayInput, actor: CostActor) {
       paidMonths: new Set(await paidMonthsOf(tx, cost.id)),
       currentMonth: today.slice(0, 7),
       billed,
+      variableAmount: cost.variableAmount,
       amount: input.amount,
       differenceReason: reason,
     })
@@ -312,6 +316,7 @@ export interface CostRow {
   startMonth: string
   endMonth: string | null
   note: string | null
+  variableAmount: boolean
   isActive: boolean
   currentAmount: number | null
   amounts: AmountStep[]
@@ -358,6 +363,7 @@ export async function listRecurringCosts(actor: CostActor): Promise<{ costs: Cos
       startMonth: recurringCosts.startMonth,
       endMonth: recurringCosts.endMonth,
       note: recurringCosts.note,
+      variableAmount: recurringCosts.variableAmount,
       isActive: recurringCosts.isActive,
     })
     .from(recurringCosts)

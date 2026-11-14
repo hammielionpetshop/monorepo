@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { hasPermission, type getAuth } from '@/lib/authz'
 import { AssetError, type AssetActor } from './asset-service'
 
@@ -27,6 +28,8 @@ export function assetActorOf(payload: Payload): AssetActor {
 }
 
 export function assetErrorResponse(error: unknown, where: string, fallback: string) {
+  const closedMonth = closedMonthMessage(error)
+  if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
   if (error instanceof AssetError) return NextResponse.json({ error: error.message }, { status: error.status })
   console.error(`${where} error:`, error)
   return NextResponse.json({ error: fallback }, { status: 500 })

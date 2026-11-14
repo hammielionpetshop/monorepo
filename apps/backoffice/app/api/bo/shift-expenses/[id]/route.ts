@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { db, expenseCategories, eq } from '@/lib/db'
+import { db, expenseCategories, shiftExpenses, eq } from '@/lib/db'
 import {
   MAX_AMOUNT,
   ShiftExpenseServiceError,
@@ -87,12 +87,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (parsed.data.categoryId) {
       const [category] = await db
-        .select({ id: expenseCategories.id })
+        .select({ id: expenseCategories.id, isActive: expenseCategories.isActive })
         .from(expenseCategories)
         .where(eq(expenseCategories.id, parsed.data.categoryId))
         .limit(1)
       if (!category) {
         return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 400 })
+      }
+      // Kategori nonaktif hanya boleh tetap dipakai catatan yang memang sudah memakainya.
+      if (!category.isActive) {
+        const [current] = await db.select({ categoryId: shiftExpenses.categoryId }).from(shiftExpenses)
+          .where(eq(shiftExpenses.id, expenseId)).limit(1)
+        if (current?.categoryId !== parsed.data.categoryId) {
+          return NextResponse.json({ error: 'Kategori ini sudah nonaktif, pilih kategori lain' }, { status: 400 })
+        }
       }
     }
 

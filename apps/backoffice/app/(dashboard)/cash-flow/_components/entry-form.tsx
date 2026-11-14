@@ -13,6 +13,8 @@ interface Props {
   categories: CashFlowCategoryOption[]
   places: MoneyPlaceOption[]
   branches: BranchOption[]
+  /** Bulan yang sudah ditutup di Finance (YYYY-MM, terbaru dulu) — pilihan Koreksi bulan lalu. */
+  closedMonths: string[]
   currentUserName: string
   activeBranchId: number
   isOwner: boolean
@@ -32,7 +34,7 @@ function Label({ htmlFor, children, required }: { htmlFor?: string; children: Re
   )
 }
 
-export default function EntryForm({ categories, places, branches, currentUserName, activeBranchId, isOwner, today, onSuccess, onError }: Props) {
+export default function EntryForm({ categories, places, branches, closedMonths, currentUserName, activeBranchId, isOwner, today, onSuccess, onError }: Props) {
   const [type, setType] = useState<CashFlowType>('EXPENSE')
   const [categoryId, setCategoryId] = useState<string>('')
   const [amount, setAmount] = useState<string>('')
@@ -40,6 +42,10 @@ export default function EntryForm({ categories, places, branches, currentUserNam
   const [occurredOn, setOccurredOn] = useState(today)
   const [forMonth, setForMonth] = useState(today.slice(0, 7))
   const [forMonthTouched, setForMonthTouched] = useState(false)
+  // F2-6f-3 Koreksi bulan lalu: biaya/pendapatan bulan yang sudah ditutup, dicatat di bulan berjalan.
+  const [isCorrection, setIsCorrection] = useState(false)
+  const [correctionMonth, setCorrectionMonth] = useState(closedMonths[0] ?? '')
+  const [correctionReason, setCorrectionReason] = useState('')
   const [branch, setBranch] = useState<string>(String(activeBranchId))
   const [placeId, setPlaceId] = useState<string>('')
   const [photo, setPhoto] = useState<string | null>(null)
@@ -82,6 +88,11 @@ export default function EntryForm({ categories, places, branches, currentUserNam
     if (!placeId) return setErrorMsg(type === 'EXPENSE' ? 'Pilih "Dibayar dari"' : 'Pilih "Masuk ke"')
     if (selectedCategory?.noteRequired && !note.trim()) return setErrorMsg('Catatan wajib diisi untuk kategori ini')
     if (photoUploading) return setErrorMsg('Tunggu foto selesai diunggah')
+    if (isCorrection) {
+      if (!correctionMonth) return setErrorMsg('Pilih bulan asal koreksi')
+      if (correctionMonth >= occurredOn.slice(0, 7)) return setErrorMsg('Bulan asal koreksi harus sebelum bulan tanggal uang')
+      if (correctionReason.trim().length < 5) return setErrorMsg('Alasan koreksi wajib diisi (minimal 5 huruf)')
+    }
 
     setIsSubmitting(true)
     try {
@@ -94,7 +105,8 @@ export default function EntryForm({ categories, places, branches, currentUserNam
           amount: amountNum,
           note: note.trim() || undefined,
           occurredOn,
-          forMonth,
+          forMonth: isCorrection ? correctionMonth : forMonth,
+          correctionReason: isCorrection ? correctionReason.trim() : undefined,
           branchId: branch === SHARED ? null : Number(branch),
           moneyPlaceId: Number(placeId),
           proofPhotoUrl: photo ?? undefined,
@@ -109,6 +121,8 @@ export default function EntryForm({ categories, places, branches, currentUserNam
       setAmount('')
       setNote('')
       setPhoto(null)
+      setIsCorrection(false)
+      setCorrectionReason('')
       onSuccess()
     } catch {
       onError('Terjadi kesalahan jaringan, silakan coba lagi')
@@ -190,22 +204,64 @@ export default function EntryForm({ categories, places, branches, currentUserNam
         </div>
         <div>
           <Label htmlFor="entry-month" required>Untuk bulan</Label>
-          <select
-            id="entry-month"
-            value={forMonth}
-            onChange={(e) => { setForMonth(e.target.value); setForMonthTouched(true) }}
-            className={inputClass}
-          >
-            {monthChoices(occurredOn || today).map((m) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
-            ))}
-          </select>
+          {isCorrection ? (
+            <select id="entry-month" value={correctionMonth} onChange={(e) => setCorrectionMonth(e.target.value)} className={inputClass}>
+              {closedMonths.map((m) => (
+                <option key={m} value={m}>{monthLabel(m)} (ditutup)</option>
+              ))}
+            </select>
+          ) : (
+            <select
+              id="entry-month"
+              value={forMonth}
+              onChange={(e) => { setForMonth(e.target.value); setForMonthTouched(true) }}
+              className={inputClass}
+            >
+              {monthChoices(occurredOn || today).map((m) => (
+                <option key={m} value={m}>{monthLabel(m)}{closedMonths.includes(m) ? ' (ditutup)' : ''}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
       <p className="-mt-2 text-xs text-muted-foreground">
         Tanggal uang = kapan uangnya keluar/masuk. Untuk bulan = biaya bulan apa (mis. sewa Oktober dibayar 1 November).
         {!isOwner && ' Tanggal paling jauh 7 hari ke belakang.'}
       </p>
+
+      {closedMonths.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={isCorrection}
+              onChange={(e) => setIsCorrection(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-medium">Koreksi bulan lalu</span> <NewBadge feature="fitur/koreksi-bulan-lalu" />
+              <span className="block text-xs text-muted-foreground">
+                Untuk biaya/pendapatan bulan yang sudah ditutup yang lupa atau salah dicatat. Uangnya tercatat pada tanggal uang;
+                biayanya masuk ke bulan asal sebagai koreksi (Laba Rugi bulan asal disajikan kembali, bulan berjalan tidak berubah).
+              </span>
+            </span>
+          </label>
+          {isCorrection && (
+            <div>
+              <Label htmlFor="entry-correction-reason" required>Alasan koreksi</Label>
+              <input
+                id="entry-correction-reason"
+                type="text"
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                maxLength={255}
+                placeholder="mis. listrik November lupa dicatat"
+                className={inputClass}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <Label htmlFor="entry-branch" required>Cabang yang menanggung</Label>

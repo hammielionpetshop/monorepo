@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { closedMonthMessage } from '@/lib/db-errors'
 import { z } from 'zod'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
@@ -82,6 +83,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
     return NextResponse.json({ success: true })
   } catch (error) {
+    const closedMonth = closedMonthMessage(error)
+    if (closedMonth) return NextResponse.json({ error: closedMonth }, { status: 409 })
     if (error instanceof CancelError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('POST /api/bo/cash-flow/entries/[id]/cancel error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat membatalkan catatan' }, { status: 500 })

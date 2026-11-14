@@ -114,7 +114,8 @@ export async function GET(req: NextRequest) {
     const uoms = await db.select().from(unitsOfMeasure);
     const payments = await db.select().from(paymentMethods);
     const allCategories = await db.select().from(categories);
-    const expenseCats = await db.select().from(expenseCategories);
+    // Kasir hanya memilih kategori aktif (kategori nonaktif tetap terbaca di catatan lama lewat nama di riwayat).
+    const expenseCats = await db.select().from(expenseCategories).where(eq(expenseCategories.isActive, true));
     const allSuppliers = await db.select().from(suppliers);
 
     return NextResponse.json({

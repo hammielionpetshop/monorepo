@@ -44,7 +44,12 @@ export interface EntryRuleInput {
   place: RulePlace | null
   isOwner: boolean
   today: string // YYYY-MM-DD (WIB)
+  /** F2-6f-3 Koreksi bulan lalu: alasan diisi = koreksi; bulan asal harus sudah ditutup (dicek DB, HM002). */
+  correctionReason?: string | null
 }
+
+/** Panjang minimal alasan Koreksi bulan lalu (sama dengan CHECK migrasi 0071). */
+export const CORRECTION_REASON_MIN = 5
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -90,6 +95,14 @@ export function checkEntry(input: EntryRuleInput): string | null {
   if (!MONTH_RE.test(input.forMonth)) return 'Untuk bulan tidak valid'
   const gap = Math.abs(monthIndex(input.forMonth) - monthIndex(input.occurredOn.slice(0, 7)))
   if (gap > FOR_MONTH_RANGE) return `Untuk bulan paling jauh ${FOR_MONTH_RANGE} bulan dari tanggal uang`
+  if (input.correctionReason != null) {
+    if (input.correctionReason.trim().length < CORRECTION_REASON_MIN) {
+      return `Alasan koreksi wajib diisi (minimal ${CORRECTION_REASON_MIN} huruf)`
+    }
+    if (monthIndex(input.forMonth) >= monthIndex(input.occurredOn.slice(0, 7))) {
+      return 'Koreksi bulan lalu: bulan asal harus sebelum bulan tanggal uang'
+    }
+  }
 
   if (!place) return input.type === 'EXPENSE' ? 'Pilih "Dibayar dari" (Tempat Uang)' : 'Pilih "Masuk ke" (Tempat Uang)'
   if (place.kind === 'DRAWER') return 'Laci kasir tidak bisa dipakai di Arus Kas (uang laci lewat Pengeluaran Kasir & Setoran)'

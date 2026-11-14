@@ -102,3 +102,24 @@ describe('checkTransfer (F2-4c)', () => {
     expect(checkTransfer({ ...t, occurredOn: '2026-10-30', isOwner: true })).toBeNull()
   })
 })
+
+describe('checkEntry Koreksi bulan lalu (F2-6f-3)', () => {
+  const correction = { ...base, occurredOn: '2026-12-03', today: '2026-12-03', forMonth: '2026-11' }
+
+  it('menerima koreksi beralasan untuk bulan sebelum tanggal uang', () => {
+    expect(checkEntry({ ...correction, correctionReason: 'listrik November lupa dicatat' })).toBeNull()
+  })
+
+  it('menolak alasan kosong atau terlalu pendek', () => {
+    expect(checkEntry({ ...correction, correctionReason: '' })).toMatch(/Alasan koreksi wajib/)
+    expect(checkEntry({ ...correction, correctionReason: ' abc ' })).toMatch(/Alasan koreksi wajib/)
+  })
+
+  it('menolak bulan asal yang sama atau sesudah bulan tanggal uang', () => {
+    expect(checkEntry({ ...correction, forMonth: '2026-12', correctionReason: 'salah catat bulan' })).toMatch(/bulan asal harus sebelum/)
+  })
+
+  it('catatan biasa tidak terpengaruh', () => {
+    expect(checkEntry({ ...correction, correctionReason: null })).toBeNull()
+  })
+})
