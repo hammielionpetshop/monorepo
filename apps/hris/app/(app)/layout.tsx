@@ -15,6 +15,7 @@ import { myTripMenuVisible } from '@/modules/logistics';
 import { unreadCount } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
+import { webSwitchUrl } from '@/lib/web-switch';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,7 +75,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
   if (actor?.limited) return <LimitedShell accountId={session.accountId}>{children}</LimitedShell>;
-  const [shell, unread, waiting] = await Promise.all([shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor)]);
+  const [shell, unread, waiting, switchUrl] = await Promise.all([
+    shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor), webSwitchUrl(session.accountId),
+  ]);
   const checksIn = actor ? await tracksAttendance(actor, shell.today) : false;
   const clarify = checksIn ? await openClarificationCount(actor) : 0;
   const overtimeMenu = checksIn ? await overtimeMenuVisible(actor, shell.today) : false;
@@ -87,7 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
-        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }}>{children}</AppShell>
+        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }} switchUrl={switchUrl}>{children}</AppShell>
       </NewFeaturesProvider>
     </HoldSecondsProvider>
   );

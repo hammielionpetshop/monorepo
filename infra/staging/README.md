@@ -98,3 +98,17 @@ bash -n infra/staging/deploy.sh infra/staging/refresh-db.sh
 ```
 
 Tes refresh memakai Docker palsu di folder sementara: tidak menyambung ke server atau database.
+
+## Web gateway (F2-7a)
+
+`gateway-staging` di `https://app.staginghml.my.id` (spec
+[F2-7a](../../docs/work/specs/2026-11-14-f2-7a-halaman-awal-pindah-web-design.md)): React + Vite, berkas statis tanpa DB
+atau rahasia. Caddy bersama meneruskan `/api/gateway/*` ke `bo-staging` (login, daftar web, buka web, keluar) dan
+sisanya ke `gateway-staging:80`, jadi cookie sesi & CSRF tetap satu alamat. Hanya berguna bila
+`STAGING_BO_AUTH_MODE=central`. Tambahkan di `.env` (cadangkan dulu):
+
+- `DOMAIN_STAGING_GATEWAY=app.staginghml.my.id` — tanpa ini situs gateway tidak dipasang (deploy tetap jalan).
+- `STAGING_GATEWAY_ORIGIN=https://app.staginghml.my.id` — origin tepercaya `/api/gateway/*` dan tujuan tombol
+  Pindah web di HRIS/Finance.
+- `STAGING_FINANCE_ORIGIN=https://finance.staginghml.my.id` — alamat Finance di daftar web; kosong = Finance tidak
+  tampil.
