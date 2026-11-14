@@ -36,7 +36,35 @@ describe('hak per web (F2-7a §3)', () => {
   })
 
   it('alamat env dibersihkan dan yang tidak sah diabaikan', () => {
-    expect(webUrlsFromEnv({ BACKOFFICE_PUBLIC_URL: 'https://bo.test/', HRIS_PUBLIC_URL: 'javascript:alert(1)', FINANCE_PUBLIC_URL: 'bukan url' }))
-      .toEqual({ pos: 'https://bo.test', hris: undefined, finance: undefined })
+    expect(webUrlsFromEnv({ BACKOFFICE_PUBLIC_URL: 'https://bo.test/', HRIS_PUBLIC_URL: 'javascript:alert(1)', FINANCE_PUBLIC_URL: 'bukan url', LOGISTICS_PUBLIC_URL: 'https://logistik.test/' }))
+      .toEqual({ pos: 'https://bo.test', hris: undefined, finance: undefined, logistik: 'https://logistik.test' })
+  })
+})
+
+describe('web Logistik (F2-7b §5)', () => {
+  const withLogistics: WebUrls = { ...urls, logistik: 'https://logistik.test' }
+  const owner = { authMethod: 'PASSWORD' as const, links: [{ appCode: 'backoffice' }, { appCode: 'hris' }], backofficeUser: { isActive: true, role: 'OWNER' } }
+
+  it('Owner yang berhak Logistik melihat 4 web, Logistik terakhir', () => {
+    expect(codes({ ...owner, logistics: true }, withLogistics)).toEqual(['pos', 'hris', 'finance', 'logistik'])
+  })
+
+  it('driver (hanya HRIS, berhak Logistik) melihat HRIS dan Logistik', () => {
+    expect(codes({ authMethod: 'PASSWORD', links: [{ appCode: 'hris' }], backofficeUser: null, logistics: true }, withLogistics)).toEqual(['hris', 'logistik'])
+  })
+
+  it('tanpa hak Logistik, tanpa tautan HRIS, atau tanpa alamat Logistik: kotak tidak tampil', () => {
+    expect(codes({ ...owner, logistics: false }, withLogistics)).not.toContain('logistik')
+    expect(codes({ ...owner, links: [{ appCode: 'backoffice' }], logistics: true }, withLogistics)).not.toContain('logistik')
+    expect(codes({ ...owner, logistics: true }, urls)).not.toContain('logistik')
+  })
+
+  it('keterangan HRIS tanpa logistik hanya bila web Logistik terpisah', () => {
+    expect(listWebs({ ...owner, logistics: true }, withLogistics).find((web) => web.code === 'hris')?.description).toBe('Absen, gaji, dan kasbon')
+    expect(listWebs(owner, urls).find((web) => web.code === 'hris')?.description).toBe('Absen, gaji, kasbon, dan logistik')
+  })
+
+  it('sesi PIN: Logistik ditandai perlu password seperti HRIS', () => {
+    expect(listWebs({ ...owner, authMethod: 'PIN', logistics: true }, withLogistics).find((web) => web.code === 'logistik')?.needsPassword).toBe(true)
   })
 })
