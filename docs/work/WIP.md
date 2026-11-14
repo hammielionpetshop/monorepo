@@ -52,9 +52,10 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   `docs/ops/auth-pusat.md` (persetujuan owner terpisah; masa stabil 30 hari dari cutover);
   `CASH_SHORTAGE_FROM`, `BONUS_FROM`, `PAYSLIP_FROM` diganti ke periode gaji HRIS pertama (spec L4c/L4d/L4e
   §11); muat data karyawan (L2g, Excel sumber di tangan owner); situs Caddy produksi untuk
-  `app.`/`finance.`/`logistik.`/`hris.hammielion.com`; alamat halaman Finance yang masih berbahasa
-  Indonesia (`/arus-uang`, `/laba-rugi`, `/tutup-bulan`, dst.) diganti ke bahasa Inggris sesuai aturan nama
-  teknis (keputusan owner 2026-11-14, pekerjaan kode tersendiri).
+  `app.`/`finance.`/`logistik.`/`hris.hammielion.com`.
+- **Alamat halaman ke bahasa Inggris** (owner 2026-11-14 "perbaiki sekarang saja"): HRIS, Logistik, dan
+  Finance — spec `specs/2026-11-14-english-routes-design.md`, branch `feat/english-routes` (dasar
+  `origin/dev_hris`, tanpa migrasi; alamat lama dialihkan otomatis).
 - **Usulan agent yang ditunda owner ("nanti saja", 2026-11-14):** backup foto upload/HRIS + salinan backup
   ke luar server; panduan pengguna Fase 2 (Setor Tunai, Hitung Kas, Tutup Bulan, Tempat Uang, Biaya Rutin,
   Aset, Halaman Awal); merapikan worktree lokal yang sudah terintegrasi.
@@ -69,9 +70,6 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   F2-7a/F2-7b; PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
 - Kembalikan Modal: pilihan "hanya barang yang modalnya naik" belum diputuskan owner (sekarang
   "kembalikan semua").
-- Alamat halaman HRIS dan Logistik juga berbahasa Indonesia (`/absen`, `/gaji`, `/logistik/...`), sama
-  seperti Finance, dan tidak tercatat sebagai pengecualian owner. Finance sudah diputuskan diganti sebelum
-  rilis; HRIS/Logistik belum diputuskan (lingkupnya besar, perlu keputusan owner).
 - Proteksi GitHub dan penguncian gerbang CI/deploy belum dikonfigurasi/diverifikasi.
 
 ## Deferred / Parked
