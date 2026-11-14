@@ -3,7 +3,7 @@ import { balanceBoard, lastDayOfMonth, loadCashCounts, loadLines, loadPlaces, lo
 import {
   buildProfitLoss, loadBranches, loadCosts, loadFlags, loadInternalSales, loadSales, type Flag, type ProfitLoss,
 } from '@/modules/profit-loss';
-import { countOpenItems, type Closing, type MonthSnapshot, type OpenItem } from './rules';
+import { countOpenItems, type Closing, type Correction, type MonthSnapshot, type OpenItem } from './rules';
 
 /**
  * Pembaca & satu-satunya penulis web Finance (spec F2-6f §0 butir 1): `month_closings` diisi dengan transaksi
@@ -80,3 +80,32 @@ export async function insertClosing(sql: Sql, input: {
         ${tx.json(input.openItems as unknown as postgres.JSONValue)}, ${tx.json(input.snapshot as unknown as postgres.JSONValue)})`;
   });
 }
+
+async function hasColumn(sql: Sql, table: string, column: string): Promise<boolean> {
+  const [row] = await sql<{ ok: boolean }[]>`
+    select exists (select 1 from information_schema.columns
+      where table_schema = 'petshop' and table_name = ${table} and column_name = ${column}) as ok`;
+  return Boolean(row?.ok);
+}
+
+/** Koreksi bulan lalu (spec F2-6f §5) untuk satu bulan asal; DB tanpa migrasi 0071 = belum ada koreksi. */
+export async function loadCorrections(sql: Sql, month: string): Promise<Correction[]> {
+  if (!(await hasColumn(sql, 'cash_flow_entries', 'correction_reason'))) return [];
+  const rows = await sql<{
+    id: number; occurred_on: string; branch_name: string | null; category: string; type: 'INCOME' | 'EXPENSE';
+    report_kind: string | null; amount: number; reason: string; created_by_name: string | null;
+  }[]>`
+    select e.id, to_char(e.occurred_on, 'YYYY-MM-DD') as occurred_on, b.name as branch_name, c.name as category, e.type,
+      c.report_kind, e.amount, e.correction_reason as reason, u.name as created_by_name
+    from petshop.cash_flow_entries e
+    join petshop.cash_flow_categories c on c.id = e.category_id
+    left join petshop.branches b on b.id = e.branch_id
+    left join petshop.users u on u.id = e.created_by
+    where e.correction_reason is not null and e.cancelled_at is null and e.for_month = ${`${month}-01`}::date
+    order by e.occurred_on, e.id`;
+  return rows.map((r) => ({
+    id: Number(r.id), occurredOn: r.occurred_on, branchName: r.branch_name ?? 'Bersama', category: r.category, type: r.type,
+    reportKind: r.report_kind, amount: Number(r.amount), reason: r.reason, createdByName: r.created_by_name ?? '—',
+  }));
+}
+

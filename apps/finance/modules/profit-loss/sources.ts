@@ -138,10 +138,17 @@ const toItem = (r: ItemRow): CostItem => ({
 /** Back Office: Arus Kas jenis Biaya/Pendapatan lain, Pengeluaran Kasir, Biaya Rutin belum dibayar. */
 async function backofficeItems(sql: Sql, month: string): Promise<ItemRow[]> {
   const { from, to } = monthRange(month);
+  // Koreksi bulan lalu (F2-6f §5, migrasi 0071) ditandai di Rincian; DB tanpa kolomnya tidak punya koreksi.
+  const [corr] = await sql<{ ok: boolean }[]>`
+    select exists (select 1 from information_schema.columns
+      where table_schema = 'petshop' and table_name = 'cash_flow_entries' and column_name = 'correction_reason') as ok`;
+  const correctionLabel = corr?.ok
+    ? `|| case when e.correction_reason is not null then ' (Koreksi, dicatat ' || to_char(e.occurred_on, 'DD-MM-YYYY') || ': ' || e.correction_reason || ')' else '' end`
+    : '';
   const rows = await sql<ItemRow[]>`
     select e.branch_id, 'CATEGORY' as grp, case c.report_kind when 'COST' then 'COST' else 'INCOME' end as kind,
       c.name as category, e.amount, to_char(e.occurred_on, 'YYYY-MM-DD') as date,
-      c.name || ' — ' || coalesce(b.name, 'Bersama') || coalesce(': ' || nullif(e.note, ''), '') as label,
+      c.name || ' — ' || coalesce(b.name, 'Bersama') || coalesce(': ' || nullif(e.note, ''), '') ${sql.unsafe(correctionLabel)} as label,
       'BO' as source, 'cf:' || e.id as ref
     from petshop.cash_flow_entries e
     join petshop.cash_flow_categories c on c.id = e.category_id

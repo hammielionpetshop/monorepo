@@ -155,3 +155,50 @@ export function countOpenItems(places: Place[], lines: MoneyLine[], counts: Cash
   if (mismatch) out.push({ key: 'count-variance', label: 'Hitung Kas akhir bulan masih berselisih dengan saldo catatan', count: mismatch, amount: mismatchAmount.toNumber() });
   return out;
 }
+
+/**
+ * Koreksi bulan lalu (spec F2-6f §5, PSAK 25 / IAS 8): catatan Arus Kas beralasan dengan "Untuk bulan" = bulan tertutup.
+ * Bulan asal disajikan kembali; Laba Rugi bulan berjalan tidak berubah (ia membaca "Untuk bulan").
+ */
+export type Correction = {
+  id: number;
+  /** Tanggal uang (bulan terbuka), YYYY-MM-DD. */
+  occurredOn: string;
+  branchName: string;
+  category: string;
+  type: 'INCOME' | 'EXPENSE';
+  reportKind: string | null;
+  amount: number;
+  reason: string;
+  createdByName: string;
+};
+
+/** Pengaruh satu koreksi pada laba bersih Gabungan: biaya mengurangi, pendapatan lain menambah, jenis lain tidak masuk laba. */
+export function correctionEffect(c: Pick<Correction, 'type' | 'reportKind' | 'amount'>): number {
+  if (c.reportKind === 'COST' && c.type === 'EXPENSE') return -c.amount;
+  if (c.reportKind === 'INCOME' && c.type === 'INCOME') return c.amount;
+  return 0;
+}
+
+export type Restatement = { closed: number; corrections: number; other: number; restated: number };
+
+/**
+ * Laba bersih Gabungan bulan tertutup: saat ditutup → koreksi bulan lalu → perubahan lain → disajikan kembali.
+ * "Disajikan kembali" = angka hidup sekarang; "perubahan lain" = sisa selisih yang bukan koreksi Arus Kas
+ * (nota dibatalkan, slip HRIS ditutup terlambat, dsb.).
+ */
+export function restatement(closed: ProfitLoss, live: ProfitLoss, corrections: Correction[]): Restatement {
+  const net = (pl: ProfitLoss) => {
+    const line = pl.lines.find((l) => l.key === 'net');
+    return line ? cell(line, 'total') : 0;
+  };
+  const before = net(closed);
+  const after = net(live);
+  const fix = corrections.reduce((s, c) => s.plus(correctionEffect(c)), new Big(0));
+  return {
+    closed: before,
+    corrections: fix.toNumber(),
+    other: new Big(after).minus(before).minus(fix).toNumber(),
+    restated: after,
+  };
+}

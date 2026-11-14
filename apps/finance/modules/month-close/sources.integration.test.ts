@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSnapshot, insertClosing, liveProfitLoss, loadClosings, loadOpenItems } from './sources';
+import { buildSnapshot, insertClosing, liveProfitLoss, loadClosings, loadCorrections, loadOpenItems } from './sources';
 
 // Tutup Bulan F2-6f-2 terhadap DB worktree lokal, dibaca & ditulis sebagai finance_app (koneksi baca saja seperti web
 // Finance). Bulan berjalan belum bisa ditutup, jadi penutupan yang sah disisipkan pemilik DB dengan trigger dimatikan
@@ -29,6 +29,8 @@ describe.skipIf(!local(ADMIN_URL) || !local(READER_URL))('Tutup Bulan di Finance
   afterAll(async () => {
     await admin.begin(async (tx) => {
       await tx`set local session_replication_role = replica`;
+      await tx`delete from petshop.cash_flow_entries where created_by = ${userId}`;
+      await tx`delete from petshop.cash_flow_categories where name = ${`Listrik TF ${run}`}`;
       await tx`delete from petshop.month_closings where closed_by = ${userId}`;
     });
     await Promise.all([admin.end(), reader.end()]);
@@ -60,4 +62,26 @@ describe.skipIf(!local(ADMIN_URL) || !local(READER_URL))('Tutup Bulan di Finance
     expect(closing.snapshot.profitLoss.lines.length).toBe(profitLoss.lines.length);
     await expect(reader.begin('read write', (tx) => tx`update petshop.month_closings set note = 'ubah'`)).rejects.toThrow(/permission denied/);
   });
+
+  it('Koreksi bulan lalu November terbaca sebagai finance_app; yang dibatalkan tidak dihitung (F2-6f §5)', async () => {
+    // November sudah ditutup oleh tes sebelumnya.
+    const [cat] = await admin`insert into petshop.cash_flow_categories (name, type, report_kind)
+      values (${`Listrik TF ${run}`}, 'EXPENSE', 'COST') returning id`;
+    const [fix] = await admin`insert into petshop.cash_flow_entries (type, category_id, amount, occurred_on, for_month, correction_reason, created_by)
+      values ('EXPENSE', ${cat.id}, 20000, '2026-12-03', '2026-11-01', 'listrik November lupa dicatat', ${userId}) returning id`;
+    const mine = async () => (await loadCorrections(reader, '2026-11')).filter((c) => c.createdByName === `TF${run}`);
+    expect(await mine()).toEqual([expect.objectContaining({
+      id: fix.id, occurredOn: '2026-12-03', branchName: 'Bersama', type: 'EXPENSE', reportKind: 'COST', amount: 20000,
+      reason: 'listrik November lupa dicatat',
+    })]);
+    // Laba Rugi hidup November ikut koreksi (Untuk bulan November); Desember tidak.
+    const nov = await liveProfitLoss(reader, '2026-11');
+    expect(nov.profitLoss.lines.some((l) => l.label === `Listrik TF ${run}`)).toBe(true);
+    const dec = await liveProfitLoss(reader, '2026-12');
+    expect(dec.profitLoss.lines.some((l) => l.label === `Listrik TF ${run}`)).toBe(false);
+
+    await admin`update petshop.cash_flow_entries set cancelled_at = now(), cancelled_by = ${userId}, cancel_reason = 'salah jumlah' where id = ${fix.id}`;
+    expect(await mine()).toEqual([]);
+  });
 });
+

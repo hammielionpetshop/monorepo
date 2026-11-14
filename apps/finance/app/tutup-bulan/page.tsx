@@ -147,8 +147,8 @@ export default async function TutupBulanPage({ searchParams }: {
         <h1 className="text-xl font-semibold">Tutup Bulan</h1>
         <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
           Menutup bulan menyimpan salinan Laba Rugi dan saldo akhir bulan, sehingga angkanya tidak berubah diam-diam. Sesudah
-          ditutup, Back Office menolak catatan uang bertanggal di bulan itu; koreksi dicatat di bulan berjalan dengan menyebut
-          bulan asalnya. Ditutup berurutan oleh Owner atau GM, dan <strong>tidak bisa dibuka kembali</strong>.
+          ditutup, Back Office menolak catatan uang bertanggal di bulan itu; biaya/pendapatan yang terlewat dicatat sebagai
+          <strong> Koreksi bulan lalu</strong> di Pendapatan &amp; Pengeluaran, dan Laba Rugi bulan itu disajikan kembali. Ditutup berurutan oleh Owner atau GM, dan <strong>tidak bisa dibuka kembali</strong>.
         </p>
       </div>
 
