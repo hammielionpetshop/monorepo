@@ -21,7 +21,7 @@ export default async function LoadReportsPage({ searchParams }: { searchParams: 
   if (!data) return <NoAccess />;
   return (
     <>
-      <PageHeader title="Laporan Muat" description="Foto nota dan foto barang yang dimuat, bukti bila toko komplain." actions={<NewBadge feature="/logistik/laporan-muat" />} />
+      <PageHeader title="Laporan Muat Toko" description="Foto nota dan foto barang yang dimuat, bukti bila toko komplain." actions={<NewBadge feature="/logistik/laporan-muat" />} />
       <LoadReportsScreen rows={data.rows} branches={data.branches} filter={filter} />
     </>
   );
