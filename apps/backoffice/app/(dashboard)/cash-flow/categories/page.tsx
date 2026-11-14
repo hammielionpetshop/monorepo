@@ -16,7 +16,7 @@ export default async function CashFlowCategoriesPage() {
       .from(cashFlowCategories)
       .orderBy(cashFlowCategories.type, cashFlowCategories.name)) as CashFlowCategory[]
     links = await db
-      .select({ id: expenseCategories.id, name: expenseCategories.name, cashFlowCategoryId: expenseCategories.cashFlowCategoryId })
+      .select({ id: expenseCategories.id, name: expenseCategories.name, cashFlowCategoryId: expenseCategories.cashFlowCategoryId, isActive: expenseCategories.isActive })
       .from(expenseCategories)
       .orderBy(asc(expenseCategories.name))
   } catch (e) {

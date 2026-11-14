@@ -61,4 +61,6 @@ export const expenseCategories = petshop.table('expense_categories', {
   name: varchar('name', { length: 50 }).notNull().unique(),
   /** F2-4b: kategori Arus Kas padanannya (FK di migrasi 0060; tanpa .references agar tidak impor melingkar). */
   cashFlowCategoryId: integer('cash_flow_category_id'),
+  /** Nonaktif = tidak bisa dipilih kasir lagi; catatan lama tetap (migrasi 0072). Tidak ada hapus. */
+  isActive: boolean('is_active').default(true).notNull(),
 });

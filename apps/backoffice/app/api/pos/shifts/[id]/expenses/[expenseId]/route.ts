@@ -110,12 +110,20 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         return NextResponse.json({ error: 'Kategori tidak valid' }, { status: 400 });
       }
       const [found] = await db
-        .select({ id: expenseCategories.id })
+        .select({ id: expenseCategories.id, isActive: expenseCategories.isActive })
         .from(expenseCategories)
         .where(eq(expenseCategories.id, categoryId))
         .limit(1);
       if (!found) {
         return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 400 });
+      }
+      // Kategori nonaktif hanya boleh tetap dipakai catatan yang memang sudah memakainya.
+      if (!found.isActive) {
+        const [current] = await db.select({ categoryId: shiftExpenses.categoryId }).from(shiftExpenses)
+          .where(eq(shiftExpenses.id, auth.expenseId)).limit(1);
+        if (current?.categoryId !== categoryId) {
+          return NextResponse.json({ error: 'Kategori ini sudah nonaktif, pilih kategori lain' }, { status: 400 });
+        }
       }
       category = { categoryId };
     }
