@@ -16,13 +16,17 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
   test: {
     environment: 'node',
-    include: ['lib/central-adapter.integration.test.ts'],
+    include: ['lib/central-adapter.integration.test.ts', 'lib/gateway.integration.test.ts'],
     env: {
       DATABASE_URL: value,
       BO_AUTH_MODE: 'central',
       AUTH_COOKIE_ENV: 'local',
       AUTH_CSRF_SECRET: 'rahasia-csrf-uji-yang-panjangnya-lebih-dari-32',
       AUTH_TRUSTED_ORIGINS: 'http://localhost:6974',
+      GATEWAY_PUBLIC_URL: 'http://localhost:6980',
+      BACKOFFICE_PUBLIC_URL: 'http://localhost:6974',
+      HRIS_PUBLIC_URL: 'http://localhost:6976',
+      FINANCE_PUBLIC_URL: 'http://localhost:6978',
       JWT_SECRET: 'rahasia-uji-yang-panjangnya-lebih-dari-32-karakter',
       JWT_REFRESH_SECRET: 'rahasia-refresh-yang-panjangnya-lebih-dari-32-karakter',
     },

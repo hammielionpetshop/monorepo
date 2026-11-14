@@ -3,6 +3,8 @@ import * as argon2 from 'argon2';
 import type { Sql, TransactionSql } from 'postgres';
 
 export type AppCode = 'backoffice' | 'hris';
+/** `gateway` = login di web gateway: sesi akun tanpa membuka akses web mana pun (spec F2-7a §2a). */
+export type LoginApp = AppCode | 'gateway';
 export type BackofficePolicy = { role: string; ttlMs: number };
 export type AuthFailure = { ok: false; code: string; error: string };
 export type AuthResult<T> = ({ ok: true } & T) | AuthFailure;
@@ -10,7 +12,7 @@ type LoginSuccess = { token: string; sessionId: number; mustChangePassword: bool
 type SessionIdentity = { sessionId: number; accountId: number; localUserId: number };
 type PreviousSession = { id: number; accountId: number } | null;
 type LoginInput = {
-  appCode: AppCode;
+  appCode: LoginApp;
   backoffice?: BackofficePolicy;
   previousToken?: string;
   deviceLabel?: string;
@@ -59,7 +61,7 @@ export async function audit(tx: TransactionSql, accountId: number, actorAccountI
     values (${accountId}, ${actorAccountId}, ${action}, ${JSON.stringify(metadata)}::text::jsonb, ${description})`;
 }
 
-async function loginEvent(tx: TransactionSql, accountId: number | null, appCode: AppCode,
+async function loginEvent(tx: TransactionSql, accountId: number | null, appCode: LoginApp,
   method: string, outcome: string, deviceLabel?: string): Promise<void> {
   await tx`insert into auth.login_events (account_id, app_code, auth_method, outcome, device_label)
     values (${accountId}, ${appCode}, ${method}, ${outcome}, ${deviceLabel?.slice(0, 200) ?? null})`;
@@ -125,8 +127,14 @@ async function grantApp(tx: TransactionSql, sessionId: number, accountId: number
 
 async function createSession(tx: TransactionSql, accountId: number, method: 'PASSWORD' | 'PIN',
   mustChangePassword: boolean, input: LoginInput, now: Date, previous: PreviousSession): Promise<AuthResult<LoginSuccess>> {
-  const ttl = appTtl(input.appCode, input.backoffice);
-  if (!mustChangePassword) {
+  const gateway = input.appCode === 'gateway';
+  if (gateway && method !== 'PASSWORD') throw new Error('Login gateway hanya dengan password.');
+  const ttl = gateway ? HRIS_IDLE_MS : appTtl(input.appCode as AppCode, input.backoffice);
+  if (gateway) {
+    // Gateway tidak membuka web apa pun, tetapi akun tanpa satu pun tautan web aktif tidak diberi sesi.
+    const links = await tx`select id from auth.account_links where account_id = ${accountId} and revoked_at is null`;
+    if (!links.length) return failure('APP_ACCESS_DENIED');
+  } else if (!mustChangePassword) {
     const links = await tx`select id from auth.account_links where account_id = ${accountId}
       and app_code = ${input.appCode} and revoked_at is null`;
     if (!links.length) return failure('APP_ACCESS_DENIED');
@@ -138,8 +146,8 @@ async function createSession(tx: TransactionSql, accountId: number, method: 'PAS
     (account_id, token_hash, auth_method, device_label, created_at, expires_at)
     values (${accountId}, ${hashSessionToken(token)}, ${method}, ${input.deviceLabel?.slice(0, 200) ?? null}, ${now.toISOString()}, ${expiresAt.toISOString()})
     returning id`;
-  if (!mustChangePassword) {
-    const access = await grantApp(tx, session.id, accountId, input.appCode, now, input.backoffice);
+  if (!mustChangePassword && !gateway) {
+    const access = await grantApp(tx, session.id, accountId, input.appCode as AppCode, now, input.backoffice);
     if (!access.ok) throw new Error('Tautan akses berubah selama pembuatan sesi.');
   }
   await audit(tx, accountId, accountId, 'LOGIN', { sessionId: session.id, method }, 'Sesi perangkat dibuat.');
@@ -147,7 +155,7 @@ async function createSession(tx: TransactionSql, accountId: number, method: 'PAS
 }
 
 export async function passwordLogin(sql: Sql, input: LoginInput & { identifier: string; password: string }): Promise<AuthResult<LoginSuccess>> {
-  appTtl(input.appCode, input.backoffice);
+  if (input.appCode !== 'gateway') appTtl(input.appCode, input.backoffice);
   const identifier = typeof input.identifier === 'string' ? input.identifier.trim().toLowerCase() : '';
   const password = typeof input.password === 'string' ? input.password : '';
   if (identifier.length > 255 || password.length > 1024) return failure();
@@ -225,6 +233,30 @@ export async function openAppAccess(sql: Sql, token: string, appCode: AppCode,
     const result = await grantApp(tx, row.id, row.account_id, appCode, now, backoffice);
     return result.ok ? { ok: true, sessionId: row.id, accountId: row.account_id, localUserId: result.localUserId } : result;
   });
+}
+
+export type SessionSummary = {
+  sessionId: number; accountId: number; authMethod: 'PASSWORD' | 'PIN'; mustChangePassword: boolean;
+  links: { appCode: string; localUserId: number }[];
+};
+
+/**
+ * Ringkasan sesi pusat untuk gateway & tombol Pindah web: akun, cara masuk, dan tautan web aktif.
+ * Hanya membaca — tidak memperpanjang sesi atau membuka akses web.
+ */
+export async function describeSession(sql: Sql, token: string): Promise<AuthResult<SessionSummary>> {
+  if (!validToken(token)) return failure('INVALID_SESSION');
+  const [row] = await sql`select s.id, s.account_id, s.auth_method, a.must_change_password from auth.sessions s
+    join auth.accounts a on a.id = s.account_id
+    where s.token_hash = ${hashSessionToken(token)} and a.is_active and s.revoked_at is null and s.expires_at > now()`;
+  if (!row) return failure('INVALID_SESSION');
+  const links = await sql`select app_code, local_user_id from auth.account_links
+    where account_id = ${row.account_id} and revoked_at is null order by app_code`;
+  return {
+    ok: true, sessionId: row.id, accountId: row.account_id, authMethod: row.auth_method,
+    mustChangePassword: row.auth_method === 'PASSWORD' && row.must_change_password,
+    links: links.map((link) => ({ appCode: link.app_code as string, localUserId: Number(link.local_user_id) })),
+  };
 }
 
 export async function validateSession(sql: Sql, token: string, appCode: AppCode): Promise<AuthResult<SessionIdentity>> {
