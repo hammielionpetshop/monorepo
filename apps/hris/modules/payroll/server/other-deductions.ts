@@ -128,7 +128,7 @@ async function startDeduction(tx: Tx, row: { id: number; employeeId: number; amo
       kind: 'other_deduction.active',
       title: `Potongan Lain: ${typeName} ${rupiah(row.amount)}.`,
       body: `${plan.map((p) => `${rupiah(p.amount)} di slip periode ${longDate(p.periodStart)}`).join('; ')}. Alasan: ${row.reason}. Bila tidak setuju, ajukan keberatan paling lambat ${longDate(isoWib(objectionDeadline(now)))} pukul 23.59.`,
-      link: `/keberatan-potongan/ajukan?jenis=OTHER_DEDUCTION&id=${row.id}`, entity: 'other_deduction', entityId: row.id,
+      link: `/deduction-objections/submit?jenis=OTHER_DEDUCTION&id=${row.id}`, entity: 'other_deduction', entityId: row.id,
     }, actorAccountId);
   }
   return plan;
@@ -148,7 +148,7 @@ export async function recordOtherDirect(actor: Actor | null, input: OtherInput, 
     }).returning({ id: otherDeductions.id });
     await startDeduction(tx, { id: row.id, employeeId: checked.person.id, amount: checked.amount, installments: checked.installments, reason: checked.reason }, checked.typeName, actor.accountId, now);
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_deduction', entityId: row.id, action: 'other_deduction.create', before: null, after: { employeeId: checked.person.id, amount: checked.amount, installments: checked.installments } });
-    await announce(tx, actor.accountId, { what: `menjalankan Potongan Lain ${checked.typeName} ${checked.person.name} (${rupiah(checked.amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: row.id });
+    await announce(tx, actor.accountId, { what: `menjalankan Potongan Lain ${checked.typeName} ${checked.person.name} (${rupiah(checked.amount)})`, link: '/deductions/other', entity: 'other_deduction', entityId: row.id });
     return { ok: true as const, data: { id: row.id } };
   });
 }
@@ -194,7 +194,7 @@ export function otherDeductionHandler(announce: ChangeAnnounce): RequestHandler 
       const typeName = await typeNameOf(row.typeId);
       const plan = await startDeduction(tx, row, typeName, actorAccountId, now);
       const name = await personNameOf(row.employeeId);
-      await announce(tx, actorAccountId, { what: `mengesahkan Potongan Lain ${typeName} ${name} (${rupiah(row.amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: row.id });
+      await announce(tx, actorAccountId, { what: `mengesahkan Potongan Lain ${typeName} ${name} (${rupiah(row.amount)})`, link: '/deductions/other', entity: 'other_deduction', entityId: row.id });
       return { ok: true as const, effect: `Potongan Lain berjalan mulai slip periode ${longDate(plan[0].periodStart)}. ${name} diberi tahu dan boleh mengajukan keberatan 3 hari.` };
     },
     async close(tx, _actorAccountId, requestId) {
@@ -251,7 +251,7 @@ export async function cancelOther(actor: Actor | null, id: number, reasonInput: 
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_deduction', entityId: id, action: 'other_deduction.cancel', before: { status: 'ACTIVE' }, after: { status: 'CANCELLED' }, reason: reason.reason });
     const account = (await activeHrisAccounts([row.employeeId])).get(row.employeeId);
     if (account) await notify(tx, [account], { kind: 'other_deduction.cancelled', title: `Potongan Lain ${rupiah(row.amount)} dibatalkan; tidak dipotong.`, entity: 'other_deduction', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `membatalkan Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(row.amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: id });
+    await announce(tx, actor.accountId, { what: `membatalkan Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(row.amount)})`, link: '/deductions/other', entity: 'other_deduction', entityId: id });
     return { ok: true as const, data: {} };
   });
 }
@@ -281,7 +281,7 @@ export async function writeOffOther(actor: Actor | null, id: number, reasonInput
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_deduction', entityId: id, action: 'other_deduction.write_off', before: { left: amount }, after: { left: 0 }, reason: reason.reason });
     const account = (await activeHrisAccounts([row.employeeId])).get(row.employeeId);
     if (account) await notify(tx, [account], { kind: 'other_deduction.written_off', title: `Sisa Potongan Lain ${rupiah(amount)} dihapuskan; tidak dipotong lagi.`, entity: 'other_deduction', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `menghapuskan sisa Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: id });
+    await announce(tx, actor.accountId, { what: `menghapuskan sisa Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(amount)})`, link: '/deductions/other', entity: 'other_deduction', entityId: id });
     return { ok: true as const, data: { amount } };
   });
 }
@@ -315,7 +315,7 @@ export async function rescheduleOther(actor: Actor | null, id: number, input: { 
     });
     const account = (await activeHrisAccounts([row.employeeId])).get(row.employeeId);
     if (account) await notify(tx, [account], { kind: 'other_deduction.rescheduled', title: `Jadwal Potongan Lain diubah: ${plan.map((p) => `${rupiah(p.amount)} slip ${longDate(p.periodStart)}`).join('; ')}.`, entity: 'other_deduction', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `mengubah jadwal Potongan Lain ${await personNameOf(row.employeeId)}`, link: '/potongan/lain', entity: 'other_deduction', entityId: id });
+    await announce(tx, actor.accountId, { what: `mengubah jadwal Potongan Lain ${await personNameOf(row.employeeId)}`, link: '/deductions/other', entity: 'other_deduction', entityId: id });
     return { ok: true as const, data: {} };
   });
 }
@@ -473,7 +473,7 @@ export async function objectionLinksFor(employeeId: number, sourceKeys: readonly
     if (!target) continue;
     const subject = await objectionSubject(target, targetId);
     if (!subject || subject.employeeId !== employeeId || !subject.live || now > objectionDeadline(subject.notifiedAt)) continue;
-    links.set(key, `/keberatan-potongan/ajukan?jenis=${target}&id=${targetId}`);
+    links.set(key, `/deduction-objections/submit?jenis=${target}&id=${targetId}`);
   }
   return links;
 }
@@ -540,7 +540,7 @@ export function deductionObjectionHandler(announce: ChangeAnnounce): RequestHand
       }
       await tx.update(deductionObjections).set({ state: 'WAIVED' }).where(eq(deductionObjections.id, objection.id));
       await recordAudit(tx, { actorAccountId, entity: 'deduction_objection', entityId: objection.id, action: 'deduction_objection.waive', before: { state: 'OPEN' }, after: { state: 'WAIVED', target: objection.target, targetId: objection.targetId } });
-      await announce(tx, actorAccountId, { what: `meniadakan potongan lewat keberatan ${await personNameOf(objection.employeeId)}`, link: `/persetujuan/${requestId}`, entity: 'deduction_objection', entityId: objection.id });
+      await announce(tx, actorAccountId, { what: `meniadakan potongan lewat keberatan ${await personNameOf(objection.employeeId)}`, link: `/approvals/${requestId}`, entity: 'deduction_objection', entityId: objection.id });
       return { ok: true as const, effect: 'Potongan ditiadakan. Bila sudah terpotong di slip yang ditutup, uangnya kembali di slip berikutnya.' };
     },
     async close(tx, actorAccountId, requestId) {

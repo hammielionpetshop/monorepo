@@ -22,7 +22,7 @@ export function PhotosScreen({ today, date, earliest, branchId, branches, rows }
     const nextBranch = next.branch ?? (branchId ? String(branchId) : '');
     if (nextDate !== today) params.set('date', nextDate);
     if (nextBranch) params.set('branch', nextBranch);
-    router.push(`/kehadiran/foto-hari-ini${params.size ? `?${params}` : ''}`);
+    router.push(`/attendance/todays-photos${params.size ? `?${params}` : ''}`);
   };
   return (
     <div className="space-y-4">

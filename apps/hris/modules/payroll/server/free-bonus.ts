@@ -49,7 +49,7 @@ async function tell(tx: Tx, employeeId: number, actorAccountId: number, entityId
   const account = (await activeHrisAccounts([employeeId])).get(employeeId);
   if (!account) return;
   await notify(tx, [account], {
-    kind: 'bonus.approved', entity: 'bonus_entry', entityId, link: '/pemberitahuan',
+    kind: 'bonus.approved', entity: 'bonus_entry', entityId, link: '/notifications',
     title: `${row.typeName} disahkan: ${rupiah(row.amount)}.`, body: `Alasan: ${row.reason}. ${await slipText(row.periodStart, employeeId)}.`,
   }, actorAccountId);
 }
@@ -76,7 +76,7 @@ export async function recordFreeDirect(actor: Actor | null, input: FreeInput, an
     }).returning({ id: bonusEntries.id });
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'bonus_entry', entityId: row.id, action: 'bonus.record_free', before: null, after: { employeeId: checked.person.id, amount: checked.amount, fund: checked.fund, typeId: checked.typeId } });
     await tell(tx, checked.person.id, actor.accountId, row.id, { typeName: checked.typeName, amount: checked.amount, reason: checked.reason, periodStart: periodStartOf(checked.occurredOn) });
-    await announce(tx, actor.accountId, { what: `mencatat ${checked.typeName} ${checked.person.name} ${rupiah(checked.amount)} (${BONUS_FUND_LABELS[checked.fund]})`, link: '/bonus/persetujuan?tab=free', entity: 'bonus_entry', entityId: row.id });
+    await announce(tx, actor.accountId, { what: `mencatat ${checked.typeName} ${checked.person.name} ${rupiah(checked.amount)} (${BONUS_FUND_LABELS[checked.fund]})`, link: '/bonuses/approvals?tab=free', entity: 'bonus_entry', entityId: row.id });
     return { ok: true as const, data: { id: row.id, employeeId: checked.person.id } };
   });
   // Orang yang slip terakhirnya sudah Dibayar: bonus ini menjadi tagihan bayar di luar slip (spec L4f §3.7).
@@ -129,7 +129,7 @@ export function freeBonusHandler(announce: ChangeAnnounce): RequestHandler {
       if (!done.length) return fail(409, 'Bonus ini baru saja diputuskan orang lain.');
       await tell(tx, row.employeeId, actorAccountId, row.id, { typeName: row.typeName, amount: row.amount, reason: row.note ?? '-', periodStart: row.periodStart });
       const name = await personNameOf(row.employeeId);
-      await announce(tx, actorAccountId, { what: `mengesahkan ${row.typeName} ${name} ${rupiah(row.amount)}`, link: '/bonus/persetujuan?tab=free', entity: 'bonus_entry', entityId: row.id });
+      await announce(tx, actorAccountId, { what: `mengesahkan ${row.typeName} ${name} ${rupiah(row.amount)}`, link: '/bonuses/approvals?tab=free', entity: 'bonus_entry', entityId: row.id });
       return { ok: true as const, effect: `${row.typeName} ${name} ${rupiah(row.amount)} disahkan, ${await slipText(row.periodStart, row.employeeId)}. ${name} diberi tahu.` };
     },
     async close(tx, _actorAccountId, requestId, reason) {
@@ -204,13 +204,13 @@ export async function saveBonusType(
         const active = input.active ?? old.active;
         await tx.update(bonusTypes).set({ name, defaultFund, active }).where(eq(bonusTypes.id, old.id));
         await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'bonus_type', entityId: old.id, action: 'bonus_type.update', before: { name: old.name, defaultFund: old.defaultFund, active: old.active }, after: { name, defaultFund, active } });
-        await announce(tx, actor.accountId, { what: `mengubah jenis bonus "${name}"${active ? '' : ' (nonaktif)'}`, link: '/pengaturan/jenis-bonus', entity: 'bonus_type', entityId: old.id });
+        await announce(tx, actor.accountId, { what: `mengubah jenis bonus "${name}"${active ? '' : ' (nonaktif)'}`, link: '/settings/bonus-types', entity: 'bonus_type', entityId: old.id });
         return { ok: true as const, data: { id: old.id } };
       }
       const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${bonusTypes.sortOrder}), 0) + 1` }).from(bonusTypes);
       const [row] = await tx.insert(bonusTypes).values({ name, defaultFund, sortOrder: Number(next) }).returning({ id: bonusTypes.id });
       await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'bonus_type', entityId: row.id, action: 'bonus_type.create', before: null, after: { name, defaultFund } });
-      await announce(tx, actor.accountId, { what: `menambah jenis bonus "${name}"`, link: '/pengaturan/jenis-bonus', entity: 'bonus_type', entityId: row.id });
+      await announce(tx, actor.accountId, { what: `menambah jenis bonus "${name}"`, link: '/settings/bonus-types', entity: 'bonus_type', entityId: row.id });
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {

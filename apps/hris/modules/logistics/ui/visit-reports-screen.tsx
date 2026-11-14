@@ -44,7 +44,7 @@ function ReportCard({ row, onDecide }: { row: ReportRow; onDecide?: (row: Report
         <div className="space-y-1">
           <p className="inline-flex flex-wrap items-center gap-1">
             <Badge tone={row.kind === 'RETURN' ? 'info' : 'warn'}>{row.label}</Badge>
-            {row.customerId != null ? <Link href={`/logistik/toko/${row.customerId}`} className="font-medium underline">{row.store}</Link> : <span className="font-medium">{row.store}</span>}
+            {row.customerId != null ? <Link href={`/logistics/stores/${row.customerId}`} className="font-medium underline">{row.store}</Link> : <span className="font-medium">{row.store}</span>}
             {row.source && <Badge tone="info">{row.source}</Badge>}
           </p>
           <p className="text-sm text-ink-muted">

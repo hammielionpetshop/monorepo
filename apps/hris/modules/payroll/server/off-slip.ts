@@ -143,7 +143,7 @@ async function syncPerson(employeeId: number, now: Date): Promise<ClaimRow[]> {
       const owners = await activeHrisAccounts(await listEmployeesWithAnyAction([]));
       await notify(tx, [...owners.values()], {
         kind: 'receivable.past_correction', title: `Piutang Lain baru: ${person.name} ${rupiah(receivablesBorn.reduce((s, r) => s + r.amount, 0))}.`,
-        body: `${receivablesBorn.map((r) => r.label).join('; ')}. Koreksi minus sesudah slip terakhirnya Dibayar.`, link: '/gaji/piutang',
+        body: `${receivablesBorn.map((r) => r.label).join('; ')}. Koreksi minus sesudah slip terakhirnya Dibayar.`, link: '/payroll/receivables',
       }, null);
     }
 
@@ -152,7 +152,7 @@ async function syncPerson(employeeId: number, now: Date): Promise<ClaimRow[]> {
       const total = born.reduce((s, c) => s + c.amount, 0);
       await notify(tx, [...owners.values()], {
         kind: 'off_slip.claim_born', title: `Bayar di luar slip: ${person.name} ${rupiah(total)} (${born.length} tagihan).`,
-        body: `${born.map((c) => c.label).join('; ')}. Slip terakhirnya sudah Dibayar; dipotongkan ke Piutang Lain lebih dulu bila ada.`, link: '/gaji/jadwal-bayar',
+        body: `${born.map((c) => c.label).join('; ')}. Slip terakhirnya sudah Dibayar; dipotongkan ke Piutang Lain lebih dulu bila ada.`, link: '/payroll/pay-schedule',
       }, null);
     }
     return born;
@@ -331,10 +331,10 @@ export async function payOffSlipClaim(actor: Actor | null, claimId: number, inpu
       const account = (await activeHrisAccounts([person.id])).get(person.id);
       if (account) {
         await notify(tx, [account], {
-          kind: 'off_slip.paid', title: `${claim.label} ${rupiah(claim.amount)} dibayar di luar slip.`, body: `${methodText}.`, entity: 'off_slip_claim', entityId: claim.id, link: '/pendapatan',
+          kind: 'off_slip.paid', title: `${claim.label} ${rupiah(claim.amount)} dibayar di luar slip.`, body: `${methodText}.`, entity: 'off_slip_claim', entityId: claim.id, link: '/earnings',
         }, actor.accountId);
       }
-      if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `membayar di luar slip untuk dirinya sendiri: ${claim.label} ${rupiah(claim.amount)}`, link: '/gaji/jadwal-bayar', entity: 'off_slip_claim', entityId: claim.id });
+      if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `membayar di luar slip untuk dirinya sendiri: ${claim.label} ${rupiah(claim.amount)}`, link: '/payroll/pay-schedule', entity: 'off_slip_claim', entityId: claim.id });
       return { ok: true as const, data: { effect: `${claim.label} ${person.name} ${rupiah(claim.amount)} Dibayar: ${methodText}.` } };
     });
   } catch (error) {
@@ -382,9 +382,9 @@ export async function cancelOffSlipPayment(actor: Actor | null, claimId: number,
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'off_slip_claim', entityId: claim.id, action: 'off_slip.cancel_payment', before: { paymentId: payment.id, cash: payment.amount }, after: { status: 'WAITING', settlementsReversed: settlements.length }, reason });
     const account = (await activeHrisAccounts([person.id])).get(person.id);
     if (account) {
-      await notify(tx, [account], { kind: 'off_slip.payment_cancelled', title: `Pembayaran di luar slip "${claim.label}" dibatalkan.`, body: `Alasan: ${reason}`, entity: 'off_slip_claim', entityId: claim.id, link: '/pendapatan' }, actor!.accountId);
+      await notify(tx, [account], { kind: 'off_slip.payment_cancelled', title: `Pembayaran di luar slip "${claim.label}" dibatalkan.`, body: `Alasan: ${reason}`, entity: 'off_slip_claim', entityId: claim.id, link: '/earnings' }, actor!.accountId);
     }
-    await announce(tx, actor!.accountId, { what: `membatalkan pembayaran di luar slip ${person.name} ${claim.label} ${rupiah(claim.amount)}: ${reason}`, link: '/gaji/jadwal-bayar', entity: 'off_slip_claim', entityId: claim.id });
+    await announce(tx, actor!.accountId, { what: `membatalkan pembayaran di luar slip ${person.name} ${claim.label} ${rupiah(claim.amount)}: ${reason}`, link: '/payroll/pay-schedule', entity: 'off_slip_claim', entityId: claim.id });
     const settledTotal = settlements.reduce((s, x) => s + x.amount, 0);
     return {
       ok: true as const,

@@ -55,7 +55,7 @@ export function NewEmployeeForm({ branches, positions, today }: { branches: Opti
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     const code = String(result.data?.code ?? '');
     toast(`${form.name} tersimpan dengan kode ${code}. Akun dibuat lewat Akun & Tautan.`, 'ok');
-    router.push(`/karyawan/${result.data?.id}`);
+    router.push(`/employees/${result.data?.id}`);
   }
 
   return (

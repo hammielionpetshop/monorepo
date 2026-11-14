@@ -147,7 +147,7 @@ export function ComparisonScreen({ data }: { data: Data }) {
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium">Periode {run.periodText}</p>
-        <NewBadge feature="/gaji/uji-banding" />
+        <NewBadge feature="/payroll/comparison" />
         {locked && <Badge tone="warn">Data salinan sudah dihapus</Badge>}
       </div>
       {data.runs.length > 1 && (

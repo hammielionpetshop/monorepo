@@ -103,7 +103,7 @@ export function LegacyAdvanceScreen({ cutover, rows, candidates, canEnter, maxIn
         rowKey={(r) => r.id}
         empty="Belum ada sisa kasbon bawaan."
         columns={[
-          { key: 'name', header: 'Karyawan', primary: true, render: (r) => <Link className="underline" href={`/gaji/kasbon/${r.id}`}>{r.name}</Link> },
+          { key: 'name', header: 'Karyawan', primary: true, render: (r) => <Link className="underline" href={`/payroll/advances/${r.id}`}>{r.name}</Link> },
           { key: 'number', header: 'Nomor', render: (r) => r.number },
           { key: 'branch', header: 'Cabang', render: (r) => r.branchName },
           { key: 'amount', header: 'Sisa diketik', render: (r) => `${rupiah(r.amount)} · ${r.installments}×` },
@@ -111,7 +111,7 @@ export function LegacyAdvanceScreen({ cutover, rows, candidates, canEnter, maxIn
           {
             key: 'stage', header: 'Keadaan',
             render: (r) => (r.requestId && r.remaining == null && r.stageLabel
-              ? <Link href={`/persetujuan/${r.requestId}`}><Badge tone={r.tone}>{r.stageLabel}</Badge></Link>
+              ? <Link href={`/approvals/${r.requestId}`}><Badge tone={r.tone}>{r.stageLabel}</Badge></Link>
               : <Badge tone={r.tone}>{r.stageLabel}</Badge>),
           },
         ]}

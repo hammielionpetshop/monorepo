@@ -136,7 +136,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-2b: titik toko', () => {
     expect(await propose(ids.driver, sinar.id, { kind: 'NEW' })).toMatchObject({ ok: true, data: { status: 'PENDING' } });
     expect(await propose(ids.kenek, sinar.id, { kind: 'NEW' })).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('menunggu persetujuan') });
     const [told] = await sql`select title, link from hris.notifications where kind = 'logistics.store_point' and recipient_account_id = ${ids.kg + 1000}`;
-    expect(told).toMatchObject({ title: 'Titik toko baru: Toko Sinar', link: '/logistik/toko?tab=titik' });
+    expect(told).toMatchObject({ title: 'Titik toko baru: Toko Sinar', link: '/logistics/stores?tab=titik' });
     expect(await visitOf('Toko Sinar')).toMatchObject({ point: null, pointPending: true });
     expect(await lg.pendingPointCount(await actorOf(ids.kg))).toBe(1);
     expect(await lg.pendingPointCount(await actorOf(ids.driver))).toBe(0);

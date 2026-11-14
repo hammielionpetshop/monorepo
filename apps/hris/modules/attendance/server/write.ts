@@ -96,7 +96,7 @@ export async function saveShiftVersion(actor: Actor, input: ShiftVersionInput): 
       });
       await notifyPeople(tx, await branchPeople(input.branchId, today), {
         kind: 'attendance.work_hours', title: `Jam kerja ${existing?.name ?? name} berubah mulai ${input.effectiveFrom}`,
-        body: `Masuk ${input.startTime}, pulang ${input.endTime}.`, link: '/jadwal', entity: 'work_shift', entityId: shiftId,
+        body: `Masuk ${input.startTime}, pulang ${input.endTime}.`, link: '/schedule', entity: 'work_shift', entityId: shiftId,
       }, actor.accountId);
       return { ok: true as const, data: { id: row.id, shiftId } };
     });
@@ -227,7 +227,7 @@ export async function assignShift(actor: Actor, employeeId: number, shiftId: num
     await recordAudit(tx, {
       actorAccountId: actor.accountId, entity: 'employee', entityId: employeeId, action: 'shift.assign', after: { shiftId, week },
     });
-    await notifyPeople(tx, [employeeId], { kind: 'attendance.shift', title: 'Shift Anda sudah ditentukan', link: '/jadwal' }, actor.accountId);
+    await notifyPeople(tx, [employeeId], { kind: 'attendance.shift', title: 'Shift Anda sudah ditentukan', link: '/schedule' }, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
   });
 }
@@ -256,7 +256,7 @@ export async function changeDayShift(actor: Actor, employeeId: number, date: Iso
     });
     const name = week.shifts.find((shift) => shift.id === shiftId)?.name;
     await notifyPeople(tx, [employeeId], {
-      kind: 'attendance.shift', title: `Shift Anda tanggal ${date} diubah menjadi ${name}`, body: reason.reason, link: '/jadwal',
+      kind: 'attendance.shift', title: `Shift Anda tanggal ${date} diubah menjadi ${name}`, body: reason.reason, link: '/schedule',
     }, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
   });
@@ -299,7 +299,7 @@ export async function addClosure(actor: Actor, input: ClosureInput): Promise<Ser
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'branch_closure', entityId: row.id, action: 'closure.add', after: input, reason: reason.reason });
     const range = input.startDate === input.endDate ? input.startDate : `${input.startDate} s.d. ${input.endDate}`;
     await notifyPeople(tx, await branchPeople(input.branchId, today), {
-      kind: 'attendance.closure', title: `Hari tutup: ${range}`, body: reason.reason, link: '/jadwal', entity: 'branch_closure', entityId: row.id,
+      kind: 'attendance.closure', title: `Hari tutup: ${range}`, body: reason.reason, link: '/schedule', entity: 'branch_closure', entityId: row.id,
     }, actor.accountId);
     await notifyDaysOffUnderClosure(tx, input.branchId, input.startDate, input.endDate, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
@@ -317,7 +317,7 @@ export async function cancelClosure(actor: Actor, id: number, reasonInput: strin
       .where(eq(branchClosures.id, id));
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'branch_closure', entityId: id, action: 'closure.cancel', reason: reason.reason });
     await notifyPeople(tx, await branchPeople(closure.branchId, todayWib()), {
-      kind: 'attendance.closure', title: `Hari tutup ${closure.startDate} dibatalkan`, body: reason.reason, link: '/jadwal',
+      kind: 'attendance.closure', title: `Hari tutup ${closure.startDate} dibatalkan`, body: reason.reason, link: '/schedule',
       entity: 'branch_closure', entityId: id,
     }, actor.accountId);
     return { ok: true as const, data: { id } };
@@ -381,7 +381,7 @@ export async function checkShifts(today: IsoDate = todayWib()) {
         kind: 'attendance.shift_check',
         title: missingGroups ? `Giliran ${branch.name} belum diisi` : `${branch.name}: ada orang tanpa shift`,
         body: missingGroups ? 'Isi kelompok giliran di Jadwal & Shift supaya mesin bisa menggilir.' : names(unassigned),
-        link: `/kehadiran/jadwal?branch=${branch.id}`,
+        link: `/attendance/schedule?branch=${branch.id}`,
       }, null);
       return true;
     });

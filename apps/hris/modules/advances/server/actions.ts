@@ -99,11 +99,11 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
         kind: 'advance.handed_over',
         title: `Kasbon ${rupiah(amount)} sudah diberikan tanggal ${moneyDate.split('-').reverse().join('-')} lewat ${how}.`,
         body: `Dipotong ${periods.length} kali mulai gajian ${firstLabel}. Kalau uangnya belum Anda terima, lapor dari Kasbon Saya.`,
-        link: '/kasbon', entity: 'advance', entityId: advanceId,
+        link: '/advances', entity: 'advance', entityId: advanceId,
       }, actor.accountId);
     }
     if (view.row.employeeId === actor.personId) {
-      await announce(tx, actor.accountId, { what: `menyerahkan uang kasbonnya sendiri ${view.row.number} (${rupiah(amount)})`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+      await announce(tx, actor.accountId, { what: `menyerahkan uang kasbonnya sendiri ${view.row.number} (${rupiah(amount)})`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
     }
     return { ok: true as const, data: { message: `Uang kasbon ${view.row.number} ${rupiah(amount)} untuk ${person.name} tercatat diserahkan. Cicilan pertama di slip ${firstLabel}.` } };
   });
@@ -125,9 +125,9 @@ export async function cancelApprovedInTx(tx: Tx, actorAccountId: number, advance
   if (view.row.filledByAccountId !== account) recipients.push(view.row.filledByAccountId);
   await notify(tx, recipients, {
     kind: 'advance.cancelled', title: `Kasbon ${view.row.number} ${rupiah(view.row.finalAmount ?? 0)} dibatalkan; uangnya tidak diserahkan.`,
-    body: `Alasan: ${reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
+    body: `Alasan: ${reason}`, link: '/advances', entity: 'advance', entityId: advanceId,
   }, actorAccountId);
-  await announce(tx, actorAccountId, { what: `membatalkan kasbon ${view.row.number}`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+  await announce(tx, actorAccountId, { what: `membatalkan kasbon ${view.row.number}`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
   return { ok: true };
 }
 
@@ -167,9 +167,9 @@ export async function cancelHandover(actor: Actor | null, advanceId: number, rea
     if (account) recipients.push(account);
     await notify(tx, recipients, {
       kind: 'advance.hand_over_cancelled', title: `Catatan serah uang kasbon ${view.row.number} dibatalkan; kasbon kembali menunggu diberikan.`,
-      body: `Alasan: ${reason.reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
+      body: `Alasan: ${reason.reason}`, link: '/advances', entity: 'advance', entityId: advanceId,
     }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `membatalkan catatan serah uang kasbon ${view.row.number}`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
+    await announce(tx, actor.accountId, { what: `membatalkan catatan serah uang kasbon ${view.row.number}`, link: `/payroll/advances/${advanceId}`, entity: 'advance', entityId: advanceId });
     return { ok: true as const, data: { message: `Serah uang ${view.row.number} dibatalkan. Kasbon kembali menunggu diberikan.` } };
   });
 }

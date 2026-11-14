@@ -93,7 +93,7 @@ describe.skipIf(!ADMIN_URL)('L4c-2: Potongan Lain dan Keberatan', () => {
     const rows = await sql`select amount from hris.other_deduction_installments where deduction_id = ${result.ok ? result.data.id : 0} order by sequence`;
     expect(rows.map((r) => r.amount)).toEqual([33_333, 33_333, 33_334]);
     const [note] = await sql`select link from hris.notifications where kind = 'other_deduction.active'`;
-    expect(note.link).toContain('/keberatan-potongan/ajukan?jenis=OTHER_DEDUCTION');
+    expect(note.link).toContain('/deduction-objections/submit?jenis=OTHER_DEDUCTION');
   });
 
   it('HR mengusulkan, Pemilik mengesahkan; HR tidak bisa membatalkan', async () => {

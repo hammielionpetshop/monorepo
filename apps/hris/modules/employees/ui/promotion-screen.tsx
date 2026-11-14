@@ -43,7 +43,7 @@ export function PromotionScreen({ rows, today, nextPeriodStart }: { rows: Row[];
         <Card key={row.id}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <Link href={`/karyawan/${row.id}`} className="font-semibold text-brand-700 hover:underline">{row.name}</Link>
+              <Link href={`/employees/${row.id}`} className="font-semibold text-brand-700 hover:underline">{row.name}</Link>
               <p className="text-sm text-ink-muted">{row.code} · {row.positionName} · {row.branchName}</p>
               <p className="text-sm">
                 Bergabung {formatLongDate(row.joinedOn)} · {monthsSince(row.joinedOn, today)} bulan bekerja

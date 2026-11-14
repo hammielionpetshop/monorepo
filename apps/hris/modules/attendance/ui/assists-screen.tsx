@@ -22,7 +22,7 @@ export function AssistsScreen({ days, branchId, branches, rows }: {
     if (branch) params.set('branch', String(branch));
     if (range !== 7) params.set('days', String(range));
     const query = params.toString();
-    return query ? `/kehadiran/perbantuan?${query}` : '/kehadiran/perbantuan';
+    return query ? `/attendance/assistance?${query}` : '/attendance/assistance';
   };
   return (
     <div className="space-y-4">

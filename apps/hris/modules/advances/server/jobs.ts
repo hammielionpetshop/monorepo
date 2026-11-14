@@ -31,7 +31,7 @@ export async function runAdvanceDaily(now: Date = new Date()) {
     const total = waiting.reduce((s, v) => s + (v.row.finalAmount ?? 0), 0);
     await db.transaction((tx) => notify(tx, [...new Set([...finance, ...owners])], {
       kind: 'advance.hand_over_reminder', title: `Ada ${waiting.length} kasbon disetujui belum diberikan, ${rupiah(total)}, paling lama sejak ${longDate(oldest)}.`,
-      link: '/gaji/kasbon?tab=diberikan', entity: 'advance', entityId: waiting[0].row.id,
+      link: '/payroll/advances?tab=diberikan', entity: 'advance', entityId: waiting[0].row.id,
     }, null));
   }
 
@@ -45,7 +45,7 @@ export async function runAdvanceDaily(now: Date = new Date()) {
   if (late.length) {
     await db.transaction((tx) => notify(tx, [...new Set([...finance, ...owners])], {
       kind: 'advance.late', title: `${late.length} pengajuan kasbon lewat ${processDays} hari belum diputuskan.`,
-      link: '/gaji/kasbon', entity: 'advance', entityId: late[0].row.id,
+      link: '/payroll/advances', entity: 'advance', entityId: late[0].row.id,
     }, null));
   }
 
@@ -59,7 +59,7 @@ export async function runAdvanceDaily(now: Date = new Date()) {
   if (mismatch.length) {
     await db.transaction((tx) => notify(tx, owners, {
       kind: 'advance.mismatch', title: `Perlu perhatian: sisa ${mismatch.length} kasbon tidak sama dengan jadwal cicilannya (${mismatch.map((v) => v.row.number).join(', ')}).`,
-      link: '/gaji/kasbon?tab=berjalan', entity: 'advance', entityId: mismatch[0].row.id,
+      link: '/payroll/advances?tab=berjalan', entity: 'advance', entityId: mismatch[0].row.id,
     }, null));
   }
   return { reminded: waiting.length, late: late.length, mismatch: mismatch.length, mainSlip };

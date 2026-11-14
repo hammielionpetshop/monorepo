@@ -56,7 +56,7 @@ export function LossSettingsScreen({ today, period, nextStart, firstFillStart, s
       )}
       {tab === 'position' && (
         <div className="space-y-3">
-          <Alert tone="info">Tanda dan bobot diubah di <Link className="underline" href="/pengaturan/jabatan">Pengaturan Jabatan</Link> (kolom &quot;Ikut menanggung kehilangan barang&quot; dan &quot;Bobot tanggungan kehilangan&quot;), berlaku mulai tanggal 26. Pemilik dan GM tidak pernah ikut.</Alert>
+          <Alert tone="info">Tanda dan bobot diubah di <Link className="underline" href="/settings/positions">Pengaturan Jabatan</Link> (kolom &quot;Ikut menanggung kehilangan barang&quot; dan &quot;Bobot tanggungan kehilangan&quot;), berlaku mulai tanggal 26. Pemilik dan GM tidak pernah ikut.</Alert>
           <DataList
             rows={positions}
             rowKey={(p) => String(p.id)}

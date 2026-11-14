@@ -242,7 +242,7 @@ export async function submitEndOfDay(actor: Actor, input: EndOfDayInput, now: Da
     await db.transaction(async (tx) => {
       await notify(tx, [...accounts.values()], {
         kind: 'attendance.handover', title: `Serah terima dari ${person.name}`, body: cleanText(input.handover).slice(0, 200),
-        link: '/serah-terima', entity: 'end_of_day_report', entityId: saved.report.id,
+        link: '/handovers', entity: 'end_of_day_report', entityId: saved.report.id,
       }, actor.accountId);
       if (saved.problemId) await notifyProblemReaders(tx, saved.problemId, input.problem!.concernsGm, actor.accountId);
     });
@@ -264,7 +264,7 @@ async function notifyProblemReaders(tx: Tx, problemId: number, concernsGm: boole
   // Nama pelapor tidak ditulis di kabar; dibaca di layar yang dijaga hak (KEH-93).
   await notify(tx, await ownerAccounts(concernsGm), {
     kind: 'attendance.problem', title: 'Laporan masalah baru', body: concernsGm ? 'Menyangkut GM. Hanya Pemilik yang bisa membaca.' : null,
-    link: `/kehadiran/laporan-masalah?id=${problemId}`, entity: 'problem_report', entityId: problemId,
+    link: `/attendance/problem-reports?id=${problemId}`, entity: 'problem_report', entityId: problemId,
   }, actorAccountId);
 }
 
@@ -599,7 +599,7 @@ export async function updateProblem(actor: Actor, input: { id: number; status: P
     await tx.insert(problemReportEvents).values({ reportId: row.id, status: input.status, response: response || null, byAccountId: actor.accountId });
     await notify(tx, [...accounts.values()], {
       kind: 'attendance.problem_update', title: `Laporan masalah Anda: ${PROBLEM_STATUS_LABELS[input.status]}`, body: response || null,
-      link: '/lapor-masalah', entity: 'problem_report', entityId: row.id,
+      link: '/report-problem', entity: 'problem_report', entityId: row.id,
     }, actor.accountId);
   });
   return { ok: true, data: { message: 'Tersimpan. Pelapor diberi tahu.' } };

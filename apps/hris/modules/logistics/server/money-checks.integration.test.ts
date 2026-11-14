@@ -180,7 +180,7 @@ describe.skipIf(!ADMIN_URL)('LT4a: Terima Uang', () => {
       ['TRX-D', 'TRANSFER', 100000, 0, 0, null],
     ]);
     const [told] = await sql`select title, link from hris.notifications where kind = 'logistics.cash_short' and recipient_account_id = ${ids.driver + 1000}`;
-    expect(told).toMatchObject({ title: expect.stringMatching(/^Kurang serah Rp\s?20\.000: Toko Maju \(TR-261106-1\)$/), link: '/logistik/terima-uang?tab=DIFF' });
+    expect(told).toMatchObject({ title: expect.stringMatching(/^Kurang serah Rp\s?20\.000: Toko Maju \(TR-261106-1\)$/), link: '/logistics/money-checks?tab=DIFF' });
     expect((await screen('WAITING')).trips).toHaveLength(0);
     await expect(sql`delete from logistics.money_checks`).rejects.toThrow();
   });

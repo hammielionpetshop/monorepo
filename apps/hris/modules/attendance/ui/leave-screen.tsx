@@ -96,7 +96,7 @@ export function LeaveScreen(props: Props) {
     <div className="space-y-4">
       <YearCard year={props.current} title="Tahun cuti" />
       <div className="flex flex-wrap gap-2">
-        {props.self && <Link href="/tidak-masuk/ajukan?jenis=ANNUAL_LEAVE" className={buttonClass()}>Ajukan cuti</Link>}
+        {props.self && <Link href="/absence/submit?jenis=ANNUAL_LEAVE" className={buttonClass()}>Ajukan cuti</Link>}
         {props.canAdjust && <Button variant="secondary" onClick={() => { setOpen(true); setError(null); }}>Sesuaikan sisa</Button>}
         {props.previous.length > 0 && (
           <Button variant="ghost" onClick={() => setShowOld(!showOld)}>{showOld ? 'Sembunyikan tahun lama' : 'Lihat tahun cuti lama'}</Button>

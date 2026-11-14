@@ -65,7 +65,7 @@ export function HandoverFlow({ id, number, name, amount, installments, approvedO
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(String(result.data?.message ?? 'Tersimpan.'), 'ok');
-    router.push(`/gaji/kasbon/${id}`);
+    router.push(`/payroll/advances/${id}`);
     router.refresh();
   }
 
@@ -116,7 +116,7 @@ export function HandoverFlow({ id, number, name, amount, installments, approvedO
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/kasbon/${id}`}>Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/advances/${id}`}>Batal</Link>}
         {step < 3 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>Serahkan</HoldButton>}
       </div>
     </Card>

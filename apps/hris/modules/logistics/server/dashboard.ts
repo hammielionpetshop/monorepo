@@ -47,12 +47,12 @@ export async function logisticsDashboard(actor: Actor | null): Promise<{ section
     const rows: BoardRow[] = trips.map((t) => ({
       key: `trip-${t.id}`, label: `Trip ${t.number}`, value: t.phase === 'HEADING_HOME' ? 'Menuju Garasi' : 'Berjalan',
       detail: `${t.vehicle}${t.route ? `, ${t.route}` : ''} · ${t.crew.filter((c) => !c.removed).map((c) => c.name).join(', ')}`,
-      href: `/logistik/trip/${t.id}`, tone: t.hanging ? 'danger' : undefined,
+      href: `/logistics/trips/${t.id}`, tone: t.hanging ? 'danger' : undefined,
     }));
     for (const s of selfTrips) {
       rows.push({
         key: `self-${s.id}`, label: `Antar sendiri ${s.number}`, value: `sejak ${wibClock(s.startedAt)}`,
-        detail: `${s.branch} · ${names.get(s.employeeId) ?? '-'}`, href: '/logistik/antar-sendiri/kantor', tone: wibDate(s.startedAt) < wibDate(now) ? 'danger' : undefined,
+        detail: `${s.branch} · ${names.get(s.employeeId) ?? '-'}`, href: '/logistics/self-delivery/office', tone: wibDate(s.startedAt) < wibDate(now) ? 'danger' : undefined,
       });
     }
     sections.push({ key: 'RUNNING', title: 'Berjalan sekarang', rows });
@@ -66,16 +66,16 @@ export async function logisticsDashboard(actor: Actor | null): Promise<{ section
     ]);
     const rows: BoardRow[] = [];
     const add = (row: BoardRow, count: number) => { if (count) rows.push(row); };
-    add({ key: 'decide', label: 'Surat jalan perlu keputusan', value: n(follow?.decide ?? 0), detail: 'Kiriman Gagal: Kirim ulang atau Batal', href: '/logistik/surat-jalan?tab=NEEDS_DECISION', tone: 'danger' }, follow?.decide ?? 0);
-    add({ key: 'pending', label: 'Surat jalan tertunda', value: n(pending.total), detail: pending.red ? `${pending.red} lebih dari 3 hari` : undefined, href: '/logistik/surat-jalan/tertunda', tone: pending.red ? 'danger' : 'warn' }, pending.total);
-    add({ key: 'kasir', label: 'Nota berubah di kasir', value: n(kasir?.count ?? 0), detail: 'Sudah di trip: Lepas atau Tetap antar', href: kasir?.tripId ? `/logistik/trip/${kasir.tripId}` : '/logistik/surat-jalan?tab=ON_TRIP', tone: 'danger' }, kasir?.count ?? 0);
-    add({ key: 'self-late', label: 'Antar sendiri belum kembali', value: n(self?.late ?? 0), detail: 'Lewat 23.59 hari mulainya', href: '/logistik/antar-sendiri/kantor?tab=LATE', tone: 'danger' }, self?.late ?? 0);
-    add({ key: 'self-failed', label: 'Antar sendiri Gagal perlu keputusan', value: n(self?.failed ?? 0), href: '/logistik/antar-sendiri/kantor?tab=FAILED', tone: 'danger' }, self?.failed ?? 0);
-    add({ key: 'goods', label: 'Barang kembali belum diterima', value: n(goods), href: '/logistik/barang-kembali', tone: 'warn' }, goods);
-    add({ key: 'reports', label: 'Laporan toko belum diputuskan', value: n(reports), href: '/logistik/laporan-toko', tone: 'warn' }, reports);
-    add({ key: 'unrecorded', label: 'Potong nota / retur belum dicatat di kasir', value: n(unrecorded.waiting), detail: unrecorded.red ? `${unrecorded.red} lebih dari 3 hari` : undefined, href: '/logistik/catat-kasir', tone: unrecorded.red ? 'danger' : 'warn' }, unrecorded.waiting);
-    add({ key: 'points', label: 'Titik toko menunggu persetujuan', value: n(points), href: '/logistik/toko?tab=titik' }, points);
-    add({ key: 'outside', label: 'Kiriman di luar titik belum ditinjau', value: n(outside.waiting), detail: outside.red ? `${outside.red} lebih dari 3 hari` : undefined, href: '/logistik/di-luar-titik', tone: outside.red ? 'danger' : 'warn' }, outside.waiting);
+    add({ key: 'decide', label: 'Surat jalan perlu keputusan', value: n(follow?.decide ?? 0), detail: 'Kiriman Gagal: Kirim ulang atau Batal', href: '/logistics/delivery-notes?tab=NEEDS_DECISION', tone: 'danger' }, follow?.decide ?? 0);
+    add({ key: 'pending', label: 'Surat jalan tertunda', value: n(pending.total), detail: pending.red ? `${pending.red} lebih dari 3 hari` : undefined, href: '/logistics/delivery-notes/pending', tone: pending.red ? 'danger' : 'warn' }, pending.total);
+    add({ key: 'kasir', label: 'Nota berubah di kasir', value: n(kasir?.count ?? 0), detail: 'Sudah di trip: Lepas atau Tetap antar', href: kasir?.tripId ? `/logistics/trips/${kasir.tripId}` : '/logistics/delivery-notes?tab=ON_TRIP', tone: 'danger' }, kasir?.count ?? 0);
+    add({ key: 'self-late', label: 'Antar sendiri belum kembali', value: n(self?.late ?? 0), detail: 'Lewat 23.59 hari mulainya', href: '/logistics/self-delivery/office?tab=LATE', tone: 'danger' }, self?.late ?? 0);
+    add({ key: 'self-failed', label: 'Antar sendiri Gagal perlu keputusan', value: n(self?.failed ?? 0), href: '/logistics/self-delivery/office?tab=FAILED', tone: 'danger' }, self?.failed ?? 0);
+    add({ key: 'goods', label: 'Barang kembali belum diterima', value: n(goods), href: '/logistics/returned-goods', tone: 'warn' }, goods);
+    add({ key: 'reports', label: 'Laporan toko belum diputuskan', value: n(reports), href: '/logistics/store-reports', tone: 'warn' }, reports);
+    add({ key: 'unrecorded', label: 'Potong nota / retur belum dicatat di kasir', value: n(unrecorded.waiting), detail: unrecorded.red ? `${unrecorded.red} lebih dari 3 hari` : undefined, href: '/logistics/cashier-entries', tone: unrecorded.red ? 'danger' : 'warn' }, unrecorded.waiting);
+    add({ key: 'points', label: 'Titik toko menunggu persetujuan', value: n(points), href: '/logistics/stores?tab=titik' }, points);
+    add({ key: 'outside', label: 'Kiriman di luar titik belum ditinjau', value: n(outside.waiting), detail: outside.red ? `${outside.red} lebih dari 3 hari` : undefined, href: '/logistics/off-site', tone: outside.red ? 'danger' : 'warn' }, outside.waiting);
     sections.push({ key: 'DELIVERY', title: 'Pengiriman', rows });
   }
 
@@ -85,23 +85,23 @@ export async function logisticsDashboard(actor: Actor | null): Promise<{ section
       parts.shortHandover ? shortHandoverSummary() : Promise.resolve(null),
     ]);
     const rows: BoardRow[] = [];
-    if (money.waiting) rows.push({ key: 'money', label: 'Uang toko belum diperiksa', value: n(money.waiting), detail: `Menurut laporan awak${money.red ? ` · ${money.red} lebih dari 3 hari` : ''}`, href: '/logistik/terima-uang', tone: money.red ? 'danger' : 'warn' });
-    if (money.posRed) rows.push({ key: 'money-pos', label: 'Nota belum masuk POS', value: n(money.posRed), detail: 'Sudah diperiksa lebih dari 3 hari', href: '/logistik/terima-uang?tab=DONE', tone: 'danger' });
-    if (selfCash) rows.push({ key: 'self-cash', label: 'Tunai antar sendiri belum diterima laci', value: n(selfCash), detail: self?.cashLate ? `${self.cashLate} lewat hari` : undefined, href: '/logistik/antar-sendiri/kantor?tab=CASH', tone: self?.cashLate ? 'danger' : 'warn' });
-    if (short?.count) rows.push({ key: 'short', label: 'Kurang serah 30 hari', value: rupiah(short.total), detail: `${short.count} nota, bahan Potongan Lain HR`, href: '/logistik/terima-uang?tab=DIFF', tone: 'warn' });
+    if (money.waiting) rows.push({ key: 'money', label: 'Uang toko belum diperiksa', value: n(money.waiting), detail: `Menurut laporan awak${money.red ? ` · ${money.red} lebih dari 3 hari` : ''}`, href: '/logistics/money-checks', tone: money.red ? 'danger' : 'warn' });
+    if (money.posRed) rows.push({ key: 'money-pos', label: 'Nota belum masuk POS', value: n(money.posRed), detail: 'Sudah diperiksa lebih dari 3 hari', href: '/logistics/money-checks?tab=DONE', tone: 'danger' });
+    if (selfCash) rows.push({ key: 'self-cash', label: 'Tunai antar sendiri belum diterima laci', value: n(selfCash), detail: self?.cashLate ? `${self.cashLate} lewat hari` : undefined, href: '/logistics/self-delivery/office?tab=CASH', tone: self?.cashLate ? 'danger' : 'warn' });
+    if (short?.count) rows.push({ key: 'short', label: 'Kurang serah 30 hari', value: rupiah(short.total), detail: `${short.count} nota, bahan Potongan Lain HR`, href: '/logistics/money-checks?tab=DIFF', tone: 'warn' });
     sections.push({ key: 'MONEY', title: 'Uang', rows });
   }
 
   if (parts.fleet) {
     const [follow, fuel, fence] = await Promise.all([countFollowup(), fuelPeriodSummary(), activeFence(now)]);
     const rows: BoardRow[] = [];
-    if (follow?.fuel) rows.push({ key: 'fuel', label: 'Permintaan bensin menunggu', value: n(follow.fuel), detail: 'Finance isi nominal + foto struk', href: '/logistik/bensin-mobil', tone: 'warn' });
-    if (follow?.condition) rows.push({ key: 'condition', label: 'Mobil perlu perhatian', value: n(follow.condition), href: '/logistik/bensin-mobil', tone: 'danger' });
+    if (follow?.fuel) rows.push({ key: 'fuel', label: 'Permintaan bensin menunggu', value: n(follow.fuel), detail: 'Finance isi nominal + foto struk', href: '/logistics/fuel', tone: 'warn' });
+    if (follow?.condition) rows.push({ key: 'condition', label: 'Mobil perlu perhatian', value: n(follow.condition), href: '/logistics/fuel', tone: 'danger' });
     rows.push({
       key: 'fuel-period', label: `Bensin ${fuel.from} s.d. ${fuel.to}`, value: rupiah(fuel.total),
-      detail: `${fuel.count} kali isi${fuel.noRequest ? ` · ${fuel.noRequest} tanpa permintaan` : ''}`, href: '/logistik/bensin-mobil',
+      detail: `${fuel.count} kali isi${fuel.noRequest ? ` · ${fuel.noRequest} tanpa permintaan` : ''}`, href: '/logistics/fuel',
     });
-    if (fence) rows.push({ key: 'fence', label: 'Pemeriksaan titik garasi sedang mati', value: `s.d. ${wibClock(fence.untilAt)}`, href: '/logistik/mobil-rute', tone: 'danger' });
+    if (fence) rows.push({ key: 'fence', label: 'Pemeriksaan titik garasi sedang mati', value: `s.d. ${wibClock(fence.untilAt)}`, href: '/logistics/vehicles-routes', tone: 'danger' });
     sections.push({ key: 'FLEET', title: 'Mobil & bensin', rows });
   }
 

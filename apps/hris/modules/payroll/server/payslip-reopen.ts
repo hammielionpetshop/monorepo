@@ -111,16 +111,16 @@ async function reopenInTx(
   if (account) {
     await notify(tx, [account], {
       kind: 'payslip.reopened', title: `Slip ${number} ${slipPhrase(locked)} sedang dibetulkan.`, body: `Alasan: ${reason}`,
-      entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
+      entity: 'payslip', entityId: locked.id, link: `/earnings/payslips/${locked.id}`,
     }, actorAccountId);
   }
-  await announce(tx, actorAccountId, { what: `membuka kembali slip ${number} ${name}: ${reason}`, link: `/gaji/slip/${locked.id}`, entity: 'payslip', entityId: locked.id });
+  await announce(tx, actorAccountId, { what: `membuka kembali slip ${number} ${name}: ${reason}`, link: `/payroll/payslips/${locked.id}`, entity: 'payslip', entityId: locked.id });
   // Bonus bersumber Dana Disiplin kembali Terpesan: Tersedia boleh minus, Pemilik/GM diberi tahu (spec L4e §7).
   const state = await readFundState(tx);
   let fundNote = '';
   if (state.discipline.available < 0) {
     fundNote = ` Tersedia Dana Disiplin kini minus ${rupiah(-state.discipline.available)}.`;
-    await announce(tx, actorAccountId, { what: `membuka kembali slip ${number}; Tersedia Dana Disiplin minus ${rupiah(-state.discipline.available)}`, link: '/dana', entity: 'payslip', entityId: locked.id });
+    await announce(tx, actorAccountId, { what: `membuka kembali slip ${number}; Tersedia Dana Disiplin minus ${rupiah(-state.discipline.available)}`, link: '/funds', entity: 'payslip', entityId: locked.id });
   }
   return {
     ok: true,
@@ -313,7 +313,7 @@ export async function writeOffReceivable(actor: Actor | null, id: number, reason
     await tx.update(otherReceivables).set({ status: 'WRITTEN_OFF', reason, decidedAt: new Date(), decidedByAccountId: actor.accountId }).where(eq(otherReceivables.id, id));
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_receivable', entityId: id, action: 'receivable.write_off', before: { status: 'OPEN' }, after: { status: 'WRITTEN_OFF', amount: row.amount }, reason });
     const name = (await allPeopleNames()).get(row.employeeId) ?? `#${row.employeeId}`;
-    await announce(tx, actor.accountId, { what: `menghapuskan Piutang Lain ${name} ${rupiah(row.amount)}: ${reason}`, link: '/gaji/piutang', entity: 'other_receivable', entityId: id });
+    await announce(tx, actor.accountId, { what: `menghapuskan Piutang Lain ${name} ${rupiah(row.amount)}: ${reason}`, link: '/payroll/receivables', entity: 'other_receivable', entityId: id });
     return { ok: true as const, data: {} };
   });
 }

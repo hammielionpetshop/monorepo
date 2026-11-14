@@ -61,7 +61,7 @@ export async function createReturnPickup(
       await notify(tx, await managerAccounts(), {
         kind: 'logistics.return_pickup', title: `Tugas jemput retur: ${customer.name}`,
         body: `${clean.reason}. Masukkan ke trip di Logistik › Jemput Retur atau saat membuat trip.`,
-        link: '/logistik/jemput-retur', entity: 'return_pickup', entityId: row.id,
+        link: '/logistics/return-pickups', entity: 'return_pickup', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id: row.id } };
     });
@@ -118,7 +118,7 @@ export async function assignReturnPickup(actor: Actor | null, id: number, tripId
       const [name] = await tx.execute<{ name: string }>(sql`select name from logistics.pos_customers where id = ${row.customerId}`);
       await notify(tx, await accountsOf(crew.map((c) => Number(c.employee_id))), {
         kind: 'logistics.return_pickup', title: `Tambahan jemput retur di ${name?.name ?? 'toko'} (trip ${open.trip.number})`,
-        body: 'Buka Trip Saya › Jemput retur.', link: '/trip-saya', entity: 'trip', entityId: tripId,
+        body: 'Buka Trip Saya › Jemput retur.', link: '/my-trips', entity: 'trip', entityId: tripId,
       }, actor.accountId);
     }
     return { ok: true as const, data: undefined };
@@ -247,13 +247,13 @@ export async function processReturnPickup(
       await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.delivery_note.decide', 'logistics.note_cut.decide'])), {
         kind: 'logistics.visit_report', title: `Retur dijemput: ${store} (trip ${locked.number})`,
         body: 'Barangnya diterima di Barang Kembali; Finance memutuskan Retur BO di Laporan Toko.',
-        link: '/logistik/laporan-toko', entity: 'visit_report', entityId: reportId,
+        link: '/logistics/store-reports', entity: 'visit_report', entityId: reportId,
       }, me.accountId);
     }
     if (clean.outcome === 'NO_GOODS') {
       await notify(tx, [task.createdByAccountId], {
         kind: 'logistics.return_pickup', title: `Jemput retur ${store}: tidak ada barang`, body: clean.note ?? '',
-        link: '/logistik/jemput-retur', entity: 'return_pickup', entityId: pickupId,
+        link: '/logistics/return-pickups', entity: 'return_pickup', entityId: pickupId,
       }, me.accountId);
     }
     return { ok: true as const, data: undefined };

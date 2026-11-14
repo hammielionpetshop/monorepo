@@ -20,7 +20,7 @@ export function RequestFormFrame({ typeKey, resubmitOf, children }: {
       </Card>
       {resubmitOf && <Alert>Ajukan ulang dari PJ-{resubmitOf}: isian lama sudah terisi. Perbaiki lalu kirim.</Alert>}
       {children}
-      <Link href="/pengajuan/baru" className="inline-block text-sm text-brand-700">← Pilih jenis lain</Link>
+      <Link href="/requests/new" className="inline-block text-sm text-brand-700">← Pilih jenis lain</Link>
     </div>
   );
 }

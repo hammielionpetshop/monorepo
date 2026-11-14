@@ -109,7 +109,7 @@ export function AbsenceFormScreen(props: Props) {
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Pengajuan gagal dikirim.');
     toast(String(result.data?.message ?? 'Pengajuan terkirim.'), 'ok');
-    router.push(`/pengajuan/${result.data?.id}`);
+    router.push(`/requests/${result.data?.id}`);
     router.refresh();
   }
 
@@ -117,7 +117,7 @@ export function AbsenceFormScreen(props: Props) {
     return (
       <Card>
         <Field id="ab-person" label="Pilih orang" hint="Semua cabang, tidak termasuk diri Anda. Pemilik dan GM tidak tampil.">
-          <Select id="ab-person" value="" onChange={(e) => router.push(`/kehadiran/isikan?orang=${e.target.value}`)}>
+          <Select id="ab-person" value="" onChange={(e) => router.push(`/attendance/on-behalf?orang=${e.target.value}`)}>
             <option value="">—</option>
             {props.people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
           </Select>
@@ -132,7 +132,7 @@ export function AbsenceFormScreen(props: Props) {
       {props.onBehalf && (
         <Alert>
           Diisikan atas nama <strong>{props.subjectName}</strong>. Keputusannya oleh penyetuju lain, bukan Anda.{' '}
-          <button type="button" className="underline" onClick={() => router.push('/kehadiran/isikan')}>Ganti orang</button>
+          <button type="button" className="underline" onClick={() => router.push('/attendance/on-behalf')}>Ganti orang</button>
         </Alert>
       )}
       <ol className="flex flex-wrap gap-2 text-xs">

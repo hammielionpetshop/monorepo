@@ -3,7 +3,7 @@ import { NAV_GROUPS, mobileBar, navForWeb, visibleNav, type NavGroup } from './n
 
 const groups: NavGroup[] = [
   { id: 'main', items: [{ href: '/', label: 'Beranda', icon: 'home', mobile: true }] },
-  { id: 'self', label: 'Saya', items: [{ href: '/profil', label: 'Profil', icon: 'user', action: 'profile.view', mobile: true }] },
+  { id: 'self', label: 'Saya', items: [{ href: '/profile', label: 'Profil', icon: 'user', action: 'profile.view', mobile: true }] },
   {
     id: 'settings',
     label: 'Pengaturan',
@@ -49,7 +49,7 @@ describe('mobileBar', () => {
     ];
     const bar = mobileBar(visibleNav(() => true, many));
     expect(bar.showMenu).toBe(true);
-    expect(bar.items.map((i) => i.href)).toEqual(['/', '/profil']);
+    expect(bar.items.map((i) => i.href)).toEqual(['/', '/profile']);
   });
 });
 
@@ -67,13 +67,13 @@ describe('navForWeb (F2-7b §3)', () => {
 
   it('web Logistik: hanya Beranda, Trip Saya, Pemberitahuan, dan kelompok Logistik', () => {
     const list = hrefs(navForWeb(NAV_GROUPS, 'logistik', true));
-    expect(list).toEqual(expect.arrayContaining(['/', '/trip-saya', '/pemberitahuan', '/logistik/trip', '/logistik/sewa-mobil']));
-    expect(list.every((href) => ['/', '/trip-saya', '/pemberitahuan'].includes(href) || href.startsWith('/logistik/'))).toBe(true);
+    expect(list).toEqual(expect.arrayContaining(['/', '/my-trips', '/notifications', '/logistics/trips', '/logistics/vehicle-rental']));
+    expect(list.every((href) => ['/', '/my-trips', '/notifications'].includes(href) || href.startsWith('/logistics/'))).toBe(true);
   });
 
   it('web HRIS: tanpa kelompok Logistik dan Trip Saya; Absen Trip dan Upah Ritase tetap', () => {
     const list = hrefs(navForWeb(NAV_GROUPS, 'hris', true));
-    expect(list.some((href) => href.startsWith('/logistik') || href === '/trip-saya')).toBe(false);
-    expect(list).toEqual(expect.arrayContaining(['/kehadiran/absen-trip', '/gaji/upah-ritase', '/pengaturan/tarif-ritase']));
+    expect(list.some((href) => href.startsWith('/logistics') || href === '/my-trips')).toBe(false);
+    expect(list).toEqual(expect.arrayContaining(['/attendance/trip-attendance', '/payroll/trip-wages', '/settings/trip-rates']));
   });
 });

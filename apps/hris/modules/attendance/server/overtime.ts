@@ -186,7 +186,7 @@ export async function syncOvertimeDays(executor: Tx, employeeId: number, dates: 
       kind: 'attendance.overtime',
       title: born.length === 1 ? `Terdeteksi lembur ${first.hours} jam ${shortDate(first.workDate)}` : `${born.length} lembur terdeteksi`,
       body: `Klaim dari menu Lembur Saya ${deadlineText(first.deadlineAt)}. Lewat itu hangus.`,
-      link: '/lembur',
+      link: '/overtime',
     }, null);
   }
   return born;
@@ -629,7 +629,7 @@ export async function overtimeAttention(actor: Actor | null, now: Date = new Dat
   const n = Number(rows[0]?.n ?? 0);
   if (!n) return [];
   const first = rows[0].first ? new Date(rows[0].first) : null;
-  return [{ key: 'overtime-mine', title: `${n} lembur belum diklaim`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/lembur' }];
+  return [{ key: 'overtime-mine', title: `${n} lembur belum diklaim`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/overtime' }];
 }
 
 // ---- Mesin harian `overtime-daily` 04.30 WIB (spec L3h §6) ----
@@ -650,7 +650,7 @@ export async function runOvertimeDaily(now: Date = new Date()) {
     await db.transaction(async (tx) => {
       await notify(tx, await ownerAccounts(), {
         kind: 'attendance.overtime', title: 'Mesin penghangus lembur gagal berjalan',
-        body: 'Hitung ulang dan penghangus klaim lembur pagi ini gagal. Hari kemarin akan dikejar pada jalan berikutnya.', link: '/kehadiran/lembur',
+        body: 'Hitung ulang dan penghangus klaim lembur pagi ini gagal. Hari kemarin akan dikejar pada jalan berikutnya.', link: '/attendance/overtime',
       }, null);
     }).catch(() => undefined);
     throw error;
@@ -688,7 +688,7 @@ async function overtimeDaily(now: Date) {
       if (!(await noticeOnce(tx, `ot:${row.id}:EXPIRED`))) continue;
       await notify(tx, await accountsOf([row.employeeId]), {
         kind: 'attendance.overtime', title: `Lembur ${row.hours} jam ${shortDate(row.workDate)} hangus`,
-        body: 'Batas klaim sudah lewat. Bicarakan langsung dengan pemilik.', link: '/lembur?tab=done',
+        body: 'Batas klaim sudah lewat. Bicarakan langsung dengan pemilik.', link: '/overtime?tab=done',
       }, null);
     }
   });
@@ -703,7 +703,7 @@ async function overtimeDaily(now: Date) {
       await notify(tx, await accountsOf([row.employeeId]), {
         kind: 'attendance.overtime',
         title: left === 0 ? `Hari terakhir klaim lembur ${shortDate(row.workDate)}` : `Tinggal 1 hari: klaim lembur ${shortDate(row.workDate)}`,
-        body: `Lembur ${row.hours} jam. Lewat batas, lemburnya hangus.`, link: '/lembur',
+        body: `Lembur ${row.hours} jam. Lewat batas, lemburnya hangus.`, link: '/overtime',
       }, null);
       result.reminders += 1;
     }

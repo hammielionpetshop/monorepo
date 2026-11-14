@@ -187,7 +187,7 @@ export async function createRate(actor: Actor | null, input: RateInput): Promise
     const before = preview.current ? ` (sebelumnya ${describe(preview.current)})` : '';
     await notify(tx, await rateAudience(input.vehicleId, input.routeId, preview.today), {
       kind: 'wage.rate_changed', title: `Tarif ${label} mulai ${dayLabel(input.effectiveFrom)}`,
-      body: `${describe(numbers)}${before}.`, link: '/trip-saya', entity: 'trip_rate', entityId: id,
+      body: `${describe(numbers)}${before}.`, link: '/my-trips', entity: 'trip_rate', entityId: id,
     }, actor.accountId);
     return { ok: true as const, data: { id, message: `Tarif ${label} tersimpan, mulai ${dayLabel(input.effectiveFrom)}. Driver dan kenek diberi tahu.` } };
   });

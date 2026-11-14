@@ -73,10 +73,10 @@ export function UnloadingPaySection({ reportId, totalPay, data }: { reportId: nu
       )}
       {data.cancelReason && <Alert tone="danger">Dibatalkan: {data.cancelReason}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {data.can.pay && <Link className={buttonClass({})} href={`/gaji/bongkaran/bayar?r=${reportId}`}>Bayar {rupiah(totalPay)}</Link>}
+        {data.can.pay && <Link className={buttonClass({})} href={`/payroll/unloading/pay?r=${reportId}`}>Bayar {rupiah(totalPay)}</Link>}
         {data.can.ask && <Button variant="secondary" onClick={() => setDialog('ask')}>Tanyakan dulu</Button>}
         {data.can.answer && <Button variant="secondary" onClick={() => setDialog('answer')}>Jawab</Button>}
-        {data.can.correct && <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/bongkaran/${reportId}/koreksi`}>Koreksi</Link>}
+        {data.can.correct && <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/unloading/${reportId}/corrections`}>Koreksi</Link>}
         {data.can.correct && <Button variant="ghost" onClick={() => setDialog('cancel')}>Batalkan laporan</Button>}
       </div>
       {!data.payments.length && <p className="text-sm text-ink-muted">Belum ada pembayaran.</p>}
@@ -167,12 +167,12 @@ export function UnloadingPayForm({ today, freeDays, ready, blocked, sources }: {
     if (!result.ok) return setError(result.error ?? 'Gagal membayar.');
     const failed = (result.data?.failed as string[] | undefined) ?? [];
     toast(`${result.data?.paid} laporan dibayar, ${rupiah(Number(result.data?.total ?? 0))}.${failed.length ? ` Gagal: ${failed.join(' ')}` : ''}`, failed.length ? 'info' : 'ok');
-    router.push('/gaji/bongkaran');
+    router.push('/payroll/unloading');
     router.refresh();
   }
 
   if (!ready.length) {
-    return <Card className="space-y-2"><Alert tone="warn">Tidak ada yang bisa dibayar.</Alert>{blocked.map((b) => <p key={b.label} className="text-sm">{b.label}: {b.why}</p>)}<Link className="underline" href="/gaji/bongkaran">Kembali</Link></Card>;
+    return <Card className="space-y-2"><Alert tone="warn">Tidak ada yang bisa dibayar.</Alert>{blocked.map((b) => <p key={b.label} className="text-sm">{b.label}: {b.why}</p>)}<Link className="underline" href="/payroll/unloading">Kembali</Link></Card>;
   }
   return (
     <Card className="max-w-3xl space-y-4">
@@ -218,7 +218,7 @@ export function UnloadingPayForm({ today, freeDays, ready, blocked, sources }: {
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/bongkaran">Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/unloading">Batal</Link>}
         {step < 3 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={pay}>Bayar {rupiah(total)}</HoldButton>}
       </div>
     </Card>
@@ -233,7 +233,7 @@ export function UnloadingPayPicker({ rows, topUps }: {
   const [picked, setPicked] = useState<string[]>([]);
   const toggle = (key: string) => setPicked((list) => (list.includes(key) ? list.filter((k) => k !== key) : [...list, key]));
   const sum = [...rows.filter((r) => picked.includes(`r${r.id}`)).map((r) => r.totalPay), ...topUps.filter((t) => picked.includes(`t${t.topUpId}`)).map((t) => t.total)].reduce((s, n) => s + n, 0);
-  const href = `/gaji/bongkaran/bayar?${picked.map((k) => (k.startsWith('r') ? `r=${k.slice(1)}` : `t=${k.slice(1)}`)).join('&')}`;
+  const href = `/payroll/unloading/pay?${picked.map((k) => (k.startsWith('r') ? `r=${k.slice(1)}` : `t=${k.slice(1)}`)).join('&')}`;
   if (!rows.length && !topUps.length) return null;
   return (
     <Card className="space-y-2">
@@ -267,7 +267,7 @@ export function UnloadingOverpaymentsTab({ days, canDecide, canRefund, today, he
         empty="Belum ada lebih bayar bongkaran."
         columns={[
           { key: 'name', header: 'Orang', primary: true, render: (r) => <span>{r.name}{r.casual ? <span className="text-ink-muted"> · pekerja lepas</span> : null}</span> },
-          { key: 'report', header: 'Laporan asal', render: (r) => <Link className="underline" href={`/gaji/bongkaran/${r.reportId}`}>{r.number}</Link> },
+          { key: 'report', header: 'Laporan asal', render: (r) => <Link className="underline" href={`/payroll/unloading/${r.reportId}`}>{r.number}</Link> },
           { key: 'born', header: 'Lahir', render: (r) => `${longDate(r.bornOn)} (${r.age} hari)` },
           { key: 'amount', header: 'Nominal', render: (r) => rupiah(r.amount) },
           { key: 'used', header: 'Sudah tertutup', render: (r) => rupiah(r.used) },

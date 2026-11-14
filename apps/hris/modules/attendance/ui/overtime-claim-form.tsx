@@ -64,7 +64,7 @@ export function OvertimeClaimForm({ day, orderers, resubmit, resubmittedFromId }
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Klaim gagal dikirim.');
     toast('Klaim lembur terkirim. Menunggu keputusan HR atau pemilik.', 'ok');
-    router.push('/lembur?tab=waiting');
+    router.push('/overtime?tab=waiting');
     router.refresh();
   }
 
@@ -103,7 +103,7 @@ export function OvertimeClaimForm({ day, orderers, resubmit, resubmittedFromId }
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap justify-between gap-2">
-        <Button variant="ghost" disabled={busy} onClick={() => { setError(null); if (step) setStep(step - 1); else router.push('/lembur'); }}>Kembali</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => { setError(null); if (step) setStep(step - 1); else router.push('/overtime'); }}>Kembali</Button>
         {step < 2 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={submit}>Kirim klaim</HoldButton>}
       </div>
       {step === 2 && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setPhoto(null); setOrdererId(''); setError(null); setStep(0); }}>Ulangi dari awal</Button>}

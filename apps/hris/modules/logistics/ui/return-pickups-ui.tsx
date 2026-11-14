@@ -349,7 +349,7 @@ export function ReturnPickupsScreen({ waiting, onTrip, done, trips, branches, ho
             <li key={p.id} className="space-y-2 rounded-lg border border-line p-2">
               <div className="flex items-start justify-between gap-2">
                 <p className="font-medium">{p.store}</p>
-                {p.tripId && <a className="text-sm underline" href={`/logistik/trip/${p.tripId}`}>{p.tripNumber ?? 'Trip'}</a>}
+                {p.tripId && <a className="text-sm underline" href={`/logistics/trips/${p.tripId}`}>{p.tripNumber ?? 'Trip'}</a>}
               </div>
               <PickupBody p={p} />
               {canAssign && (

@@ -270,7 +270,7 @@ function OvertimeCard({ ask, onDone }: { ask: OvertimeAsk; onDone: (message: str
       <div className="flex items-center gap-2"><h2 className="font-semibold">Ini lembur?</h2><NewBadge feature="fitur/ini-lembur" /></div>
       <p className="text-sm">Kamu pulang {ask.outClock}, jadwal pulang {ask.scheduledEnd} ({ask.dateLabel}). Terdeteksi lembur {ask.hours} jam.</p>
       {error && <Alert tone="danger">{error}</Alert>}
-      <Link href={`/lembur/${ask.id}`} className={buttonClass({ block: true })}>Ya, klaim sekarang</Link>
+      <Link href={`/overtime/${ask.id}`} className={buttonClass({ block: true })}>Ya, klaim sekarang</Link>
       <Button block variant="secondary" className="min-h-12" disabled={busy} onClick={() => void answer('LATER')}>Nanti</Button>
       <Button block variant="ghost" className="min-h-12" disabled={busy} onClick={() => void answer('NOT_OVERTIME')}>Bukan lembur</Button>
     </Card>
@@ -324,8 +324,8 @@ export function EndOfDayPanel({ pending, handovers, relocation, overtime, autoOp
     return (
       <EndOfDayFlow
         pending={pending}
-        onClose={() => { setOpen(false); router.replace('/absen'); }}
-        onSent={(text, next, nextAsk) => { setOpen(false); setMessage(text); setPrompt(next); setAsk(nextAsk); router.replace('/absen'); router.refresh(); }}
+        onClose={() => { setOpen(false); router.replace('/clock-in'); }}
+        onSent={(text, next, nextAsk) => { setOpen(false); setMessage(text); setPrompt(next); setAsk(nextAsk); router.replace('/clock-in'); router.refresh(); }}
       />
     );
   }
@@ -340,7 +340,7 @@ export function EndOfDayPanel({ pending, handovers, relocation, overtime, autoOp
             <NewBadge feature="fitur/laporan-pulang" />
           </div>
           <p className="text-sm text-ink-muted">Pulang baru dihitung sesudah laporan terkirim. Jam pulang tetap jam foto Anda.</p>
-          <Button block className="min-h-12" onClick={() => { setOpen(true); router.replace('/absen?laporan=1'); }}>Lanjutkan laporan</Button>
+          <Button block className="min-h-12" onClick={() => { setOpen(true); router.replace('/clock-in?laporan=1'); }}>Lanjutkan laporan</Button>
         </Card>
       )}
       {!pending && ask && <OvertimeCard ask={ask} onDone={(text) => { setAsk(null); setMessage(text); router.refresh(); }} />}

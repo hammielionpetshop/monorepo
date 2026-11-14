@@ -293,22 +293,22 @@ function isDecider(actor: Actor | null, typeKey: string, person: PayrollPerson):
 /** Tujuan tombol per jalan pembetulan. */
 function destinations(path: FixPath, slip: SlipRow, person: PayrollPerson, actor: Actor, objectionId: number): { label: string; href: string }[] {
   const source = [
-    { label: 'Koreksi absen', href: '/kehadiran/koreksi' },
-    { label: 'Potongan orang ini', href: `/gaji/${person.id}/potongan?periode=${slip.periodStart}` },
-    { label: 'Bonus orang ini', href: `/gaji/${person.id}/bonus?periode=${slip.periodStart}` },
-    { label: 'Tiadakan potongan', href: '/gaji/tiadakan' },
+    { label: 'Koreksi absen', href: '/attendance/corrections' },
+    { label: 'Potongan orang ini', href: `/payroll/${person.id}/deductions?periode=${slip.periodStart}` },
+    { label: 'Bonus orang ini', href: `/payroll/${person.id}/bonuses?periode=${slip.periodStart}` },
+    { label: 'Tiadakan potongan', href: '/payroll/waivers' },
   ];
   switch (path) {
     case 'SOURCE':
-      return [...source, { label: 'Gaji orang ini', href: `/gaji/${person.id}` }];
+      return [...source, { label: 'Gaji orang ini', href: `/payroll/${person.id}` }];
     case 'REOPEN':
-      return [{ label: actor.fullAccess ? 'Buka kembali slip' : 'Minta buka kembali slip', href: `/gaji/slip/${slip.id}/buka` }, ...source];
+      return [{ label: actor.fullAccess ? 'Buka kembali slip' : 'Minta buka kembali slip', href: `/payroll/payslips/${slip.id}/reopen` }, ...source];
     case 'PAST_CORRECTION':
       return source;
     case 'SALARY_CORRECTION':
-      return actor.fullAccess ? [{ label: 'Pembetulan gaji periode lalu', href: `/gaji/${person.id}/pembetulan?keberatan=${objectionId}` }] : [];
+      return actor.fullAccess ? [{ label: 'Pembetulan gaji periode lalu', href: `/payroll/${person.id}/adjustments?keberatan=${objectionId}` }] : [];
     case 'CANCEL_PAYMENT':
-      return actor.fullAccess ? [{ label: 'Batal bayar', href: `/gaji/slip/${slip.id}/batal-bayar` }, { label: 'Bayar ulang', href: `/gaji/bayar?slip=${slip.id}` }] : [];
+      return actor.fullAccess ? [{ label: 'Batal bayar', href: `/payroll/payslips/${slip.id}/cancel-payment` }, { label: 'Bayar ulang', href: `/payroll/pay?slip=${slip.id}` }] : [];
   }
 }
 
@@ -412,7 +412,7 @@ async function linkInTx(tx: Tx, objection: ObjectionRow, candidate: Candidate, a
   if (account) {
     await notify(tx, [account], {
       kind: 'payslip_objection.fixed', title: 'Keberatan slip Anda sudah dibetulkan.', body: text,
-      entity: 'request', entityId: objection.requestId, link: `/pengajuan/${objection.requestId}`,
+      entity: 'request', entityId: objection.requestId, link: `/requests/${objection.requestId}`,
     }, actorAccountId);
   }
   return true;
@@ -492,7 +492,7 @@ export async function runPayslipObjectionReminder(now: Date = new Date()) {
       if (!to.length) continue;
       await db.transaction((tx) => notify(tx, to, {
         kind: 'payslip_objection.reminder', title: `Keberatan ${slipText} menunggu keputusan.`,
-        body: OBJECTION_KIND_LABELS[o.kind as ObjectionKind], entity: 'request', entityId: o.requestId, link: `/persetujuan/${o.requestId}`,
+        body: OBJECTION_KIND_LABELS[o.kind as ObjectionKind], entity: 'request', entityId: o.requestId, link: `/approvals/${o.requestId}`,
       }, null));
       pending += 1;
       continue;
@@ -507,7 +507,7 @@ export async function runPayslipObjectionReminder(now: Date = new Date()) {
     if (!to.size) continue;
     await db.transaction((tx) => notify(tx, [...to], {
       kind: 'payslip_objection.fix_reminder', title: `Keberatan ${slipText} disetujui ${days} hari lalu, belum dibetulkan.`,
-      body: 'Betulkan lalu tekan Tautkan pembetulan.', entity: 'request', entityId: o.requestId, link: `/persetujuan/${o.requestId}`,
+      body: 'Betulkan lalu tekan Tautkan pembetulan.', entity: 'request', entityId: o.requestId, link: `/approvals/${o.requestId}`,
     }, null));
     waiting += 1;
   }
@@ -521,17 +521,17 @@ export async function objectionAttention(actor: Actor | null, now: Date = new Da
   const mine = rows.filter((o) => o.approvedByAccountId === actor.accountId);
   const late = actor.fullAccess ? rows.filter((o) => o.employeeId !== actor.personId && waitingFixDays(o.approvedAt!, now) >= FIX_ATTENTION_DAYS) : [];
   return {
-    mine: mine.length ? { title: `${mine.length} keberatan slip menunggu pembetulan`, detail: 'Betulkan lalu tekan Tautkan pembetulan', href: `/persetujuan/${mine[0].requestId}` } : null,
-    system: late.length ? { title: `${late.length} keberatan slip disetujui lebih dari ${FIX_ATTENTION_DAYS} hari belum dibetulkan`, detail: 'Belum ditautkan pembetulannya', href: `/persetujuan/${late[0].requestId}` } : null,
+    mine: mine.length ? { title: `${mine.length} keberatan slip menunggu pembetulan`, detail: 'Betulkan lalu tekan Tautkan pembetulan', href: `/approvals/${mine[0].requestId}` } : null,
+    system: late.length ? { title: `${late.length} keberatan slip disetujui lebih dari ${FIX_ATTENTION_DAYS} hari belum dibetulkan`, detail: 'Belum ditautkan pembetulannya', href: `/approvals/${late[0].requestId}` } : null,
   };
 }
 
-/** `/pendapatan/keberatan?dari=` (Ajukan ulang): alamat isian keberatan dengan isian lama. */
+/** `/earnings/objections?dari=` (Ajukan ulang): alamat isian keberatan dengan isian lama. */
 export async function objectionResubmitHref(actor: Actor | null, requestId: number): Promise<string | null> {
   if (!actor) return null;
   const [row] = await db.select({ o: payslipObjections }).from(payslipObjections).innerJoin(requests, eq(requests.id, payslipObjections.requestId))
     .where(and(eq(payslipObjections.requestId, requestId), eq(requests.submittedByAccountId, actor.accountId)));
-  return row ? `/pendapatan/slip/${row.o.payslipId}/keberatan?macam=${row.o.kind}&dari=${requestId}` : null;
+  return row ? `/earnings/payslips/${row.o.payslipId}/objections?macam=${row.o.kind}&dari=${requestId}` : null;
 }
 
 /** Jenis pengajuan untuk keberatan atas slip ini (pintu API memilih handlernya). */

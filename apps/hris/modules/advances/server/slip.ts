@@ -49,7 +49,7 @@ export async function advanceSlipItems(
       group: 'd' as const, sourceKey: `${KEY}${installment.id}`, lineKind: 'ADVANCE' as const,
       label: `Kasbon ${number}, cicilan ${installment.sequence} dari ${installment.total}${early ? ', dipercepat karena slip terakhir' : ''}`,
       date: moneyDate, amount: installment.amount, originPeriod: own || early ? null : installment.periodStart,
-      details: { text: `Sisa kasbon sebelum slip ini ${rupiah(before)}.`, link: '/kasbon' },
+      details: { text: `Sisa kasbon sebelum slip ini ${rupiah(before)}.`, link: '/advances' },
     };
   });
 }
@@ -116,7 +116,7 @@ async function lapsePostpones(tx: Tx, advanceIds: number[], employeeId: number) 
     if (!(await expireRequest(tx, o.requestId, reason))) continue;
     // Diminta atas nama oleh HR: orangnya juga diberi tahu (pengaju sudah diberi tahu Mesin Pengajuan).
     if (account && o.submittedBy !== employeeId) {
-      await notify(tx, [account], { kind: 'advance.postpone_lapsed', title: `Permintaan tunda cicilan kasbon ${o.number} gugur.`, body: reason, link: '/kasbon', entity: 'request', entityId: o.requestId }, null);
+      await notify(tx, [account], { kind: 'advance.postpone_lapsed', title: `Permintaan tunda cicilan kasbon ${o.number} gugur.`, body: reason, link: '/advances', entity: 'request', entityId: o.requestId }, null);
     }
   }
 }
@@ -145,7 +145,7 @@ async function notifyPaidOff(tx: Tx, advanceIds: number[], employeeId: number, a
     await notify(tx, [account], {
       kind: transferred ? 'advance.transferred' : 'advance.paid_off',
       title: transferred ? `Sisa kasbon ${row.number} dialihkan ke Piutang Lain karena slip terakhir.` : `Kasbon ${row.number} sudah lunas.`,
-      link: '/kasbon', entity: 'advance', entityId: row.id,
+      link: '/advances', entity: 'advance', entityId: row.id,
     }, actorAccountId);
   }
 }

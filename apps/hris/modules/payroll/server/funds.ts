@@ -89,7 +89,7 @@ export async function changeFund(actor: Actor | null, input: FundChangeInput, an
     const inserted = await tx.insert(fundEntries).values(rows).returning({ id: fundEntries.id });
     const ids = inserted.map((r) => r.id);
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'fund_entry', entityId: ids[0], action: `fund.${change.kind.toLowerCase()}`, before: null, after: change, reason });
-    await announce(tx, actor.accountId, { what: describeChange(change), link: '/dana', entity: 'fund_entry', entityId: ids[0] });
+    await announce(tx, actor.accountId, { what: describeChange(change), link: '/funds', entity: 'fund_entry', entityId: ids[0] });
     return { ok: true as const, data: { ids } };
   }).catch((error: unknown) => {
     const cause = (error as { cause?: { code?: string } })?.cause ?? (error as { code?: string });

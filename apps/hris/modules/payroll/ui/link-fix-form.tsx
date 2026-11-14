@@ -19,7 +19,7 @@ export function LinkFixForm({ data }: { data: Data }) {
   const [picked, setPicked] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const back = `/persetujuan/${data.requestId}`;
+  const back = `/approvals/${data.requestId}`;
 
   if (data.linked) return <Alert tone="ok" title="Sudah ditautkan">{data.linked}</Alert>;
 

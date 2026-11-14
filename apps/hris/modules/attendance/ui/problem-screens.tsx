@@ -143,9 +143,9 @@ export function ProblemListScreen({ status, selectedId, counts, cards }: {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-sm">
-        <Link href="/kehadiran/laporan-masalah" className={status ? 'text-ink-muted' : 'font-semibold'}>Semua</Link>
+        <Link href="/attendance/problem-reports" className={status ? 'text-ink-muted' : 'font-semibold'}>Semua</Link>
         {PROBLEM_STATUSES.map((key) => (
-          <Link key={key} href={`/kehadiran/laporan-masalah?status=${key}`} className={status === key ? 'font-semibold' : 'text-ink-muted'}>
+          <Link key={key} href={`/attendance/problem-reports?status=${key}`} className={status === key ? 'font-semibold' : 'text-ink-muted'}>
             {PROBLEM_STATUS_LABELS[key]} ({counts[key] ?? 0})
           </Link>
         ))}

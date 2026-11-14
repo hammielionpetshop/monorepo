@@ -74,7 +74,7 @@ export function TripNotesPanel({ visits, pickups, onRelease, onKeep, onPickup, o
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex flex-wrap items-center gap-1">
                   {storeLinks && v.customerId
-                    ? <Link href={`/logistik/toko/${v.customerId}`} className="font-medium underline">{v.destination}</Link>
+                    ? <Link href={`/logistics/stores/${v.customerId}`} className="font-medium underline">{v.destination}</Link>
                     : <span className="font-medium">{v.destination}</span>}
                   {v.customerId == null && <span className="text-ink-muted">(cabang)</span>}
                   <Badge tone={v.tone}>{v.statusLabel}</Badge>

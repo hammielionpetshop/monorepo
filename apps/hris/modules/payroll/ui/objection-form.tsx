@@ -24,7 +24,7 @@ export function ObjectionForm({ target, targetId, label, text, deadline, expired
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (openRequestId) return <Alert tone="info">Keberatan atas potongan ini sudah dikirim. <Link className="underline" href={`/pengajuan/${openRequestId}`}>Lihat pengajuannya</Link></Alert>;
+  if (openRequestId) return <Alert tone="info">Keberatan atas potongan ini sudah dikirim. <Link className="underline" href={`/requests/${openRequestId}`}>Lihat pengajuannya</Link></Alert>;
   if (!live) return <Alert tone="info">Potongan ini sudah tidak berjalan; tidak ada yang perlu dikeberati.</Alert>;
   if (expired) return <Alert tone="warn">Batas keberatan sudah lewat ({timeFormat.format(new Date(deadline))}). Keberatan berikutnya lewat keberatan slip.</Alert>;
 
@@ -43,7 +43,7 @@ export function ObjectionForm({ target, targetId, label, text, deadline, expired
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal mengirim.');
     toast(String(result.data?.message ?? 'Keberatan terkirim.'), 'ok');
-    router.push('/pengajuan');
+    router.push('/requests');
     router.refresh();
   }
 

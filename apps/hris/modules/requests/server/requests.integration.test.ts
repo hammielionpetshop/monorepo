@@ -123,7 +123,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
     const [before] = await sql`select name from hris.employees where id = ${ids.kasir}`;
     expect(before.name).toBe('Budi Kasir');
     for (const decider of [ids.owner, ids.owner2, ids.hr, ids.admin]) {
-      expect((await inbox(decider)).at(-1)).toMatchObject({ kind: 'request.submitted', link: `/persetujuan/${id}` });
+      expect((await inbox(decider)).at(-1)).toMatchObject({ kind: 'request.submitted', link: `/approvals/${id}` });
     }
     expect(await inbox(ids.kasir)).toEqual([]);
     expect(await inbox(ids.finance)).toEqual([]);
@@ -137,13 +137,13 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
     expect(events).toEqual([{ from_status: null, to_status: 'PENDING' }, { from_status: 'PENDING', to_status: 'APPROVED' }]);
     const audit = await sql`select before, after from hris.audit_events where entity = 'employee' and action = 'identity_change.apply'`;
     expect(audit).toEqual([{ before: { name: 'Budi Kasir' }, after: { name: 'Budi Santoso' } }]);
-    expect((await inbox(ids.kasir)).at(-1)).toMatchObject({ kind: 'request.approved', link: `/pengajuan/${id}` });
+    expect((await inbox(ids.kasir)).at(-1)).toMatchObject({ kind: 'request.approved', link: `/requests/${id}` });
   });
 
   it('KAR-72: HR dan Pemilik tidak memutuskan miliknya; penyetuju lain bisa', async () => {
     const hrOwn = await submitName(ids.hr, 'Nadia Baru');
     expect(await decide(ids.hr, hrOwn, 'APPROVE')).toMatchObject({ ok: false, status: 403 });
-    expect((await inbox(ids.hr)).filter((n) => n.link === `/persetujuan/${hrOwn}`)).toEqual([]);
+    expect((await inbox(ids.hr)).filter((n) => n.link === `/approvals/${hrOwn}`)).toEqual([]);
     expect(await decide(ids.admin, hrOwn, 'APPROVE')).toMatchObject({ ok: true });
 
     const ownerOwn = await submitName(ids.owner, 'Pemilik Baru');
@@ -267,7 +267,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
       expect(await statusOf(id)).toBe('PROPOSED');
       const on = futureDate(30);
       expect(await settings.settingOn(KEY, on, { positionId: kasirPosition })).toBe('NONE');
-      expect((await inbox(ids.owner)).at(-1)).toMatchObject({ kind: 'request.submitted', link: `/persetujuan/${id}` });
+      expect((await inbox(ids.owner)).at(-1)).toMatchObject({ kind: 'request.submitted', link: `/approvals/${id}` });
 
       // Usulan kembar di sel yang sama ditolak; pengusul tidak bisa memutuskan; yang tak berhak ditolak.
       expect(await propose(ids.admin, 'GUDANG')).toMatchObject({ ok: false, status: 409 });
@@ -305,7 +305,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
         expectedLatestId: await latestId(),
       }, announce);
       expect(direct).toMatchObject({ ok: true });
-      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/jabatan', title: expect.stringContaining('mengubah Saran role kasir jabatan Kasir') });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/settings/positions', title: expect.stringContaining('mengubah Saran role kasir jabatan Kasir') });
       expect(await decide(ids.owner2, changed, 'APPROVE')).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('sudah berubah') });
       const [open] = await sql`select status from hris.requests where id = ${changed}`;
       expect(open.status).toBe('PENDING');
@@ -328,7 +328,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
 
     it('Pemilik tidak melihat jenis ini di Ajukan dan tidak bisa mengusulkan; HR melihatnya', async () => {
       expect(queries.requestableTypes(await actorOf(ids.owner)).map((t) => t.key)).not.toContain('position_setting_change');
-      expect(queries.requestableTypes(await actorOf(ids.hr)).find((t) => t.key === 'position_setting_change')?.formHref).toBe('/pengaturan/jabatan');
+      expect(queries.requestableTypes(await actorOf(ids.hr)).find((t) => t.key === 'position_setting_change')?.formHref).toBe('/settings/positions');
       expect(await propose(ids.owner, 'KASIR', futureDate(11))).toMatchObject({ ok: false, status: 400 });
     });
 
@@ -336,13 +336,13 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
       const owner = await actorOf(ids.owner);
       const [pos] = await sql`select id from hris.positions where name = 'Finance'`;
       expect(await access.savePositionGrants(owner, pos.id, [{ action: 'identity_change.decide', scope: 'ALL' }], announce)).toMatchObject({ ok: true });
-      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/hak-akses', title: expect.stringContaining('Hak Akses jabatan Finance') });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/settings/access-rights', title: expect.stringContaining('Hak Akses jabatan Finance') });
       const [latest] = await sql`select max(id) as id from hris.setting_values where key = 'requests.overdue_days'`;
       const set = await settings.setSetting(owner, {
         key: 'requests.overdue_days', targetKind: 'ALL', targetId: null, value: 3, effectiveFrom: futureDate(1), reason: REASON, expectedLatestId: Number(latest.id),
       }, announce);
       expect(set).toMatchObject({ ok: true });
-      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/umum' });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/settings/general' });
       expect((await inbox(ids.hr)).filter((n) => n.kind === 'owner.change')).toEqual([]);
     });
   });

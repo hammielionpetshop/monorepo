@@ -51,7 +51,7 @@ export function LossDetailScreen({ loss, split, canCancel }: {
         <p className="text-sm">{loss.description}</p>
         <p className="text-sm text-ink-muted">Periode {longDate(loss.period.start)} – {longDate(loss.period.end)} · dicatat {loss.recordedBy}{loss.approvedBy ? ` · disahkan ${loss.approvedBy}` : ''}</p>
         {loss.cancelReason && <Alert tone="danger">Dibatalkan: {loss.cancelReason}</Alert>}
-        {loss.status === 'PENDING' && loss.requestId && <Link className="underline text-sm" href={`/persetujuan/${loss.requestId}`}>Buka usulannya di Persetujuan</Link>}
+        {loss.status === 'PENDING' && loss.requestId && <Link className="underline text-sm" href={`/approvals/${loss.requestId}`}>Buka usulannya di Persetujuan</Link>}
         <a className="block underline text-sm" href={`/api/payroll/losses/${loss.id}/attachment`} target="_blank" rel="noreferrer">Lihat foto hasil opname</a>
       </Card>
       <Card className="space-y-2">
@@ -60,7 +60,7 @@ export function LossDetailScreen({ loss, split, canCancel }: {
         <p className="text-xs text-ink-muted">Dihitung dari penempatan dan pengaturan terbaru; tersimpan tetap saat slip ditutup.</p>
       </Card>
       <div className="flex gap-2">
-        <Link className="underline text-sm" href={`/potongan/kehilangan-barang?periode=${loss.period.start}`}>Kembali ke daftar</Link>
+        <Link className="underline text-sm" href={`/deductions/lost-items?periode=${loss.period.start}`}>Kembali ke daftar</Link>
         {canCancel && <Button variant="danger" size="sm" onClick={() => setOpen(true)}>Batalkan</Button>}
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="Batalkan kehilangan barang"

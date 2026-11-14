@@ -131,7 +131,7 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
         reason: setting.reason,
       });
       await announce(tx, actorAccountId, {
-        what: `menyetujui usulan: ${effect}`, link: `/persetujuan/${requestId}`, entity: 'setting', entityId: setting.id,
+        what: `menyetujui usulan: ${effect}`, link: `/approvals/${requestId}`, entity: 'setting', entityId: setting.id,
       });
       return { ok: true as const, effect };
     },

@@ -76,13 +76,13 @@ export function LocationScreen({ branches, canManageQr, canUpdateRadius, canEdit
             <p>QR: {branch.qr ? <Badge tone="ok">Aktif sejak {branch.qrCreatedAt?.slice(0, 10)}</Badge> : <Badge tone="warn">Belum ada</Badge>}</p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {canEditPoint && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href="/pengaturan/organisasi">Ubah titik</Link>}
+            {canEditPoint && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href="/settings/organization">Ubah titik</Link>}
             {canUpdateRadius && (
               <Button size="sm" variant="secondary" onClick={() => {
                 setRadiusTarget(branch); setMeters(String(branch.radius)); setEffectiveFrom(addDays(today, 1)); setReason(''); setError(null);
               }}>Ubah radius</Button>
             )}
-            {canManageQr && branch.qr && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/kehadiran/qr/cetak?branch=${branch.id}`}>Cetak QR</Link>}
+            {canManageQr && branch.qr && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/attendance/qr/print?branch=${branch.id}`}>Cetak QR</Link>}
             {canManageQr && (
               <Button size="sm" variant={branch.qr ? 'ghost' : 'primary'} onClick={() => { setQrTarget(branch); setError(null); }}>
                 {branch.qr ? 'Buat ulang QR' : 'Buat QR'}

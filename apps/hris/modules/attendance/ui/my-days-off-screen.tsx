@@ -96,7 +96,7 @@ export function MyDaysOffScreen(props: Props) {
         {props.periods.map((start) => (
           <Link
             key={start}
-            href={`/libur?period=${start}`}
+            href={`/days-off?period=${start}`}
             className={cn('rounded-full border px-3 py-1 text-sm', start === props.periodStart ? 'border-brand-600 text-brand-700' : 'border-line text-ink-muted')}
           >
             Periode {shortDate(start)}
@@ -164,7 +164,7 @@ export function MyDaysOffScreen(props: Props) {
           <div className="flex flex-wrap gap-2">
             {props.editable && <Button disabled={!changed} onClick={() => { setError(null); setStep(2); }}>Lanjut periksa</Button>}
             {changed && <Button variant="secondary" onClick={() => setSelected(props.myDates)}>Ulangi dari awal</Button>}
-            <Link href="/tukar" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">Tukar dengan teman</Link>
+            <Link href="/swaps" className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">Tukar dengan teman</Link>
           </div>
         </>
       )}

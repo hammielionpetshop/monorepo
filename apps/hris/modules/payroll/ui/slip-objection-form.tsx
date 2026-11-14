@@ -28,13 +28,13 @@ export function SlipObjectionForm({ data }: { data: Data }) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const back = `/pendapatan/slip/${data.slip.id}`;
+  const back = `/earnings/payslips/${data.slip.id}`;
 
   if (data.pendingRequestId) {
     return (
       <Alert tone="info">
         Keberatan macam ini untuk slip ini sudah dikirim dan masih menunggu. Untuk menambah keterangan, tarik dulu lalu Ajukan ulang.{' '}
-        <Link className="underline" href={`/pengajuan/${data.pendingRequestId}`}>Lihat pengajuannya</Link>
+        <Link className="underline" href={`/requests/${data.pendingRequestId}`}>Lihat pengajuannya</Link>
       </Alert>
     );
   }

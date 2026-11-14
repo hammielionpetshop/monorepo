@@ -89,12 +89,12 @@ export async function runKasirCheck(now: Date = new Date()) {
       await notify(tx, managers, {
         kind: 'logistics.kasir_changed', title: `${text} (trip ${f.trip_number})`,
         body: cancelled ? 'Lepas kunjungannya dari trip; driver tidak bisa menandai Terkirim.' : 'Buka rincian trip: Lepas atau Tetap antar.',
-        link: `/logistik/trip/${tripId}`, entity: 'delivery_note', entityId: Number(f.note_id),
+        link: `/logistics/trips/${tripId}`, entity: 'delivery_note', entityId: Number(f.note_id),
       }, null);
       await notify(tx, crew, {
         kind: 'logistics.kasir_changed', title: `${text} (trip ${f.trip_number})`,
         body: cancelled ? 'Jangan diantar dulu; tunggu Kepala Gudang.' : 'Tagih sesuai tagihan baru di Trip Saya.',
-        link: '/trip-saya', entity: 'delivery_note', entityId: Number(f.note_id),
+        link: '/my-trips', entity: 'delivery_note', entityId: Number(f.note_id),
       }, null);
       notified += 1;
     });

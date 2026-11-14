@@ -76,7 +76,7 @@ export function ManageForm(props: Props) {
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(String(result.data?.message ?? 'Tersimpan.'), 'ok');
-    router.push(`/gaji/kasbon/${id}`);
+    router.push(`/payroll/advances/${id}`);
     router.refresh();
   }
 
@@ -155,7 +155,7 @@ export function ManageForm(props: Props) {
 
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/kasbon/${id}`}>Batal</Link>
+        <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/advances/${id}`}>Batal</Link>
         <HoldButton loading={busy} onClick={save}>{TITLES[mode]}</HoldButton>
       </div>
     </Card>

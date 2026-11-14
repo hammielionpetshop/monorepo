@@ -86,8 +86,8 @@ export function NotificationsScreen({ items, hasMore, page, unread }: {
         </Card>
       )}
       <div className="flex justify-between">
-        {page > 1 ? <Link className="text-sm text-brand-700" href={`/pemberitahuan?page=${page - 1}`}>← Lebih baru</Link> : <span />}
-        {hasMore && <Link className="text-sm text-brand-700" href={`/pemberitahuan?page=${page + 1}`}>Lebih lama →</Link>}
+        {page > 1 ? <Link className="text-sm text-brand-700" href={`/notifications?page=${page - 1}`}>← Lebih baru</Link> : <span />}
+        {hasMore && <Link className="text-sm text-brand-700" href={`/notifications?page=${page + 1}`}>Lebih lama →</Link>}
       </div>
     </div>
   );

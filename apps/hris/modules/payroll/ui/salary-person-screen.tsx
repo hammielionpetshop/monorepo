@@ -56,7 +56,7 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
     router.refresh();
   }
 
-  const editHref = `/gaji/${person.id}/ubah`;
+  const editHref = `/payroll/${person.id}/edit`;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
@@ -65,7 +65,7 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
       </div>
       {proposals.map((p) => (
         <Alert key={p.requestId} tone="warn" title={`Usulan dari HR mulai ${p.from}, menunggu Pemilik atau GM`}>
-          <Link className="underline" href={p.mine ? `/pengajuan/${p.requestId}` : `/persetujuan/${p.requestId}`}>
+          <Link className="underline" href={p.mine ? `/requests/${p.requestId}` : `/approvals/${p.requestId}`}>
             {p.mine ? 'Buka usulan (bisa ditarik)' : 'Buka dan putuskan'}
           </Link>
         </Alert>
@@ -76,7 +76,7 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
           <Link className={buttonClass({ variant: 'secondary' })} href={`${editHref}?standar=1`}>Terapkan Gaji Standar</Link>
           {canChange && (
             <span className="inline-flex items-center gap-1">
-              <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/${person.id}/pembetulan`}>Pembetulan gaji periode lalu</Link>
+              <Link className={buttonClass({ variant: 'ghost' })} href={`/payroll/${person.id}/adjustments`}>Pembetulan gaji periode lalu</Link>
               <NewBadge feature="fitur/pembetulan-gaji" />
             </span>
           )}
@@ -84,21 +84,21 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
       )}
       <nav aria-label="Bagian gaji" className="flex gap-1 border-b border-line">
         {([['now', 'Gaji sekarang'], ['history', 'Riwayat']] as const).map(([key, label]) => (
-          <Link key={key} href={key === 'now' ? `/gaji/${person.id}` : `/gaji/${person.id}?tab=riwayat`} aria-current={tab === key ? 'page' : undefined}
+          <Link key={key} href={key === 'now' ? `/payroll/${person.id}` : `/payroll/${person.id}?tab=riwayat`} aria-current={tab === key ? 'page' : undefined}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === key ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink'}`}>
             {label}
           </Link>
         ))}
-        <Link href={`/gaji/${person.id}/hitungan`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+        <Link href={`/payroll/${person.id}/calculation`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Hitungan <NewBadge feature="fitur/hitungan-kehadiran" />
         </Link>
-        <Link href={`/gaji/${person.id}/potongan`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+        <Link href={`/payroll/${person.id}/deductions`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Potongan <NewBadge feature="fitur/tab-potongan" />
         </Link>
-        <Link href={`/gaji/${person.id}/bonus`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+        <Link href={`/payroll/${person.id}/bonuses`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Bonus <NewBadge feature="fitur/tab-bonus" />
         </Link>
-        <Link href={`/gaji/${person.id}/slip`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+        <Link href={`/payroll/${person.id}/payslips`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Slip <NewBadge feature="fitur/tab-slip" />
         </Link>
       </nav>

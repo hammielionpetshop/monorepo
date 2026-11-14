@@ -529,7 +529,7 @@ async function notifyCorrected(tx: Tx, employeeIds: number[], workDate: IsoDate,
   const accounts = await activeHrisAccounts(employeeIds);
   if (!accounts.size) return;
   await notify(tx, [...accounts.values()], {
-    kind: 'attendance.corrected', title: `Absen Anda ${workDate} dibetulkan HR`, body: reason, link: '/kehadiran-saya',
+    kind: 'attendance.corrected', title: `Absen Anda ${workDate} dibetulkan HR`, body: reason, link: '/my-attendance',
   }, actorAccountId);
 }
 
@@ -762,7 +762,7 @@ export async function decideReview(actor: Actor, input: {
       ok: true,
       data: {
         message: `Absen ${name} ditandai perlu dikoreksi.`,
-        link: `/kehadiran/koreksi?mode=one&employee=${row.day.employeeId}&date=${row.day.workDate}`,
+        link: `/attendance/corrections?mode=one&employee=${row.day.employeeId}&date=${row.day.workDate}`,
       },
     };
 }

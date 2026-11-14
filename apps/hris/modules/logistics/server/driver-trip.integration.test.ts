@@ -184,7 +184,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-2a: alur trip HP driver', () => {
     expect((await lg.processVisit(driver, tripId, depan.id, { outcome: 'FAILED', reasonCode: 'REFUSED' }, jpeg())).ok).toBe(true);
     expect(await noteStatus('IBT-A')).toMatchObject({ status: 'NEEDS_DECISION' });
     const [told] = await sql`select title, link from hris.notifications where kind = 'logistics.visit_failed' and recipient_account_id = ${ids.kg + 1000}`;
-    expect(told).toMatchObject({ title: expect.stringContaining('Toko Depan'), link: '/logistik/surat-jalan?tab=NEEDS_DECISION' });
+    expect(told).toMatchObject({ title: expect.stringContaining('Toko Depan'), link: '/logistics/delivery-notes?tab=NEEDS_DECISION' });
     expect(await tabs()).toMatchObject({ WAITING: 1, ON_TRIP: 0, DELIVERED: 2, NEEDS_DECISION: 1 });
   });
 

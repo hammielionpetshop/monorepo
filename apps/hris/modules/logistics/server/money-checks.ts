@@ -97,7 +97,7 @@ async function loadPayments(since: IsoDate, only: { truck?: number[]; self?: num
         : legacy.filter((l) => Number(l.visit_id) === visitId).map((l) => ({ transactionId: Number(l.transaction_id), number: l.number, bill: null }));
       const tripCrew = crew.filter((c) => Number(c.trip_id) === tripId);
       return {
-        source: 'TRUCK', paymentId: Number(r.id), tripId, tripNumber: r.number, tripHref: `/logistik/trip/${tripId}`, store: r.store,
+        source: 'TRUCK', paymentId: Number(r.id), tripId, tripNumber: r.number, tripHref: `/logistics/trips/${tripId}`, store: r.store,
         customerId: Number(r.customer_id), method: r.method, received: Number(r.received_amount), recordedAt: new Date(r.recorded_at),
         recordedBy: Number(r.recorded_by_employee_id), proofUrl: photo(tripId, r.proof_photo_file_id),
         carrierId: tripCrew.find((c) => c.role === 'DRIVER') ? Number(tripCrew.find((c) => c.role === 'DRIVER')!.employee_id) : null,
@@ -106,7 +106,7 @@ async function loadPayments(since: IsoDate, only: { truck?: number[]; self?: num
     }),
     ...self.map((r): RawPayment => ({
       source: 'SELF', paymentId: Number(r.id), tripId: Number(r.trip_id), tripNumber: r.number,
-      tripHref: `/logistik/antar-sendiri/kantor?tab=DONE&cabang=${r.branch_id}`, store: r.store,
+      tripHref: `/logistics/self-delivery/office?tab=DONE&cabang=${r.branch_id}`, store: r.store,
       customerId: r.customer_id != null ? Number(r.customer_id) : null, method: r.method, received: Number(r.received_amount),
       recordedAt: new Date(r.recorded_at), recordedBy: Number(r.recorded_by_employee_id),
       proofUrl: r.proof_photo_file_id ? `/api/logistics/self-photo?trip=${r.trip_id}&kind=proof&stop=${r.stop_id}` : null,
@@ -311,7 +311,7 @@ export async function saveMoneyCheck(
         await notify(tx, [...new Set([...(await accountsOf([p.carrierId])), ...owners])], {
           kind: 'logistics.cash_short', title: `Kurang serah ${rupiah(total)}: ${p.store} (${p.tripNumber})`,
           body: `${short.map((l) => `${l.number}: lapor ${rupiah(l.reported)}, diterima ${rupiah(l.actual)}`).join('; ')}. Tindak lanjut di tab Selisih (Potongan Lain lewat pengesahan, ganti tunai, atau tidak dipotong); gaji tidak dipotong otomatis.`,
-          link: '/logistik/terima-uang?tab=DIFF', entity: 'money_check', entityId: p.paymentId,
+          link: '/logistics/money-checks?tab=DIFF', entity: 'money_check', entityId: p.paymentId,
         }, actor.accountId);
       }
       return { ok: true as const, data: undefined };

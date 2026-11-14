@@ -104,7 +104,7 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
       {d.installments.length > 0 && (
         <Card className="space-y-2">
           <h3 className="font-semibold">Cicilan</h3>
-          <ScheduleTable installments={d.installments} movements={d.movements} reverseHref={(m) => (d.reversible.includes(m) ? `/gaji/kasbon/${d.id}/batal-catatan/${m}` : null)} />
+          <ScheduleTable installments={d.installments} movements={d.movements} reverseHref={(m) => (d.reversible.includes(m) ? `/payroll/advances/${d.id}/cancel-entry/${m}` : null)} />
         </Card>
       )}
 
@@ -113,7 +113,7 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
           <h3 className="font-semibold">Permintaan</h3>
           {d.followups.map((f) => (
             <p key={f.requestId}>
-              <Link className="text-brand-700" href={`/persetujuan/${f.requestId}`}>{FOLLOW_LABELS[f.kind] ?? f.kind}</Link> · {f.status === 'PENDING' ? 'menunggu' : f.status.toLowerCase()}{f.note ? ` — ${f.note}` : ''}
+              <Link className="text-brand-700" href={`/approvals/${f.requestId}`}>{FOLLOW_LABELS[f.kind] ?? f.kind}</Link> · {f.status === 'PENDING' ? 'menunggu' : f.status.toLowerCase()}{f.note ? ` — ${f.note}` : ''}
             </p>
           ))}
         </Card>
@@ -122,13 +122,13 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
       {d.cancelOpen && <Alert tone="warn">Pengaju meminta kasbon ini dibatalkan. Serah uang ditahan sampai Pemilik atau GM memutuskan.</Alert>}
 
       <div className="flex flex-wrap gap-2">
-        <Link href="/gaji/kasbon" className={buttonClass({ variant: 'secondary' })}>Kembali</Link>
+        <Link href="/payroll/advances" className={buttonClass({ variant: 'secondary' })}>Kembali</Link>
         {d.decideHref && <Link href={d.decideHref} className={buttonClass()}>Periksa / Putuskan</Link>}
-        {d.canHandOver && <Link href={`/gaji/kasbon/${d.id}/serahkan`} className={buttonClass()}>Serahkan uang</Link>}
-        {d.canRepay && <Link href={`/gaji/kasbon/${d.id}/lunasi`} className={buttonClass()}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Terima pelunasan</Link>}
-        {d.canManage && <Link href={`/gaji/kasbon/${d.id}/ubah-jadwal`} className={buttonClass({ variant: 'secondary' })}>Ubah jadwal</Link>}
-        {d.canManage && <Link href={`/gaji/kasbon/${d.id}/hapus-utang`} className={buttonClass({ variant: 'secondary' })}>Hapus utang</Link>}
-        {d.canPostponeFor && <Link href={`/kasbon/${d.id}/tunda`} className={buttonClass({ variant: 'secondary' })}>Minta tunda atas nama</Link>}
+        {d.canHandOver && <Link href={`/payroll/advances/${d.id}/hand-over`} className={buttonClass()}>Serahkan uang</Link>}
+        {d.canRepay && <Link href={`/payroll/advances/${d.id}/settle`} className={buttonClass()}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Terima pelunasan</Link>}
+        {d.canManage && <Link href={`/payroll/advances/${d.id}/reschedule`} className={buttonClass({ variant: 'secondary' })}>Ubah jadwal</Link>}
+        {d.canManage && <Link href={`/payroll/advances/${d.id}/write-off`} className={buttonClass({ variant: 'secondary' })}>Hapus utang</Link>}
+        {d.canPostponeFor && <Link href={`/advances/${d.id}/defer`} className={buttonClass({ variant: 'secondary' })}>Minta tunda atas nama</Link>}
         {d.canCancel && <Button variant="danger" onClick={() => { setReason(''); setError(null); setAction('cancel'); }}>Batalkan kasbon</Button>}
         {d.canCancelHandover && <Button variant="danger" onClick={() => { setReason(''); setError(null); setAction('cancel_hand_over'); }}>Batal serah uang</Button>}
       </div>

@@ -51,7 +51,7 @@ export function SpecialAdvanceForm({ people, kinds, amountStep, reasonMin, maxIn
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(String(result.data?.message ?? 'Tersimpan.'), 'ok');
     const id = Number(result.data?.id);
-    router.push(handNow ? `/gaji/kasbon/${id}/serahkan` : `/gaji/kasbon/${id}`);
+    router.push(handNow ? `/payroll/advances/${id}/hand-over` : `/payroll/advances/${id}`);
     router.refresh();
   }
 
@@ -100,7 +100,7 @@ export function SpecialAdvanceForm({ people, kinds, amountStep, reasonMin, maxIn
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/kasbon">Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/advances">Batal</Link>}
         {step < 4 ? <Button onClick={next}>Lanjut</Button> : (
           <>
             <HoldButton loading={busy} onClick={() => save(true)}>Buat dan serahkan sekarang</HoldButton>

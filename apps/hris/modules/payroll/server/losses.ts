@@ -70,7 +70,7 @@ async function tellHolders(tx: Tx, row: { id: number; branchId: number; foundOn:
       kind: 'inventory_loss.active',
       title: `Ada kehilangan barang ${rupiah(row.amount)} di ${branchName} (opname ${longDate(row.foundOn)}).`,
       body: `Bagian Anda ${rupiah(share.amount)}, dipotong di slip periode ${longDate(periodStartOf(row.foundOn))}.`,
-      link: '/panduan/aturan-potongan', entity: 'inventory_loss', entityId: row.id,
+      link: '/guides/deduction-rules', entity: 'inventory_loss', entityId: row.id,
     }, actorAccountId);
   }
 }
@@ -88,7 +88,7 @@ export async function recordLossDirect(actor: Actor | null, input: LossInput, an
     }).returning({ id: inventoryLosses.id });
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'inventory_loss', entityId: row.id, action: 'inventory_loss.create', before: null, after: { ...checked, status: 'ACTIVE' } });
     await tellHolders(tx, { id: row.id, ...checked }, checked.branchName, actor.accountId);
-    await announce(tx, actor.accountId, { what: `mencatat kehilangan barang ${rupiah(checked.amount)} di ${checked.branchName} (${longDate(checked.foundOn)})`, link: `/potongan/kehilangan-barang/${row.id}`, entity: 'inventory_loss', entityId: row.id });
+    await announce(tx, actor.accountId, { what: `mencatat kehilangan barang ${rupiah(checked.amount)} di ${checked.branchName} (${longDate(checked.foundOn)})`, link: `/deductions/lost-items/${row.id}`, entity: 'inventory_loss', entityId: row.id });
     return { ok: true as const, data: { id: row.id } };
   });
 }
@@ -140,7 +140,7 @@ export function inventoryLossHandler(announce: ChangeAnnounce): RequestHandler {
       await tx.update(inventoryLosses).set({ status: 'ACTIVE', approvedByAccountId: actorAccountId, approvedAt: new Date() }).where(eq(inventoryLosses.id, row.id));
       const branchName = await branchNameOf(row.branchId);
       await tellHolders(tx, row, branchName, actorAccountId);
-      await announce(tx, actorAccountId, { what: `mengesahkan kehilangan barang ${rupiah(row.amount)} di ${branchName}`, link: `/potongan/kehilangan-barang/${row.id}`, entity: 'inventory_loss', entityId: row.id });
+      await announce(tx, actorAccountId, { what: `mengesahkan kehilangan barang ${rupiah(row.amount)} di ${branchName}`, link: `/deductions/lost-items/${row.id}`, entity: 'inventory_loss', entityId: row.id });
       return { ok: true as const, effect: `Kehilangan barang berlaku. Yang menanggung diberi tahu bagiannya.` };
     },
     async close(tx, _actorAccountId, requestId) {
@@ -185,7 +185,7 @@ export async function cancelLoss(actor: Actor | null, id: number, reasonInput: u
     const split = await lossSplitOf(row.branchId, row.foundOn, row.amount);
     const accounts = await activeHrisAccounts(split?.shares.map((s) => s.employeeId) ?? []);
     await notify(tx, [...accounts.values()], { kind: 'inventory_loss.cancelled', title: `Kehilangan barang ${branchName} ${longDate(row.foundOn)} dibatalkan; tidak dipotong.`, entity: 'inventory_loss', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `membatalkan kehilangan barang ${rupiah(row.amount)} di ${branchName}`, link: `/potongan/kehilangan-barang/${id}`, entity: 'inventory_loss', entityId: id });
+    await announce(tx, actor.accountId, { what: `membatalkan kehilangan barang ${rupiah(row.amount)} di ${branchName}`, link: `/deductions/lost-items/${id}`, entity: 'inventory_loss', entityId: id });
     return { ok: true as const, data: {} };
   });
 }

@@ -120,7 +120,7 @@ export function ExplainFormScreen(props: Props) {
       return setError(result.error ?? 'Penjelasan gagal dikirim.');
     }
     toast('Terkirim. Menunggu keputusan HR atau pemilik.', 'ok');
-    router.push('/perlu-dijelaskan?tab=waiting');
+    router.push('/clarifications?tab=waiting');
     router.refresh();
   }
 

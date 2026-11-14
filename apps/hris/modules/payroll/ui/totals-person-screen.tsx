@@ -30,7 +30,7 @@ export function TotalsPersonScreen({ data }: { data: Data }) {
             {p.slips.map((s) => (
               <li key={`s${s.id}`} className="flex flex-wrap justify-between gap-2 py-1.5">
                 <span>
-                  Slip bulanan <Link className="underline" href={`/gaji/slip/${s.id}`}>{s.number ?? '-'}</Link> · {s.branchName}
+                  Slip bulanan <Link className="underline" href={`/payroll/payslips/${s.id}`}>{s.number ?? '-'}</Link> · {s.branchName}
                 </span>
                 <span className="flex items-center gap-2">{money(s.net)} <Badge tone={s.paid ? 'ok' : 'warn'}>{s.paid ? 'Dibayar' : 'Belum dibayar'}</Badge></span>
               </li>

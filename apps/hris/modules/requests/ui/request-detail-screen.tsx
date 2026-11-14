@@ -41,7 +41,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
   const [choice, setChoice] = useState<string>(firstChoice);
   const { card } = detail;
   const reduced = detail.approveHours != null && hours < detail.approveHours.claimedHours;
-  const backHref = mode === 'decide' ? '/persetujuan' : '/pengajuan';
+  const backHref = mode === 'decide' ? '/approvals' : '/requests';
 
   function open(next: Action) {
     setError(null);
@@ -83,8 +83,8 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
         <Alert tone="ok" title="Keputusan tersimpan">
           <p>{done}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {nextId && <Link className="font-medium text-brand-700" href={`/persetujuan/${nextId}`}>Berikutnya →</Link>}
-            <Link className="font-medium text-brand-700" href="/persetujuan">Kembali ke Persetujuan</Link>
+            {nextId && <Link className="font-medium text-brand-700" href={`/approvals/${nextId}`}>Berikutnya →</Link>}
+            <Link className="font-medium text-brand-700" href="/approvals">Kembali ke Persetujuan</Link>
           </div>
         </Alert>
       )}

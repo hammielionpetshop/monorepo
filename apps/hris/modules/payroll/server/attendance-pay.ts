@@ -210,7 +210,7 @@ export async function waiveDeduction(actor: Actor | null, input: WaiveInput, ann
       });
       const account = await accountOf(person.id);
       if (account) await notify(tx, [account], { kind: 'pay_waiver.created', title: `${capital(what)} ditiadakan.`, entity: 'pay_waiver', entityId: row.id }, actor.accountId);
-      await announce(tx, actor.accountId, { what: `meniadakan ${what} ${person.name} (${rupiah(detail.amount)})`, link: `/gaji/tiadakan?periode=${periodStart}`, entity: 'pay_waiver', entityId: row.id });
+      await announce(tx, actor.accountId, { what: `meniadakan ${what} ${person.name} (${rupiah(detail.amount)})`, link: `/payroll/waivers?periode=${periodStart}`, entity: 'pay_waiver', entityId: row.id });
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {
@@ -243,7 +243,7 @@ export async function cancelWaiver(actor: Actor | null, id: number, reasonInput:
     });
     const account = await accountOf(person.id);
     if (account) await notify(tx, [account], { kind: 'pay_waiver.cancelled', title: `Peniadaan ${what} dibatalkan.`, entity: 'pay_waiver', entityId: id }, actor.accountId);
-    await announce(tx, actor.accountId, { what: `membatalkan peniadaan ${what} ${person.name}`, link: `/gaji/tiadakan?periode=${periodStartOf(row.workDate)}`, entity: 'pay_waiver', entityId: id });
+    await announce(tx, actor.accountId, { what: `membatalkan peniadaan ${what} ${person.name}`, link: `/payroll/waivers?periode=${periodStartOf(row.workDate)}`, entity: 'pay_waiver', entityId: id });
     return { ok: true as const, data: {} };
   });
 }

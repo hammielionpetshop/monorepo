@@ -171,7 +171,7 @@ export function SelfDeliveryScreen({ data }: { data: SelfDeliveryScreenData }) {
             <h2 className="font-semibold">Antar sendiri cabang (kantor)</h2>
             <p className="text-sm text-ink-muted">Perjalanan berjalan, belum kembali, Gagal perlu keputusan, tunai belum diterima.</p>
           </div>
-          <Link href="/logistik/antar-sendiri/kantor" className={buttonClass({ variant: 'secondary' })}>Buka layar kantor</Link>
+          <Link href="/logistics/self-delivery/office" className={buttonClass({ variant: 'secondary' })}>Buka layar kantor</Link>
         </Card>
       )}
     </div>

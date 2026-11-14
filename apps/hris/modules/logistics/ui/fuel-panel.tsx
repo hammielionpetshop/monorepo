@@ -118,7 +118,7 @@ export function FuelPanel({ requests, canRecord, vehicles, drivers, fills, perio
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line p-2 text-sm">
                 <span>
                   <span className="font-medium">{r.vehicle}</span> · perkiraan driver ± <span className="tabular-nums">{rupiah(r.fuelEstimate ?? 0)}</span>
-                  <span className="block text-ink-muted">{r.driver}, {r.sentOn} {r.sentAt} · <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link></span>
+                  <span className="block text-ink-muted">{r.driver}, {r.sentOn} {r.sentAt} · <Link href={`/logistics/trips/${r.tripId}`} className="underline">{r.tripNumber}</Link></span>
                 </span>
                 {canRecord && <Button size="sm" onClick={() => open({ kind: 'fill', request: r })}>Isi nominal</Button>}
               </li>
@@ -146,7 +146,7 @@ export function FuelPanel({ requests, canRecord, vehicles, drivers, fills, perio
             {
               key: 'source', header: 'Asal',
               render: (r) => (r.withRequest
-                ? <span>Permintaan{r.tripId ? <> · <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link></> : null}</span>
+                ? <span>Permintaan{r.tripId ? <> · <Link href={`/logistics/trips/${r.tripId}`} className="underline">{r.tripNumber}</Link></> : null}</span>
                 : <Badge tone="warn">Tanpa permintaan: {r.noRequestReason}</Badge>),
             },
             {

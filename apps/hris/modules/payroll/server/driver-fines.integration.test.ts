@@ -119,7 +119,7 @@ describe.skipIf(!ADMIN_URL)('L7c: denda driver & kenek', () => {
     expect(decided.ok).toBe(true);
     expect(await fineOf(Number(pending.id))).toMatchObject({ status: 'ACTIVE' });
     const [note] = await sql`select link from hris.notifications where kind = 'driver_fine.active' and recipient_account_id = ${ids.driver + 1000}`;
-    expect(note.link).toBe(`/keberatan-potongan/ajukan?jenis=DRIVER_FINE&id=${pending.id}`);
+    expect(note.link).toBe(`/deduction-objections/submit?jenis=DRIVER_FINE&id=${pending.id}`);
     expect(await driverRow(W1)).toMatchObject({ income: 90_000, taken: 10_000, net: 80_000 });
 
     const closed = await pr.closeSlips(owner, { slipIds: null, periodStart: `W${W1}` }, announce);

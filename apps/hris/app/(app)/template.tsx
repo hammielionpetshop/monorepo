@@ -12,7 +12,7 @@ export default async function AppTemplate({ children }: { children: React.ReactN
   const { actor } = await getRequestActor();
   if (!actor?.limited) return children;
   const path = await currentPath();
-  if (path === '/') redirect('/pendapatan');
+  if (path === '/') redirect('/earnings');
   if (limitedPathAllowed(path)) return children;
   return (
     <EmptyState title="Halaman ini tidak tersedia">

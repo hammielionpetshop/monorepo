@@ -77,7 +77,7 @@ export function WorkHoursScreen({ branches, branchId, shifts, closing, peopleCou
     <div className="space-y-4">
       <div className="max-w-xs">
         <Field id="wh-branch" label="Cabang">
-          <Select id="wh-branch" value={branchId ?? ''} onChange={(e) => router.push(`/pengaturan/jam-kerja?branch=${e.target.value}`)}>
+          <Select id="wh-branch" value={branchId ?? ''} onChange={(e) => router.push(`/settings/work-hours?branch=${e.target.value}`)}>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </Select>
         </Field>

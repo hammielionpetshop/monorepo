@@ -33,16 +33,16 @@ function under(path: string, prefix: string) {
 
 /** Layar milik web Logistik (spec F2-7b §4). */
 export function isLogisticsPath(path: string): boolean {
-  return under(path, '/logistik') || under(path, '/trip-saya');
+  return under(path, '/logistics') || under(path, '/my-trips');
 }
 
 /** Layar yang ada di kedua web: Beranda (isinya berbeda), Pemberitahuan, Profil. */
 export function isSharedPath(path: string): boolean {
-  return path === '/' || under(path, '/pemberitahuan') || under(path, '/profil');
+  return path === '/' || under(path, '/notifications') || under(path, '/profile');
 }
 
 /**
- * Alamat tujuan bila layar dibuka di web yang salah: `/logistik/...` dan `/trip-saya` di HRIS → Logistik, layar HRIS di
+ * Alamat tujuan bila layar dibuka di web yang salah: `/logistics/...` dan `/my-trips` di HRIS → Logistik, layar HRIS di
  * Logistik → HRIS. Null = tetap di sini (termasuk bila pemisahan belum diatur).
  */
 export function redirectTarget(web: HrisWeb, path: string, search: string, origins: WebOrigins): string | null {

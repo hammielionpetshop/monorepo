@@ -44,12 +44,12 @@ export function AttendancePayScreen({ person, period, periods, computedAt, resul
       <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
         <span>{person.positionName}</span><span>·</span><span>{person.branchName}</span><span>·</span>
         <span>{person.workStatus === 'TRAINING' ? 'Training' : 'Karyawan'}</span><span>·</span>
-        <Link className="underline" href={`/gaji/${person.id}`}>Kembali ke Gaji {person.name}</Link>
-        {' · '}<Link className="underline" href={`/gaji/${person.id}/potongan`}>Lihat urutan potongan</Link>
+        <Link className="underline" href={`/payroll/${person.id}`}>Kembali ke Gaji {person.name}</Link>
+        {' · '}<Link className="underline" href={`/payroll/${person.id}/deductions`}>Lihat urutan potongan</Link>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <Field id="ap-period" label="Periode">
-          <Select id="ap-period" value={period.start} onChange={(e) => router.push(`/gaji/${person.id}/hitungan?periode=${e.target.value}`)}>
+          <Select id="ap-period" value={period.start} onChange={(e) => router.push(`/payroll/${person.id}/calculation?periode=${e.target.value}`)}>
             {periods.map((p) => <option key={p.start} value={p.start}>{p.label}</option>)}
           </Select>
         </Field>
@@ -73,7 +73,7 @@ export function AttendancePayScreen({ person, period, periods, computedAt, resul
                   {line.key === 'BASE' ? '' : line.sign === 1 ? '+ ' : '− '}{rupiah(line.amount)}
                 </span>
               </div>
-              {RULE_TEXT[line.key] && <p className="mt-1 text-sm text-ink-muted">{RULE_TEXT[line.key]} <Link className="underline" href={`/panduan/aturan-potongan#${RULE_CARD[line.key]}`}>Lihat aturan</Link></p>}
+              {RULE_TEXT[line.key] && <p className="mt-1 text-sm text-ink-muted">{RULE_TEXT[line.key]} <Link className="underline" href={`/guides/deduction-rules#${RULE_CARD[line.key]}`}>Lihat aturan</Link></p>}
               {line.details.length > 0 && (
                 <details className="mt-2" open={line.key !== 'BASE' && line.details.length <= 5}>
                   <summary className="cursor-pointer text-sm">Rincian ({line.details.length})</summary>

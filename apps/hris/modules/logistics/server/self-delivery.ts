@@ -248,7 +248,7 @@ export async function selfStopOutcome(actor: Actor | null, tripId: number, stopI
         await notify(tx, await branchAccounts(trip.branchId, VIEW), {
           kind: 'logistics.self_failed', title: `Antar ${stop.trxNumber} ke ${stop.destinationName} gagal (${trip.number})`,
           body: `${reason.text}. Barang dibawa kembali ke cabang; keputusan kirim ulang atau batal menyusul.`,
-          link: '/logistik/antar-sendiri/kantor?tab=FAILED', entity: 'self_trip_stop', entityId: stopId,
+          link: '/logistics/self-delivery/office?tab=FAILED', entity: 'self_trip_stop', entityId: stopId,
         }, actor.accountId);
       }
       return { ok: true as const, data: undefined };
@@ -301,7 +301,7 @@ export async function finishSelfTrip(actor: Actor | null, tripId: number, input:
         await notify(tx, await branchAccounts(trip.branchId, CASH), {
           kind: 'logistics.self_cash', title: `Terima tunai ${rupiah(cash)} dari antar ${trip.number}`,
           body: 'Hitung uangnya, masukkan ke laci, lalu tekan Sudah diterima di Antar Sendiri.',
-          link: '/logistik/antar-sendiri', entity: 'self_trip', entityId: tripId,
+          link: '/logistics/self-delivery', entity: 'self_trip', entityId: tripId,
         }, actor.accountId);
       }
       return { ok: true as const, data: { cash } };

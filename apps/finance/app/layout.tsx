@@ -24,13 +24,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </span>
             <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <Link href="/" className="hover:text-primary">Saldo</Link>
-              <Link href="/arus-uang" className="hover:text-primary">Arus Uang</Link>
-              <Link href="/laba-rugi" className="hover:text-primary">Laba Rugi</Link>
-              <Link href="/setoran-vs-laba" className="hover:text-primary">Setoran vs Laba</Link>
-              <Link href="/utang-antar-cabang" className="hover:text-primary">Utang Antar Cabang</Link>
-              <Link href="/dana-belum-cair" className="hover:text-primary">Dana Belum Cair</Link>
-              <Link href="/hitung-kas" className="hover:text-primary">Hitung Kas</Link>
-              <Link href="/tutup-bulan" className="hover:text-primary">Tutup Bulan</Link>
+              <Link href="/cash-flow" className="hover:text-primary">Arus Uang</Link>
+              <Link href="/profit-loss" className="hover:text-primary">Laba Rugi</Link>
+              <Link href="/deposits-vs-profit" className="hover:text-primary">Setoran vs Laba</Link>
+              <Link href="/inter-branch-debts" className="hover:text-primary">Utang Antar Cabang</Link>
+              <Link href="/pending-funds" className="hover:text-primary">Dana Belum Cair</Link>
+              <Link href="/cash-counts" className="hover:text-primary">Hitung Kas</Link>
+              <Link href="/month-close" className="hover:text-primary">Tutup Bulan</Link>
             </nav>
             {switchUrl && (
               <a href={switchUrl} className="ml-auto rounded-md border border-border px-3 py-1 text-sm hover:bg-muted">Pindah web</a>

@@ -51,7 +51,7 @@ export function FundsScreen(props: {
 }) {
   const { state, period, estimate, ledger, reserved, can } = props;
   const [tab, setTab] = useState<Tab>(props.initialTab);
-  const href = (kind: string, fund?: string) => `/dana/ubah?jenis=${kind}${fund ? `&dana=${fund}` : ''}`;
+  const href = (kind: string, fund?: string) => `/funds/edit?jenis=${kind}${fund ? `&dana=${fund}` : ''}`;
   const estimateNote = <Badge tone="warn">perkiraan, belum masuk saldo</Badge>;
 
   return (

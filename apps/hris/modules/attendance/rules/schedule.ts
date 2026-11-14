@@ -120,5 +120,5 @@ export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
 
 /** Isi QR: tautan yang dibuka kamera HP. */
 export function qrLink(origin: string, code: string): string {
-  return `${origin.replace(/\/$/, '')}/absen?c=${encodeURIComponent(code)}`;
+  return `${origin.replace(/\/$/, '')}/clock-in?c=${encodeURIComponent(code)}`;
 }

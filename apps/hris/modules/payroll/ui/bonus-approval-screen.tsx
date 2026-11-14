@@ -77,7 +77,7 @@ export function BonusApprovalScreen(props: {
         {can.sync && (
           <Button variant="ghost" loading={busy === 'sync'} onClick={() => act('sync', { kind: 'bonus_sync' }, 'Data kasir sudah ditarik.')}>Tarik sekarang dari kasir</Button>
         )}
-        <Link className={buttonClass({ variant: 'ghost' })} href={`/bonus/buku?periode=${period.start}`}>Buku Bonus</Link>
+        <Link className={buttonClass({ variant: 'ghost' })} href={`/bonuses/ledger?periode=${period.start}`}>Buku Bonus</Link>
       </div>
       {props.locked && <Alert tone="warn">Slip periode ini sudah ditutup. Bonus yang disahkan sekarang masuk slip periode berikutnya.</Alert>}
       <div className="flex flex-wrap gap-2">
@@ -140,14 +140,14 @@ export function BonusApprovalScreen(props: {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <NewBadge feature="fitur/bonus-bebas" />
-            {can.recordFree && <Link className={buttonClass({ size: 'sm' })} href="/bonus/catat">Catat Bonus Bebas</Link>}
+            {can.recordFree && <Link className={buttonClass({ size: 'sm' })} href="/bonuses/record">Catat Bonus Bebas</Link>}
           </div>
           <Alert tone="info">
-            Bonus beralasan di luar grooming dan ongkir. Usulan HR menunggu di menu <Link className="underline" href="/persetujuan">Persetujuan</Link> dan hanya
+            Bonus beralasan di luar grooming dan ongkir. Usulan HR menunggu di menu <Link className="underline" href="/approvals">Persetujuan</Link> dan hanya
             Pemilik atau GM yang mengesahkan. Bonus bersumber Dana Disiplin hanya bisa disahkan bila saldo tersedia cukup.
           </Alert>
           <EntryTable rows={free} showPerson actions={(e) => {
-            if (e.status === 'PENDING' && e.requestId) return <Link className={buttonClass({ size: 'sm', variant: 'secondary' })} href={`/persetujuan/${e.requestId}`}>Buka usulan</Link>;
+            if (e.status === 'PENDING' && e.requestId) return <Link className={buttonClass({ size: 'sm', variant: 'secondary' })} href={`/approvals/${e.requestId}`}>Buka usulan</Link>;
             return can.cancelFree && e.employeeId !== me && e.status === 'APPROVED' && !props.locked
               ? <Button size="sm" variant="ghost" onClick={() => setRejecting({ entry: e, cancel: true })}>Batalkan</Button> : null;
           }} />
@@ -182,7 +182,7 @@ export function BonusApprovalScreen(props: {
         <div className="space-y-3">
           <Alert tone="info">
             Penerimanya di luar jabatan penerima jenis bonus itu (mis. kasir dipasangkan sebagai groomer). Uang tidak keluar diam-diam: ubah jabatan penerima di
-            {' '}<Link className="underline" href="/pengaturan/jenis-bonus">Jenis Bonus</Link>, atau tolak dengan alasan.
+            {' '}<Link className="underline" href="/settings/bonus-types">Jenis Bonus</Link>, atau tolak dengan alasan.
           </Alert>
           <EntryTable rows={held} showPerson actions={(e) => (can.approve && e.employeeId !== me ? <Button size="sm" variant="ghost" onClick={() => setRejecting({ entry: e, cancel: false })}>Tolak</Button> : null)} />
         </div>
@@ -201,7 +201,7 @@ export function BonusApprovalScreen(props: {
               { key: 'est', header: 'Perkiraan bonus', render: (u) => <span className="tabular-nums">{rupiah(u.estimate)}</span> },
             ]}
           />
-          <Link className={buttonClass({ size: 'sm' })} href="/bonus/pasangkan">Pasangkan Groomer & Pengantar</Link>
+          <Link className={buttonClass({ size: 'sm' })} href="/bonuses/pairings">Pasangkan Groomer & Pengantar</Link>
         </div>
       )}
 

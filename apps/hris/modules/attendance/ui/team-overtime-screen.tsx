@@ -29,7 +29,7 @@ export function TeamOvertimeScreen({ tab, branchId, employeeId, branches, people
     const employee = next.employee ?? (employeeId ? String(employeeId) : '');
     if (employee) params.set('employee', employee);
     const query = params.toString();
-    return query ? `/kehadiran/lembur?${query}` : '/kehadiran/lembur';
+    return query ? `/attendance/overtime?${query}` : '/attendance/overtime';
   };
   const tabs = [
     { key: 'open', label: 'Terdeteksi, belum diklaim', href: href({ tab: 'open' }) },
@@ -72,7 +72,7 @@ export function TeamOvertimeScreen({ tab, branchId, employeeId, branches, people
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td className="px-3 py-2">
-                    {tab === 'waiting' && row.canOpen && row.requestId ? <Link className="text-brand-700" href={`/persetujuan/${row.requestId}`}>{row.name}</Link> : row.name}
+                    {tab === 'waiting' && row.canOpen && row.requestId ? <Link className="text-brand-700" href={`/approvals/${row.requestId}`}>{row.name}</Link> : row.name}
                   </td>
                   <td className="px-3 py-2">{row.branch}</td>
                   <td className="px-3 py-2">{row.dateLabel}</td>

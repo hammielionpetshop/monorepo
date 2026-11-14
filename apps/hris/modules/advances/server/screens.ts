@@ -331,7 +331,7 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
     canHandOver: v.stage === 'APPROVED' && !cancelOpen && hasAction(actor, 'advance.hand_over') && (!self || actor.fullAccess),
     canCancel: v.stage === 'APPROVED' && actor.fullAccess && hasAction(actor, 'advance.cancel'),
     canCancelHandover: Boolean(v.handover) && v.handover?.method !== 'LEGACY' && !v.movements.some((m) => m.status === 'ACTIVE') && actor.fullAccess && hasAction(actor, 'advance.cancel'),
-    decideHref: req && OPEN.includes(req.status) && v.row.requestId ? `/persetujuan/${v.row.requestId}` : null,
+    decideHref: req && OPEN.includes(req.status) && v.row.requestId ? `/approvals/${v.row.requestId}` : null,
     cancelOpen,
     eventKind: v.row.eventKind,
     // L5b (spec L5 §3.10, §5): pelunasan Finance/Pemilik/GM (bukan miliknya kecuali Pemilik/GM); kelola Pemilik/GM bukan miliknya.
@@ -383,7 +383,7 @@ export async function postponeFormScreen(actor: Actor | null, id: number, now: D
     id, number: v.row.number, name: person?.name ?? '-', self,
     next: next ? { amount: next.amount, period: labelOf(next) } : null,
     blocked: await postponeCheck(v, db, todayWib(now)),
-    backHref: self ? '/kasbon' : `/gaji/kasbon/${id}`,
+    backHref: self ? '/advances' : `/payroll/advances/${id}`,
   };
 }
 

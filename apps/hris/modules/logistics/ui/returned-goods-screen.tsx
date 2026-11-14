@@ -27,7 +27,7 @@ function GoodsCard({ row, onReceive }: { row: ReturnedGoodsRow; onReceive?: (row
             {row.mismatch && <Badge tone="danger">Tidak sesuai</Badge>}
           </p>
           <p className="text-sm text-ink-muted">
-            {row.what} · trip <Link href={`/logistik/trip/${row.tripId}`} className="underline">{row.tripNumber}</Link> ({row.tripDate})
+            {row.what} · trip <Link href={`/logistics/trips/${row.tripId}`} className="underline">{row.tripNumber}</Link> ({row.tripDate})
             {row.next && row.age > 0 && <> · {row.age} hari</>}
           </p>
           {row.detail && <p className="text-sm">{row.detail}</p>}

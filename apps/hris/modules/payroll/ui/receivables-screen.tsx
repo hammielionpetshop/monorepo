@@ -47,7 +47,7 @@ export function ReceivablesScreen({ rows, filter, manage, totalOpen, countOpen }
         empty="Belum ada Piutang Lain."
         columns={[
           { key: 'name', header: 'Orang', primary: true, render: (r) => r.name },
-          { key: 'slip', header: 'Slip', render: (r) => <Link className="underline" href={`/gaji/slip/${r.slipId}`}>{r.number ?? '-'}</Link> },
+          { key: 'slip', header: 'Slip', render: (r) => <Link className="underline" href={`/payroll/payslips/${r.slipId}`}>{r.number ?? '-'}</Link> },
           { key: 'period', header: 'Periode', render: (r) => r.period },
           { key: 'group', header: 'Kelompok', render: (r) => r.group },
           { key: 'amount', header: 'Nominal', render: (r) => <span className="tabular-nums">{rupiah(r.amount)}</span> },
