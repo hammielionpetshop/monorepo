@@ -98,7 +98,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/logistik/titipan', label: 'Titipan Toko', icon: 'table', action: ['logistics.money_check.do', 'logistics.store_payment.view'] },
       { href: '/logistik/terima-uang', label: 'Terima Uang', icon: 'table', action: ['logistics.money_check.do', 'logistics.store_payment.view', 'other_deduction.propose'] },
       { href: '/logistik/laporan-toko', label: 'Laporan Toko', icon: 'list', action: 'logistics.delivery_note.view' },
-      { href: '/logistik/laporan-muat', label: 'Laporan Muat', icon: 'list', action: ['logistics.load_report.create', 'logistics.load_report.view'] },
+      { href: '/logistik/laporan-muat', label: 'Laporan Muat Toko', icon: 'list', action: ['logistics.load_report.create', 'logistics.load_report.view'] },
       { href: '/logistik/antar-sendiri', label: 'Antar Sendiri', icon: 'truck', action: ['logistics.self_delivery.run', 'logistics.self_delivery.cash_receive', 'logistics.self_delivery.view'] },
       { href: '/logistik/antar-sendiri/kantor', label: 'Antar Sendiri · Kantor', icon: 'list', action: ['logistics.self_delivery.view', 'logistics.self_delivery.manage'] },
       { href: '/logistik/catat-kasir', label: 'Perlu dicatat di kasir', icon: 'list', action: 'logistics.note_cut.decide' },

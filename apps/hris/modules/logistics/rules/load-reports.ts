@@ -27,7 +27,7 @@ export type SaleForLoad = { trxNumber: string; customerId: number | null; status
 /** Alasan nota tidak bisa dipilih untuk laporan muat cabang ini, atau null bila boleh. */
 export function noteProblem(sale: SaleForLoad, kasirBranchId: number, today: IsoDate): string | null {
   if (sale.kasirBranchId !== kasirBranchId) return `Nota ${sale.trxNumber} bukan nota kasir cabang ini.`;
-  if (sale.customerId == null) return `Nota ${sale.trxNumber} tanpa pelanggan; laporan muat butuh nota berpelanggan.`;
+  if (sale.customerId == null) return `Nota ${sale.trxNumber} tanpa pelanggan; laporan muat toko butuh nota berpelanggan.`;
   if (VOID_STATUSES.has(sale.status)) return `Nota ${sale.trxNumber} sudah dibatalkan di kasir.`;
   if (sale.trxOn < earliestNoteDate(today)) return `Nota ${sale.trxNumber} lebih dari ${LOAD_NOTE_DAYS} hari yang lalu.`;
   return null;
@@ -36,8 +36,8 @@ export function noteProblem(sale: SaleForLoad, kasirBranchId: number, today: Iso
 /** Semua nota satu laporan harus dari pelanggan (toko) yang sama, 1 s.d. batas. */
 export function notesProblem(customerIds: (number | null)[], existing = 0): string | null {
   if (!customerIds.length) return 'Pilih nota kasirnya dulu.';
-  if (existing + customerIds.length > LOAD_MAX_NOTES) return `Satu laporan muat paling banyak ${LOAD_MAX_NOTES} nota.`;
-  if (new Set(customerIds).size > 1) return 'Semua nota di satu laporan muat harus dari toko yang sama.';
+  if (existing + customerIds.length > LOAD_MAX_NOTES) return `Satu laporan muat toko paling banyak ${LOAD_MAX_NOTES} nota.`;
+  if (new Set(customerIds).size > 1) return 'Semua nota di satu laporan muat toko harus dari toko yang sama.';
   return null;
 }
 

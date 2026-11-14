@@ -14,7 +14,7 @@ export default async function LoadReportPage({ params }: { params: Promise<{ id:
   if (!report) return <NoAccess />;
   return (
     <>
-      <PageHeader title={`Laporan Muat ${report.store}`} description={`${report.branch} · dibuat ${report.createdAt}`} />
+      <PageHeader title={`Laporan Muat Toko ${report.store}`} description={`${report.branch} · dibuat ${report.createdAt}`} />
       <LoadReportDetailScreen report={report} />
     </>
   );

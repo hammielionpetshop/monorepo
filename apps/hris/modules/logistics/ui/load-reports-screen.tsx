@@ -79,7 +79,7 @@ function NotePicker({ branchId, customerId, chosen, onChange }: {
       {error && <Alert tone="danger">{error}</Alert>}
       {loading && !rows.length ? <p className="text-sm text-ink-muted">Memuat nota…</p> : !rows.length ? (
         <EmptyState title="Tidak ada nota yang bisa dipilih.">
-          Nota kasir cabang ini yang berpelanggan, {LOAD_NOTE_DAYS} hari terakhir, tidak batal, dan belum dipakai laporan muat lain.
+          Nota kasir cabang ini yang berpelanggan, {LOAD_NOTE_DAYS} hari terakhir, tidak batal, dan belum dipakai laporan muat toko lain.
         </EmptyState>
       ) : (
         <ul className="max-h-80 space-y-1 overflow-y-auto">
@@ -126,9 +126,9 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
         Laporan ini hanya bukti: tidak menahan pengiriman dan tidak mengubah kasir.
       </p>
       {branches.length > 0 && (
-        <Button onClick={() => { setChosen([]); setError(null); setOpen(true); }} className="min-h-12">Buat laporan muat</Button>
+        <Button onClick={() => { setChosen([]); setError(null); setOpen(true); }} className="min-h-12">Buat laporan muat toko</Button>
       )}
-      <nav className="flex flex-wrap gap-1" aria-label="Tab laporan muat">
+      <nav className="flex flex-wrap gap-1" aria-label="Tab laporan muat toko">
         {(Object.keys(TAB_LABELS) as LoadReportTab[]).map((t) => (
           <Link key={t} href={tabHref(filter, t)} className={buttonClass({ variant: t === filter.tab ? 'primary' : 'secondary', size: 'sm' })}>{TAB_LABELS[t]}</Link>
         ))}
@@ -140,7 +140,7 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
         <input name="cari" defaultValue={filter.q} placeholder="Nomor nota, toko, atau pembuat" className={`${selectClass} w-60`} />
         <button type="submit" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Tampilkan</button>
       </form>
-      {!rows.length ? <EmptyState title="Tidak ada laporan muat di rentang ini." /> : (
+      {!rows.length ? <EmptyState title="Tidak ada laporan muat toko di rentang ini." /> : (
         <ul className="space-y-2">
           {rows.map((r) => (
             <li key={r.id}>
@@ -164,7 +164,7 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
       {rows.length >= 200 && <Alert tone="warn">Hanya 200 laporan terbaru yang ditampilkan. Persempit tanggal atau pencarian.</Alert>}
 
       <Dialog
-        open={open} onClose={() => setOpen(false)} title="Buat laporan muat"
+        open={open} onClose={() => setOpen(false)} title="Buat laporan muat toko"
         footer={<><Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>Batal</Button><Button loading={busy} disabled={!chosen.length || !branchId} onClick={create}>Lanjut foto</Button></>}
       >
         <div className="space-y-3">
@@ -320,7 +320,7 @@ export function LoadReportDetailScreen({ report }: { report: Detail }) {
         <NotePicker branchId={report.branchId} customerId={report.customerId} chosen={extra} onChange={setExtra} />
       </Dialog>
       <Dialog
-        open={cancelOpen} onClose={() => setCancelOpen(false)} title="Batalkan laporan muat"
+        open={cancelOpen} onClose={() => setCancelOpen(false)} title="Batalkan laporan muat toko"
         footer={<><Button variant="secondary" disabled={busy} onClick={() => setCancelOpen(false)}>Kembali</Button><Button variant="danger" loading={busy} disabled={reason.trim().length < 5} onClick={async () => { if (await send({ action: 'cancel', reportId: report.id, reason }, 'Laporan muat dibatalkan.')) setCancelOpen(false); }}>Batalkan</Button></>}
       >
         <Field id="load-cancel-reason" label="Alasan (wajib)">
