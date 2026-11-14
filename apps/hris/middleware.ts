@@ -7,11 +7,17 @@ import { legacyPathTarget } from './lib/legacy-paths';
  * `x-hris-return` (hanya `/clock-in`): QR cetakan membuka `/clock-in?c=<kode>`; kerangka aplikasi tidak tahu alamatnya, jadi
  * alamat ini diteruskan supaya sesudah login orang kembali ke absen dengan kodenya (spec L3b §4).
  */
+/** Alamat lengkap tujuan pengalihan memakai host publik (Caddy meneruskan Host/X-Forwarded-*). */
+function absoluteTarget(req: NextRequest, path: string): string {
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.host;
+  const proto = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
+  return `${proto}://${host}${path}${req.nextUrl.search}`;
+}
+
 export function middleware(req: NextRequest) {
-  // Alamat lama berbahasa Indonesia (tautan tersimpan, QR cetak, bookmark) → alamat baru. Location relatif supaya
-  // host publik di balik Caddy tetap dipakai.
+  // Alamat lama berbahasa Indonesia (tautan tersimpan, QR cetak, bookmark) → alamat baru.
   const legacy = legacyPathTarget(req.nextUrl.pathname);
-  if (legacy) return new NextResponse(null, { status: 308, headers: { Location: `${legacy}${req.nextUrl.search}` } });
+  if (legacy) return NextResponse.redirect(absoluteTarget(req, legacy), 308);
   const headers = new Headers(req.headers);
   headers.set('x-hris-path', req.nextUrl.pathname);
   // Dipakai pengalihan HRIS ↔ Logistik (spec F2-7b §3) supaya alamat lengkap ikut pindah.
