@@ -6,9 +6,12 @@ import { allowedBranchIds, canSwitchBranch } from '@/lib/active-branch'
 import { terminateSession } from '@/lib/services/logout'
 import Sidebar from './_components/sidebar'
 import BranchSwitcher from './_components/branch-switcher'
+import WebSwitcher from './_components/web-switcher'
 import OfflineBanner from '@/components/connection/offline-banner'
 import IdleLogout from '@/components/auth/idle-logout'
 import { BACKOFFICE_IDLE_TIMEOUT_MS } from '@/lib/idle-timeout'
+import { isCentralMode } from '@/lib/central-cookie-name'
+import type { WebEntry } from '@/lib/web-access'
 
 export default async function DashboardLayout({
   children,
@@ -45,6 +48,7 @@ export default async function DashboardLayout({
     : []
 
   const sessionId = payload.sessionId
+  const webs = await loadSwitchableWebs()
 
   async function logoutAction() {
     'use server'
@@ -80,6 +84,7 @@ export default async function DashboardLayout({
             <span className="text-sm font-bold text-foreground">Hammielion</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
+            {webs.length > 1 && <WebSwitcher webs={webs} current="pos" />}
             {switchableBranches.length > 1 && (
               <BranchSwitcher
                 branches={switchableBranches}
@@ -117,4 +122,16 @@ export default async function DashboardLayout({
       </div>
     </div>
   )
+}
+
+/** Web yang boleh dibuka untuk tombol Pindah web — hanya mode central (spec F2-7a §4). */
+async function loadSwitchableWebs(): Promise<WebEntry[]> {
+  if (!isCentralMode()) return []
+  const [{ readCentralToken }, { loadGatewayView }] = await Promise.all([
+    import('@/lib/central-auth'),
+    import('@/lib/services/gateway-service'),
+  ])
+  const token = await readCentralToken()
+  const view = token ? await loadGatewayView(token) : null
+  return view?.webs ?? []
 }

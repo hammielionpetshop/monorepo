@@ -6,6 +6,7 @@ import {
   sessionCookieOptions,
   type BackofficePolicy,
 } from '@petshop/auth';
+import { gatewayUrlFromEnv } from '@/lib/web-access';
 
 /** Umur akses backoffice pada mode central: 30 hari (keputusan owner 2026-10-31). */
 export const BACKOFFICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -40,6 +41,9 @@ export function getCentralConfig(): CentralConfig {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+  // Web gateway memanggil /api/gateway/* lewat alamatnya sendiri (diteruskan Caddy), spec F2-7a §2a.
+  const gatewayOrigin = gatewayUrlFromEnv() ? new URL(gatewayUrlFromEnv() as string).origin : undefined;
+  if (gatewayOrigin && trustedOrigins.length && !trustedOrigins.includes(gatewayOrigin)) trustedOrigins.push(gatewayOrigin);
   const domain = process.env.AUTH_COOKIE_DOMAIN || undefined;
 
   const problems: string[] = [];

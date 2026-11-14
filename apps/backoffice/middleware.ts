@@ -19,7 +19,8 @@ const allowedOrigins = [
 // diproteksi akan di-redirect ke /login (HTML) → "Manifest syntax error". Begitu
 // juga service worker, halaman offline, & icon harus dapat diakses tanpa auth.
 // `/panduan` publik supaya karyawan baru bisa membacanya sebelum punya akun — isinya cara kerja, tanpa data toko.
-const PUBLIC_PREFIXES = ['/api/auth', '/api/internal', '/api/health', '/_next', '/icon', '/panduan'];
+// `/api/gateway` memeriksa sesi pusat sendiri di tiap rute (web gateway tidak punya JWT Back Office, spec F2-7a).
+const PUBLIC_PREFIXES = ['/api/auth', '/api/gateway', '/api/internal', '/api/health', '/_next', '/icon', '/panduan'];
 const PUBLIC_EXACT = new Set(['/favicon.ico', '/manifest.webmanifest', '/sw.js', '/offline']);
 
 const BO_PATH_PREFIXES = ['/dashboard', '/staff', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
