@@ -1,7 +1,8 @@
 # F2-7a Halaman Awal + Pindah web — rancangan
 
-Status: **draf agent 2026-11-14, menunggu persetujuan owner** ("lanjutkan fase 2"). Butir 💡 adalah usul agent
-yang perlu disetujui atau diganti owner.
+Status: **draf agent 2026-11-14, direvisi sesuai arahan owner 2026-11-14** ("user login di app.hammielion.com (prod)
+dan app.staginghml.my.id (staging) ... hanya sebagai gateway ... react vite saja ... export saja logika login yang ada
+di backoffice menjadi api"). Butir 💡 tersisa adalah usul agent yang menunggu persetujuan owner.
 
 Sumber: PRD Fase 2 `01-susunan-web.md` §2, §4, §5, §7; `00-ringkasan-fase-2.md` §6–§7 ("Belakangan: Halaman Awal +
 tombol Pindah web, Logistik dipisah"); spec L1 auth `2026-10-29-hris-l1-auth-design.md`; runbook `docs/ops/auth-pusat.md`.
@@ -29,22 +30,43 @@ PRD menggabungkan dua pekerjaan besar. Usul agent 💡 dipecah:
 - **Produksi masih login lama (`legacy`)**: cutover akun pusat produksi belum dilakukan dan HRIS/Finance belum
   tayang produksi. Halaman Awal hanya berguna bila akun pusat aktif.
 
-## 2. Halaman Awal
+## 2. Halaman Awal (gateway)
 
-1. 💡 **Web kecil sendiri** (`apps/home`, staging `masuk.staginghml.my.id`) — bukan menumpang di HRIS atau Back
-   Office, sesuai tujuan "tidak tercampur" dan supaya F2-7b tinggal menambah satu kotak. Alamat produksi
-   diputuskan saat rilis (PRD §6: domain diputuskan dev asli). Isinya hanya: Masuk, halaman pilihan, Keluar,
-   dan ganti password awal (alur yang sudah ada di paket auth).
-2. **Masuk dengan username/email + password** (akun pusat). PIN tidak tersedia di Halaman Awal; kasir tetap masuk
-   lewat layar POS seperti hari ini (PRD §4).
-3. Sesudah masuk:
-   - **Hak satu web** → langsung diarahkan ke web itu, tanpa halaman pilihan.
-   - **Dua web atau lebih** → halaman pilihan berisi kotak web yang boleh dibuka (nama, satu baris keterangan).
+1. ✅ **Web gateway kecil berbasis React + Vite** (`apps/gateway`, bukan Next.js), di **`app.staginghml.my.id`**
+   (staging) dan **`app.hammielion.com`** (produksi). Isinya hanya: Masuk, daftar web, Keluar, dan ganti password
+   awal. Hasil build berupa berkas statis.
+2. ✅ **Logika login tetap di Back Office, dibuka sebagai API** untuk gateway (§2a). Gateway tidak terhubung ke
+   database dan tidak menyimpan rahasia.
+3. 💡 Gateway dan API-nya **satu alamat**: Caddy di `app.*` menyajikan berkas statis gateway dan meneruskan
+   `/api/gateway/*` ke layanan Back Office. Dengan begitu cookie sesi, CSRF, dan origin tetap sama-alamat (tanpa
+   CORS lintas domain).
+4. **Masuk dengan username/email + password** (akun pusat). PIN tidak tersedia di gateway; kasir tetap masuk lewat
+   layar POS seperti hari ini (PRD §4).
+5. Sesudah masuk:
+   - **Hak satu web** → langsung diarahkan ke web itu, tanpa daftar.
+   - **Dua web atau lebih** → daftar kotak web yang boleh dibuka (nama, satu baris keterangan).
    - **Tidak punya hak web mana pun** → pesan "Akun belum punya akses web. Hubungi Owner/GM." + tombol Keluar.
-4. Bila sudah punya sesi aktif (mis. baru dari Back Office), membuka Halaman Awal langsung menampilkan pilihan
-   tanpa login ulang.
-5. Kotak **POS** membuka Back Office; Back Office tetap menentukan sendiri masuk Back Office atau dialihkan ke layar
+6. Bila sudah punya sesi aktif (mis. baru dari Back Office), membuka gateway langsung menampilkan daftar tanpa login
+   ulang.
+7. Kotak **POS** membuka Back Office; Back Office tetap menentukan sendiri masuk Back Office atau dialihkan ke layar
    kasir seperti hari ini (PRD §4). Pilih cabang tetap di POS.
+
+### 2a. API gateway di Back Office (`/api/gateway/*`)
+
+| Pintu | Isi |
+|---|---|
+| `POST /api/gateway/login` | Username/email + password → sesi pusat **tanpa mengikat ke satu web**, cookie sesi bersama. Memakai pemeriksaan password, kunci percobaan, dan catatan login yang sudah ada di `@petshop/auth` |
+| `GET /api/gateway/apps` | Daftar web yang menjadi hak sesi ini (§3) + nama orang |
+| `POST /api/gateway/open` | `{ app }` → membuka akses web tujuan di sesi ini (aturan sama dengan bootstrap Back Office), lalu memberi alamat tujuan |
+| `POST /api/gateway/change-password` | Ganti password awal (alur yang sudah ada) |
+| `POST /api/gateway/logout` | Mengakhiri sesi di semua web |
+
+- Alasan login baru tidak memakai `/api/auth/login` apa adanya: login Back Office mewajibkan tautan `backoffice`,
+  sehingga karyawan yang hanya punya HRIS (mis. driver) akan ditolak. Login gateway membuat sesi akun saja; akses
+  tiap web dibuka lewat `open` atau saat web itu dibuka.
+- Login PIN dan `/api/auth/login` Back Office tidak berubah.
+- Hanya aktif dalam mode `central`; dalam mode `legacy` semua pintu gateway menjawab 404.
+- Origin tepercaya untuk pintu ini: alamat gateway. Tanpa migrasi DB (`login_events.app_code` mencatat `gateway`).
 
 ## 3. Hak per web
 
@@ -66,13 +88,11 @@ selalu sama di semua tempat.
   sedang dibuka diberi tanda. Bila haknya hanya satu web, tombol tidak ditampilkan.
 - 💡 **Tidak dipasang di layar kasir POS** (sesi PIN dan layar kasir tidak diubah, PRD §4). Owner/GM yang membuka POS
   dari Back Office kembali lewat Back Office.
-- Pindah ke web lain **tanpa login ulang**: web tujuan membuka aksesnya dari sesi pusat yang sama (Back Office sudah
-  begitu; HRIS ditambah jalur yang sama — tetap hanya untuk sesi password, tetap memeriksa tautan aktif dan ganti
-  password awal).
-- **Keluar** di web mana pun mengakhiri sesi di semua web (sudah begitu karena sesinya satu) dan kembali ke Halaman
-  Awal.
-- Tombol Masuk di Finance dan halaman "belum masuk" HRIS 💡 mengarah ke Halaman Awal. Login Back Office/POS tidak
-  diubah.
+- Pindah ke web lain **tanpa login ulang**: tombol mengarah ke gateway (`/api/gateway/open`), yang membuka akses web
+  tujuan dari sesi pusat yang sama. HRIS hanya untuk sesi password; tautan aktif dan ganti password awal tetap
+  diperiksa. Daftar di tombol diambil dari `GET /api/gateway/apps`.
+- **Keluar** di web mana pun mengakhiri sesi di semua web (sudah begitu karena sesinya satu) dan kembali ke gateway.
+- Tombol Masuk di Finance dan halaman "belum masuk" HRIS 💡 mengarah ke gateway. Login Back Office/POS tidak diubah.
 
 ## 5. Yang tidak berubah
 
@@ -83,20 +103,21 @@ selalu sama di semua tempat.
 
 ## 6. Tayang
 
-- **Staging dulu**, seperti Finance. Perlu: layanan `home-staging` di compose staging, alamat
-  `masuk.staginghml.my.id` di Caddy, origin tepercaya & rahasia CSRF sendiri di `.env` staging (cadangan `.env`
-  sebelum diubah, seperti Finance).
-- **Produksi bersama rilis HRIS/Finance**, karena butuh cutover akun pusat produksi (langkah terpisah dengan
-  persetujuan owner, runbook `auth-pusat.md`). Tombol Pindah web di Back Office produksi baru tampil bila mode
-  `central` aktif; selama `legacy` Back Office produksi tidak berubah.
-- Pembagian branch (rencana): `feat/home-web` (Halaman Awal + aturan hak bersama, dasar `origin/dev_hris` karena
-  memakai paket auth & web Finance yang baru ada di sana) lalu Pindah web di Back Office ikut branch yang sama atau
-  `feat/bo-web-switcher` dari `origin/main` bila perlu rilis Back Office terpisah. Klaim path dipublikasikan
-  sebelum implementasi.
+- **Staging dulu**, seperti Finance. Perlu: layanan statis `gateway-staging` (image kecil berisi hasil build Vite) di
+  compose staging, situs `app.staginghml.my.id` di Caddy (berkas statis + teruskan `/api/gateway/*` ke Back Office
+  staging), DNS `app.staginghml.my.id`, dan origin gateway di `.env` staging (cadangan `.env` sebelum diubah).
+- **Produksi (`app.hammielion.com`) bersama rilis HRIS/Finance**, karena butuh cutover akun pusat produksi (langkah
+  terpisah dengan persetujuan owner, runbook `auth-pusat.md`). API gateway dan tombol Pindah web di Back Office
+  produksi hanya aktif dalam mode `central`; selama `legacy` Back Office produksi tidak berubah.
+- `apps/gateway` ikut `pnpm typecheck` dari root; pemeriksaan non-UI terarah untuk API login gateway (sesi tanpa
+  tautan web, hak per web, akun nonaktif, PIN ditolak).
+- Pembagian branch (rencana): `feat/gateway-api` (API gateway + aturan hak + Pindah web Back Office, dasar
+  `origin/main`, bisa ikut produksi dalam keadaan tidak aktif) lalu `feat/gateway-web` (`apps/gateway` + Pindah web
+  HRIS/Finance + infra staging, dasar `origin/dev_hris`). Klaim path dipublikasikan sebelum implementasi.
 
 ## 7. Uji owner (staging)
 
-1. Buka `masuk.staginghml.my.id`, masuk sebagai Owner → tampil 3 kotak (POS, HRIS, Finance).
+1. Buka `app.staginghml.my.id`, masuk sebagai Owner → tampil 3 kotak (POS, HRIS, Finance).
 2. Klik HRIS → masuk tanpa login ulang. Pindah web → Finance → masuk tanpa login ulang. Pindah web → POS → Back
    Office.
 3. Masuk sebagai karyawan yang hanya punya HRIS (mis. driver) → langsung ke HRIS, tombol Pindah web tidak tampil.
@@ -106,6 +127,7 @@ selalu sama di semua tempat.
 
 ## 8. Pertanyaan untuk owner
 
-1. 💡 Halaman Awal sebagai web kecil sendiri (`masuk.staginghml.my.id`) — setuju, atau ditumpangkan di HRIS?
+1. ✅ Gateway React + Vite di `app.hammielion.com` / `app.staginghml.my.id`, login lewat API Back Office (owner
+   2026-11-14).
 2. 💡 Finance tetap untuk Owner/GM saja (tanpa tautan baru) — setuju?
-3. 💡 F2-7a dulu (Halaman Awal + Pindah web), pemisahan Logistik di F2-7b — setuju?
+3. 💡 F2-7a dulu (gateway + Pindah web), pemisahan Logistik di F2-7b — setuju?
