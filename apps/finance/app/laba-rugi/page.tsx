@@ -8,7 +8,9 @@ import {
   addMonths, buildProfitLoss, cell, FIRST_MONTH, isMonth, loadBranches, loadCosts, loadFlags, loadInternalSales, loadSales,
   monthRange, OFFICE_KEY, TOTAL_KEY, type Column, type Line, type ProfitLoss,
 } from '@/modules/profit-loss';
-import { liveProfitLoss, loadClosings, netChange, profitLossChanges, type Change } from '@/modules/month-close';
+import {
+  correctionEffect, liveProfitLoss, loadClosings, loadCorrections, netChange, profitLossChanges, restatement, type Change,
+} from '@/modules/month-close';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +18,7 @@ export const dynamic = 'force-dynamic';
 const PL_NOTES = [
   'Gaji, bongkaran, bensin dan sewa mobil berasal dari HRIS/Logistik yang baru ada di staging; di produksi belum berisi data nyata.',
   'Biaya dihitung untuk bulannya, bukan tanggal bayar (sewa Oktober dibayar 1 November masuk Oktober).',
-  'Bulan yang sudah ditutup (Finance › Tutup Bulan) menampilkan salinan angka saat ditutup; perubahan sesudahnya tampil terpisah sebagai "Perubahan sesudah ditutup". Bulan yang belum ditutup bisa berubah bila ada pembatalan atau koreksi. Beli aset tidak masuk biaya; harganya dibagi rata per bulan selama umur pakai (Penyusutan aset).',
+  'Bulan yang sudah ditutup (Finance › Tutup Bulan) menampilkan salinan angka saat ditutup. Kesalahan bulan itu (lupa/salah catat) dicatat di Back Office sebagai Koreksi bulan lalu dan menyajikan kembali bulan asalnya — laba bulan berjalan tidak ikut berubah (PSAK 25). Retur dan kejadian baru masuk bulan terjadinya. Bulan yang belum ditutup bisa berubah bila ada pembatalan atau catatan susulan. Beli aset tidak masuk biaya; harganya dibagi rata per bulan selama umur pakai (Penyusutan aset).',
 ];
 
 const ORIGIN: Record<string, string> = {
@@ -103,6 +105,8 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
   const pl = closing ? closing.snapshot.profitLoss : live;
   const flags = closing ? closing.snapshot.flags : liveFlags;
   const changes: Change[] = closing ? profitLossChanges(closing.snapshot.profitLoss, live) : [];
+  const corrections = closing ? await loadCorrections(sql, month) : [];
+  const restated = closing ? restatement(closing.snapshot.profitLoss, live, corrections) : null;
   // Bulan berjalan: peringatan bila bulan tertutup berubah sesudah ditutup.
   const changedClosed = month === thisMonth
     ? (await Promise.all(closings.map(async (c) => ({ month: c.month, delta: netChange(profitLossChanges(c.snapshot.profitLoss, (await liveProfitLoss(sql, c.month)).profitLoss)) }))))
@@ -148,6 +152,65 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
           <a className="font-medium text-primary hover:underline" href={`/tutup-bulan?bulan=${month}`}>Rincian tutup bulan</a>
         </div>
       )}
+      {closing && restated && (restated.corrections !== 0 || restated.other !== 0 || corrections.length > 0) && (
+        <div className="mb-4 rounded-lg border border-blue-300 bg-card text-sm">
+          <div className="border-b border-blue-300 bg-blue-50 px-3 py-2 text-blue-900">
+            <strong>Disajikan kembali</strong> — laba bersih Gabungan {monthLabel} sesudah koreksi. Tabel di bawah tetap angka saat ditutup.
+          </div>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 px-3 py-2 sm:grid-cols-4">
+            {([
+              ['Saat ditutup', restated.closed],
+              ['Koreksi bulan lalu', restated.corrections],
+              ['Perubahan lain', restated.other],
+              ['Disajikan kembali', restated.restated],
+            ] as const).map(([label, v], i) => (
+              <div key={label}>
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd className={`tabular-nums ${i === 3 ? 'font-semibold' : ''} ${(i === 1 || i === 2) && v !== 0 ? (v < 0 ? 'text-red-600' : 'text-blue-700') : ''}`}>
+                  {(i === 1 || i === 2) && v > 0 ? '+' : ''}{v < 0 ? '−' : ''}{rupiah(Math.abs(v))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {corrections.length > 0 && (
+            <div className="overflow-x-auto border-t border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="px-3 py-2 font-semibold">Dicatat</th>
+                    <th className="px-3 py-2 font-semibold">Cabang</th>
+                    <th className="px-3 py-2 font-semibold">Kategori</th>
+                    <th className="px-3 py-2 font-semibold">Alasan</th>
+                    <th className="px-3 py-2 font-semibold">Oleh</th>
+                    <th className="px-3 py-2 text-right font-semibold">Pengaruh ke laba</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corrections.map((c) => {
+                    const effect = correctionEffect(c);
+                    return (
+                      <tr key={c.id} className="border-b border-border">
+                        <td className="px-3 py-2 whitespace-nowrap">{c.occurredOn}</td>
+                        <td className="px-3 py-2">{c.branchName}</td>
+                        <td className="px-3 py-2">{c.category}</td>
+                        <td className="px-3 py-2">{c.reason}</td>
+                        <td className="px-3 py-2">{c.createdByName}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${effect < 0 ? 'text-red-600' : effect > 0 ? 'text-blue-700' : 'text-muted-foreground'}`}>
+                          {effect === 0 ? 'tidak masuk laba' : `${effect > 0 ? '+' : '−'}${rupiah(Math.abs(effect))}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="px-3 py-2 text-xs text-muted-foreground">
+            Koreksi bulan lalu dicatat di Back Office › Pendapatan &amp; Pengeluaran; uangnya tercatat di bulan dicatat, biayanya di bulan asal.
+            Perubahan lain = perubahan sesudah ditutup yang bukan koreksi (mis. nota bulan ini dibatalkan, slip gaji ditutup terlambat).
+          </p>
+        </div>
+      )}
       {changedClosed.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           ⚠️ Bulan yang sudah ditutup berubah sesudah ditutup (laba bersih Gabungan):{' '}
@@ -157,7 +220,7 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
               <a className="font-medium text-primary hover:underline" href={`/laba-rugi?bulan=${x.month}`}>{bulan(`${x.month}-01`)}</a>{' '}
               <span className="tabular-nums">{x.delta > 0 ? '+' : '−'}{rupiah(Math.abs(x.delta))}</span>
             </span>
-          ))}. Koreksinya dicatat di bulan berjalan.
+          ))}. Bulan itu disajikan kembali; laba bulan berjalan tidak ikut berubah.
         </div>
       )}
 
@@ -214,8 +277,8 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
       {closing && changes.length > 0 && (
         <div className="mt-5 overflow-x-auto rounded-lg border border-amber-300 bg-card">
           <div className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <strong>Perubahan sesudah ditutup</strong> — angka hidup sekarang berbeda dari salinan, mis. karena retur nota lama, slip gaji
-            atau koreksi yang masuk belakangan. Tabel di atas tidak ikut berubah.
+            <strong>Perubahan sesudah ditutup</strong> — rincian per baris: angka disajikan kembali dibanding salinan saat ditutup
+            (koreksi bulan lalu, nota dibatalkan, slip gaji ditutup terlambat). Tabel di atas tidak ikut berubah.
           </div>
           <table className="w-full text-sm">
             <thead>
