@@ -48,6 +48,8 @@ export const cashFlowEntries = petshop.table('cash_flow_entries', {
   cancelledAt: timestamp('cancelled_at'),
   cancelledBy: integer('cancelled_by').references(() => users.id),
   cancelReason: text('cancel_reason'),
+  /** F2-6f-3 Koreksi bulan lalu: diisi = koreksi untuk "Untuk bulan" yang sudah ditutup (migrasi 0071). */
+  correctionReason: text('correction_reason'),
 }, (t) => [
   index('cash_flow_entries_branch_created_idx').on(t.branchId, t.createdAt),
 ]);
