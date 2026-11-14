@@ -31,6 +31,17 @@ class GatewayTests(unittest.TestCase):
         self.assertLess(text.index('basic_auth'), text.index('handle_path /uploads/'))
         self.assertIn('/srv/staging-uploads', text)
 
+    def test_gateway_meneruskan_api_ke_backoffice_dan_sisanya_ke_berkas_statis(self):
+        self.assertNotIn('gateway-staging', gateway.render(self.values))
+        text = gateway.render({**self.values, 'DOMAIN_STAGING_GATEWAY': 'app.staginghml.my.id'})
+        site = text[text.index('app.staginghml.my.id {'):]
+        self.assertLess(site.index('basic_auth'), site.index('handle /api/gateway/*'))
+        self.assertLess(site.index('handle /api/gateway/*'), site.index('reverse_proxy bo-staging:3000'))
+        self.assertIn('reverse_proxy gateway-staging:80', site)
+        for bad in ('app.hammielion.com', 'bo.staginghml.my.id'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gateway.render({**self.values, 'DOMAIN_STAGING_GATEWAY': bad})
+
     def test_input_tidak_valid_ditolak_sebelum_mengubah_server(self):
         for key, value in [
             ('STAGING_BASIC_AUTH_HASH', ''),

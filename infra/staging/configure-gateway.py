@@ -61,6 +61,27 @@ def render(values):
     }}
 }}
 ''')
+    # Gateway F2-7a: opsional supaya deploy tidak gagal sebelum DOMAIN_STAGING_GATEWAY diisi di .env.
+    gateway_domain = values.get('DOMAIN_STAGING_GATEWAY', '')
+    if gateway_domain:
+        if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.staginghml\.my\.id', gateway_domain):
+            raise ValueError('Domain staging harus subdomain staginghml.my.id yang valid.')
+        domains.append(gateway_domain)
+        sites.append(f'''{gateway_domain} {{
+    encode zstd gzip
+    route {{
+        basic_auth {{
+            {user} {password_hash}
+        }}
+        handle /api/gateway/* {{
+            reverse_proxy bo-staging:3000
+        }}
+        handle {{
+            reverse_proxy gateway-staging:80
+        }}
+    }}
+}}
+''')
     if len(set(domains)) != len(domains):
         raise ValueError('Setiap aplikasi staging harus punya domain berbeda.')
     return '\n'.join(sites)

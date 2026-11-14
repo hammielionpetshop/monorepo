@@ -5,12 +5,15 @@ import { LogoutButton } from './logout-button';
 import { ThemeToggle } from './theme-toggle';
 import { BottomNav, HeaderBell, SideNav } from './nav-links';
 import { ToastProvider } from './ui/toast';
+import { NewBadge } from './ui/new-badge';
 
 /**
  * Kerangka halaman masuk: header, menu samping berkelompok (lebar) / bilah bawah + Menu (HP), isi.
  * Di layar lebar kerangka setinggi layar; menu samping dan header diam, hanya <main> yang digulir.
  */
-export function AppShell({ groups, counts, children }: { groups: NavGroup[]; counts?: NavCounts; children: ReactNode }) {
+export function AppShell({ groups, counts, switchUrl, children }: {
+  groups: NavGroup[]; counts?: NavCounts; /** Gateway untuk tombol Pindah web (spec F2-7a §4); null = tidak tampil. */ switchUrl?: string | null; children: ReactNode;
+}) {
   return (
     <ToastProvider>
       <div className="min-h-screen md:grid md:h-dvh md:min-h-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden print:block print:h-auto print:overflow-visible">
@@ -25,6 +28,12 @@ export function AppShell({ groups, counts, children }: { groups: NavGroup[]; cou
               <BackButton />
             </div>
             <div className="flex items-center gap-1">
+              {switchUrl && (
+                <a href={switchUrl} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-canvas">
+                  Pindah web
+                  <NewBadge feature="fitur/pindah-web" />
+                </a>
+              )}
               <HeaderBell count={counts?.notifications} />
               <ThemeToggle />
               <LogoutButton />

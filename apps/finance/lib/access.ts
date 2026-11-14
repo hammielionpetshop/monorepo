@@ -65,3 +65,15 @@ export function hrisUrl(path = ''): string | null {
   const base = process.env.HRIS_PUBLIC_URL?.replace(/\/+$/, '');
   return base ? `${base}${path}` : null;
 }
+
+/** Gateway (spec F2-7a): tempat masuk dan tombol Pindah web. Kosong = memakai login Back Office seperti sebelumnya. */
+export function gatewayUrl(path = ''): string | null {
+  const value = process.env.GATEWAY_PUBLIC_URL;
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? `${url.origin}${path}` : null;
+  } catch {
+    return null;
+  }
+}

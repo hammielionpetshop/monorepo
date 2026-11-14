@@ -23,6 +23,12 @@ services:
       AUTH_TRUSTED_ORIGINS: ${STAGING_BO_ORIGIN:-}
       HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
       INTERNAL_ALLOWED_HOSTS: bo-staging:3000
+      # Gateway F2-7a: origin gateway ikut tepercaya untuk /api/gateway/*, alamat tiap web untuk daftar Pindah web.
+      # Web tanpa alamat tidak ditampilkan.
+      GATEWAY_PUBLIC_URL: ${STAGING_GATEWAY_ORIGIN:-}
+      BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
+      HRIS_PUBLIC_URL: ${STAGING_HRIS_ORIGIN:-}
+      FINANCE_PUBLIC_URL: ${STAGING_FINANCE_ORIGIN:-}
     volumes:
       - uploads_data:/data/uploads
     networks:
@@ -64,6 +70,7 @@ services:
       # Kunci uji banding L9b: 1 = hanya Pemilik/GM yang bisa masuk HRIS staging (spec L9 §4).
       HRIS_STAGING_RESTRICT: ${STAGING_HRIS_RESTRICT:-0}
       BACKOFFICE_INTERNAL_URL: http://bo-staging:3000
+      GATEWAY_PUBLIC_URL: ${STAGING_GATEWAY_ORIGIN:-}
     volumes:
       - hris_photos:/data/uploads
     networks:
@@ -83,6 +90,16 @@ services:
       AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
       HRIS_PUBLIC_URL: ${STAGING_HRIS_ORIGIN:-}
+      GATEWAY_PUBLIC_URL: ${STAGING_GATEWAY_ORIGIN:-}
+    networks:
+      - apps
+
+  # Web gateway F2-7a (React + Vite, berkas statis). Caddy bersama meneruskan /api/gateway/* ke bo-staging dan
+  # sisanya ke sini; tidak ada DB atau rahasia.
+  gateway-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/gateway:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    restart: unless-stopped
+    mem_limit: 48m
     networks:
       - apps
 

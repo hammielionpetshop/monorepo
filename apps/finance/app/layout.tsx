@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
+import { gatewayUrl } from '@/lib/access';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Web Finance hanya untuk Owner/GM yang selalu punya POS juga, jadi tombol Pindah web selalu berguna (spec F2-7a §4).
+  const switchUrl = gatewayUrl('/?dari=finance');
   return (
     <html lang="id">
       <body className="antialiased">
@@ -29,6 +32,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/hitung-kas" className="hover:text-primary">Hitung Kas</Link>
               <Link href="/tutup-bulan" className="hover:text-primary">Tutup Bulan</Link>
             </nav>
+            {switchUrl && (
+              <a href={switchUrl} className="ml-auto rounded-md border border-border px-3 py-1 text-sm hover:bg-muted">Pindah web</a>
+            )}
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
