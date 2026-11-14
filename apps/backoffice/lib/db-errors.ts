@@ -29,13 +29,14 @@ export const DB_UNAVAILABLE_MESSAGE =
 
 /**
  * Galat tutup bulan (kode HM001, trigger migrasi 0070): catatan uang bertanggal di bulan yang sudah ditutup di Finance
- * ditolak database. Pesannya sudah berbahasa pengguna, jadi diteruskan apa adanya (juga bila dibungkus `cause`).
+ * ditolak database. HM002 (migrasi 0071): Koreksi bulan lalu ke bulan yang belum ditutup. Pesannya sudah berbahasa
+ * pengguna, jadi diteruskan apa adanya (juga bila dibungkus `cause`).
  */
 export function closedMonthMessage(error: unknown): string | null {
   let current: unknown = error;
   for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth++) {
     const { code, message } = current as { code?: unknown; message?: unknown };
-    if (code === 'HM001' && typeof message === 'string') return message;
+    if ((code === 'HM001' || code === 'HM002') && typeof message === 'string') return message;
     current = (current as { cause?: unknown }).cause;
   }
   return null;
