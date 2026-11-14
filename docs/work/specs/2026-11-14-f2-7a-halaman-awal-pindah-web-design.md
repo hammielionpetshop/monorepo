@@ -1,8 +1,8 @@
 # F2-7a Halaman Awal + Pindah web — rancangan
 
-Status: **draf agent 2026-11-14, direvisi sesuai arahan owner 2026-11-14** ("user login di app.hammielion.com (prod)
-dan app.staginghml.my.id (staging) ... hanya sebagai gateway ... react vite saja ... export saja logika login yang ada
-di backoffice menjadi api"). Butir 💡 tersisa adalah usul agent yang menunggu persetujuan owner.
+Status: **disetujui owner 2026-11-14.** Arahan owner: "user login di app.hammielion.com (prod) dan
+app.staginghml.my.id (staging) ... hanya sebagai gateway ... react vite saja ... export saja logika login yang ada di
+backoffice menjadi api"; untuk sisanya "gunakan saja yang terbaik menurutmu" — butir 💡 mengikuti usul agent.
 
 Sumber: PRD Fase 2 `01-susunan-web.md` §2, §4, §5, §7; `00-ringkasan-fase-2.md` §6–§7 ("Belakangan: Halaman Awal +
 tombol Pindah web, Logistik dipisah"); spec L1 auth `2026-10-29-hris-l1-auth-design.md`; runbook `docs/ops/auth-pusat.md`.
@@ -125,9 +125,9 @@ selalu sama di semua tempat.
 5. Kasir masuk PIN di POS seperti biasa → tidak ada perubahan.
 6. Keluar dari HRIS → membuka Back Office/Finance meminta masuk lagi.
 
-## 8. Pertanyaan untuk owner
+## 8. Keputusan owner
 
 1. ✅ Gateway React + Vite di `app.hammielion.com` / `app.staginghml.my.id`, login lewat API Back Office (owner
    2026-11-14).
-2. 💡 Finance tetap untuk Owner/GM saja (tanpa tautan baru) — setuju?
-3. 💡 F2-7a dulu (gateway + Pindah web), pemisahan Logistik di F2-7b — setuju?
+2. ✅ Finance tetap untuk Owner/GM saja (tanpa tautan baru) — usul agent, diserahkan owner.
+3. ✅ F2-7a dulu (gateway + Pindah web), pemisahan Logistik di F2-7b — usul agent, diserahkan owner.
