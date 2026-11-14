@@ -18,12 +18,8 @@ def read_env(path):
 
 
 def render(values):
-    user = values.get('STAGING_BASIC_AUTH_USER', '')
-    password_hash = values.get('STAGING_BASIC_AUTH_HASH', '')
-    if not re.fullmatch(r'[A-Za-z0-9._-]+', user):
-        raise ValueError('Nama pengguna gerbang staging kosong atau tidak valid.')
-    if not re.fullmatch(r'\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}', password_hash):
-        raise ValueError('Hash bcrypt gerbang staging wajib diisi dengan benar.')
+    # Basic Auth dihapus atas permintaan owner 2026-11-14: akses cukup lewat login aplikasi.
+    # noindex menjaga staging tetap di luar mesin pencari.
     sites = []
     domains = []
     for key, upstream in [
@@ -46,14 +42,12 @@ def render(values):
 '''
         sites.append(f'''{domain} {{
     encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow"
     route {{
         @jobs path /api/jobs /api/jobs/*
         respond @jobs 404
         @internal path /api/internal /api/internal/*
         respond @internal 404
-        basic_auth {{
-            {user} {password_hash}
-        }}
 {handlers}
         handle {{
             reverse_proxy {upstream}:3000
@@ -69,10 +63,8 @@ def render(values):
         domains.append(gateway_domain)
         sites.append(f'''{gateway_domain} {{
     encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow"
     route {{
-        basic_auth {{
-            {user} {password_hash}
-        }}
         handle /api/gateway/* {{
             reverse_proxy bo-staging:3000
         }}
@@ -132,6 +124,6 @@ if __name__ == '__main__':
     try:
         configure(Path(__file__).parent)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
-        # Jangan tampilkan argumen perintah atau konfigurasi yang berisi hash akses.
+        # Jangan tampilkan argumen perintah atau isi konfigurasi server.
         print('Gagal memasang gerbang staging: ' + (str(error) if isinstance(error, ValueError) else type(error).__name__), file=sys.stderr)
         sys.exit(1)
