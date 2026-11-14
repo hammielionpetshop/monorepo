@@ -120,13 +120,13 @@ describe.skipIf(!ADMIN_URL)('L4g-3: akses terbatas mantan karyawan dan Total Dit
 
   it('pelaku terbatas: hanya lihat diri sendiri di alamat yang dibuka; alamat lain tanpa hak; pengajuan selain keberatan slip ditolak', async () => {
     const { can } = await import('@/modules/access');
-    requestPath = '/pendapatan';
+    requestPath = '/earnings';
     const open = await sessionActor(ids.dodi);
     expect(open.limited).toEqual({ since: '2026-11-01' });
     expect(can(open, 'profile.view', { personId: ids.dodi })).toBe(true);
     expect(can(open, 'profile.view', { personId: ids.ani })).toBe(false);
     expect(can(open, 'contact.update_own', { personId: ids.dodi })).toBe(false);
-    requestPath = '/absen';
+    requestPath = '/clock-in';
     const elsewhere = await sessionActor(ids.dodi);
     expect(elsewhere.limited).toBeTruthy();
     expect(can(elsewhere, 'profile.view', { personId: ids.dodi })).toBe(false);
@@ -135,7 +135,7 @@ describe.skipIf(!ADMIN_URL)('L4g-3: akses terbatas mantan karyawan dan Total Dit
     const handler = { prepare: async () => { throw new Error('tidak boleh sampai sini'); } } as never;
     const refused = await submitRequest(await sessionActor(ids.dodi), 'identity_change', handler, { fields: {}, attachmentIds: [] });
     expect(refused).toMatchObject({ ok: false, status: 403 });
-    requestPath = '/pendapatan';
+    requestPath = '/earnings';
     const eka = await sessionActor(ids.eka);
     expect(eka.limited ?? null).toBeNull();
     expect(can(eka, 'profile.view', { personId: ids.eka })).toBe(false);

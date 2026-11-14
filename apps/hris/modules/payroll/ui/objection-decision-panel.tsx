@@ -13,7 +13,7 @@ export function ObjectionDecisionPanel({ data, requestId }: { data: Data; reques
     <Card className="space-y-3 text-sm">
       <h3 className="flex items-center gap-2 font-semibold">Slip yang dikeberati <NewBadge feature="fitur/keberatan-slip-putuskan" /></h3>
       <p>
-        <Link className="font-medium text-brand-700 underline" href={`/gaji/slip/${data.slip.id}`}>{data.slip.number ?? 'Slip Perkiraan'}</Link>
+        <Link className="font-medium text-brand-700 underline" href={`/payroll/payslips/${data.slip.id}`}>{data.slip.number ?? 'Slip Perkiraan'}</Link>
         {' '}· {data.slip.name} · periode {data.slip.period}
       </p>
       <p>Keadaan sekarang: {data.slip.state}</p>
@@ -38,7 +38,7 @@ export function ObjectionDecisionPanel({ data, requestId }: { data: Data; reques
               {data.destinations.map((d) => <Link key={d.href} className={buttonClass({ variant: 'secondary' })} href={d.href}>{d.label}</Link>)}
             </div>
           )}
-          {data.canLink && <Link className={buttonClass()} href={`/persetujuan/${requestId}/tautkan`}>Tautkan pembetulan</Link>}
+          {data.canLink && <Link className={buttonClass()} href={`/approvals/${requestId}/link`}>Tautkan pembetulan</Link>}
         </div>
       )}
     </Card>

@@ -36,7 +36,7 @@ export function PayScheduleScreen({ payer, groups, totals, outside, testMode, ca
       {testMode && <Alert tone="warn">Mode uji staging: jatuh bayar dianggap hari slip ditutup, supaya Jadwal Bayar dan pengingat bisa dicoba esok harinya.</Alert>}
       {payer && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md bg-surface py-2">
-          <Button disabled={!pickedRows.length} onClick={() => router.push(`/gaji/bayar?slip=${pickedRows.map((r) => r.slipId).join(',')}`)}>
+          <Button disabled={!pickedRows.length} onClick={() => router.push(`/payroll/pay?slip=${pickedRows.map((r) => r.slipId).join(',')}`)}>
             Bayar terpilih ({pickedRows.length}, {rupiah(pickedRows.reduce((s, r) => s + r.net, 0))})
           </Button>
           {picked.size > 0 && <Button variant="ghost" onClick={() => setPicked(new Set())}>Kosongkan pilihan</Button>}
@@ -56,7 +56,7 @@ export function PayScheduleScreen({ payer, groups, totals, outside, testMode, ca
             </div>
             {g.count > 0 && <p>{g.count} slip · <b className="tabular-nums">{rupiah(g.amount)}</b> · jatuh bayar {g.due} · belum ditandai Dibayar</p>}
             {g.notYetClosed > 0 && (
-              <p className="text-ink-muted">{g.notYetClosed} slip belum bisa dibayar: masih Perkiraan atau tertahan · <Link className="underline" href={`/gaji/periode/${g.period}`}>Buka periode</Link></p>
+              <p className="text-ink-muted">{g.notYetClosed} slip belum bisa dibayar: masih Perkiraan atau tertahan · <Link className="underline" href={`/payroll/periods/${g.period}`}>Buka periode</Link></p>
             )}
             <div className="flex flex-wrap gap-2">
               {payer && g.rows.length > 0 && (
@@ -67,7 +67,7 @@ export function PayScheduleScreen({ payer, groups, totals, outside, testMode, ca
               {payer && payable.length > 0 && (
                 <Button variant="secondary" size="sm" onClick={() => toggle(payable.map((r) => r.slipId), !allPicked)}>{allPicked ? 'Batal pilih semua' : 'Pilih semua'}</Button>
               )}
-              {canTransfer && g.count > 0 && <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href={`/gaji/periode/${g.period}/transfer`}>Daftar Transfer</Link>}
+              {canTransfer && g.count > 0 && <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href={`/payroll/periods/${g.period}/transfer`}>Daftar Transfer</Link>}
             </div>
             {payer && isOpen && (
               <ul className="divide-y divide-line">
@@ -75,7 +75,7 @@ export function PayScheduleScreen({ payer, groups, totals, outside, testMode, ca
                   <li key={r.slipId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
                     <label className="flex min-h-11 items-center gap-2">
                       <input type="checkbox" className="h-5 w-5" disabled={r.ownSlip} checked={picked.has(r.slipId)} onChange={(e) => toggle([r.slipId], e.target.checked)} aria-label={`Pilih ${r.name}`} />
-                      <Link className="underline" href={`/gaji/slip/${r.slipId}`}>{r.name}</Link>
+                      <Link className="underline" href={`/payroll/payslips/${r.slipId}`}>{r.name}</Link>
                     </label>
                     <span className="text-ink-muted">{r.branchName}</span>
                     <b className="tabular-nums">{rupiah(r.net)}</b>
@@ -112,7 +112,7 @@ function OutsideCard({ payer, outside }: { payer: boolean; outside: Data['outsid
               <span>{c.label}</span>
               <b className="tabular-nums">{rupiah(c.amount)}</b>
               {c.ownClaim ? <span className="text-ink-muted">tagihan Anda sendiri: dibayar pemilik lain atau GM</span>
-                : <Link className={buttonClass({ size: 'sm' })} href={`/gaji/luar-slip/${c.id}/bayar`}>Bayar</Link>}
+                : <Link className={buttonClass({ size: 'sm' })} href={`/payroll/off-slip/${c.id}/pay`}>Bayar</Link>}
             </li>
           ))}
         </ul>
@@ -125,7 +125,7 @@ function OutsideCard({ payer, outside }: { payer: boolean; outside: Data['outsid
               <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
                 <span>{c.name}</span><span>{c.label}</span><b className="tabular-nums">{rupiah(c.amount)}</b>
                 {c.paid && <span className="text-ink-muted">{c.paid.settled ? `${rupiah(c.paid.settled)} dipotong piutang · ` : ''}{c.paid.cash ? `${rupiah(c.paid.cash)} uang · ` : ''}{c.paid.moneyDate} · {c.paid.by}</span>}
-                {c.canCancel && <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href={`/gaji/luar-slip/${c.id}/batal-bayar`}>Batal bayar</Link>}
+                {c.canCancel && <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href={`/payroll/off-slip/${c.id}/cancel-payment`}>Batal bayar</Link>}
               </li>
             ))}
           </ul>

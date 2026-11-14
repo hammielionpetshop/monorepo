@@ -24,14 +24,14 @@ export function originLink(kind: LineKind): { href: string; label: string } | nu
     case 'SUPPLIER':
       return bo('/purchase-orders/supplier-payables', 'Hutang Supplier (Back Office)');
     case 'PAYROLL':
-      return hris('/gaji/bayar', 'Bayar Gaji (HRIS)');
+      return hris('/payroll/pay', 'Bayar Gaji (HRIS)');
     case 'ADVANCE':
     case 'ADVANCE_REPAY':
-      return hris('/kasbon', 'Kasbon (HRIS)');
+      return hris('/advances', 'Kasbon (HRIS)');
     case 'UNLOADING':
     case 'UNLOADING_REFUND':
-      return hris('/gaji/bongkaran', 'Bongkaran (HRIS)');
+      return hris('/payroll/unloading', 'Bongkaran (HRIS)');
     case 'VEHICLE_RENTAL':
-      return hris('/logistik/sewa-mobil', 'Sewa Mobil (Logistik)');
+      return hris('/logistics/vehicle-rental', 'Sewa Mobil (Logistik)');
   }
 }

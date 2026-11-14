@@ -208,7 +208,7 @@ export function UnloadingForm(props: {
       setBusy(false);
       if (!result.ok) return setError(result.error ?? 'Gagal menyimpan koreksi.');
       toast(String(result.data?.message ?? 'Laporan dikoreksi.'), 'ok');
-      router.push(`/gaji/bongkaran/${correction.id}`);
+      router.push(`/payroll/unloading/${correction.id}`);
       router.refresh();
       return;
     }
@@ -217,7 +217,7 @@ export function UnloadingForm(props: {
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* abaikan */ }
     toast(String(result.data?.message ?? 'Laporan tersimpan.'), 'ok');
-    router.push(result.data?.late ? '/gaji/bongkaran?tab=PENDING' : `/gaji/bongkaran/${result.data?.id}`);
+    router.push(result.data?.late ? '/payroll/unloading?tab=PENDING' : `/payroll/unloading/${result.data?.id}`);
     router.refresh();
   }
 
@@ -332,7 +332,7 @@ export function UnloadingForm(props: {
           {preview.flags.length > 0 && <p className="flex flex-wrap gap-1">Tanda: {preview.flags.map((f) => <Badge key={f} tone="warn">{f}</Badge>)}</p>}
           {preview.similar && (
             <Alert tone="warn">
-              Sudah ada <Link className="underline" href={`/gaji/bongkaran/${preview.similar.id}`} target="_blank">{preview.similar.number}</Link> dengan tanggal kerja, supplier, dan total kg yang sama.
+              Sudah ada <Link className="underline" href={`/payroll/unloading/${preview.similar.id}`} target="_blank">{preview.similar.number}</Link> dengan tanggal kerja, supplier, dan total kg yang sama.
               <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={similarOk} onChange={(e) => setSimilarOk(e.target.checked)} /> Ini bongkaran lain</label>
             </Alert>
           )}
@@ -346,7 +346,7 @@ export function UnloadingForm(props: {
       <div className="flex flex-wrap gap-2">
         {step > 1
           ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href={correction ? `/gaji/bongkaran/${correction.id}` : '/gaji/bongkaran'}>Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href={correction ? `/payroll/unloading/${correction.id}` : '/payroll/unloading'}>Batal</Link>}
         {step < 5
           ? <Button loading={busy} disabled={step === 1 && props.rate == null} onClick={next}>Lanjut</Button>
           : <HoldButton loading={busy} disabled={(!!preview?.similar && !similarOk) || (!!correction && reason.trim().length < minReason)} onClick={save}>{correction ? 'Simpan koreksi' : 'Simpan'}</HoldButton>}

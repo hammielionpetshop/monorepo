@@ -109,7 +109,7 @@ export async function correctSelfPayment(
       const tripDate = wibDate(trip.startedAt);
       await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.store_payment.view'])), {
         kind: 'logistics.payment_corrected', title: `Cara bayar ${stop?.name ?? 'tujuan'} dikoreksi (antar ${trip.number})`,
-        body: `${change}. Alasan: ${reason}`, link: `/logistik/uang-toko?tanggal=${tripDate}&sumber=SELF`, entity: 'self_trip_payment', entityId: current.id,
+        body: `${change}. Alasan: ${reason}`, link: `/logistics/store-money?tanggal=${tripDate}&sumber=SELF`, entity: 'self_trip_payment', entityId: current.id,
       }, actor.accountId);
       if (!running && next.cash !== trip.cashAmount) {
         const body = next.reopen
@@ -119,7 +119,7 @@ export async function correctSelfPayment(
           : `Tunai yang menunggu diterima kini ${rupiah(next.cash)}.`;
         await notify(tx, (await branchAccounts(trip.branchId, CASH)).filter((a) => a !== trip.accountId), {
           kind: 'logistics.self_cash', title: `Tunai antar ${trip.number} berubah: ${rupiah(trip.cashAmount)} → ${rupiah(next.cash)}`,
-          body, link: '/logistik/antar-sendiri/kantor?tab=CASH', entity: 'self_trip', entityId: trip.id,
+          body, link: '/logistics/self-delivery/office?tab=CASH', entity: 'self_trip', entityId: trip.id,
         }, actor.accountId);
       }
       return { ok: true as const, data: undefined };
@@ -168,7 +168,7 @@ export async function addSelfStopReport(
       await notify(tx, [...new Set([...office, ...branch])].filter((a) => a !== actor.accountId), {
         kind: 'logistics.visit_report', title: `${REPORT_LABELS[clean.kind]}: ${stop.destinationName} (antar ${trip.number})`,
         body: `${clean.note ? `${clean.note}. ` : ''}Finance memutuskan potong nota di Laporan Toko.`,
-        link: '/logistik/laporan-toko', entity: 'visit_report', entityId: row.id,
+        link: '/logistics/store-reports', entity: 'visit_report', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: undefined };
     });

@@ -13,7 +13,7 @@ function pageHref(filter: LoginHistoryFilter, range: { from: string; to: string 
   const params = new URLSearchParams({ from: range.from, to: range.to, page: String(page) });
   if (filter.accountId) params.set('accountId', String(filter.accountId));
   if (filter.outcome) params.set('outcome', filter.outcome);
-  return `/riwayat-masuk?${params}`;
+  return `/login-history?${params}`;
 }
 
 /** KAR-L40 Riwayat Masuk Semua Orang. Saringan lewat alamat halaman (GET). */

@@ -45,7 +45,7 @@ export function DepositChecks({ rows, canCheck }: { rows: PendingDepositView[]; 
   return (
     <Card className="space-y-2">
       <h2 className="flex items-center gap-2 font-semibold">Titipan toko menunggu diperiksa ({rows.length}) <NewBadge feature="fitur/titipan-toko" /></h2>
-      <p className="text-xs text-ink-muted">Uang lebih bayar / titip saja dari driver. Masuk saldo titipan toko sesudah diperiksa. <Link className="underline" href="/logistik/titipan">Buka Titipan Toko</Link></p>
+      <p className="text-xs text-ink-muted">Uang lebih bayar / titip saja dari driver. Masuk saldo titipan toko sesudah diperiksa. <Link className="underline" href="/logistics/store-deposits">Buka Titipan Toko</Link></p>
       {error && <Alert tone="danger">{error}</Alert>}
       <ul className="space-y-2">
         {rows.map((r) => {
@@ -55,7 +55,7 @@ export function DepositChecks({ rows, canCheck }: { rows: PendingDepositView[]; 
             <li key={r.id} className="space-y-2 rounded-lg border border-line p-2 text-sm">
               <div className="flex items-start justify-between gap-2">
                 <span><b>{r.store}</b> · dilaporkan <b className="tabular-nums">{rupiah(r.amount)}</b></span>
-                {r.tripId && <Link className="text-xs underline" href={`/logistik/trip/${r.tripId}`}>{r.tripNumber}</Link>}
+                {r.tripId && <Link className="text-xs underline" href={`/logistics/trips/${r.tripId}`}>{r.tripNumber}</Link>}
               </div>
               <p className="text-xs text-ink-muted">{r.by} · {r.on} {r.at}</p>
               {!r.ready ? <p className="text-xs text-ink-muted">Menunggu trip Menuju Garasi.</p> : canCheck && (

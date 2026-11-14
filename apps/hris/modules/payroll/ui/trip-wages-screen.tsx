@@ -36,7 +36,7 @@ export function TripWagesScreen({ start, end, prev, next, today, tab, counts, to
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const href = (week: string, t: Tab = tab) => `/gaji/upah-ritase?minggu=${week}${t === 'ALL' ? '' : `&tab=${t}`}`;
+  const href = (week: string, t: Tab = tab) => `/payroll/trip-wages?minggu=${week}${t === 'ALL' ? '' : `&tab=${t}`}`;
 
   return (
     <div className="space-y-4">
@@ -56,7 +56,7 @@ export function TripWagesScreen({ start, end, prev, next, today, tab, counts, to
         ))}
       </div>
       {tab === 'UNRATED' && counts.unrated > 0 && canRate && (
-        <Alert tone="warn">Upah ini Rp0 sampai tarif pasangannya diisi; sesudah diisi, upahnya dinilai ulang otomatis. <Link href="/pengaturan/tarif-ritase" className="underline">Buka Tarif Ritase</Link></Alert>
+        <Alert tone="warn">Upah ini Rp0 sampai tarif pasangannya diisi; sesudah diisi, upahnya dinilai ulang otomatis. <Link href="/settings/trip-rates" className="underline">Buka Tarif Ritase</Link></Alert>
       )}
       {tab === 'ALL' && people.length > 0 && (
         <Card className="overflow-x-auto">
@@ -105,7 +105,7 @@ export function TripWagesScreen({ start, end, prev, next, today, tab, counts, to
                     {r.cancelReason && <span className="block text-xs">{r.cancelReason}</span>}
                   </td>
                   <td className="py-1.5 pr-3">
-                    {r.tripId ? <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link> : r.manual ? <Badge tone="warn">Ritase tangan</Badge> : '-'}
+                    {r.tripId ? <Link href={`/logistics/trips/${r.tripId}`} className="underline">{r.tripNumber}</Link> : r.manual ? <Badge tone="warn">Ritase tangan</Badge> : '-'}
                   </td>
                   <td className="py-1.5 text-right">
                     {canReview && r.needsLook && !r.looked && r.status !== 'CANCELLED' && (

@@ -116,7 +116,7 @@ function PersonCard({ detail, path }: { detail: EmployeeDetail; path: string }) 
       </div>
       <dl className="divide-y divide-line">
         <Row label="Tanggal bergabung"><LongDate value={person.joinedOn} /></Row>
-        {person.legacyCode && <Row label="Kode lama"><span className="font-mono">{person.legacyCode}</span> <NewBadge feature="/karyawan/kode-lama" /></Row>}
+        {person.legacyCode && <Row label="Kode lama"><span className="font-mono">{person.legacyCode}</span> <NewBadge feature="fitur/legacy-code" /></Row>}
         <Row label="NIK">{person.nationalId}</Row>
         <Row label="Nomor HP">{person.phone}</Row>
         <Row label="Email">{person.email}</Row>

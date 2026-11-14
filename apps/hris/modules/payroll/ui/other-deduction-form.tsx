@@ -88,7 +88,7 @@ export function OtherDeductionForm({ people, types, maxInstallments, firstPeriod
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(short ? String(result.data?.message ?? 'Tersimpan.') : direct ? 'Potongan Lain berjalan. Orangnya diberi tahu.' : String(result.data?.message ?? 'Usulan terkirim.'), 'ok');
-    router.push(short ? '/logistik/terima-uang?tab=DIFF' : '/potongan/lain');
+    router.push(short ? '/logistics/money-checks?tab=DIFF' : '/deductions/other');
     router.refresh();
   }
 
@@ -168,7 +168,7 @@ export function OtherDeductionForm({ people, types, maxInstallments, firstPeriod
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href={short ? '/logistik/terima-uang?tab=DIFF' : '/potongan/lain'}>Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href={short ? '/logistics/money-checks?tab=DIFF' : '/deductions/other'}>Batal</Link>}
         {step < 4 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{direct ? 'Simpan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

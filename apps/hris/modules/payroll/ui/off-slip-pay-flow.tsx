@@ -54,7 +54,7 @@ export function OffSlipPayFlow({ claim, problem, settlements, cash, today, sourc
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal membayar.');
     toast(String(result.data?.effect ?? 'Dibayar.'), 'ok');
-    router.push('/gaji/jadwal-bayar');
+    router.push('/payroll/pay-schedule');
     router.refresh();
   }
 
@@ -62,7 +62,7 @@ export function OffSlipPayFlow({ claim, problem, settlements, cash, today, sourc
     return (
       <Card className="max-w-2xl space-y-3 text-sm">
         <Alert tone="warn">{problem}</Alert>
-        <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/jadwal-bayar">Kembali ke Jadwal Bayar</Link>
+        <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/pay-schedule">Kembali ke Jadwal Bayar</Link>
       </Card>
     );
   }
@@ -73,7 +73,7 @@ export function OffSlipPayFlow({ claim, problem, settlements, cash, today, sourc
       {step === 1 && (
         <>
           <p className="font-medium">{claim.name}: {claim.label}</p>
-          <p>{claim.kind} · <b className="tabular-nums">{rupiah(claim.amount)}</b> · slip terakhir <Link className="underline" href={`/gaji/slip/${claim.lastSlipId}`}>{claim.lastSlipNumber}</Link> sudah Dibayar</p>
+          <p>{claim.kind} · <b className="tabular-nums">{rupiah(claim.amount)}</b> · slip terakhir <Link className="underline" href={`/payroll/payslips/${claim.lastSlipId}`}>{claim.lastSlipNumber}</Link> sudah Dibayar</p>
           {settlements.length > 0 ? (
             <Alert tone="info" title={`Dipotongkan ke Piutang Lain lebih dulu: ${rupiah(settled)}`}>
               <ul className="mt-1 space-y-1">
@@ -124,7 +124,7 @@ export function OffSlipPayFlow({ claim, problem, settlements, cash, today, sourc
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
         {step > 1 ? <Button variant="secondary" onClick={prev} disabled={busy}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/jadwal-bayar">Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/pay-schedule">Batal</Link>}
         {step === 1 && <Button onClick={next}>Lanjut</Button>}
         {step === 2 && <Button onClick={next} disabled={!step2Ready}>Lanjut</Button>}
         {step === 3 && <HoldButton loading={busy} disabled={busy || !step2Ready} onClick={pay}>Bayar di luar slip</HoldButton>}

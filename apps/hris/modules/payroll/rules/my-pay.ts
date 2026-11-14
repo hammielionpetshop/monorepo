@@ -31,7 +31,7 @@ const dateList = (dates: IsoDate[]) => {
 export function payIssuesFrom(facts: PayIssueFacts): PayIssue[] {
   const issues: PayIssue[] = [];
   if (facts.unexplained.length) {
-    issues.push({ who: 'YOU', text: `${new Set(facts.unexplained).size} hari belum dijelaskan (${dateList(facts.unexplained)})`, link: '/perlu-dijelaskan' });
+    issues.push({ who: 'YOU', text: `${new Set(facts.unexplained).size} hari belum dijelaskan (${dateList(facts.unexplained)})`, link: '/clarifications' });
   }
   if (facts.clarifications.length) issues.push({ who: 'OFFICE', text: `Penjelasan ${dateList(facts.clarifications)} menunggu keputusan HR`, link: null });
   if (facts.outsideReviews.length) issues.push({ who: 'OFFICE', text: `Absen ${dateList(facts.outsideReviews)} di luar titik sedang ditinjau`, link: null });

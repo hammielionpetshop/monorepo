@@ -45,7 +45,7 @@ export function BranchDaysOffScreen(props: Props) {
     const params = new URLSearchParams();
     const next = { branch: props.branchId, period: props.periodStart, tab: props.tab, ...patch };
     for (const [key, value] of Object.entries(next)) if (value != null) params.set(key, String(value));
-    return `/kehadiran/libur?${params}`;
+    return `/attendance/days-off?${params}`;
   };
 
   function open(person: Person, date: string) {
@@ -145,7 +145,7 @@ export function BranchDaysOffScreen(props: Props) {
                 {day.people.map((person, index) => (
                   <li key={index}>
                     {person.name} · {person.kind ?? 'Tidak masuk'} · <span className="text-ink-muted">{person.status}</span>
-                    {person.requestId && <> · <Link className="text-brand-700" href={`/persetujuan/${person.requestId}`}>PJ-{person.requestId}</Link></>}
+                    {person.requestId && <> · <Link className="text-brand-700" href={`/approvals/${person.requestId}`}>PJ-{person.requestId}</Link></>}
                   </li>
                 ))}
               </ul>
@@ -199,7 +199,7 @@ export function BranchDaysOffScreen(props: Props) {
               {props.canChange && <Button onClick={() => setMode('change')}>Ubah langsung</Button>}
               {props.canRevoke && <Button variant="secondary" onClick={() => setMode('revoke')}>Cabut</Button>}
               {props.canRequestWork && !target.person.work && (
-                <Link href={`/kehadiran/minta-masuk?branch=${props.branchId}&pick=${target.person.pickId}`} className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">
+                <Link href={`/attendance/work-requests?branch=${props.branchId}&pick=${target.person.pickId}`} className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm">
                   Minta masuk
                 </Link>
               )}

@@ -33,7 +33,7 @@ export function MyAttendanceScreen({ period, periods, totals, overtime, days }: 
   return (
     <div className="space-y-4">
       <Field id="my-period" label="Periode">
-        <Select id="my-period" value={period.start} onChange={(event) => router.push(`/kehadiran-saya?period=${event.target.value}`)}>
+        <Select id="my-period" value={period.start} onChange={(event) => router.push(`/my-attendance?period=${event.target.value}`)}>
           {periods.map((item) => <option key={item.start} value={item.start}>{item.start} s.d. {item.end}</option>)}
         </Select>
       </Field>

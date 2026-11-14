@@ -66,13 +66,13 @@ export function PendingNotesScreen({ rows, redDays, canClose, closed }: {
           { key: 'origin', header: 'Dari', render: (r) => r.origin },
           {
             key: 'to', header: 'Tujuan',
-            render: (r) => (r.customerId ? <Link href={`/logistik/toko/${r.customerId}`} className="underline">{r.destination}</Link> : `${r.destination} (cabang)`),
+            render: (r) => (r.customerId ? <Link href={`/logistics/stores/${r.customerId}`} className="underline">{r.destination}</Link> : `${r.destination} (cabang)`),
           },
           {
             key: 'last', header: 'Terakhir',
             render: (r) => (
               <span className="text-sm">
-                {r.lastTrip && <Link href={`/logistik/trip/${r.lastTrip.id}`} className="underline">{r.lastTrip.number}</Link>}
+                {r.lastTrip && <Link href={`/logistics/trips/${r.lastTrip.id}`} className="underline">{r.lastTrip.number}</Link>}
                 {r.lastReason && <span className="block text-ink-muted">{r.lastReason}</span>}
               </span>
             ),

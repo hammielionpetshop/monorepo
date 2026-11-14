@@ -117,7 +117,7 @@ describe.skipIf(!ADMIN_URL)('L2f-2: lupa password HRIS', () => {
     expect(await recovery.verifyRecovery(facts(email))).toMatchObject({ status: 429 });
     const reports = (await inbox(ids.gm)).filter((n) => n.kind === 'account.recovery_blocked');
     expect(reports).toHaveLength(1);
-    expect(reports[0].link).toBe(`/karyawan/${ids.hr}`);
+    expect(reports[0].link).toBe(`/employees/${ids.hr}`);
   });
 
   it('identifier tak terdaftar dijeda tetapi tidak mengirim kabar', async () => {

@@ -37,7 +37,7 @@ export function AdvanceForm({ mode, rules, quick, blocked, people, initial, resu
   const value = Number(amount || 0);
   const plan = value > 0 ? splitInstallments(value, Number(count)) : [];
   const person = people.find((p) => String(p.id) === personId);
-  const back = mode === 'other' ? '/gaji/kasbon' : '/kasbon';
+  const back = mode === 'other' ? '/payroll/advances' : '/advances';
 
   if (blocked) {
     return (

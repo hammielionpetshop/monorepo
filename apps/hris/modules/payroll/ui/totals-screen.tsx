@@ -27,7 +27,7 @@ export function TotalsScreen({ data }: { data: Data }) {
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium">Rentang: {data.range.label} ({data.range.count} periode)</p>
-        <NewBadge feature="/gaji/total-diterima" />
+        <NewBadge feature="/payroll/total-received" />
       </div>
       {data.view === 'HR' && <Alert tone="info">Tidak termasuk jabatan yang gajinya hanya terlihat Pemilik dan GM.</Alert>}
       <form className="flex flex-wrap items-end gap-3" method="get">
@@ -78,7 +78,7 @@ export function TotalsScreen({ data }: { data: Data }) {
           {
             key: 'name', header: 'Orang', primary: true, render: (r) => (
               <span className="flex flex-wrap items-center gap-2">
-                <Link className="underline" href={`/gaji/total-diterima/${r.employeeId}?${query}`}>{r.name}</Link>
+                <Link className="underline" href={`/payroll/total-received/${r.employeeId}?${query}`}>{r.name}</Link>
                 {r.former && <Badge tone="warn">Mantan</Badge>}
               </span>
             ),

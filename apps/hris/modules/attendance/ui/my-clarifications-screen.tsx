@@ -12,9 +12,9 @@ const TONES = { normal: 'info', warn: 'warn', danger: 'danger', over: 'info' } a
 /** KEH-L35 Perlu Dijelaskan: semua yang harus dijelaskan, batasnya, dan akibatnya bila dibiarkan (tanpa nominal). */
 export function MyClarificationsScreen({ tab, all, counts, cards }: Props) {
   const tabs = [
-    { key: 'open', label: `Perlu dijelaskan (${counts.open})`, href: '/perlu-dijelaskan' },
-    { key: 'waiting', label: `Menunggu keputusan (${counts.waiting})`, href: '/perlu-dijelaskan?tab=waiting' },
-    { key: 'done', label: `Selesai (${counts.done})`, href: '/perlu-dijelaskan?tab=done' },
+    { key: 'open', label: `Perlu dijelaskan (${counts.open})`, href: '/clarifications' },
+    { key: 'waiting', label: `Menunggu keputusan (${counts.waiting})`, href: '/clarifications?tab=waiting' },
+    { key: 'done', label: `Selesai (${counts.done})`, href: '/clarifications?tab=done' },
   ];
   return (
     <div className="space-y-4">
@@ -44,20 +44,20 @@ export function MyClarificationsScreen({ tab, all, counts, cards }: Props) {
               )}
               {card.note && <p className="text-sm text-ink-muted">{card.note}</p>}
               <div className="flex flex-wrap gap-2">
-                {card.action === 'explain' && <Link className={buttonClass()} href={`/perlu-dijelaskan/${card.id}`}>Jelaskan</Link>}
+                {card.action === 'explain' && <Link className={buttonClass()} href={`/clarifications/${card.id}`}>Jelaskan</Link>}
                 {card.action === 'explain' && card.seriesCount > 1 && (
-                  <Link className={buttonClass({ variant: 'secondary' })} href={`/perlu-dijelaskan/${card.id}?seri=1`}>
+                  <Link className={buttonClass({ variant: 'secondary' })} href={`/clarifications/${card.id}?seri=1`}>
                     Jelaskan sama untuk {card.seriesCount} hari berturut-turut
                   </Link>
                 )}
                 {card.action === 'resubmit' && card.requestId && (
-                  <Link className={buttonClass()} href={`/perlu-dijelaskan/${card.id}?dari=${card.requestId}`}>Ajukan ulang</Link>
+                  <Link className={buttonClass()} href={`/clarifications/${card.id}?dari=${card.requestId}`}>Ajukan ulang</Link>
                 )}
                 {card.action === 'late' && (
-                  <Link className={buttonClass({ variant: 'secondary' })} href={`/perlu-dijelaskan/${card.id}?terlambat=1`}>Ajukan terlambat <NewBadge feature="fitur/ajukan-terlambat" /></Link>
+                  <Link className={buttonClass({ variant: 'secondary' })} href={`/clarifications/${card.id}?terlambat=1`}>Ajukan terlambat <NewBadge feature="fitur/ajukan-terlambat" /></Link>
                 )}
                 {card.requestId && tab !== 'open' && (
-                  <Link className={buttonClass({ variant: 'ghost' })} href={`/pengajuan/${card.requestId}`}>Lihat pengajuan</Link>
+                  <Link className={buttonClass({ variant: 'ghost' })} href={`/requests/${card.requestId}`}>Lihat pengajuan</Link>
                 )}
               </div>
             </div>
@@ -65,7 +65,7 @@ export function MyClarificationsScreen({ tab, all, counts, cards }: Props) {
         ))}
       </div>
       {tab === 'done' && !all && (
-        <Link className="text-sm underline" href="/perlu-dijelaskan?tab=done&semua=1">Muat periode lama</Link>
+        <Link className="text-sm underline" href="/clarifications?tab=done&semua=1">Muat periode lama</Link>
       )}
     </div>
   );

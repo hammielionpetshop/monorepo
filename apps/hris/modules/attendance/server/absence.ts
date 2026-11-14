@@ -421,7 +421,7 @@ export const absenceHandler = {
             await notify(inner, await accountsOf([subject.employeeId]), {
               kind: 'attendance.absence', title: `HR mengisikan ${ABSENCE_KIND_LABELS[draft.kind].toLowerCase()} atas nama Anda`,
               body: `${rangeText(draft.startDate, plan.endDate)}. Alasan diisikan: ${onBehalfReason}`,
-              link: `/pengajuan/${requestId}`, entity: 'request', entityId: requestId,
+              link: `/requests/${requestId}`, entity: 'request', entityId: requestId,
             }, actor.accountId);
           }
         },
@@ -734,7 +734,7 @@ export async function adjustLeave(actor: Actor | null, input: { employeeId: numb
       before: { balance }, after: { balance: balance + input.days }, reason: reason.reason,
     });
     await notify(tx, await accountsOf([subject!.employeeId]), {
-      kind: 'attendance.absence', title: `Sisa cuti Anda disesuaikan ${input.days > 0 ? '+' : ''}${input.days} hari`, body: reason.reason, link: '/cuti',
+      kind: 'attendance.absence', title: `Sisa cuti Anda disesuaikan ${input.days > 0 ? '+' : ''}${input.days} hari`, body: reason.reason, link: '/leave',
     }, actor.accountId);
     return { ok: true as const, data: { balance: balance + input.days } };
   });
@@ -793,7 +793,7 @@ export async function absenceAttention(actor: Actor | null, now: Date = new Date
   const cards: AbsenceCard[] = [];
   for (const letter of await pendingLettersScreen(actor, now)) {
     if (!letter.open) continue;
-    cards.push({ key: `letter-${letter.id}`, title: 'Surat dokter belum disusulkan', detail: `Sakit ${letter.range}. ${letter.text}`, href: '/tidak-masuk/surat-dokter' });
+    cards.push({ key: `letter-${letter.id}`, title: 'Surat dokter belum disusulkan', detail: `Sakit ${letter.range}. ${letter.text}`, href: '/absence/doctor-notes' });
   }
   if (can(actor, 'absence.decide')) {
     const today = wibDate(now);
@@ -802,7 +802,7 @@ export async function absenceAttention(actor: Actor | null, now: Date = new Date
       where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date and a.employee_id <> ${actor.personId}
         and a.origin <> 'CLARIFICATION'`);
     const count = Number(rows[0]?.n ?? 0);
-    if (count) cards.push({ key: 'absence-due', title: `${count} pengajuan izin/sakit/cuti menunggu, tanggalnya sudah tiba`, href: '/persetujuan' });
+    if (count) cards.push({ key: 'absence-due', title: `${count} pengajuan izin/sakit/cuti menunggu, tanggalnya sudah tiba`, href: '/approvals' });
   }
   return cards;
 }
@@ -921,7 +921,7 @@ export async function runAbsenceDaily(now: Date = new Date()) {
       if (!(await noticeOnce(tx, `letter:${letter.id}`))) return;
       await notify(tx, await accountsOf([letter.employeeId]), {
         kind: 'attendance.absence', title: 'Surat dokter tinggal 1 hari lagi',
-        body: `Sakit ${rangeText(letter.startDate, letter.endDate)}. Lewat batas, hari itu dicatat sakit tanpa surat.`, link: '/tidak-masuk/surat-dokter',
+        body: `Sakit ${rangeText(letter.startDate, letter.endDate)}. Lewat batas, hari itu dicatat sakit tanpa surat.`, link: '/absence/doctor-notes',
       }, null);
       result.letterReminders += 1;
     });
@@ -938,7 +938,7 @@ export async function runAbsenceDaily(now: Date = new Date()) {
       if (!(await noticeOnce(tx, `due:${row.request_id}`))) return;
       await notify(tx, recipients, {
         kind: 'attendance.absence', title: `Pengajuan tidak masuk ${row.name} masih menunggu, tanggalnya sudah tiba`,
-        body: 'Selama menunggu, hari itu tidak ditandai alpha.', link: `/persetujuan/${row.request_id}`, entity: 'request', entityId: Number(row.request_id),
+        body: 'Selama menunggu, hari itu tidak ditandai alpha.', link: `/approvals/${row.request_id}`, entity: 'request', entityId: Number(row.request_id),
       }, null);
       result.dueReminders += 1;
     });
@@ -954,7 +954,7 @@ export async function runAbsenceDaily(now: Date = new Date()) {
       if (!(await noticeOnce(tx, `expire:${year.id}`))) return;
       await notify(tx, await accountsOf([year.employeeId]), {
         kind: 'attendance.absence', title: `Sisa cuti ${balance} hari hangus ${longDate(addDays(year.endDate, 1))}`,
-        body: 'Sisa cuti yang tidak dipakai sampai akhir tahun cutinya hangus dan tidak diganti uang.', link: '/cuti',
+        body: 'Sisa cuti yang tidak dipakai sampai akhir tahun cutinya hangus dan tidak diganti uang.', link: '/leave',
       }, null);
       result.expiryNotices += 1;
     });

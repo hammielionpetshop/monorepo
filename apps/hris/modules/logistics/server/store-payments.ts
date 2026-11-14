@@ -133,7 +133,7 @@ export async function addVisitReport(
     await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.delivery_note.decide', 'logistics.note_cut.decide'])), {
       kind: 'logistics.visit_report', title: `${REPORT_LABELS[clean.kind]}: ${visit.destinationName} (trip ${running.loaded.trip.number})`,
       body: `${clean.note ? `${clean.note}. ` : ''}Finance memutuskan potong nota di Laporan Toko.`,
-      link: '/logistik/laporan-toko', entity: 'visit_report', entityId: row.id,
+      link: '/logistics/store-reports', entity: 'visit_report', entityId: row.id,
     }, me.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -296,20 +296,20 @@ async function placesOf(reports: {
   return (r: (typeof reports)[number]): ReportPlace => {
     if (r.returnPickupId != null) {
       return {
-        tripHref: `/logistik/trip/${r.tripId}`, tripNumber: pickupTripOf.get(r.tripId ?? 0) ?? '-', store: pickupStoreOf.get(r.customerId ?? 0) ?? '-',
+        tripHref: `/logistics/trips/${r.tripId}`, tripNumber: pickupTripOf.get(r.tripId ?? 0) ?? '-', store: pickupStoreOf.get(r.customerId ?? 0) ?? '-',
         source: 'Jemput retur', photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`,
       };
     }
     if (r.visitId != null) {
       const v = visitOf.get(r.visitId);
       return {
-        tripHref: `/logistik/trip/${r.tripId}`, tripNumber: v?.number ?? '-', store: v?.destination_name ?? '-', source: null,
+        tripHref: `/logistics/trips/${r.tripId}`, tripNumber: v?.number ?? '-', store: v?.destination_name ?? '-', source: null,
         photoUrl: `/api/logistics/photo?trip=${r.tripId}&file=${r.photoFileId}`,
       };
     }
     const s = stopOf.get(r.selfStopId ?? 0);
     return {
-      tripHref: `/logistik/antar-sendiri/kantor?tab=DONE${s ? `&cabang=${s.branch_id}` : ''}`, tripNumber: s?.number ?? '-', store: s?.destination_name ?? '-',
+      tripHref: `/logistics/self-delivery/office?tab=DONE${s ? `&cabang=${s.branch_id}` : ''}`, tripNumber: s?.number ?? '-', store: s?.destination_name ?? '-',
       source: `Antar sendiri${s?.branch ? ` · ${s.branch}` : ''}`, photoUrl: `/api/logistics/self-photo?trip=${r.selfTripId}&kind=report&report=${r.id}`,
     };
   };
@@ -456,7 +456,7 @@ export async function correctPayment(
     await notify(tx, await accountsOf(await listEmployeesWithAnyAction(['logistics.store_payment.view'])), {
       kind: 'logistics.payment_corrected', title: `Cara bayar ${info?.name ?? 'toko'} dikoreksi (trip ${info?.number ?? '-'})`,
       body: `${PAYMENT_LABELS[current.method as PaymentMethod]} → ${PAYMENT_LABELS[clean.method]}. Alasan: ${reason}`,
-      link: `/logistik/uang-toko${info?.date ? `?tanggal=${info.date}` : ''}`, entity: 'visit_payment', entityId: current.id,
+      link: `/logistics/store-money${info?.date ? `?tanggal=${info.date}` : ''}`, entity: 'visit_payment', entityId: current.id,
     }, actor.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -564,7 +564,7 @@ async function selfPaymentRows(actor: Actor, date: IsoDate, branchId: number | n
     const received = Number(r.received_amount);
     return {
       key: `SELF-${r.id}`, source: 'SELF', id: Number(r.id), visitId: null, stopId: Number(r.stop_id), tripId: Number(r.trip_id),
-      tripHref: `/logistik/antar-sendiri/kantor?tab=DONE&cabang=${r.branch_id}`, tripNumber: r.number, crew: names.get(Number(r.employee_id)) ?? '-',
+      tripHref: `/logistics/self-delivery/office?tab=DONE&cabang=${r.branch_id}`, tripNumber: r.number, crew: names.get(Number(r.employee_id)) ?? '-',
       branch: r.branch, store: r.store, customerId: r.customer_id != null ? Number(r.customer_id) : null, notes: [r.trx_number], method: r.method,
       label: PAYMENT_LABELS[r.method], bill, received, left: leftToCollect(r.method, bill, received),
       proofUrl: r.proof_photo_file_id ? `/api/logistics/self-photo?trip=${r.trip_id}&kind=proof&stop=${r.stop_id}` : null, at: wibClock(new Date(r.recorded_at)),
@@ -617,7 +617,7 @@ export async function storePaymentsScreen(
     const received = Number(r.received_amount);
     return {
       key: `TRUCK-${r.id}`, source: 'TRUCK', id: Number(r.id), visitId: Number(r.visit_id), stopId: null, tripId: Number(r.trip_id),
-      tripHref: `/logistik/trip/${r.trip_id}`, tripNumber: r.number, crew: crewOf(Number(r.trip_id)), branch: null, store: r.store ?? '-', customerId: Number(r.customer_id),
+      tripHref: `/logistics/trips/${r.trip_id}`, tripNumber: r.number, crew: crewOf(Number(r.trip_id)), branch: null, store: r.store ?? '-', customerId: Number(r.customer_id),
       notes: r.notes ? r.notes.split(', ') : [], method: r.method, label: PAYMENT_LABELS[r.method], bill, received, left: leftToCollect(r.method, bill, received),
       proofUrl: r.proof_photo_file_id ? `/api/logistics/photo?trip=${r.trip_id}&file=${r.proof_photo_file_id}` : null, at: wibClock(new Date(r.recorded_at)),
       promiseDate: r.promise_date, overdue: promiseOverdue(r.promise_date, today, Number(r.debt_left ?? 0)), correctionReason: r.correction_reason,

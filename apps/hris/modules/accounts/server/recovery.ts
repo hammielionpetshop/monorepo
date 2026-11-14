@@ -43,7 +43,7 @@ async function reportRecipients(): Promise<number[]> {
 async function report(recipients: number[], kind: string, title: string, employeeId: number) {
   try {
     await db.transaction((tx) => notify(tx, recipients, {
-      kind, title, link: `/karyawan/${employeeId}`, entity: 'employee', entityId: employeeId,
+      kind, title, link: `/employees/${employeeId}`, entity: 'employee', entityId: employeeId,
     }, null).then(() => undefined));
   } catch (error) {
     console.error('Pemberitahuan lupa password gagal dikirim', error);

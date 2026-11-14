@@ -73,7 +73,7 @@ export async function markReady(actor: Actor | null, id: number): Promise<Servic
     if (!row) return fail(409, 'Trip ini sudah berubah. Muat ulang halaman.');
     await notify(tx, await accountsOf(loaded.activeCrew.map((c) => c.employeeId)), {
       kind: 'logistics.ready', title: `Trip ${row.number} siap kirim`, body: 'Buka Trip Saya lalu tekan Berangkat saat mobil keluar.',
-      link: '/trip-saya', entity: 'trip', entityId: id,
+      link: '/my-trips', entity: 'trip', entityId: id,
     }, actor.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -177,7 +177,7 @@ export async function processVisit(
       await notify(tx, await decideAccounts(), {
         kind: 'logistics.visit_failed', title: `Kiriman ke ${visit.destinationName} gagal (trip ${trip.number})`,
         body: `${reason.text}. Putuskan Kirim ulang atau Batal di Surat Jalan › Perlu keputusan.`,
-        link: '/logistik/surat-jalan?tab=NEEDS_DECISION', entity: 'trip_visit', entityId: visitId,
+        link: '/logistics/delivery-notes?tab=NEEDS_DECISION', entity: 'trip_visit', entityId: visitId,
       }, me.accountId);
     }
     return { ok: true as const, data: undefined };
@@ -250,7 +250,7 @@ export async function headHome(actor: Actor | null, tripId: number, photo: File 
         .where(and(eq(tripShopping.tripId, tripId), eq(tripShopping.status, 'OPEN')));
       await notify(tx, await managerAccounts(), {
         kind: 'logistics.early_finish', title: `Trip ${row.number} selesai lebih awal`, body: `${early}. Sisa: ${problem.replace(/^Masih ada /, '').split('.')[0]}.`,
-        link: `/logistik/trip/${tripId}`, entity: 'trip', entityId: tripId,
+        link: `/logistics/trips/${tripId}`, entity: 'trip', entityId: tripId,
       }, me.accountId);
     }
     return { ok: true as const, data: undefined };
@@ -312,7 +312,7 @@ export async function sendEndReport(actor: Actor | null, tripId: number, input: 
     if (parts.length) {
       await notify(tx, await followupAccounts(), {
         kind: 'logistics.end_report', title: `Laporan Pulang ${vehicle ? `${vehicle.name} (${vehicle.plate})` : `trip ${loaded.trip.number}`}`,
-        body: parts.join(' · '), link: '/logistik/bensin-mobil', entity: 'trip_end_report', entityId: row.id,
+        body: parts.join(' · '), link: '/logistics/fuel', entity: 'trip_end_report', entityId: row.id,
       }, actor.accountId);
     }
     return { ok: true as const, data: undefined };

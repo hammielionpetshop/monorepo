@@ -74,7 +74,7 @@ export function PositionSettingsScreen({ data, resubmit }: { data: PositionSetti
                         <span key={u.id} className="block text-xs text-ink-muted">→ {u.value} mulai {longDate(u.effectiveFrom)}</span>
                       ))}
                       {cell.proposed && (
-                        <Link className="block text-xs text-brand-700" href={`${meta.canEdit ? '/persetujuan' : '/pengajuan'}/${cell.proposed.requestId}`}>
+                        <Link className="block text-xs text-brand-700" href={`${meta.canEdit ? '/approvals' : '/requests'}/${cell.proposed.requestId}`}>
                           Diusulkan: {cell.proposed.value} mulai {longDate(cell.proposed.effectiveFrom)}
                         </Link>
                       )}

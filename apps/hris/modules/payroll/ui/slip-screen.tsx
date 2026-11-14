@@ -28,30 +28,30 @@ export function SlipScreen({ slip, holds, window: win, computedAt, can, closeBlo
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/periode/${slip.period.key}`}>Kembali ke periode</Link>
-        {can.close && <Link className={buttonClass({})} href={`/gaji/periode/${slip.period.key}/tutup?slip=${slip.slipId}`}>Tutup slip</Link>}
+        <Link className={buttonClass({ variant: 'ghost' })} href={`/payroll/periods/${slip.period.key}`}>Kembali ke periode</Link>
+        {can.close && <Link className={buttonClass({})} href={`/payroll/periods/${slip.period.key}/close?slip=${slip.slipId}`}>Tutup slip</Link>}
         {extras?.can.earlyClose && (
           <span className="flex items-center gap-1">
-            <Link className={buttonClass({ variant: can.close ? 'secondary' : 'primary' })} href={`/gaji/slip/${slip.slipId}/tutup-cepat`}>Tutup lebih cepat</Link>
+            <Link className={buttonClass({ variant: can.close ? 'secondary' : 'primary' })} href={`/payroll/payslips/${slip.slipId}/early-close`}>Tutup lebih cepat</Link>
             <NewBadge feature="fitur/tutup-lebih-cepat" />
           </span>
         )}
         {payment?.can.pay && (
           <span className="flex items-center gap-1">
-            <Link className={buttonClass({})} href={`/gaji/bayar?slip=${slip.slipId}&kembali=slip`}>Bayar</Link>
+            <Link className={buttonClass({})} href={`/payroll/pay?slip=${slip.slipId}&kembali=slip`}>Bayar</Link>
             <NewBadge feature="fitur/bayar-slip" />
           </span>
         )}
-        {payment?.can.cancel && <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/slip/${slip.slipId}/batal-bayar`}>Batal bayar</Link>}
-        {can.print && <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/slip/${slip.slipId}/cetak`} target="_blank">Cetak</Link>}
+        {payment?.can.cancel && <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/payslips/${slip.slipId}/cancel-payment`}>Batal bayar</Link>}
+        {can.print && <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/payslips/${slip.slipId}/print`} target="_blank">Cetak</Link>}
         {(extras?.can.reopen || extras?.can.requestReopen) && (
           <span className="flex items-center gap-1">
-            <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/slip/${slip.slipId}/buka`}>{extras.can.reopen ? 'Buka kembali' : 'Minta buka kembali'}</Link>
+            <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/payslips/${slip.slipId}/reopen`}>{extras.can.reopen ? 'Buka kembali' : 'Minta buka kembali'}</Link>
             <NewBadge feature="fitur/buka-kembali-slip" />
           </span>
         )}
-        {extras?.pendingRequestId && <Link className={buttonClass({ variant: 'ghost' })} href={`/persetujuan/${extras.pendingRequestId}`}>Permintaan buka kembali menunggu</Link>}
-        <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/${slip.employeeId}`}>Gaji {slip.name}</Link>
+        {extras?.pendingRequestId && <Link className={buttonClass({ variant: 'ghost' })} href={`/approvals/${extras.pendingRequestId}`}>Permintaan buka kembali menunggu</Link>}
+        <Link className={buttonClass({ variant: 'ghost' })} href={`/payroll/${slip.employeeId}`}>Gaji {slip.name}</Link>
       </div>
       {slip.status === 'ESTIMATE' && closeBlocked && !holds.length && !extras?.can.earlyClose && <Alert tone="info">{closeBlocked}</Alert>}
       {extras?.reopenBlock && <Alert tone="info">Belum bisa dibuka kembali: {extras.reopenBlock}</Alert>}
@@ -74,7 +74,7 @@ export function SlipScreen({ slip, holds, window: win, computedAt, can, closeBlo
             {extras.withoutNotice && <li>Berhenti tanpa pemberitahuan: bonus yang belum masuk slip Hangus, bersih yang tersisa menjadi denda (diterima Rp0).</li>}
             <li>Sisa telat/tidak hadir/denda yang tidak tertampung = Tidak tertagih{slip.status === 'CLOSED' ? `: ${rupiah(uncollectible)}` : ''}. Sisa kehilangan, minus kas, dan Potongan Lain = Piutang Lain.</li>
             {extras.receivables.map((r) => (
-              <li key={r.id}>Piutang Lain {r.groupLabel}: <b className="tabular-nums">{rupiah(r.amount)}</b> · {r.statusLabel} · <Link className="underline" href="/gaji/piutang">Piutang Lain</Link></li>
+              <li key={r.id}>Piutang Lain {r.groupLabel}: <b className="tabular-nums">{rupiah(r.amount)}</b> · {r.statusLabel} · <Link className="underline" href="/payroll/receivables">Piutang Lain</Link></li>
             ))}
           </ul>
         </Alert>
@@ -93,7 +93,7 @@ export function SlipScreen({ slip, holds, window: win, computedAt, can, closeBlo
                 <b>{STEP_LABELS[s.action] ?? s.action}</b>{s.version != null ? ` versi ${s.version}` : ''} · {s.at} · {s.by}
                 {s.net != null && s.action !== 'REOPEN_REQUEST' ? ` · bersih ${rupiah(s.net)}` : ''}
                 {s.reason ? <span className="text-ink-muted"> · {s.reason}</span> : null}
-                {s.requestId ? <> · <Link className="underline" href={`/persetujuan/${s.requestId}`}>pengajuan</Link></> : null}
+                {s.requestId ? <> · <Link className="underline" href={`/approvals/${s.requestId}`}>pengajuan</Link></> : null}
               </li>
             ))}
           </ul>

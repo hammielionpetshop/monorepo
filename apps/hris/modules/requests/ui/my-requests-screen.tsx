@@ -18,7 +18,7 @@ export function MyRequestsScreen({ data }: { data: Data }) {
   return (
     <div className="space-y-4">
       <Link
-        href="/pengajuan/baru"
+        href="/requests/new"
         className="flex min-h-12 w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700"
       >
         Ajukan
@@ -41,7 +41,7 @@ export function MyRequestsScreen({ data }: { data: Data }) {
           </label>
         )}
         <Button type="submit" size="sm" variant="secondary">Saring</Button>
-        {filtered && <Link href="/pengajuan" className="text-sm text-brand-700">Hapus saringan</Link>}
+        {filtered && <Link href="/requests" className="text-sm text-brand-700">Hapus saringan</Link>}
       </form>
       {data.cards.length === 0 ? (
         <EmptyState title={filtered ? 'Tidak ada pengajuan yang cocok' : 'Belum ada pengajuan'}>
@@ -49,7 +49,7 @@ export function MyRequestsScreen({ data }: { data: Data }) {
         </EmptyState>
       ) : (
         <div className="space-y-2">
-          {data.cards.map((card) => <RequestCardLink key={card.id} card={card} href={`/pengajuan/${card.id}`} mode="mine" />)}
+          {data.cards.map((card) => <RequestCardLink key={card.id} card={card} href={`/requests/${card.id}`} mode="mine" />)}
         </div>
       )}
     </div>
@@ -72,13 +72,13 @@ export function ChooseTypeScreen({ types }: {
           <p className="mt-1 text-xs text-ink-muted">{type.deadline}</p>
         </div>
       ) : (
-        <Link key={type.key} href={type.formHref ?? `/pengajuan/baru/${type.key}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
+        <Link key={type.key} href={type.formHref ?? `/requests/new/${type.key}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
           <p className="font-semibold">{type.label}</p>
           <p className="text-sm text-ink-muted">{type.description}</p>
           <p className="mt-1 text-xs text-ink-muted">{type.deadline}</p>
         </Link>
       ))}
-      <Link href="/pengajuan" className="inline-block text-sm text-brand-700">← Kembali ke Pengajuan Saya</Link>
+      <Link href="/requests" className="inline-block text-sm text-brand-700">← Kembali ke Pengajuan Saya</Link>
     </div>
   );
 }

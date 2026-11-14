@@ -11,7 +11,7 @@ export function TransferScreen({ period, rows, total }: { period: { start: strin
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Link className={buttonClass({ variant: 'ghost' })} href="/gaji/jadwal-bayar">Kembali ke Jadwal Bayar</Link>
+        <Link className={buttonClass({ variant: 'ghost' })} href="/payroll/pay-schedule">Kembali ke Jadwal Bayar</Link>
         {rows.length > 0 && <a className={buttonClass({})} href={`/api/payroll/transfer?period=${period.start}`}>Unduh CSV (Excel)</a>}
       </div>
       <Alert tone="info">

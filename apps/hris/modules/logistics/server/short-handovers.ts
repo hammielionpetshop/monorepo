@@ -220,7 +220,7 @@ export async function recordShortSettlement(
       const what = input.kind === 'CASH_REPLACED' ? `sudah diganti tunai ${rupiah(amount!)}` : 'dinyatakan tidak dipotong';
       await notify(tx, await accountsOf([state.row.responsibleId]), {
         kind: 'logistics.short_settled', title: `Kurang serah ${state.store} (${state.tripNumber}) ${what}`,
-        body: `Catatan: ${note}`, link: '/logistik/terima-uang?tab=DIFF', entity: 'short_handover', entityId: input.paymentId,
+        body: `Catatan: ${note}`, link: '/logistics/money-checks?tab=DIFF', entity: 'short_handover', entityId: input.paymentId,
       }, actor.accountId);
       return { ok: true as const, data: undefined };
     });

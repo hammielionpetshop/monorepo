@@ -18,7 +18,7 @@ function href(filter: NotesFilter, tab: QueueStatus) {
   if (filter.originId) params.set('asal', String(filter.originId));
   if (filter.routeId) params.set('rute', String(filter.routeId));
   if (filter.q) params.set('cari', filter.q);
-  return `/logistik/surat-jalan?${params}`;
+  return `/logistics/delivery-notes?${params}`;
 }
 
 /** Surat Jalan (spec LT1 §12): nota dan PO Internal bertanda truk Gudang, dibaca langsung dari kasir. */
@@ -37,13 +37,13 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
             {t.label} <span className="ml-1 tabular-nums opacity-80">{t.count}</span>
           </Link>
         ))}
-        <Link href="/logistik/surat-jalan/tertunda" className={buttonClass({ variant: pending.red ? 'danger' : 'secondary', size: 'sm' })}>
+        <Link href="/logistics/delivery-notes/pending" className={buttonClass({ variant: pending.red ? 'danger' : 'secondary', size: 'sm' })}>
           Tertunda <span className="ml-1 tabular-nums opacity-80">{pending.total}</span>
         </Link>
-        <NewBadge feature="/logistik/surat-jalan/tertunda" />
+        <NewBadge feature="fitur/logistics-delivery-notes-pending" />
       </nav>
 
-      <form action="/logistik/surat-jalan" className="flex flex-wrap items-end gap-2">
+      <form action="/logistics/delivery-notes" className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="tab" value={tab} />
         <select name="asal" defaultValue={filter.originId ?? ''} className={selectClass} aria-label="Cabang asal">
           <option value="">Semua cabang asal</option>
@@ -61,7 +61,7 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
         <p className="text-sm text-ink-muted">
           Nota yang dipilih <b>Dikirim truk Gudang</b> di kasir dan PO Internal yang dikirim <b>Truk Gudang</b>, sejak {from}, paling lama di atas.
           Salah tandai? Ubah cara kirimnya di Back Office; nota langsung keluar dari daftar ini. Masukkan ke trip lewat
-          {' '}<Link href="/logistik/trip/baru" className="underline">Buat trip</Link>.
+          {' '}<Link href="/logistics/trips/new" className="underline">Buat trip</Link>.
         </p>
       )}
       {tab === 'ON_TRIP' && (
@@ -105,20 +105,20 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
           {
             key: 'to', header: 'Tujuan',
             render: (r) => (r.customerId && canStores
-              ? <Link href={`/logistik/toko/${r.customerId}`} className="underline">{r.destination}</Link>
+              ? <Link href={`/logistics/stores/${r.customerId}`} className="underline">{r.destination}</Link>
               : <span>{r.destination}{r.kind === 'TRANSFER' && <span className="text-ink-muted"> (cabang)</span>}</span>),
           },
           { key: 'route', header: 'Rute bawaan', render: (r) => (r.kind === 'TRANSFER' ? '—' : r.route ?? <span className="text-ink-muted">belum diisi</span>) },
           ...(tab === 'ON_TRIP' || tab === 'CANCELLED' ? [{
             key: 'trip', header: 'Trip',
-            render: (r: NoteRow) => (r.trip ? <Link href={`/logistik/trip/${r.trip.id}`} className="underline">{r.trip.number}</Link> : '—'),
+            render: (r: NoteRow) => (r.trip ? <Link href={`/logistics/trips/${r.trip.id}`} className="underline">{r.trip.number}</Link> : '—'),
           }] : []),
           ...(decisionTab ? [{
             key: 'event', header: tab === 'DELIVERED' ? 'Terkirim' : tab === 'DROPPED' ? 'Dibatalkan' : 'Gagal',
             render: (r: NoteRow) => (r.event ? (
               <span className="text-sm">
                 {r.event.on} {r.event.at}
-                {r.event.trip && <> · <Link href={`/logistik/trip/${r.event.trip.id}`} className="underline">{r.event.trip.number}</Link></>}
+                {r.event.trip && <> · <Link href={`/logistics/trips/${r.event.trip.id}`} className="underline">{r.event.trip.number}</Link></>}
                 {r.event.reason && <span className="block text-ink-muted">{r.event.reason}</span>}
               </span>
             ) : '—'),

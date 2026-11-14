@@ -35,8 +35,8 @@ export function OutsideScreen({ tab, radius, rows }: { tab: 'WAITING' | 'DONE'; 
   return (
     <div className="space-y-3">
       <div className="flex gap-2 text-sm">
-        <Link href="/logistik/di-luar-titik" className={tab === 'WAITING' ? 'font-semibold underline' : 'underline'}>Belum ditinjau</Link>
-        <Link href="/logistik/di-luar-titik?tab=DONE" className={tab === 'DONE' ? 'font-semibold underline' : 'underline'}>Sudah ditinjau (30 hari)</Link>
+        <Link href="/logistics/off-site" className={tab === 'WAITING' ? 'font-semibold underline' : 'underline'}>Belum ditinjau</Link>
+        <Link href="/logistics/off-site?tab=DONE" className={tab === 'DONE' ? 'font-semibold underline' : 'underline'}>Sudah ditinjau (30 hari)</Link>
       </div>
       <p className="text-sm text-ink-muted">Terkirim lebih dari {radius} m dari titik toko yang disetujui. Kiriman yang Anda bawa sendiri ditinjau orang lain.</p>
       {error && !notOk && <Alert tone="danger">{error}</Alert>}

@@ -58,7 +58,7 @@ export function SalaryEditScreen({ person, choices, types, startLines, standard,
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(String(result.data?.message ?? 'Tersimpan.'), 'ok');
-    router.push(`/gaji/${person.id}`);
+    router.push(`/payroll/${person.id}`);
     router.refresh();
   }
 
@@ -143,7 +143,7 @@ export function SalaryEditScreen({ person, choices, types, startLines, standard,
       <div className="flex flex-wrap gap-2">
         {step > 1
           ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href={`/gaji/${person.id}`}>Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href={`/payroll/${person.id}`}>Batal</Link>}
         {step < 4 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{canChange ? 'Simpan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

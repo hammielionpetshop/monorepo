@@ -158,7 +158,7 @@ describe.skipIf(!ADMIN_URL)('L3c: Tinjau, Koreksi, dan Rekap', () => {
     expect(await review.decideReview(hr, { recordId, outcome: 'NEEDS_CORRECTION', reason: REASON, baseReviewId: null })).toMatchObject({ ok: false, status: 409 });
     const [first] = await sql`select id from hris.attendance_reviews where record_id = ${recordId}`;
     const changed = await review.decideReview(hr, { recordId, outcome: 'NEEDS_CORRECTION', reason: REASON, baseReviewId: first.id });
-    expect(changed).toMatchObject({ ok: true, data: { link: expect.stringContaining('/kehadiran/koreksi') } });
+    expect(changed).toMatchObject({ ok: true, data: { link: expect.stringContaining('/attendance/corrections') } });
     const uncorrected = await review.reviewScreen(hr, { tab: 'outside', filter: 'uncorrected', branchId: null }, tomorrow);
     expect(uncorrected.rows.find((row) => row.id === recordId)?.history).toHaveLength(2);
     await expect(sql`update hris.attendance_reviews set reason = 'ubah'`).rejects.toThrow();

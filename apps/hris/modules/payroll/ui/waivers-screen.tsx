@@ -56,7 +56,7 @@ export function WaiversScreen({ period, periods, rows, branches, people, filter,
         rowKey={(r) => `${r.employeeId}-${r.workDate}-${r.kind}-${r.fineKind ?? ''}`}
         empty="Tidak ada potongan telat atau denda di periode ini."
         columns={[
-          { key: 'name', header: 'Orang', primary: true, render: (r) => <Link className="underline" href={`/gaji/${r.employeeId}/hitungan?periode=${period.start}`}>{r.name}</Link> },
+          { key: 'name', header: 'Orang', primary: true, render: (r) => <Link className="underline" href={`/payroll/${r.employeeId}/calculation?periode=${period.start}`}>{r.name}</Link> },
           { key: 'date', header: 'Tanggal', render: (r) => longDate(r.workDate) },
           { key: 'branch', header: 'Cabang', render: (r) => r.branchName },
           { key: 'what', header: 'Kejadian', render: (r) => r.what },
@@ -71,7 +71,7 @@ export function WaiversScreen({ period, periods, rows, branches, people, filter,
           },
         ]}
       />
-      <p className="text-sm text-ink-muted">Telat dalam toleransi tidak ditampilkan. <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/panduan/aturan-potongan">Aturan Potongan</Link></p>
+      <p className="text-sm text-ink-muted">Telat dalam toleransi tidak ditampilkan. <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/guides/deduction-rules">Aturan Potongan</Link></p>
       <WaiveDialog target={target} onClose={() => setTarget(null)} />
     </div>
   );

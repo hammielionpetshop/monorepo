@@ -146,7 +146,7 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
     bonusGroups.set(key, group);
   }
   for (const g of bonusGroups.values()) {
-    const details: SlipLineDetails = { text: `${g.count} baris Buku Bonus`, bonusIds: g.ids, link: `/gaji/${person.id}/bonus?periode=${g.originPeriod ?? periodStart}` };
+    const details: SlipLineDetails = { text: `${g.count} baris Buku Bonus`, bonusIds: g.ids, link: `/payroll/${person.id}/bonuses?periode=${g.originPeriod ?? periodStart}` };
     if (g.sourceKey.includes(':DISCIPLINE_FUND:')) details.fund = 'DISCIPLINE_FUND';
     income.push({ sourceKey: g.sourceKey, lineKind: g.lineKind, label: g.label, amount: g.amount, originPeriod: g.originPeriod, details });
   }
@@ -162,7 +162,7 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
       if (share?.amount) {
         candidates.push({
           group: 'b', sourceKey: `loss:${loss.id}`, lineKind: 'LOSS', label: `Kehilangan barang ${longDate(loss.foundOn)}`, date: loss.foundOn, amount: share.amount,
-          originPeriod: origin(q, periodStart), details: { link: `/potongan/kehilangan-barang/${loss.id}` },
+          originPeriod: origin(q, periodStart), details: { link: `/deductions/lost-items/${loss.id}` },
         });
       }
     }
@@ -179,14 +179,14 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
           candidates.push({
             group: 'b', sourceKey: done ? `pos:${q}@${periodStart}` : `pos:${q}`, lineKind: 'POS_SHORTAGE',
             label: `Minus kas POS (minus ${rupiah(shortage.pos.minus)} − lebih ${rupiah(shortage.pos.plus)})`, date: periodEndOf(q), amount,
-            originPeriod: origin(q, periodStart), details: { link: '/potongan/minus-kas' },
+            originPeriod: origin(q, periodStart), details: { link: '/deductions/cash-shortages' },
           });
         }
       }
       for (const m of shortage.manual) {
         candidates.push({
           group: 'b', sourceKey: `manual:${m.id}`, lineKind: 'MANUAL_SHORTAGE', label: `Minus kas ${longDate(m.occurredOn)}`, date: m.occurredOn, amount: m.amount,
-          originPeriod: origin(q, periodStart), details: { text: m.reason, link: '/potongan/minus-kas' },
+          originPeriod: origin(q, periodStart), details: { text: m.reason, link: '/deductions/cash-shortages' },
         });
       }
     }
@@ -203,7 +203,7 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
       const early = d.periodStart > periodStart;
       candidates.push({
         group: 'c', sourceKey: `other:${d.id}`, lineKind: 'OTHER', label: `${d.typeName} (cicilan ${d.sequence} dari ${d.total})${early ? ', dipercepat karena slip terakhir' : ''}`,
-        date: d.createdAt.toISOString().slice(0, 10), amount: d.amount, originPeriod: early ? null : origin(d.periodStart, periodStart), details: { text: d.reason, link: '/potongan/lain' },
+        date: d.createdAt.toISOString().slice(0, 10), amount: d.amount, originPeriod: early ? null : origin(d.periodStart, periodStart), details: { text: d.reason, link: '/deductions/other' },
       });
     }
     const slipped = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
@@ -332,7 +332,7 @@ export async function pastAdjustments(person: PayrollPerson, periodStart: IsoDat
     if (amount <= 0) continue;
     income.push({
       sourceKey: `refund:${l.sourceKey}`, lineKind: l.lineKind, label: `Pengembalian ${l.label.charAt(0).toLowerCase()}${l.label.slice(1)}`, amount,
-      originPeriod: l.originPeriod, details: { text: 'Potongan ini ditiadakan lewat keberatan sesudah terpotong.', originKey: source, link: '/potongan/lain' },
+      originPeriod: l.originPeriod, details: { text: 'Potongan ini ditiadakan lewat keberatan sesudah terpotong.', originKey: source, link: '/deductions/other' },
     });
   }
   // Minus kas POS: bila bersih periode itu turun (ditiadakan) di bawah yang sudah dipotong, selisihnya dikembalikan.
@@ -348,7 +348,7 @@ export async function pastAdjustments(person: PayrollPerson, periodStart: IsoDat
     if (amount <= 0) continue;
     income.push({
       sourceKey: `refund:pos:${q}`, lineKind: 'POS_SHORTAGE', label: `Pengembalian minus kas POS periode ${longDate(q)}`, amount, originPeriod: q,
-      details: { text: 'Minus kas ini ditiadakan lewat keberatan sesudah terpotong.', link: '/potongan/minus-kas' },
+      details: { text: 'Minus kas ini ditiadakan lewat keberatan sesudah terpotong.', link: '/deductions/cash-shortages' },
     });
   }
   return { income, deductions };
@@ -894,10 +894,10 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
       if (account) {
         await notify(tx, [account], {
           kind: 'payslip.closed', title: `Slip gaji ${slipPhrase(locked)} sudah ditutup.`,
-          body: `Gaji bersih ${rupiah(c.net)}. Rinciannya ada di Pendapatan Saya.`, entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
+          body: `Gaji bersih ${rupiah(c.net)}. Rinciannya ada di Pendapatan Saya.`, entity: 'payslip', entityId: locked.id, link: `/earnings/payslips/${locked.id}`,
         }, actor.accountId);
       }
-      if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menutup slip gajinya sendiri ${number}`, link: `/gaji/slip/${locked.id}`, entity: 'payslip', entityId: locked.id });
+      if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menutup slip gajinya sendiri ${number}`, link: `/payroll/payslips/${locked.id}`, entity: 'payslip', entityId: locked.id });
       return number;
     });
     return out('CLOSED', `${closedNumber}: bersih ${rupiah(c.net)}`);
@@ -947,7 +947,7 @@ export async function closeSlips(
   for (const id of ids) outcomes.push(await closeOne(actor, id, announce, now));
   const failed = outcomes.filter((o) => o.result === 'FAILED');
   if (failed.length && ids.length > 1) {
-    await db.transaction((tx) => announce(tx, actor.accountId, { what: `menutup slip: ${failed.length} gagal (${failed.map((f) => f.name).join(', ')})`, link: '/gaji/periode', entity: 'payslip', entityId: failed[0].slipId }));
+    await db.transaction((tx) => announce(tx, actor.accountId, { what: `menutup slip: ${failed.length} gagal (${failed.map((f) => f.name).join(', ')})`, link: '/payroll/periods', entity: 'payslip', entityId: failed[0].slipId }));
   }
   return { ok: true, data: { outcomes } };
 }
@@ -1063,7 +1063,7 @@ export async function runWeeklyReminder(now: Date = new Date()) {
     }
     await db.transaction((tx) => notify(tx, [...recipients.values()], {
       kind: 'payslip.reminder', title: `Slip minggu ${longDate(w.start)} – ${longDate(w.end)}: ${open.length} belum ditutup (${open.length - held} siap, ${held} tertahan).`,
-      body: 'Gaji mingguan jatuh bayar dua hari sesudah minggu berakhir.', link: `/gaji/periode/${weekKey(w.start)}`,
+      body: 'Gaji mingguan jatuh bayar dua hari sesudah minggu berakhir.', link: `/payroll/periods/${weekKey(w.start)}`,
     }, null));
     sent.push({ week: w.start, estimate: open.length });
   }
@@ -1088,7 +1088,7 @@ export async function runPayslipReminder(now: Date = new Date()) {
     const heldText = held.slice(0, 10).map((person) => `${person.name}: ${(holds.get(person.id) ?? []).map((h) => `${h.text} → ${h.resolver}`).join('; ')}`).join('\n');
     await db.transaction((tx) => notify(tx, [...recipients.values()], {
       kind: 'payslip.reminder', title: `Slip periode ${periodLabel(p)}: ${open.length} belum ditutup (${open.length - held.length} siap, ${held.length} tertahan).`,
-      body: heldText || null, link: `/gaji/periode/${p}`,
+      body: heldText || null, link: `/payroll/periods/${p}`,
     }, null));
     sent.push({ period: p, estimate: open.length });
   }

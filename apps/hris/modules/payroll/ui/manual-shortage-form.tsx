@@ -71,7 +71,7 @@ export function ManualShortageForm({ branches, today, direct }: { branches: { id
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(direct ? 'Minus kas berlaku. Penanggung diberi tahu.' : String(result.data?.message ?? 'Usulan terkirim.'), 'ok');
-    router.push('/potongan/minus-kas?tab=manual');
+    router.push('/deductions/cash-shortages?tab=manual');
     router.refresh();
   }
 
@@ -126,7 +126,7 @@ export function ManualShortageForm({ branches, today, direct }: { branches: { id
       <div className="flex flex-wrap gap-2">
         {step > 1
           ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href="/potongan/minus-kas?tab=manual">Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href="/deductions/cash-shortages?tab=manual">Batal</Link>}
         {step < 4 ? <Button loading={busy} onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{direct ? 'Simpan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

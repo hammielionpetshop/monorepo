@@ -44,10 +44,10 @@ export function UnloadingListScreen({ tab, from, to, q, head, rows, other, canCr
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {TABS.map(([key, label]) => (
-          <Link key={key} href={key === 'UNPAID' ? '/gaji/bongkaran' : `/gaji/bongkaran?tab=${key}`} className={buttonClass({ variant: key === tab ? 'primary' : 'secondary', size: 'sm' })}>{label}</Link>
+          <Link key={key} href={key === 'UNPAID' ? '/payroll/unloading' : `/payroll/unloading?tab=${key}`} className={buttonClass({ variant: key === tab ? 'primary' : 'secondary', size: 'sm' })}>{label}</Link>
         ))}
-        {canCreate && <Link className={buttonClass({})} href="/gaji/bongkaran/baru">Laporan baru</Link>}
-        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/gaji/bongkaran/berat">Berat per satuan</Link>
+        {canCreate && <Link className={buttonClass({})} href="/payroll/unloading/new">Laporan baru</Link>}
+        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href="/payroll/unloading/weights">Berat per satuan</Link>
       </div>
       {(tab === 'ALL' || tab === 'OTHER') && (
         <form method="get" className="flex flex-wrap items-end gap-2">
@@ -65,7 +65,7 @@ export function UnloadingListScreen({ tab, from, to, q, head, rows, other, canCr
           rowKey={(r) => r.id}
           empty={tab === 'UNPAID' ? 'Tidak ada laporan yang belum dibayar.' : tab === 'PENDING' ? 'Tidak ada laporan terlambat yang menunggu.' : 'Belum ada laporan di rentang ini.'}
           columns={[
-            { key: 'number', header: 'Nomor', primary: true, render: (r) => <Link className="underline" href={`/gaji/bongkaran/${r.id}`}>{r.number}</Link> },
+            { key: 'number', header: 'Nomor', primary: true, render: (r) => <Link className="underline" href={`/payroll/unloading/${r.id}`}>{r.number}</Link> },
             { key: 'date', header: 'Tanggal kerja', render: (r) => longDate(r.workDate) },
             { key: 'supplier', header: 'Supplier', render: (r) => r.supplierName },
             { key: 'kg', header: 'Total kg', render: (r) => <span className="tabular-nums">{kgText(r.totalKg)}</span> },
@@ -96,7 +96,7 @@ function OtherItems({ data, canLink }: { data: OtherData; canLink: boolean }) {
         empty="Tidak ada Barang lain di rentang ini."
         columns={[
           { key: 'name', header: 'Nama diketik', primary: true, render: (r) => r.name },
-          { key: 'report', header: 'Laporan', render: (r) => <Link className="underline" href={`/gaji/bongkaran/${r.reportId}`}>{r.number}</Link> },
+          { key: 'report', header: 'Laporan', render: (r) => <Link className="underline" href={`/payroll/unloading/${r.reportId}`}>{r.number}</Link> },
           { key: 'date', header: 'Tanggal', render: (r) => longDate(r.workDate) },
           { key: 'kg', header: 'Kg', render: (r) => kgText(r.kg) },
           { key: 'reason', header: 'Alasan', render: (r) => r.reason },
@@ -169,7 +169,7 @@ export function UnloadingDetailScreen({ data }: { data: Detail }) {
         <p>{data.supplierName} · tanggal kerja <b>{longDate(data.workDate)}</b></p>
         <p className="text-sm text-ink-muted">Dibuat {data.createdBy}, {timeText(data.createdAt)}{data.costBranch ? ` · biaya dibebankan ke ${data.costBranch}` : ''}</p>
         {data.lateReason && <p className="text-sm">Alasan terlambat: {data.lateReason}</p>}
-        {data.status === 'PENDING' && data.requestId && <Link className="text-sm underline" href={`/persetujuan/${data.requestId}`}>Lihat pengajuan persetujuan</Link>}
+        {data.status === 'PENDING' && data.requestId && <Link className="text-sm underline" href={`/approvals/${data.requestId}`}>Lihat pengajuan persetujuan</Link>}
         {data.flags.length > 0 && (
           <ul className="space-y-1 text-sm">{data.flags.map((f) => <li key={f.label}><Badge tone="warn">{f.label}</Badge> <span className="text-ink-muted">{f.explain}</span></li>)}</ul>
         )}
@@ -242,8 +242,8 @@ export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <Link href="/gaji/bongkaran/berat" className={buttonClass({ variant: tab === 'ALL' ? 'primary' : 'secondary', size: 'sm' })}>Semua berat</Link>
-        <Link href="/gaji/bongkaran/berat?tab=CHANGED" className={buttonClass({ variant: tab === 'CHANGED' ? 'primary' : 'secondary', size: 'sm' })}>Berat berubah ({changedCount})</Link>
+        <Link href="/payroll/unloading/weights" className={buttonClass({ variant: tab === 'ALL' ? 'primary' : 'secondary', size: 'sm' })}>Semua berat</Link>
+        <Link href="/payroll/unloading/weights?tab=CHANGED" className={buttonClass({ variant: tab === 'CHANGED' ? 'primary' : 'secondary', size: 'sm' })}>Berat berubah ({changedCount})</Link>
       </div>
       {tab === 'ALL' ? (
         <DataList
@@ -274,7 +274,7 @@ export function UnloadingWeightsScreen({ tab, canEdit, canReview, changedCount, 
             { key: 'name', header: 'Produk', primary: true, render: (r) => `${r.productName} · ${r.uomName}` },
             { key: 'change', header: 'Perubahan', render: changeText },
             { key: 'by', header: 'Oleh', render: (r) => `${r.by}, ${timeText(r.at)}` },
-            { key: 'report', header: 'Laporan', render: (r) => (r.report ? <Link className="underline" href={`/gaji/bongkaran/${r.report.id}`}>{r.report.number}</Link> : 'Di luar laporan') },
+            { key: 'report', header: 'Laporan', render: (r) => (r.report ? <Link className="underline" href={`/payroll/unloading/${r.report.id}`}>{r.report.number}</Link> : 'Di luar laporan') },
             { key: 'reason', header: 'Alasan', render: (r) => r.reason ?? '-' },
             { key: 'act', header: '', render: (r) => (canReview ? <Button size="sm" variant="ghost" onClick={() => setReview(r)}>Sudah dilihat</Button> : null) },
           ]}

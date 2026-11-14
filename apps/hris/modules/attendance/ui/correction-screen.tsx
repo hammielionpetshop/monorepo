@@ -50,8 +50,8 @@ export function CorrectionScreen({ tab, canCreate, fix, history }: {
         label="Tab Koreksi Absen"
         active={tab}
         tabs={[
-          ...(canCreate ? [{ key: 'fix', label: 'Koreksi', href: '/kehadiran/koreksi' }] : []),
-          ...(history ? [{ key: 'history', label: 'Riwayat koreksi', href: '/kehadiran/koreksi?tab=history' }] : []),
+          ...(canCreate ? [{ key: 'fix', label: 'Koreksi', href: '/attendance/corrections' }] : []),
+          ...(history ? [{ key: 'history', label: 'Riwayat koreksi', href: '/attendance/corrections?tab=history' }] : []),
         ]}
       />
       {tab === 'fix' && fix && <FixPanel key={[fix.mode, fix.date, fix.employeeId, fix.branchId].join('|')} data={fix} />}
@@ -86,7 +86,7 @@ function FixPanel({ data }: { data: FixData }) {
     const branch = next.branch ?? (data.branchId ? String(data.branchId) : '');
     if ((next.mode ?? data.mode) === 'one' && employee) params.set('employee', employee);
     if ((next.mode ?? data.mode) === 'many' && branch) params.set('branch', branch);
-    router.push(`/kehadiran/koreksi?${params}`);
+    router.push(`/attendance/corrections?${params}`);
   };
 
   const chosen = data.people.filter((person) => selected.has(person.employeeId));
@@ -120,7 +120,7 @@ function FixPanel({ data }: { data: FixData }) {
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(String(result.data?.message ?? 'Koreksi tersimpan.'), 'ok');
-    router.push('/kehadiran/koreksi?tab=history');
+    router.push('/attendance/corrections?tab=history');
   }
 
   const stepError = (): string | null => {
@@ -317,7 +317,7 @@ function HistoryPanel({ data }: { data: HistoryData }) {
     if (branch) params.set('branch', branch);
     const query = next.q ?? data.q;
     if (query) params.set('q', query);
-    router.push(`/kehadiran/koreksi?${params}`);
+    router.push(`/attendance/corrections?${params}`);
   };
 
   async function reverse() {
@@ -354,7 +354,7 @@ function HistoryPanel({ data }: { data: HistoryData }) {
         rowKey={(row) => row.id}
         empty="Belum ada koreksi di periode ini."
         columns={[
-          { key: 'name', header: 'Orang', primary: true, render: (row) => <Link className="text-brand-700" href={`/kehadiran/catatan-hari?employee=${row.employeeId}&date=${row.workDate}`}>{row.name} · {row.workDate}</Link> },
+          { key: 'name', header: 'Orang', primary: true, render: (row) => <Link className="text-brand-700" href={`/attendance/day-notes?employee=${row.employeeId}&date=${row.workDate}`}>{row.name} · {row.workDate}</Link> },
           { key: 'before', header: 'Lama', render: (row) => row.before },
           { key: 'after', header: 'Baru', render: (row) => <>{row.after}{row.lateMinutes != null && <> · telat {row.lateMinutes} mnt</>}</> },
           {

@@ -177,7 +177,7 @@ async function notifyBorn(tx: Tx, employeeId: number, events: { kind: EventKind;
     kind: 'attendance.clarification',
     title: events.length === 1 ? `Perlu dijelaskan: ${eventTitle(first.kind, first.minutes)} ${shortDate(first.workDate)}` : `${events.length} hal perlu dijelaskan`,
     body: `${consequenceText(first.kind)} Batas ${deadlineText(first.deadlineAt)}.`,
-    link: '/perlu-dijelaskan',
+    link: '/clarifications',
   }, null);
 }
 
@@ -913,7 +913,7 @@ export async function clarificationAttention(actor: Actor | null, now: Date = ne
   const count = Number(mine[0]?.n ?? 0);
   if (count) {
     const first = mine[0].first ? new Date(mine[0].first) : null;
-    cards.push({ key: 'clarify-mine', title: `${count} hal perlu dijelaskan`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/perlu-dijelaskan' });
+    cards.push({ key: 'clarify-mine', title: `${count} hal perlu dijelaskan`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/clarifications' });
   }
   if (hasAction(actor, 'clarification.streak.seen')) {
     const flags = await db.execute<{ n: number }>(sql`
@@ -921,7 +921,7 @@ export async function clarificationAttention(actor: Actor | null, now: Date = ne
       where f.employee_id <> ${actor.personId}
         and coalesce((select s.seen from hris.absence_streak_seen s where s.flag_id = f.id order by s.id desc limit 1), false) = false`);
     const n = Number(flags[0]?.n ?? 0);
-    if (n) cards.push({ key: 'clarify-streak', title: `${n} orang tidak masuk berturut-turut`, detail: 'Belum ditandai sudah dilihat', href: '/kehadiran/perlu-dijelaskan?tab=streak' });
+    if (n) cards.push({ key: 'clarify-streak', title: `${n} orang tidak masuk berturut-turut`, detail: 'Belum ditandai sudah dilihat', href: '/attendance/clarifications?tab=streak' });
   }
   return cards;
 }
@@ -935,7 +935,7 @@ export async function runClarificationDaily(now: Date = new Date()) {
     await db.transaction(async (tx) => {
       await notify(tx, await ownerAccounts(), {
         kind: 'attendance.clarification', title: 'Mesin penanda alpha gagal berjalan',
-        body: 'Penanda alpha dan Perlu Dijelaskan pagi ini gagal. Hari kemarin akan dikejar pada jalan berikutnya.', link: '/kehadiran/perlu-dijelaskan',
+        body: 'Penanda alpha dan Perlu Dijelaskan pagi ini gagal. Hari kemarin akan dikejar pada jalan berikutnya.', link: '/attendance/clarifications',
       }, null);
     }).catch(() => undefined);
     throw error;
@@ -1014,7 +1014,7 @@ async function clarificationDaily(now: Date) {
           kind: 'attendance.clarification',
           title: group.left === 0 ? `Hari terakhir menjelaskan: ${group.events.length === 1 ? `${eventTitle(first.kind as EventKind, first.minutes)} ${shortDate(first.workDate)}` : `${group.events.length} hal`}`
             : `Tinggal 1 hari: ${group.events.length === 1 ? `${eventTitle(first.kind as EventKind, first.minutes)} ${shortDate(first.workDate)}` : `${group.events.length} hal perlu dijelaskan`}`,
-          body: consequenceText(first.kind as EventKind), link: '/perlu-dijelaskan',
+          body: consequenceText(first.kind as EventKind), link: '/clarifications',
         }, null);
         result.reminders += 1;
       }
@@ -1050,7 +1050,7 @@ async function clarificationDaily(now: Date) {
           result.streaks += 1;
           await notify(tx, recipients.filter((id) => id), {
             kind: 'attendance.clarification', title: `${person.name} tidak masuk ${threshold} hari kerja berturut-turut`,
-            body: `Sejak ${shortDate(hit.startDate)}: ${[...new Set(hit.causes)].join(', ')}. Tidak ada penonaktifan otomatis.`, link: '/kehadiran/perlu-dijelaskan?tab=streak',
+            body: `Sejak ${shortDate(hit.startDate)}: ${[...new Set(hit.causes)].join(', ')}. Tidak ada penonaktifan otomatis.`, link: '/attendance/clarifications?tab=streak',
           }, null);
         });
       }
@@ -1071,7 +1071,7 @@ async function clarificationDaily(now: Date) {
       const [person] = await tx.execute<{ name: string }>(sql`select name from hris.employees where id = ${employeeId}`);
       await notify(tx, owners, {
         kind: 'attendance.clarification', title: `${person?.name ?? 'Seseorang'} lupa absen lebih dari ${min} kali periode ini`,
-        body: 'Lihat rinciannya di Laporan Kebiasaan Lupa Absen.', link: `/kehadiran/kebiasaan-lupa-absen?period=${period.start}`,
+        body: 'Lihat rinciannya di Laporan Kebiasaan Lupa Absen.', link: `/attendance/missed-clock-in-habits?period=${period.start}`,
       }, null);
       result.habits += 1;
     });

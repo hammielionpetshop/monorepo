@@ -285,7 +285,7 @@ export async function mySchedule(actor: Actor, week: IsoDate, today: IsoDate) {
   };
 }
 
-/** Status kode QR untuk halaman penampung `/absen`. */
+/** Status kode QR untuk halaman penampung `/clock-in`. */
 export async function qrStatus(code: string): Promise<'ALIVE' | 'DEAD' | 'UNKNOWN'> {
   const [row] = await db.select({ deadAt: branchQrCodes.deadAt }).from(branchQrCodes).where(eq(branchQrCodes.code, code)).limit(1);
   if (!row) return 'UNKNOWN';

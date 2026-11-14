@@ -140,14 +140,14 @@ export async function syncTripWages(filter: Filter, actorAccountId: number | nul
       const accounts = await activeHrisAccounts([...new Set(tell.map((t) => t.employeeId))]);
       for (const t of tell) {
         const account = accounts.get(t.employeeId);
-        if (account) await notify(tx, [account], { kind: 'wage.trip_revalued', title: t.title, body: t.body, link: '/trip-saya', entity: 'trip_wage_value', entityId: t.id }, actorAccountId);
+        if (account) await notify(tx, [account], { kind: 'wage.trip_revalued', title: t.title, body: t.body, link: '/my-trips', entity: 'trip_wage_value', entityId: t.id }, actorAccountId);
       }
     }
     // Pagar terakhir (spec §3.2 langkah 2): upah Belum bertarif masuk perhatian Pemilik/GM.
     if (unratedNew.size) {
       await notify(tx, await rateManagerAccounts(), {
         kind: 'wage.trip_unrated', title: `Ada upah ritase belum bertarif: ${[...unratedNew].join(', ')}`,
-        body: 'Isi tarifnya di Pengaturan › Tarif Ritase; upahnya dinilai ulang otomatis.', link: '/pengaturan/tarif-ritase', entity: 'trip_rate', entityId: null,
+        body: 'Isi tarifnya di Pengaturan › Tarif Ritase; upahnya dinilai ulang otomatis.', link: '/settings/trip-rates', entity: 'trip_rate', entityId: null,
       }, null);
     }
     return { written, cancelled };

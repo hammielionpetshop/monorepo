@@ -75,7 +75,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Pilih jabatan dan tandanya di Pengaturan Jabatan. Pemilik atau GM memutuskan.',
     submittedMessage: 'Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.',
-    formHref: '/pengaturan/jabatan',
+    formHref: '/settings/positions',
     hiddenForAction: 'position_settings.approve',
   },
   relocation: {
@@ -107,7 +107,7 @@ export const REQUEST_TYPES = {
     revocable: true,
     guideLine: 'Sakit lebih dari 2 hari wajib surat dokter. HR, Pemilik, atau GM memutuskan.',
     submittedMessage: 'Pengajuan terkirim. Menunggu keputusan HR atau pemilik. Selama menunggu, hari itu tidak ditandai alpha.',
-    formHref: '/tidak-masuk/ajukan',
+    formHref: '/absence/submit',
     hiddenForFullAccess: true,
   },
   clarification: {
@@ -124,7 +124,7 @@ export const REQUEST_TYPES = {
     revocable: true,
     guideLine: 'Jelaskan dari menu Perlu Dijelaskan sebelum batas 3 hari. HR, Pemilik, atau GM memutuskan.',
     submittedMessage: 'Terkirim. Menunggu keputusan HR atau pemilik.',
-    formHref: '/perlu-dijelaskan',
+    formHref: '/clarifications',
     hiddenFromChooser: true,
   },
   overtime_claim: {
@@ -141,7 +141,7 @@ export const REQUEST_TYPES = {
     revocable: true,
     guideLine: 'Foto kertas lembur dan pilih yang menyuruh, dari menu Lembur Saya. HR, Pemilik, atau GM mengesahkan.',
     submittedMessage: 'Klaim lembur terkirim. Menunggu keputusan HR atau pemilik.',
-    formHref: '/lembur',
+    formHref: '/overtime',
     hiddenFromChooser: true,
   },
   salary_change: {
@@ -157,7 +157,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Usulkan dari Kantor › Gaji Karyawan › Ubah Gaji. Pemilik atau GM memutuskan.',
     submittedMessage: 'Usulan terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/gaji',
+    formHref: '/payroll',
     hiddenForAction: 'salary.change',
   },
   inventory_loss: {
@@ -173,7 +173,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Catat dari Kantor › Kehilangan Barang dengan foto hasil opname. Pemilik atau GM mengesahkan.',
     submittedMessage: 'Usulan kehilangan barang terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/potongan/kehilangan-barang/catat',
+    formHref: '/deductions/lost-items/record',
     hiddenFromChooser: true,
   },
   manual_cash_shortage: {
@@ -189,7 +189,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Catat dari Kantor › Minus Kas, tab Catat tangan. Pemilik atau GM mengesahkan.',
     submittedMessage: 'Usulan minus kas terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/potongan/minus-kas/catat',
+    formHref: '/deductions/cash-shortages/record',
     hiddenFromChooser: true,
   },
   other_deduction: {
@@ -205,7 +205,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ajukan dari Kantor › Potongan Lain. Pemilik atau GM mengesahkan.',
     submittedMessage: 'Usulan Potongan Lain terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/potongan/lain/ajukan',
+    formHref: '/deductions/other/submit',
     hiddenFromChooser: true,
   },
   driver_fine: {
@@ -221,7 +221,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ajukan dari Gaji › Denda Driver & Kenek. Pemilik atau GM mengesahkan.',
     submittedMessage: 'Usulan denda terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/gaji/denda-driver/ajukan',
+    formHref: '/payroll/driver-fines/submit',
     hiddenFromChooser: true,
   },
   unloading_late: {
@@ -238,7 +238,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Isi dari Gaji › Laporan Bongkaran › Laporan baru. Pemilik atau GM yang bukan pembuat dan bukan peserta memutuskan.',
     submittedMessage: 'Laporan tersimpan dan menunggu persetujuan Pemilik atau GM sebelum bisa dibayar.',
     rejectReasonMin: 15,
-    formHref: '/gaji/bongkaran/baru',
+    formHref: '/payroll/unloading/new',
     hiddenFromChooser: true,
   },
   unloading_not_received: {
@@ -256,7 +256,7 @@ export const REQUEST_TYPES = {
     submittedMessage: 'Laporan terkirim. Pemilik atau GM dan yang membayar diberi tahu.',
     rejectReasonMin: 15,
     approveNoteMin: 15,
-    formHref: '/pendapatan',
+    formHref: '/earnings',
     hiddenFromChooser: true,
   },
   free_bonus: {
@@ -272,7 +272,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Catat dari Kantor › Persetujuan Bonus › Catat Bonus Bebas. Pemilik atau GM mengesahkan.',
     submittedMessage: 'Usulan Bonus Bebas terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/bonus/catat',
+    formHref: '/bonuses/record',
     hiddenFromChooser: true,
   },
   payslip_reopen: {
@@ -288,7 +288,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ajukan dari layar Slip › Minta buka kembali. Pemilik atau GM memutuskan.',
     submittedMessage: 'Permintaan buka kembali terkirim. Menunggu Pemilik atau GM.',
-    formHref: '/gaji/periode',
+    formHref: '/payroll/periods',
     hiddenFromChooser: true,
   },
   deduction_objection: {
@@ -304,7 +304,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ajukan dari pemberitahuan potongan sebelum batas 3 hari. Pemilik atau GM memutuskan: disetujui = ditiadakan, ditolak = tetap.',
     submittedMessage: 'Keberatan terkirim. Potongan tetap berjalan sampai Pemilik atau GM memutuskan.',
-    formHref: '/keberatan-potongan/ajukan',
+    formHref: '/deduction-objections/submit',
     hiddenFromChooser: true,
   },
   // Keberatan slip (spec L4g §3.5): satu isian, dua jenis menurut penyetujunya. "Ada yang salah" di slip biasa → HR,
@@ -323,7 +323,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Ajukan dari Slip Saya sebelum batasnya. HR, Pemilik, atau GM memutuskan; slip tidak ditahan selama menunggu.',
     submittedMessage: 'Keberatan slip terkirim. Menunggu keputusan HR, Pemilik, atau GM. Slip tidak ditahan.',
     rejectReasonMin: 15,
-    formHref: '/pendapatan/keberatan',
+    formHref: '/earnings/objections',
     hiddenFromChooser: true,
   },
   payslip_objection_owner: {
@@ -340,7 +340,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Ajukan dari Slip Saya sebelum batasnya. Pemilik atau GM memutuskan.',
     submittedMessage: 'Keberatan slip terkirim. Menunggu keputusan Pemilik atau GM.',
     rejectReasonMin: 15,
-    formHref: '/pendapatan/keberatan',
+    formHref: '/earnings/objections',
     hiddenFromChooser: true,
   },
   // Kasbon (spec L5 §3.1–3.6). Diperiksa Finance lalu diputuskan Pemilik/GM; angka akhir lewat panel khas.
@@ -358,7 +358,7 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ajukan dari Saya › Kasbon Saya. Finance memeriksa, Pemilik atau GM memutuskan, lalu uangnya diserahkan.',
     submittedMessage: 'Kasbon diproses paling cepat 2 hari setelah pengajuan, tidak bisa langsung cair. Menunggu diperiksa Finance.',
-    formHref: '/kasbon/ajukan',
+    formHref: '/advances/submit',
     customDecision: true,
   },
   advance_cancel: {
@@ -375,7 +375,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Minta dari kartu kasbon di Kasbon Saya. Pemilik atau GM memutuskan: Setujui = kasbon dibatalkan, Tolak = tetap berjalan.',
     submittedMessage: 'Permintaan terkirim. Selama menunggu, uang kasbon tidak diserahkan. Pemilik atau GM memutuskan.',
     rejectReasonMin: 15,
-    formHref: '/kasbon',
+    formHref: '/advances',
     hiddenFromChooser: true,
   },
   advance_not_received: {
@@ -393,7 +393,7 @@ export const REQUEST_TYPES = {
     submittedMessage: 'Laporan terkirim. Pemilik atau GM dan yang menyerahkan uang diberi tahu.',
     rejectReasonMin: 15,
     approveNoteMin: 15,
-    formHref: '/kasbon',
+    formHref: '/advances',
     hiddenFromChooser: true,
   },
   advance_postpone: {
@@ -410,7 +410,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Minta dari kartu kasbon di Kasbon Saya. Pemilik atau GM memutuskan: Setujui = semua cicilan bergeser satu gajian.',
     submittedMessage: 'Permintaan tunda terkirim. Selama menunggu, cicilan tetap terjadwal; bila slipnya ditutup lebih dulu, permintaan gugur.',
     rejectReasonMin: 15,
-    formHref: '/kasbon',
+    formHref: '/advances',
     hiddenFromChooser: true,
   },
   // Sisa kasbon bawaan sistem lama (spec L9 §3.1, SIS-28): diketik Finance, disahkan Pemilik/GM.
@@ -428,7 +428,7 @@ export const REQUEST_TYPES = {
     guideLine: 'Finance mengetik sisa per orang dari Gaji › Kasbon › Bawaan. Pemilik atau GM mengesahkan; cicilan dimulai di slip hari pindah.',
     submittedMessage: 'Sisa kasbon bawaan terkirim. Menunggu disahkan Pemilik atau GM.',
     rejectReasonMin: 15,
-    formHref: '/gaji/kasbon/bawaan',
+    formHref: '/payroll/advances/opening-balances',
     hiddenFromChooser: true,
   },
 } as const satisfies Record<string, RequestTypeDefinition>;

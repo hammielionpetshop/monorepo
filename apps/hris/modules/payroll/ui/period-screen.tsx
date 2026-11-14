@@ -29,7 +29,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
   /** Tab Ringkasan (L4f-2); null = tidak berhak. */
   summary: ReactNode | null;
 }) {
-  const base = `/gaji/periode/${period.key}`;
+  const base = `/payroll/periods/${period.key}`;
   const readyCount = rows.filter((r) => r.ready).length;
   const branches = [...new Set(rows.map((r) => r.branchName))].sort();
   const matches = (r: Row) => !filter.status
@@ -51,24 +51,24 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
         {period.weekly && (
           <p className="flex items-center gap-1 text-ink-muted">
             Slip mingguan: upah ritase dan upah belanja driver & kenek, ditambah slip di luar slip utama untuk staf bulanan yang ikut trip.
-            Jatuh bayar dua hari sesudah minggu berakhir. <Link className="underline" href={`/gaji/upah-ritase?minggu=${period.start}`}>Upah Ritase minggu ini</Link>
+            Jatuh bayar dua hari sesudah minggu berakhir. <Link className="underline" href={`/payroll/trip-wages?minggu=${period.start}`}>Upah Ritase minggu ini</Link>
             <NewBadge feature="fitur/slip-mingguan" />
           </p>
         )}
         {win.testMode && <Alert tone="warn">Mode uji staging: slip periode ini boleh ditutup sebelum tanggalnya. Di produksi tombol Tutup baru aktif mulai {win.opensText}.</Alert>}
         <div className="flex flex-wrap gap-2">
           {can.close && readyCount > 0
-            ? <Link className={buttonClass({})} href={`${base}/tutup`}>Tutup semua yang siap ({readyCount})</Link>
+            ? <Link className={buttonClass({})} href={`${base}/close`}>Tutup semua yang siap ({readyCount})</Link>
             : <span className={buttonClass({ variant: 'secondary' })} aria-disabled="true">{win.open ? `Tutup semua yang siap (${readyCount})` : `Aktif mulai ${win.opensText}`}</span>}
-          {counts.closed > 0 && <Link className={buttonClass({ variant: 'secondary' })} href={`${base}/cetak`} target="_blank">Cetak semua yang ditutup</Link>}
-          {counts.closed > counts.paid && <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/jadwal-bayar">Jadwal Bayar ({counts.closed - counts.paid} belum Dibayar)</Link>}
+          {counts.closed > 0 && <Link className={buttonClass({ variant: 'secondary' })} href={`${base}/print`} target="_blank">Cetak semua yang ditutup</Link>}
+          {counts.closed > counts.paid && <Link className={buttonClass({ variant: 'secondary' })} href="/payroll/pay-schedule">Jadwal Bayar ({counts.closed - counts.paid} belum Dibayar)</Link>}
         </div>
       </Card>
 
       <nav className="flex flex-wrap gap-2" aria-label="Tab periode">
         {tabLink('slip', 'Slip')}
         {tabLink('tertahan', `Tertahan (${counts.held})`)}
-        {!period.weekly && <Link href={`/gaji/tiadakan?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>}
+        {!period.weekly && <Link href={`/payroll/waivers?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>}
         <span className="flex items-center gap-1">{tabLink('koreksi', period.weekly ? `Koreksi & upah susulan (${corrections.length})` : `Koreksi Periode Lalu (${corrections.length})`)}<NewBadge feature="fitur/koreksi-periode-lalu" /></span>
         {tabLink('riwayat', 'Riwayat')}
         {summary !== null && !period.weekly && <span className="flex items-center gap-1">{tabLink('ringkasan', 'Ringkasan')}<NewBadge feature="fitur/ringkasan-gaji" /></span>}
@@ -98,7 +98,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
             rowKey={(r) => r.slipId}
             empty="Tidak ada slip."
             columns={[
-              { key: 'name', header: 'Nama', primary: true, render: (r) => <Link className="underline" href={`/gaji/slip/${r.slipId}`}>{r.name}</Link> },
+              { key: 'name', header: 'Nama', primary: true, render: (r) => <Link className="underline" href={`/payroll/payslips/${r.slipId}`}>{r.name}</Link> },
               { key: 'pos', header: 'Jabatan · cabang', render: (r) => `${r.positionName} · ${r.branchName}` },
               ...(period.weekly ? [{ key: 'kind', header: 'Jenis slip', render: (r: Row) => r.kindLabel ?? '—' }] : []),
               { key: 'status', header: 'Status', render: (r) => <Status row={r} /> },
@@ -116,7 +116,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
           rowKey={(x) => x.key}
           empty="Tidak ada slip yang tertahan."
           columns={[
-            { key: 'name', header: 'Nama', primary: true, render: (x) => <Link className="underline" href={`/gaji/slip/${x.row.slipId}`}>{x.row.name}</Link> },
+            { key: 'name', header: 'Nama', primary: true, render: (x) => <Link className="underline" href={`/payroll/payslips/${x.row.slipId}`}>{x.row.name}</Link> },
             { key: 'hold', header: 'Penahan', render: (x) => x.hold.text },
             { key: 'resolver', header: 'Penyelesai', render: (x) => x.hold.resolver },
             { key: 'go', header: '', render: (x) => <Link className="underline" href={x.hold.link}>Buka urusannya</Link> },
@@ -131,7 +131,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
             rowKey={(c) => c.key}
             empty="Tidak ada koreksi periode lalu yang masuk slip periode ini."
             columns={[
-              { key: 'name', header: 'Nama', primary: true, render: (c) => <Link className="underline" href={`/gaji/slip/${c.slipId}`}>{c.name}</Link> },
+              { key: 'name', header: 'Nama', primary: true, render: (c) => <Link className="underline" href={`/payroll/payslips/${c.slipId}`}>{c.name}</Link> },
               { key: 'label', header: 'Baris', render: (c) => c.label },
               { key: 'amount', header: 'Nominal', render: (c) => <span className="tabular-nums">{c.plus ? '+' : '−'}{rupiah(c.amount)}</span> },
               { key: 'state', header: 'Slip', render: (c) => (c.closed ? 'Ditutup' : 'Perkiraan') },

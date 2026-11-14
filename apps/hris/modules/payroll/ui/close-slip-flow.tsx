@@ -26,7 +26,7 @@ export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcomes, setOutcomes] = useState<CloseOutcome[] | null>(null);
-  const back = single && ready[0] ? `/gaji/slip/${ready[0].slipId}` : `/gaji/periode/${period.key}`;
+  const back = single && ready[0] ? `/payroll/payslips/${ready[0].slipId}` : `/payroll/periods/${period.key}`;
 
   async function close() {
     setBusy(true);

@@ -155,7 +155,7 @@ export async function submitRequest(actor: Actor | null, typeKey: string, handle
         kind: 'request.submitted',
         title: `Pengajuan baru: ${type.label} — ${me.name}`,
         body: summary,
-        link: `/persetujuan/${row.id}`,
+        link: `/approvals/${row.id}`,
         entity: 'request', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id: row.id, message: type.submittedMessage } };
@@ -245,7 +245,7 @@ export async function cancelRequest(
         kind: 'request.cancelled',
         title: `${type?.label ?? 'Pengajuan'} yang Anda setujui dibatalkan${me ? ` oleh ${me.name}` : ''}`,
         body: `Alasan: ${reason.reason}`,
-        link: `/persetujuan/${row.id}`, entity: 'request', entityId: row.id,
+        link: `/approvals/${row.id}`, entity: 'request', entityId: row.id,
       }, actor.accountId);
     }
     return { ok: true as const, data: { id } };
@@ -291,7 +291,7 @@ export async function revokeRequest(
       kind: 'request.revoked',
       title: `Persetujuan ${type?.label.toLowerCase() ?? 'pengajuan'} dicabut`,
       body: `Alasan: ${reason.reason}`,
-      link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+      link: `/requests/${row.id}`, entity: 'request', entityId: row.id,
     }, actor.accountId);
     return { ok: true as const, data: { id, message: `${requestNumber(id)} dicabut. Orangnya diberi tahu alasannya.` } };
   });
@@ -332,7 +332,7 @@ export async function reviewRequest(actor: Actor | null, id: number, handlers: R
         kind: 'request.reviewed',
         title: `${type.label} sudah diperiksa${me ? ` oleh ${me.name}` : ''}`,
         body: `${row.summary}. Menunggu keputusan Anda.`,
-        link: `/persetujuan/${row.id}`, entity: 'request', entityId: row.id,
+        link: `/approvals/${row.id}`, entity: 'request', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id, message: `${requestNumber(id)} sudah diperiksa. ${reviewed.effect}` } };
     });
@@ -395,7 +395,7 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
           kind: 'request.approved',
           title: `${type.label} disetujui${me ? ` oleh ${me.name}` : ''}`,
           body: applied.effect,
-          link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+          link: `/requests/${row.id}`, entity: 'request', entityId: row.id,
         }, actor.accountId);
         return { ok: true as const, data: { id, message: `${requestNumber(id)} disetujui. ${applied.effect}` } };
       }
@@ -405,7 +405,7 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
         kind: 'request.rejected',
         title: `Pengajuan ${type.label.toLowerCase()} ditolak`,
         body: `Alasan: ${reason}`,
-        link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+        link: `/requests/${row.id}`, entity: 'request', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id, message: `${requestNumber(id)} ditolak. Pengaju diberi tahu alasannya.` } };
     });
@@ -436,7 +436,7 @@ export async function expireRequest(tx: Tx, id: number, reason: string, handler?
   await notify(tx, [row.submittedByAccountId], {
     kind: 'request.expired',
     title: `${type?.label ?? 'Pengajuan'} hangus`,
-    body: reason, link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+    body: reason, link: `/requests/${row.id}`, entity: 'request', entityId: row.id,
   }, null);
   return true;
 }

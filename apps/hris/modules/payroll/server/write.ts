@@ -103,7 +103,7 @@ export async function changeSalary(actor: Actor | null, input: SalaryChangeInput
     });
     const when = longDate(checked.effectiveFrom);
     await tellEmployee(tx, person.id, `Gaji Anda berubah mulai ${when}.`, id, actor!.accountId);
-    await announce(tx, actor!.accountId, { what: `mengubah gaji ${person.name} mulai ${when}`, link: `/gaji/${person.id}`, entity: 'salary_change', entityId: id });
+    await announce(tx, actor!.accountId, { what: `mengubah gaji ${person.name} mulai ${when}`, link: `/payroll/${person.id}`, entity: 'salary_change', entityId: id });
     const self = person.id === actor!.personId;
     return {
       ok: true as const,
@@ -139,11 +139,11 @@ export async function cancelSalaryChange(actor: Actor | null, changeId: number, 
     if (fresh.proposedByAccountId) {
       await notify(tx, [fresh.proposedByAccountId], {
         kind: 'salary.cancelled', title: `Perubahan gaji ${person.name} mulai ${when} dibatalkan.`, body: `Alasan: ${reason.reason}`,
-        link: `/gaji/${person.id}`, entity: 'salary_change', entityId: changeId,
+        link: `/payroll/${person.id}`, entity: 'salary_change', entityId: changeId,
       }, actor!.accountId);
     }
     await announce(tx, actor!.accountId, {
-      what: `membatalkan perubahan gaji ${person.name} mulai ${when}`, link: `/gaji/${person.id}`, entity: 'salary_change', entityId: changeId,
+      what: `membatalkan perubahan gaji ${person.name} mulai ${when}`, link: `/payroll/${person.id}`, entity: 'salary_change', entityId: changeId,
     });
     return { ok: true as const, data: { id: changeId } };
   });
@@ -226,7 +226,7 @@ export function salaryChangeHandler(announce: ChangeAnnounce) {
       const when = longDate(proposal.effectiveFrom);
       await tellEmployee(tx, proposal.employeeId, `Gaji Anda berubah mulai ${when}.`, id, actorAccountId);
       const name = person?.name ?? 'karyawan';
-      await announce(tx, actorAccountId, { what: `menyetujui usulan ubah gaji ${name} mulai ${when}`, link: `/persetujuan/${requestId}`, entity: 'salary_change', entityId: id });
+      await announce(tx, actorAccountId, { what: `menyetujui usulan ubah gaji ${name} mulai ${when}`, link: `/approvals/${requestId}`, entity: 'salary_change', entityId: id });
       return { ok: true as const, effect: `Gaji ${name} mulai ${when} menjadi ${rupiah(monthlyTotal(lines))}. ${name} diberi tahu.` };
     },
 
@@ -413,7 +413,7 @@ export async function schedulePromotionSalary(tx: Tx, event: { employeeId: numbe
     const why = !standard ? 'Gaji Standar Karyawan belum diisi' : 'orang ini belum punya gaji';
     await notify(tx, [...hr.values()], {
       kind: 'salary.promotion', title: `${person.name} naik menjadi Karyawan mulai ${longDate(event.effectiveOn)}, tetapi ${why}.`,
-      body: 'Gajinya tidak diubah otomatis. Isi lewat Ubah Gaji.', link: `/gaji/${person.id}`, entity: 'employee', entityId: person.id,
+      body: 'Gajinya tidak diubah otomatis. Isi lewat Ubah Gaji.', link: `/payroll/${person.id}`, entity: 'employee', entityId: person.id,
     }, event.actorAccountId);
     return;
   }

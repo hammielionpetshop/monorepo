@@ -59,7 +59,7 @@ export function LossFormScreen({ branches, today, direct }: { branches: { id: nu
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(direct ? 'Kehilangan barang berlaku. Yang menanggung diberi tahu bagiannya.' : String(result.data?.message ?? 'Usulan terkirim.'), 'ok');
-    router.push('/potongan/kehilangan-barang');
+    router.push('/deductions/lost-items');
     router.refresh();
   }
 
@@ -107,7 +107,7 @@ export function LossFormScreen({ branches, today, direct }: { branches: { id: nu
       <div className="flex flex-wrap gap-2">
         {step > 1
           ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href="/potongan/kehilangan-barang">Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href="/deductions/lost-items">Batal</Link>}
         {step < 4 ? <Button loading={busy} onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{direct ? 'Simpan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

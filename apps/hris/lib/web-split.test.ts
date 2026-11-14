@@ -14,21 +14,21 @@ describe('pembagian alamat HRIS / Logistik (F2-7b §3)', () => {
   });
 
   it('layar Logistik dan Trip Saya di HRIS dialihkan ke Logistik dengan alamat yang sama', () => {
-    expect(redirectTarget('hris', '/logistik/trip', '?tab=RUNNING', origins)).toBe('https://logistik.test/logistik/trip?tab=RUNNING');
-    expect(redirectTarget('hris', '/trip-saya', '', origins)).toBe('https://logistik.test/trip-saya');
+    expect(redirectTarget('hris', '/logistics/trips', '?tab=RUNNING', origins)).toBe('https://logistik.test/logistics/trips?tab=RUNNING');
+    expect(redirectTarget('hris', '/my-trips', '', origins)).toBe('https://logistik.test/my-trips');
     expect(redirectTarget('hris', '/logistikx', '', origins)).toBeNull();
   });
 
   it('layar HRIS di Logistik dialihkan ke HRIS; Beranda, Pemberitahuan, Profil tetap', () => {
-    expect(redirectTarget('logistik', '/gaji/kasbon', '?tab=periksa', origins)).toBe('https://hris.test/gaji/kasbon?tab=periksa');
-    expect(redirectTarget('logistik', '/kehadiran/absen-trip', '', origins)).toBe('https://hris.test/kehadiran/absen-trip');
-    for (const path of ['/', '/pemberitahuan', '/profil', '/logistik/bensin-mobil', '/trip-saya']) {
+    expect(redirectTarget('logistik', '/payroll/advances', '?tab=periksa', origins)).toBe('https://hris.test/payroll/advances?tab=periksa');
+    expect(redirectTarget('logistik', '/attendance/trip-attendance', '', origins)).toBe('https://hris.test/attendance/trip-attendance');
+    for (const path of ['/', '/notifications', '/profile', '/logistics/fuel', '/my-trips']) {
       expect(redirectTarget('logistik', path, '', origins)).toBeNull();
     }
   });
 
   it('pemisahan belum diatur: tidak ada pengalihan', () => {
-    expect(redirectTarget('hris', '/logistik/trip', '', off)).toBeNull();
+    expect(redirectTarget('hris', '/logistics/trips', '', off)).toBeNull();
   });
 
   it('alamat env dibersihkan; yang tidak sah diabaikan', () => {

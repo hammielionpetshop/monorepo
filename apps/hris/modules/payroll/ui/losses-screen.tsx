@@ -31,7 +31,7 @@ export function LossesScreen({ period, periods, filter, branches, missingOffice,
       {missingOffice.length > 0 && (
         <Alert tone="danger" title="Persen kantor belum diisi">
           {missingOffice.join(', ')} belum punya persen kantor untuk periode ini, jadi kehilangannya belum bisa dicatat.{' '}
-          <Link className="underline" href="/pengaturan/tanggungan-kehilangan">Isi di Tanggungan Kehilangan</Link>
+          <Link className="underline" href="/settings/loss-liabilities">Isi di Tanggungan Kehilangan</Link>
         </Alert>
       )}
       <form className="flex flex-wrap items-end gap-3" method="get">
@@ -49,7 +49,7 @@ export function LossesScreen({ period, periods, filter, branches, missingOffice,
           </Select>
         </Field>
         <Button type="submit" variant="secondary">Tampilkan</Button>
-        {canRecord && <Link className={buttonClass({})} href="/potongan/kehilangan-barang/catat">Catat Kehilangan</Link>}
+        {canRecord && <Link className={buttonClass({})} href="/deductions/lost-items/record">Catat Kehilangan</Link>}
       </form>
       <Card><p className="text-sm">Periode {period.label}: {rows.length} catatan, yang berlaku {rupiah(active)}.</p></Card>
       <DataList
@@ -57,16 +57,16 @@ export function LossesScreen({ period, periods, filter, branches, missingOffice,
         rowKey={(r) => String(r.id)}
         empty="Belum ada kehilangan barang di periode ini."
         columns={[
-          { key: 'branch', header: 'Cabang', primary: true, render: (r) => <Link className="underline" href={`/potongan/kehilangan-barang/${r.id}`}>{r.branchName}</Link> },
+          { key: 'branch', header: 'Cabang', primary: true, render: (r) => <Link className="underline" href={`/deductions/lost-items/${r.id}`}>{r.branchName}</Link> },
           { key: 'date', header: 'Ditemukan', render: (r) => longDate(r.foundOn) },
           { key: 'amount', header: 'Nilai', render: (r) => <span className="tabular-nums">{rupiah(r.amount)}</span> },
           { key: 'desc', header: 'Keterangan', render: (r) => r.description },
           { key: 'who', header: 'Dicatat / disahkan', render: (r) => `${r.recordedBy}${r.approvedBy ? ` / ${r.approvedBy}` : ''}` },
           { key: 'status', header: 'Status', render: (r) => <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge> },
-          { key: 'req', header: '', render: (r) => (r.status === 'PENDING' && r.requestId ? <Link className="underline text-sm" href={`/persetujuan/${r.requestId}`}>Lihat usulan</Link> : null) },
+          { key: 'req', header: '', render: (r) => (r.status === 'PENDING' && r.requestId ? <Link className="underline text-sm" href={`/approvals/${r.requestId}`}>Lihat usulan</Link> : null) },
         ]}
       />
-      <p className="text-sm text-ink-muted">Kehilangan dibagi ke orang yang ditempatkan di cabang itu dengan jabatan bertanda, sebanding bobot dan hari. <Link className="underline" href="/panduan/aturan-potongan">Aturan Potongan</Link></p>
+      <p className="text-sm text-ink-muted">Kehilangan dibagi ke orang yang ditempatkan di cabang itu dengan jabatan bertanda, sebanding bobot dan hari. <Link className="underline" href="/guides/deduction-rules">Aturan Potongan</Link></p>
     </div>
   );
 }

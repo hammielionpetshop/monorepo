@@ -40,17 +40,17 @@ export async function readinessScreen(actor: Actor | null): Promise<{ cutover: s
   });
   const items: ReadinessItem[] = [
     {
-      key: 'cutover', title: 'Hari pindah ditetapkan', ok: Boolean(cutover), names: [], href: '/pengaturan/umum',
+      key: 'cutover', title: 'Hari pindah ditetapkan', ok: Boolean(cutover), names: [], href: '/settings/general',
       detail: cutover ? `Hari pindah ${cutover.split('-').reverse().join('-')} (SIS-13).` : 'Isi di Pengaturan › Pindah sistem.',
     },
-    item('account', 'Karyawan aktif punya akun HRIS', noAccount, '/karyawan', 'Semua karyawan aktif punya akun.', (n) => `${n} orang belum punya akun.`),
-    item('basis', 'Jabatan punya dasar gaji (slip utama)', noBasis, '/pengaturan/jabatan', 'Semua jabatan punya dasar gaji.', (n) => `${n} orang jabatannya belum punya dasar gaji (DRV-04).`),
-    item('salary', 'Karyawan punya gaji', noSalary, '/gaji?flag=missing', 'Semua karyawan yang Anda lihat punya gaji.', (n) => `${n} orang belum punya gaji.`),
-    item('point', 'Cabang punya titik lokasi', noPoint, '/kehadiran/qr', 'Semua cabang punya titik lokasi.', (n) => `${n} cabang belum punya titik lokasi.`),
-    item('qr', 'Cabang punya QR absen', noQr, '/kehadiran/qr', 'Semua cabang punya QR.', (n) => `${n} cabang belum punya QR.`),
-    item('fund', 'Saldo awal Dana Disiplin & Dana Tidak Hadir', noFund, '/dana', 'Kedua dana sudah punya saldo awal.', (n) => `${n} dana belum diisi saldo awal (SIS-33).`),
+    item('account', 'Karyawan aktif punya akun HRIS', noAccount, '/employees', 'Semua karyawan aktif punya akun.', (n) => `${n} orang belum punya akun.`),
+    item('basis', 'Jabatan punya dasar gaji (slip utama)', noBasis, '/settings/positions', 'Semua jabatan punya dasar gaji.', (n) => `${n} orang jabatannya belum punya dasar gaji (DRV-04).`),
+    item('salary', 'Karyawan punya gaji', noSalary, '/payroll?flag=missing', 'Semua karyawan yang Anda lihat punya gaji.', (n) => `${n} orang belum punya gaji.`),
+    item('point', 'Cabang punya titik lokasi', noPoint, '/attendance/qr', 'Semua cabang punya titik lokasi.', (n) => `${n} cabang belum punya titik lokasi.`),
+    item('qr', 'Cabang punya QR absen', noQr, '/attendance/qr', 'Semua cabang punya QR.', (n) => `${n} cabang belum punya QR.`),
+    item('fund', 'Saldo awal Dana Disiplin & Dana Tidak Hadir', noFund, '/funds', 'Kedua dana sudah punya saldo awal.', (n) => `${n} dana belum diisi saldo awal (SIS-33).`),
     {
-      key: 'legacy', title: 'Sisa kasbon bawaan disahkan', ok: legacy.open === 0, names: [], href: '/gaji/kasbon/bawaan',
+      key: 'legacy', title: 'Sisa kasbon bawaan disahkan', ok: legacy.open === 0, names: [], href: '/payroll/advances/opening-balances',
       detail: legacy.open ? `${legacy.open} sisa kasbon bawaan menunggu disahkan.` : `${legacy.approved} sisa kasbon bawaan sudah disahkan; tidak ada yang menunggu.`,
     },
   ];

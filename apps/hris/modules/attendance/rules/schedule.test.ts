@@ -93,5 +93,5 @@ describe('hari tutup (KEH-79)', () => {
 });
 
 it('QR berisi tautan absen', () => {
-  expect(qrLink('https://hris.example/', 'abc')).toBe('https://hris.example/absen?c=abc');
+  expect(qrLink('https://hris.example/', 'abc')).toBe('https://hris.example/clock-in?c=abc');
 });

@@ -15,7 +15,7 @@ import type { FollowupRow } from '../server/driver-trip';
 
 type Recent = FollowupRow & { fuelState: string | null; conditionState: string | null };
 
-const tripLink = (r: FollowupRow) => <Link href={`/logistik/trip/${r.tripId}`} className="underline">{r.tripNumber}</Link>;
+const tripLink = (r: FollowupRow) => <Link href={`/logistics/trips/${r.tripId}`} className="underline">{r.tripNumber}</Link>;
 
 /** Bensin & Mobil (spec LT1 §13.3 butir 6): keadaan mobil dan Laporan Pulang driver. Bensin di FuelPanel (spec LT1 §17.1). */
 export function FollowupScreen({ condition, recent }: { condition: FollowupRow[]; recent: Recent[] }) {

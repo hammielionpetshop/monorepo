@@ -56,7 +56,7 @@ export function FreeBonusForm({ people, types, today, direct, disciplineAvailabl
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(direct ? 'Bonus disahkan. Orangnya diberi tahu.' : String(result.data?.message ?? 'Usulan terkirim.'), 'ok');
-    router.push('/bonus/persetujuan?tab=free');
+    router.push('/bonuses/approvals?tab=free');
     router.refresh();
   }
 
@@ -109,7 +109,7 @@ export function FreeBonusForm({ people, types, today, direct, disciplineAvailabl
       )}
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap gap-2">
-        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/bonus/persetujuan?tab=free">Batal</Link>}
+        {step > 1 ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button> : <Link className={buttonClass({ variant: 'secondary' })} href="/bonuses/approvals?tab=free">Batal</Link>}
         {step < 4 ? <Button onClick={next}>Lanjut</Button> : <HoldButton loading={busy} onClick={save}>{direct ? 'Simpan dan sahkan' : 'Kirim usulan'}</HoldButton>}
       </div>
     </Card>

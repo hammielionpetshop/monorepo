@@ -224,7 +224,7 @@ async function personName(executor: typeof db | Tx, id: number) {
 
 async function tellPerson(tx: Tx, employeeId: number, actorAccountId: number, input: { kind: string; title: string; body?: string; entityId: number }) {
   const account = (await activeHrisAccounts([employeeId])).get(employeeId);
-  if (account) await notify(tx, [account], { ...input, link: `/pemberitahuan`, entity: 'bonus_entry' }, actorAccountId);
+  if (account) await notify(tx, [account], { ...input, link: `/notifications`, entity: 'bonus_entry' }, actorAccountId);
 }
 
 async function slipNote(periodStart: IsoDate, employeeId: number) {
@@ -262,7 +262,7 @@ export async function approveGrooming(actor: Actor | null, ids: number[], announ
       title: `Bonus grooming periode ${longDate(first.periodStart)} disahkan: ${rows.length} jasa, ${rupiah(total)}.`, body: note,
     });
     if (actor!.fullAccess) {
-      await announce(tx, actor!.accountId, { what: `mengesahkan bonus grooming ${name} periode ${longDate(first.periodStart)} (${rupiah(total)})`, link: `/bonus/persetujuan?periode=${first.periodStart}`, entity: 'bonus_entry', entityId: first.id });
+      await announce(tx, actor!.accountId, { what: `mengesahkan bonus grooming ${name} periode ${longDate(first.periodStart)} (${rupiah(total)})`, link: `/bonuses/approvals?periode=${first.periodStart}`, entity: 'bonus_entry', entityId: first.id });
     }
     return { ok: true as const, data: { total, count: rows.length } };
   }).catch((error: unknown) => {
@@ -304,7 +304,7 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
       body: `Alasan: ${reason.reason}`,
     });
     if (actor!.fullAccess) {
-      await announce(tx, actor!.accountId, { what: `${cancelling ? 'membatalkan' : 'menolak'} bonus ${await personName(tx, row.employeeId)} ${rupiah(row.amount)}`, link: '/bonus/buku', entity: 'bonus_entry', entityId: id });
+      await announce(tx, actor!.accountId, { what: `${cancelling ? 'membatalkan' : 'menolak'} bonus ${await personName(tx, row.employeeId)} ${rupiah(row.amount)}`, link: '/bonuses/ledger', entity: 'bonus_entry', entityId: id });
     }
     return { ok: true as const, data: {} };
   });
@@ -350,7 +350,7 @@ export async function decidePosChange(actor: Actor | null, changeId: number, acc
     }
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'bonus_pos_change', entityId: changeId, action: accept ? 'bonus.change_accept' : 'bonus.change_ignore', before: { entry: entry.id }, after: { correction: firstCorrection }, reason: reason.reason });
     if (actor!.fullAccess) {
-      await announce(tx, actor!.accountId, { what: `${accept ? 'menerima' : 'membiarkan'} perubahan kasir atas bonus ${await personName(tx, entry.employeeId)}`, link: '/bonus/persetujuan?tab=perubahan', entity: 'bonus_pos_change', entityId: changeId });
+      await announce(tx, actor!.accountId, { what: `${accept ? 'menerima' : 'membiarkan'} perubahan kasir atas bonus ${await personName(tx, entry.employeeId)}`, link: '/bonuses/approvals?tab=perubahan', entity: 'bonus_pos_change', entityId: changeId });
     }
     return { ok: true as const, data: {} };
   });
@@ -381,7 +381,7 @@ export async function linkGroomer(
       }).returning({ id: posGroomerLinks.id });
       await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'pos_groomer_link', entityId: row.id, action: 'pos_groomer_link.create', before: null, after: { ...input, note } });
       const target = input.notEmployee ? 'bukan karyawan HRIS' : await personName(tx, input.employeeId!);
-      await announce(tx, actor!.accountId, { what: `memasangkan groomer kasir "${pos.name}" ke ${target}`, link: '/bonus/pasangkan', entity: 'pos_groomer_link', entityId: row.id });
+      await announce(tx, actor!.accountId, { what: `memasangkan groomer kasir "${pos.name}" ke ${target}`, link: '/bonuses/pairings', entity: 'pos_groomer_link', entityId: row.id });
     });
   } catch (error) {
     const cause = (error as { cause?: { code?: string } })?.cause ?? (error as { code?: string });
@@ -401,7 +401,7 @@ export async function unlinkGroomer(actor: Actor | null, posGroomerId: number, r
       .where(and(eq(posGroomerLinks.posGroomerId, posGroomerId), isNull(posGroomerLinks.releasedAt))).returning({ id: posGroomerLinks.id });
     if (!done.length) return fail(404, 'Pasangan tidak ditemukan.');
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'pos_groomer_link', entityId: done[0].id, action: 'pos_groomer_link.release', before: { posGroomerId }, after: null, reason: reason.reason });
-    await announce(tx, actor!.accountId, { what: 'melepas pasangan groomer kasir', link: '/bonus/pasangkan', entity: 'pos_groomer_link', entityId: done[0].id });
+    await announce(tx, actor!.accountId, { what: 'melepas pasangan groomer kasir', link: '/bonuses/pairings', entity: 'pos_groomer_link', entityId: done[0].id });
     return { ok: true as const, data: {} };
   });
   if (result.ok) await syncBonuses();

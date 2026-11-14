@@ -22,7 +22,7 @@ type Filter = { tab: LoadReportTab; from: string; to: string; q: string };
 function tabHref(filter: Filter, tab: LoadReportTab) {
   const params = new URLSearchParams({ tab, dari: filter.from, sampai: filter.to });
   if (filter.q) params.set('cari', filter.q);
-  return `/logistik/laporan-muat?${params}`;
+  return `/logistics/load-reports?${params}`;
 }
 
 /** Cari dan pilih nota kasir (satu toko). `customerId` = hanya toko itu (menambah ke laporan yang ada). */
@@ -116,7 +116,7 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
     const sent = await postJson('/api/logistics/load-reports', { action: 'create', branchId, transactionIds: chosen.map((n) => n.transactionId) });
     setBusy(false);
     if (!sent.ok) return setError(sent.error ?? 'Gagal menyimpan.');
-    router.push(`/logistik/laporan-muat/${sent.data?.id}`);
+    router.push(`/logistics/load-reports/${sent.data?.id}`);
   }
 
   return (
@@ -133,7 +133,7 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
           <Link key={t} href={tabHref(filter, t)} className={buttonClass({ variant: t === filter.tab ? 'primary' : 'secondary', size: 'sm' })}>{TAB_LABELS[t]}</Link>
         ))}
       </nav>
-      <form action="/logistik/laporan-muat" className="flex flex-wrap items-end gap-2">
+      <form action="/logistics/load-reports" className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="tab" value={filter.tab} />
         <label className="text-sm">Dari <input type="date" name="dari" defaultValue={filter.from} className={selectClass} /></label>
         <label className="text-sm">Sampai <input type="date" name="sampai" defaultValue={filter.to} className={selectClass} /></label>
@@ -144,7 +144,7 @@ export function LoadReportsScreen({ rows, branches, filter }: { rows: LoadReport
         <ul className="space-y-2">
           {rows.map((r) => (
             <li key={r.id}>
-              <Link href={`/logistik/laporan-muat/${r.id}`} className="block">
+              <Link href={`/logistics/load-reports/${r.id}`} className="block">
                 <Card className="space-y-1 hover:border-primary">
                   <p className="inline-flex flex-wrap items-center gap-1">
                     <Badge tone={LOAD_STATUS_TONES[r.status]}>{r.statusLabel}</Badge>

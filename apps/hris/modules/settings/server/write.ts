@@ -127,7 +127,7 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
       const targetText = input.targetKind === 'POSITION' ? ` jabatan ${positionName(targetId as number) ?? ''}` : '';
       await announce?.(tx, actor.accountId, {
         what: `mengubah ${definition.label}${targetText}: ${current ? formatSettingValue(key, current.value, positionName, branchName) : 'belum ada'} → ${formatSettingValue(key, input.value, positionName, branchName)}, mulai ${effectiveFrom}`,
-        link: definition.module === 'position' ? '/pengaturan/jabatan' : '/pengaturan/umum', entity: 'setting', entityId: row.id,
+        link: definition.module === 'position' ? '/settings/positions' : '/settings/general', entity: 'setting', entityId: row.id,
       });
       return { ok: true as const, data: { id: row.id } };
     });
@@ -159,7 +159,7 @@ export async function cancelSetting(actor: Actor | null, id: number, reasonInput
     });
     await announce?.(tx, actor.accountId, {
       what: `membatalkan nilai ${definition.label} yang akan berlaku ${row.effectiveFrom}`,
-      link: definition.module === 'position' ? '/pengaturan/jabatan' : '/pengaturan/umum', entity: 'setting', entityId: id,
+      link: definition.module === 'position' ? '/settings/positions' : '/settings/general', entity: 'setting', entityId: id,
     });
     return { ok: true as const, data: {} };
   });
@@ -226,7 +226,7 @@ export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBa
       if (!changed.length) return fail(400, 'Semua angka sama dengan yang berlaku pada tanggal itu; tidak ada yang berubah.');
       await announce?.(tx, actor.accountId, {
         what: `mengubah Potongan & Lembur mulai ${effectiveFrom}: ${parts.join('; ')}`,
-        link: '/pengaturan/potongan-lembur', entity: 'setting', entityId: 0,
+        link: '/settings/deductions-overtime', entity: 'setting', entityId: 0,
       });
       return { ok: true as const, data: { changed } };
     });

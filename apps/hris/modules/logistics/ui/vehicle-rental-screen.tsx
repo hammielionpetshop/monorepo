@@ -75,9 +75,9 @@ export function VehicleRentalScreen(data: VehicleRentalScreenData) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/logistik/sewa-mobil?bulan=${data.prev}`}>‹ Bulan sebelumnya</Link>
+        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/logistics/vehicle-rental?bulan=${data.prev}`}>‹ Bulan sebelumnya</Link>
         <span className="font-semibold">{data.monthLabel}</span>
-        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/logistik/sewa-mobil?bulan=${data.next}`}>Bulan berikutnya ›</Link>
+        <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/logistics/vehicle-rental?bulan=${data.next}`}>Bulan berikutnya ›</Link>
       </div>
       {!data.payable && <Alert tone="info">Bulan ini belum lewat. Sewa {data.monthLabel} baru bisa dibayar mulai {data.payableFrom}.</Alert>}
       {error && !pay && !cancel && <Alert tone="danger">{error}</Alert>}
@@ -132,7 +132,7 @@ export function VehicleRentalScreen(data: VehicleRentalScreenData) {
                         <tr key={`${l.tripId ?? 'm'}-${l.manualId ?? l.tripId}`}>
                           <td className="py-1 pr-2">{l.dateLabel}</td>
                           <td className="py-1 pr-2">
-                            {l.tripId ? <Link className="underline" href={`/logistik/trip/${l.tripId}`}>{l.tripNumber}</Link> : 'Ritase tangan'}
+                            {l.tripId ? <Link className="underline" href={`/logistics/trips/${l.tripId}`}>{l.tripNumber}</Link> : 'Ritase tangan'}
                           </td>
                           <td className="py-1 pr-2 text-right">{l.rate == null ? <Badge tone="warn">Belum bertarif</Badge> : rp(l.rate)}</td>
                           <td className="py-1 text-right">{rp(l.amount)}</td>

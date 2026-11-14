@@ -131,7 +131,7 @@ describe.skipIf(!ADMIN_URL)('L4g-1: Pendapatan Saya dan Slip Saya', () => {
     const screen = await mine.myPayScreen(ani, P);
     expect(screen?.head).toMatchObject({ received: screen?.slip?.net, pending: 0, estimate: false });
     const links = await sql`select kind, link from hris.notifications where kind in ('payslip.closed', 'payslip.paid') order by id`;
-    expect(links.map((l) => l.link)).toEqual([`/pendapatan/slip/${id}`, `/pendapatan/slip/${id}`]);
+    expect(links.map((l) => l.link)).toEqual([`/earnings/payslips/${id}`, `/earnings/payslips/${id}`]);
   });
 
   it('unduh slip tertutup sendiri tercatat; lebih dari 12 periode ditolak', async () => {

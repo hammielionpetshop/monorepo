@@ -308,7 +308,7 @@ export function BottomNav({ groups, counts }: { groups: NavGroup[]; counts?: Nav
 export function HeaderBell({ count }: { count?: number }) {
   return (
     <Link
-      href="/pemberitahuan"
+      href="/notifications"
       aria-label={count ? `Pemberitahuan, ${count} belum dibaca` : 'Pemberitahuan'}
       className="relative hidden min-h-11 min-w-11 items-center justify-center rounded-lg text-ink-muted hover:bg-canvas hover:text-ink md:inline-flex"
     >

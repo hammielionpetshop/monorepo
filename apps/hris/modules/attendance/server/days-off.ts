@@ -537,7 +537,7 @@ export async function changeDayOff(actor: Actor, input: { pickId: number; date: 
       before: { date: pick.offDate }, after: { date: input.date, note }, reason: reason.reason,
     });
     await notifyPeople(tx, [person.employeeId], {
-      kind: 'attendance.day_off', title: `Libur Anda ${longDate(pick.offDate)} dipindah ke ${longDate(input.date)}`, body: reason.reason, link: '/libur',
+      kind: 'attendance.day_off', title: `Libur Anda ${longDate(pick.offDate)} dipindah ke ${longDate(input.date)}`, body: reason.reason, link: '/days-off',
     }, actor.accountId);
     return { ok: true as const, data: { id: row.id, note } };
   });
@@ -564,7 +564,7 @@ export async function revokeDayOff(actor: Actor, input: { pickId: number; reason
     });
     await notifyPeople(tx, [person.employeeId], {
       kind: 'attendance.day_off', title: `Libur Anda ${longDate(pick.offDate)} dicabut`,
-      body: `${reason.reason}. Pilih tanggal lain di Pilih Libur.`, link: '/libur',
+      body: `${reason.reason}. Pilih tanggal lain di Pilih Libur.`, link: '/days-off',
     }, actor.accountId);
     return { ok: true as const, data: { id: pick.id } };
   });
@@ -694,7 +694,7 @@ export async function sendSwap(actor: Actor, input: { kind: 'DAY_OFF' | 'SHIFT';
       const [row] = await tx.insert(swapInvitations).values(values).returning({ id: swapInvitations.id });
       await notifyPeople(tx, [input.friendId], {
         kind: 'attendance.swap', title: `${me.name} mengajak tukar ${input.kind === 'DAY_OFF' ? 'libur' : 'shift'}`,
-        body: `Jawab sebelum ${longDate(target.answerBy)} pukul 23.59.`, link: '/tukar', entity: 'swap_invitation', entityId: row.id,
+        body: `Jawab sebelum ${longDate(target.answerBy)} pukul 23.59.`, link: '/swaps', entity: 'swap_invitation', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id: row.id } };
     });
@@ -731,7 +731,7 @@ export async function answerSwap(actor: Actor, input: { id: number; accept: bool
       await tx.update(swapInvitations).set({ status: 'REJECTED', answeredAt }).where(eq(swapInvitations.id, row.id));
       await notifyPeople(tx, [row.fromEmployeeId], {
         kind: 'attendance.swap', title: `${fromName.get(row.toEmployeeId) ?? 'Teman'} menolak ajakan tukar`,
-        body: 'Anda bisa mengajukan izin biasa.', link: '/tukar', entity: 'swap_invitation', entityId: row.id,
+        body: 'Anda bisa mengajukan izin biasa.', link: '/swaps', entity: 'swap_invitation', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { status: 'REJECTED' } };
     }
@@ -785,7 +785,7 @@ export async function answerSwap(actor: Actor, input: { id: number; accept: bool
     // Tidak ada pemberitahuan ke atasan (KEH-43).
     await notifyPeople(tx, [row.fromEmployeeId], {
       kind: 'attendance.swap', title: `${fromName.get(row.toEmployeeId) ?? 'Teman'} menerima ajakan tukar`,
-      body: 'Jadwal Anda sudah berubah.', link: row.kind === 'DAY_OFF' ? '/libur' : '/jadwal', entity: 'swap_invitation', entityId: row.id,
+      body: 'Jadwal Anda sudah berubah.', link: row.kind === 'DAY_OFF' ? '/days-off' : '/schedule', entity: 'swap_invitation', entityId: row.id,
     }, actor.accountId);
     return { ok: true as const, data: { status: 'ACCEPTED' } };
   });
@@ -868,7 +868,7 @@ export async function createWorkRequest(actor: Actor, input: { pickId: number; r
       });
       await notifyPeople(tx, [person.employeeId], {
         kind: 'attendance.work_request', title: `Anda diminta masuk ${longDate(pick.offDate)}`,
-        body: `${reason.reason}. Tekan Siap masuk di Pilih Libur; sesudah masuk, pilih libur pengganti.`, link: '/libur',
+        body: `${reason.reason}. Tekan Siap masuk di Pilih Libur; sesudah masuk, pilih libur pengganti.`, link: '/days-off',
         entity: 'day_off_work_request', entityId: row.id,
       }, actor.accountId);
       return { ok: true as const, data: { id: row.id } };
@@ -898,7 +898,7 @@ export async function cancelWorkRequest(actor: Actor, input: { id: number; reaso
       .where(eq(dayOffWorkRequests.id, row.id));
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'day_off_work_request', entityId: row.id, action: 'day_off.request_work_cancel', reason: reason.reason });
     await notifyPeople(tx, [row.employeeId], {
-      kind: 'attendance.work_request', title: `Permintaan masuk ${longDate(row.workDate)} dibatalkan`, body: `${reason.reason}. Hari itu tetap libur.`, link: '/libur',
+      kind: 'attendance.work_request', title: `Permintaan masuk ${longDate(row.workDate)} dibatalkan`, body: `${reason.reason}. Hari itu tetap libur.`, link: '/days-off',
     }, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
   });
@@ -915,7 +915,7 @@ export async function readyToWork(actor: Actor, id: number, now: Date = new Date
     await tx.update(dayOffWorkRequests).set({ status: 'READY', readyAt: new Date() }).where(and(eq(dayOffWorkRequests.id, id), eq(dayOffWorkRequests.status, 'REQUESTED')));
     const me = await names([actor.personId], tx);
     await notifyPeople(tx, [row.requestedByEmployeeId], {
-      kind: 'attendance.work_request', title: `${me.get(actor.personId) ?? 'Karyawan'} siap masuk ${longDate(row.workDate)}`, link: '/kehadiran/minta-masuk',
+      kind: 'attendance.work_request', title: `${me.get(actor.personId) ?? 'Karyawan'} siap masuk ${longDate(row.workDate)}`, link: '/attendance/work-requests',
     }, actor.accountId);
     return { ok: true as const, data: { id } };
   });
@@ -933,14 +933,14 @@ export async function notifyDaysOffUnderClosure(tx: Tx, branchId: number | null,
   const affected = [...new Set(picks.map((pick) => pick.employeeId))];
   await notifyPeople(tx, affected, {
     kind: 'attendance.day_off', title: 'Hari tutup jatuh di hari libur Anda',
-    body: 'Libur tetap tercatat. Bila perlu digeser, hubungi kepala cabang.', link: '/libur',
+    body: 'Libur tetap tercatat. Bila perlu digeser, hubungi kepala cabang.', link: '/days-off',
   }, actorAccountId);
   const branches = [...new Set(scoped.filter((person) => affected.includes(person.employeeId)).map((person) => person.branchId))];
   for (const id of branches) {
     const heads = await headsOf(id, tx);
     const who = scoped.filter((person) => person.branchId === id && affected.includes(person.employeeId)).map((person) => person.name);
     await notifyPeople(tx, heads, {
-      kind: 'attendance.day_off', title: 'Hari tutup menimpa libur karyawan', body: who.join(', '), link: `/kehadiran/libur?branch=${id}`,
+      kind: 'attendance.day_off', title: 'Hari tutup menimpa libur karyawan', body: who.join(', '), link: `/attendance/days-off?branch=${id}`,
     }, actorAccountId);
   }
 }
@@ -978,7 +978,7 @@ export async function dayOffAttention(actor: Actor | null, now: Date = new Date(
     cards.push({
       key: `day-off-${periodStart}`, title: `Jatah libur belum lengkap: ${picked} dari ${quota}`,
       detail: phase === 'OPEN' ? `Periode ${start} s.d. ${end}. Ditutup ${window.closes} pukul 23.59.` : `Periode ${start} s.d. ${end}. Pilih tanggal paling cepat ${addDays(today, rules.lateMinDays)}.`,
-      href: `/libur?period=${periodStart}`,
+      href: `/days-off?period=${periodStart}`,
     });
   }
   const [incoming, requests, waiting] = await Promise.all([
@@ -990,9 +990,9 @@ export async function dayOffAttention(actor: Actor | null, now: Date = new Date(
     )),
     db.select().from(replacementDaysOff).where(and(eq(replacementDaysOff.employeeId, me.employeeId), eq(replacementDaysOff.status, 'WAITING'))),
   ]);
-  if (incoming.length) cards.push({ key: 'swap', title: `Ajakan tukar menunggu jawaban Anda: ${incoming.length}`, href: '/tukar' });
-  for (const row of requests) cards.push({ key: `work-${row.id}`, title: `Anda diminta masuk ${longDate(row.workDate)}`, detail: 'Tekan Siap masuk.', href: '/libur' });
-  for (const row of waiting) cards.push({ key: `rep-${row.id}`, title: 'Pilih libur pengganti', detail: `Paling lambat ${longDate(row.chooseBy)}.`, href: '/libur' });
+  if (incoming.length) cards.push({ key: 'swap', title: `Ajakan tukar menunggu jawaban Anda: ${incoming.length}`, href: '/swaps' });
+  for (const row of requests) cards.push({ key: `work-${row.id}`, title: `Anda diminta masuk ${longDate(row.workDate)}`, detail: 'Tekan Siap masuk.', href: '/days-off' });
+  for (const row of waiting) cards.push({ key: `rep-${row.id}`, title: 'Pilih libur pengganti', detail: `Paling lambat ${longDate(row.chooseBy)}.`, href: '/days-off' });
   return cards;
 }
 
@@ -1019,7 +1019,7 @@ export async function runDaysOffDaily(now: Date = new Date()) {
       for (const row of expired) {
         await notifyPeople(tx, [row.fromEmployeeId], {
           kind: 'attendance.swap', title: `Ajakan tukar dengan ${people.get(row.toEmployeeId) ?? 'teman'} batal`,
-          body: 'Ajakan batal karena tidak dijawab sampai batas. Anda bisa mengajukan izin biasa.', link: '/tukar',
+          body: 'Ajakan batal karena tidak dijawab sampai batas. Anda bisa mengajukan izin biasa.', link: '/swaps',
           entity: 'swap_invitation', entityId: row.id,
         }, null);
       }
@@ -1082,7 +1082,7 @@ export async function runDaysOffDaily(now: Date = new Date()) {
           employeeId: person.employeeId, ref: `window:${nextStart}:H-${left}`,
           input: {
             kind: 'attendance.day_off', title: `Pilih libur periode ${start} s.d. ${end}`,
-            body: `Terisi ${picked} dari ${quota}. Jendela ditutup ${closes} pukul 23.59.`, link: `/libur?period=${nextStart}`,
+            body: `Terisi ${picked} dari ${quota}. Jendela ditutup ${closes} pukul 23.59.`, link: `/days-off?period=${nextStart}`,
           },
         });
       }
@@ -1092,7 +1092,7 @@ export async function runDaysOffDaily(now: Date = new Date()) {
   for (const row of soon) {
     reminders.push({
       employeeId: row.employeeId, ref: `replacement:${row.id}:H-3`,
-      input: { kind: 'attendance.day_off', title: 'Libur pengganti belum dipilih', body: `Tinggal 3 hari, paling lambat ${row.chooseBy}.`, link: '/libur' },
+      input: { kind: 'attendance.day_off', title: 'Libur pengganti belum dipilih', body: `Tinggal 3 hari, paling lambat ${row.chooseBy}.`, link: '/days-off' },
     });
   }
   for (const reminder of reminders) {

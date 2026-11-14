@@ -100,7 +100,7 @@ async function tellAssigned(tx: Tx, tripId: number, people: { employeeId: number
     if (accountId) {
       await notify(tx, [accountId], {
         kind: 'logistics.assigned', title: `Anda ditugaskan sebagai ${ROLE_LABELS[person.role].toLowerCase()} di trip ${label}`,
-        link: '/trip-saya', entity: 'trip', entityId: tripId,
+        link: '/my-trips', entity: 'trip', entityId: tripId,
       }, actorAccountId);
     }
   }
@@ -110,7 +110,7 @@ async function tellRemoved(tx: Tx, tripId: number, employeeIds: number[], reason
   if (!employeeIds.length) return;
   await notify(tx, await accountsOf(employeeIds), {
     kind: 'logistics.removed', title: `Anda tidak lagi bertugas di trip ${await tripLabel(tripId, tx)}`, body: reason,
-    link: '/trip-saya', entity: 'trip', entityId: tripId,
+    link: '/my-trips', entity: 'trip', entityId: tripId,
   }, actorAccountId);
 }
 
@@ -428,7 +428,7 @@ export async function closeByOffice(actor: Actor | null, id: number, reason: str
     if (!done) return fail(409, 'Trip ini sudah ditutup.');
     await notify(tx, await accountsOf(loaded.activeCrew.map((c) => c.employeeId)), {
       kind: 'logistics.office_closed', title: `Trip ${await tripLabel(id, tx)} ditutup kantor pukul ${wibClock(now)}`, body: reason.trim(),
-      link: '/trip-saya', entity: 'trip', entityId: id,
+      link: '/my-trips', entity: 'trip', entityId: id,
     }, actor.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -446,7 +446,7 @@ export async function cancelWage(actor: Actor | null, wageId: number, reason: st
     const [route] = await tx.select({ name: routes.name }).from(routes).where(eq(routes.id, row.routeId)).limit(1);
     await notify(tx, await accountsOf([row.employeeId]), {
       kind: 'logistics.wage_cancelled', title: `${row.kind === 'RITASE' ? 'Ritase' : 'Upah belanja'} ${route?.name ?? ''} tanggal ${row.tripDate} dibatalkan`,
-      body: reason.trim(), link: '/trip-saya', entity: 'trip_wage', entityId: row.id,
+      body: reason.trim(), link: '/my-trips', entity: 'trip_wage', entityId: row.id,
     }, actor.accountId);
     return { ok: true as const, data: undefined };
   });
@@ -494,7 +494,7 @@ export async function addManualWage(actor: Actor | null, input: ManualWageInput)
     }).returning({ id: tripWages.id });
     await notify(tx, await accountsOf([input.employeeId]), {
       kind: 'logistics.wage_manual', title: `Ritase tangan dicatat: ${route.name} tanggal ${input.tripDate}`, body: input.reason.trim(),
-      link: '/trip-saya', entity: 'trip_wage', entityId: row.id,
+      link: '/my-trips', entity: 'trip_wage', entityId: row.id,
     }, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
   });
@@ -514,7 +514,7 @@ export async function notifyHanging(now: Date, hour: number) {
       if (!marked) return;
       await notify(tx, recipients, {
         kind: 'logistics.hanging', title: `Trip ${await tripLabel(trip.id, tx)} belum Sampai Garasi sejak ${trip.tripDate}`,
-        body: 'Tutup atas nama driver bila HP atau GPS-nya bermasalah.', link: `/logistik/trip/${trip.id}`, entity: 'trip', entityId: trip.id,
+        body: 'Tutup atas nama driver bila HP atau GPS-nya bermasalah.', link: `/logistics/trips/${trip.id}`, entity: 'trip', entityId: trip.id,
       }, null);
     });
   }

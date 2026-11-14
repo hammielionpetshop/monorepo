@@ -309,6 +309,6 @@ export async function myPayAttention(actor: Actor | null, now: Date = new Date()
   return {
     title: `Urusan gaji Anda: ${issues.length}`,
     detail: mine ? `${mine} perlu Anda selesaikan supaya gaji tidak tertahan` : 'Menunggu keputusan kantor',
-    href: '/pendapatan',
+    href: '/earnings',
   };
 }

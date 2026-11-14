@@ -122,7 +122,7 @@ export function TripDetailScreen(props: Props) {
         {props.canManage && card.phase === 'DRAFT' && (
           <>
             <Button size="sm" onClick={() => open({ kind: 'ready' })}>Siap Kirim <NewBadge feature="fitur/trip-hp-driver" /></Button>
-            <Link href={`/logistik/trip/${card.id}/ubah`} className={buttonClass({ size: 'sm', variant: 'secondary' })}>Ubah trip</Link>
+            <Link href={`/logistics/trips/${card.id}/edit`} className={buttonClass({ size: 'sm', variant: 'secondary' })}>Ubah trip</Link>
           </>
         )}
         {props.canManage && card.phase === 'READY' && <Button size="sm" variant="secondary" onClick={() => open({ kind: 'unready' })}>Kembali ke Draft</Button>}
@@ -134,7 +134,7 @@ export function TripDetailScreen(props: Props) {
           </>
         )}
         {props.canClose && card.status === 'RUNNING' && <Button size="sm" variant="danger" onClick={() => open({ kind: 'close' })}>Tutup atas nama driver</Button>}
-        {props.isCrew && card.status !== 'DONE' && card.status !== 'CANCELLED' && <Link href="/trip-saya" className={buttonClass({ size: 'sm', variant: 'secondary' })}>Buka Trip Saya</Link>}
+        {props.isCrew && card.status !== 'DONE' && card.status !== 'CANCELLED' && <Link href="/my-trips" className={buttonClass({ size: 'sm', variant: 'secondary' })}>Buka Trip Saya</Link>}
       </div>
 
       {props.cancel && <Alert tone="danger" title="Trip dibatalkan">{props.cancel.reason}</Alert>}

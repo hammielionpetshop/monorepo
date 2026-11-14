@@ -12,22 +12,22 @@ export function TripAttendanceScreen({ date, today, prev, next, trips, attention
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/kehadiran/absen-trip?tanggal=${prev}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>‹</Link>
+        <Link href={`/attendance/trip-attendance?tanggal=${prev}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>‹</Link>
         <span className="text-sm font-medium">{date === today ? `Hari ini, ${date}` : date}</span>
-        {next && <Link href={`/kehadiran/absen-trip?tanggal=${next}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>›</Link>}
+        {next && <Link href={`/attendance/trip-attendance?tanggal=${next}`} className={buttonClass({ variant: 'secondary', size: 'sm' })}>›</Link>}
       </div>
       <p className="text-sm text-ink-muted">Absen masuk = Berangkat (satu foto awak), absen pulang = Sampai Garasi trip terakhir. Telat, istirahat, dan lembur tidak dihitung.</p>
       {attention.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-semibold">Perlu perhatian</h2>
-          {attention.map((t) => <TripCardView key={`a-${t.id}`} card={t} href={canOpenTrip ? `/logistik/trip/${t.id}` : null} />)}
+          {attention.map((t) => <TripCardView key={`a-${t.id}`} card={t} href={canOpenTrip ? `/logistics/trips/${t.id}` : null} />)}
         </section>
       )}
       <section className="space-y-2">
         <h2 className="font-semibold">Trip</h2>
         {!trips.length ? <EmptyState title="Belum ada trip berangkat pada tanggal ini." /> : trips.map((t) => (
           <TripCardView
-            key={t.id} card={t} href={canOpenTrip ? `/logistik/trip/${t.id}` : null}
+            key={t.id} card={t} href={canOpenTrip ? `/logistics/trips/${t.id}` : null}
             extra={t.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <a href={t.photoUrl} target="_blank" rel="noreferrer"><img src={t.photoUrl} alt={`Foto awak ${t.number}`} className="max-h-40 rounded-lg" /></a>

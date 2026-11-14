@@ -51,7 +51,7 @@ export function ReviewScreen({ tab, filter, branchId, branches, canDecide, rows,
     const params = new URLSearchParams({ tab: next.tab ?? tab, filter: next.filter ?? filter });
     const branch = next.branch ?? (branchId ? String(branchId) : '');
     if (branch) params.set('branch', branch);
-    return `/kehadiran/tinjau?${params}`;
+    return `/attendance/review?${params}`;
   };
 
   async function send(body: Record<string, unknown>, done: () => void) {
@@ -135,9 +135,9 @@ export function ReviewScreen({ tab, filter, branchId, branches, canDecide, rows,
                       <Button size="sm" variant="secondary" onClick={() => { setDeciding({ row, outcome: 'NEEDS_CORRECTION' }); setText(''); setError(null); }}>Perlu dikoreksi</Button>
                     )}
                     {row.status === 'uncorrected' && row.canDecide && (
-                      <Link href={`/kehadiran/koreksi?mode=one&employee=${row.employeeId}&date=${row.workDate}`} className="text-sm text-brand-700">Buka koreksi</Link>
+                      <Link href={`/attendance/corrections?mode=one&employee=${row.employeeId}&date=${row.workDate}`} className="text-sm text-brand-700">Buka koreksi</Link>
                     )}
-                    <Link href={`/kehadiran/catatan-hari?employee=${row.employeeId}&date=${row.workDate}`} className="text-sm text-brand-700">Catatan hari</Link>
+                    <Link href={`/attendance/day-notes?employee=${row.employeeId}&date=${row.workDate}`} className="text-sm text-brand-700">Catatan hari</Link>
                   </div>
                 </Card>
               </li>
@@ -162,7 +162,7 @@ export function ReviewScreen({ tab, filter, branchId, branches, canDecide, rows,
                   <ul className="flex flex-wrap gap-2">
                     {flag.days.map((day) => (
                       <li key={`${day.employeeId}-${day.workDate}`}>
-                        <Link href={`/kehadiran/catatan-hari?employee=${day.employeeId}&date=${day.workDate}`} className="text-brand-700">
+                        <Link href={`/attendance/day-notes?employee=${day.employeeId}&date=${day.workDate}`} className="text-brand-700">
                           {flag.people.length > 1 ? `${day.name} ` : ''}{day.workDate}
                         </Link>
                       </li>
