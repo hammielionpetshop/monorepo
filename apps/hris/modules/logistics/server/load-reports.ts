@@ -15,7 +15,7 @@ import { FORBIDDEN, fail, isUniqueViolation, peopleNames, type Executor } from '
 
 const CREATE = 'logistics.load_report.create';
 const VIEW = 'logistics.load_report.view';
-const NOTE_TAKEN = 'Nota ini sudah dipakai laporan muat lain.';
+const NOTE_TAKEN = 'Nota ini sudah dipakai laporan muat toko lain.';
 const ids = (values: number[]) => sql.join((values.length ? values : [-1]).map((v) => sql`${v}`), sql`, `);
 
 type ReportRow = typeof loadReports.$inferSelect;
@@ -92,7 +92,7 @@ async function checkedSales(tx: Executor, transactionIds: number[], kasirBranchI
 export async function createLoadReport(actor: Actor | null, input: { branchId: number; transactionIds: number[] }): Promise<ServiceResult<{ id: number }>> {
   if (!actor) return fail(403, FORBIDDEN);
   const branch = (await creatableBranches(actor)).find((b) => b.id === input.branchId);
-  if (!branch) return fail(403, 'Anda tidak bisa membuat laporan muat untuk cabang ini.');
+  if (!branch) return fail(403, 'Anda tidak bisa membuat laporan muat toko untuk cabang ini.');
   try {
     return await db.transaction(async (tx) => {
       const sales = await checkedSales(tx, input.transactionIds, branch.kasirBranchId);
@@ -137,7 +137,7 @@ export async function addLoadNotes(actor: Actor | null, reportId: number, transa
       if (!sales.ok) return fail(400, sales.error);
       const active = await tx.select({ id: loadReportNotes.id }).from(loadReportNotes).where(and(eq(loadReportNotes.reportId, reportId), isNull(loadReportNotes.releasedAt)));
       const problem = notesProblem(sales.rows.map((s) => s.customerId), active.length)
-        ?? (sales.rows.some((s) => s.customerId !== report.customerId) ? 'Semua nota di satu laporan muat harus dari toko yang sama.' : null);
+        ?? (sales.rows.some((s) => s.customerId !== report.customerId) ? 'Semua nota di satu laporan muat toko harus dari toko yang sama.' : null);
       if (problem) return fail(400, problem);
       await tx.insert(loadReportNotes).values(sales.rows.map((s) => ({
         reportId, transactionId: s.id, trxNumber: s.trxNumber, amount: s.amount, addedByAccountId: actor.accountId,

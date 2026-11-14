@@ -1206,9 +1206,9 @@ export const SETTINGS = {
     viewAction: 'logistics.delivery_note.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'logistics.load_report_on': {
-    label: 'Laporan Muat di cabang',
+    label: 'Laporan Muat Toko di cabang',
     module: 'logistics',
-    explain: 'Cabang yang memakai Laporan Muat (foto nota + foto barang dimuat, bukti bila toko komplain). Isi awal: hanya Toko Pusat (spec LT1 §15.1).',
+    explain: 'Cabang yang memakai Laporan Muat Toko (foto nota + foto barang dimuat, bukti bila toko komplain). Isi awal: hanya Toko Pusat (spec LT1 §15.1).',
     type: { kind: 'choice', options: YES_NO },
     targets: ['ALL', 'BRANCH'],
     affectsMoney: false, mustAnnounce: false, exemptible: false,
