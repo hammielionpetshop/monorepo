@@ -9,6 +9,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   const headers = new Headers(req.headers);
   headers.set('x-hris-path', req.nextUrl.pathname);
+  // Dipakai pengalihan HRIS ↔ Logistik (spec F2-7b §3) supaya alamat lengkap ikut pindah.
+  headers.set('x-hris-search', req.nextUrl.search);
   if (req.nextUrl.pathname === '/absen') headers.set('x-hris-return', `${req.nextUrl.pathname}${req.nextUrl.search}`);
   else headers.delete('x-hris-return');
   return NextResponse.next({ request: { headers } });

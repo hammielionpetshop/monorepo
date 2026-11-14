@@ -1,4 +1,4 @@
-export type WebCode = 'pos' | 'hris' | 'finance'
+export type WebCode = 'pos' | 'hris' | 'finance' | 'logistik'
 
 export type WebEntry = { code: WebCode; name: string; description: string; url: string; needsPassword: boolean }
 

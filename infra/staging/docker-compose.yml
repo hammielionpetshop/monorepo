@@ -29,6 +29,9 @@ services:
       BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
       HRIS_PUBLIC_URL: ${STAGING_HRIS_ORIGIN:-}
       FINANCE_PUBLIC_URL: ${STAGING_FINANCE_ORIGIN:-}
+      # Web Logistik (spec F2-7b): kosong = kotak Logistik tidak tampil. Haknya ditanyakan ke pintu internal HRIS.
+      LOGISTICS_PUBLIC_URL: ${STAGING_LOGISTICS_ORIGIN:-}
+      HRIS_INTERNAL_URL: http://hris-staging:3000
     volumes:
       - uploads_data:/data/uploads
     networks:
@@ -62,7 +65,12 @@ services:
       AUTH_COOKIE_ENV: staging
       AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       AUTH_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}
-      AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-}
+      # Web Logistik dijalankan container ini di alamat sendiri (spec F2-7b §3), jadi origin-nya ikut dipercaya.
+      AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-},${STAGING_LOGISTICS_ORIGIN:-}
+      HRIS_PUBLIC_URL: ${STAGING_HRIS_ORIGIN:-}
+      LOGISTICS_PUBLIC_URL: ${STAGING_LOGISTICS_ORIGIN:-}
+      # Pintu internal hak web Logistik untuk gateway Back Office (spec F2-7b §5).
+      INTERNAL_ALLOWED_HOSTS: hris-staging:3000
       # Tombol "Ubah di Back Office" di Surat Jalan (spec LT1 §12): alamat publik Back Office staging.
       BACKOFFICE_PUBLIC_URL: ${STAGING_BO_ORIGIN:-}
       # Akses kasir dari HRIS (L2d): pintu internal backoffice lewat jaringan compose.

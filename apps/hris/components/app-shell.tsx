@@ -11,20 +11,21 @@ import { NewBadge } from './ui/new-badge';
  * Kerangka halaman masuk: header, menu samping berkelompok (lebar) / bilah bawah + Menu (HP), isi.
  * Di layar lebar kerangka setinggi layar; menu samping dan header diam, hanya <main> yang digulir.
  */
-export function AppShell({ groups, counts, switchUrl, children }: {
-  groups: NavGroup[]; counts?: NavCounts; /** Gateway untuk tombol Pindah web (spec F2-7a §4); null = tidak tampil. */ switchUrl?: string | null; children: ReactNode;
+export function AppShell({ groups, counts, switchUrl, title = 'HRIS', children }: {
+  groups: NavGroup[]; counts?: NavCounts; /** Gateway untuk tombol Pindah web (spec F2-7a §4); null = tidak tampil. */ switchUrl?: string | null;
+  /** Nama web yang sedang dibuka: HRIS atau Logistik (spec F2-7b §3). */ title?: string; children: ReactNode;
 }) {
   return (
     <ToastProvider>
       <div className="min-h-screen md:grid md:h-dvh md:min-h-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden print:block print:h-auto print:overflow-visible">
         <aside className="hidden print:hidden border-r border-line bg-surface p-3 md:block md:overflow-y-auto">
-          <p className="mb-4 px-3 pt-2 text-base font-semibold text-brand-700">HRIS Hammielion</p>
+          <p className="mb-4 px-3 pt-2 text-base font-semibold text-brand-700">{title} Hammielion</p>
           <SideNav groups={groups} counts={counts} />
         </aside>
         <div className="flex min-w-0 flex-col md:min-h-0">
           <header className="print:hidden flex min-h-14 items-center justify-between border-b border-line bg-surface px-4">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="font-semibold text-brand-700 md:hidden">HRIS</span>
+              <span className="font-semibold text-brand-700 md:hidden">{title}</span>
               <BackButton />
             </div>
             <div className="flex items-center gap-1">
