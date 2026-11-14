@@ -187,3 +187,11 @@ Nama branch memakai "l9c", tetapi **L9c di spec ini tetap Latihan pindah (§5)**
 **Koreksi owner 2026-11-04:** Helper di Team Gudang = **Kenek** (`fix/hris-helper-kenek`; sebelumnya "Belum ditentukan").
 Semua Helper aktif di Excel adalah Team Gudang (4 orang). Data staging dikoreksi dengan penempatan jabatan bertanggal
 sama dengan tanggal masuk (catatan awal tidak bisa diubah).
+
+## 14. Keputusan owner 2026-11-14 (mengganti §4–§5)
+
+- **Uji banding dengan sistem lama dibatalkan**: slip memakai format HRIS baru; sistem lama tidak dibandingkan. Lembar Banding (L9b-1) tetap ada tetapi tidak dipakai; L9b-2 tidak dibuat.
+- **Runbook `docs/ops/hris-pindah.md` dan gladi bersih tidak dibuat.**
+- **Tanpa jadwal tetap**: rilis ke produksi, cutover akun pusat, muat data, dan hari pindah dikerjakan bertahap atas keputusan owner per langkah. Tanggal 26 Desember tidak lagi menjadi target.
+- Finance ikut ke produksi saat rilis HRIS.
+
