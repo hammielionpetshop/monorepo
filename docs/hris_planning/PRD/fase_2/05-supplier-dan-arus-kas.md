@@ -47,6 +47,6 @@ Sumber v3: `06-keuangan.md` bagian 3.3 (kejadian, kategori, yang bukan biaya), 3
 
 ## 6. Pertanyaan terbuka
 
-- ❓ Daftar kategori bawaan (dibahas saat spec F2-4).
-- ❓ Apakah catatan Arus Kas boleh diubah sesudah disimpan, atau koreksi lewat catatan pembalik
-  (prinsip "tidak ada edit/hapus" Fase 1)?
+- ✅ Daftar kategori bawaan dan jenis laporan (Biaya / Bukan biaya / Uang masuk) — spec F2-4 §3.3.
+- ✅ Catatan Arus Kas **tidak bisa diubah atau dihapus**; yang salah dibatalkan dengan alasan wajib
+  lalu dicatat ulang (pencatat di hari sama, sesudahnya Owner/GM) — spec F2-4 §3.2.

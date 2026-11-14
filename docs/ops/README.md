@@ -60,3 +60,11 @@ Bila server tidak kembali, satu-satunya jalan adalah panel penyedia server (kons
 
 `backup-db.sh` hanya mencadangkan database (harian, disimpan di server yang sama). Berkas foto
 (volume unggahan) **tidak** ikut, dan belum ada salinan backup di luar server.
+Uji pulihkan backup DB berhasil 2026-11-14 (ke DB sementara, lalu dihapus). Backup foto dan
+salinan ke luar server diusulkan agent, ditunda owner ("nanti saja", 2026-11-14) — sebaiknya
+selesai sebelum HRIS ke produksi karena HRIS banyak menyimpan foto.
+
+## Web baru Fase 2
+
+Halaman Awal (gateway), Finance, dan web Logistik baru ada di staging; prasyarat produksinya ada
+di [`auth-pusat.md`](auth-pusat.md) bagian "Sesudah cutover: web lain".

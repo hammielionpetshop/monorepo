@@ -63,4 +63,5 @@ Satu daftar **Tempat Uang** untuk semua web, sehingga setiap uang masuk dan kelu
 
 ## 7. Pertanyaan terbuka
 
-- ❓ Siapa yang boleh mengubah daftar Tempat Uang: Owner/GM saja, atau Finance juga?
+- ✅ Owner, GM, dan Finance boleh mengubah daftar Tempat Uang (hak `money_place.manage`; owner
+  2026-11-08 "tambahkan finance juga") — spec F2-1 §4.
