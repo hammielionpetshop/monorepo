@@ -43,8 +43,8 @@ baru ke produksi bersama rilis HRIS, yang **ditunda sampai owner memutuskan** (k
 | F2-7b Logistik dipisah | [spec](../../../work/specs/2026-11-14-f2-7b-pisah-logistik-design.md) | — | Lolos uji staging |
 
 Sisa Fase 2: uji Tutup Bulan (mulai 1 Des 2026), lalu rilis HRIS/Finance/Gateway/Logistik ke produksi
-saat owner memutuskan. Sebelum Finance rilis, alamat halaman Finance yang masih berbahasa Indonesia
-(`/arus-uang`, `/laba-rugi`, dst.) diganti ke bahasa Inggris sesuai aturan nama teknis (keputusan owner 2026-11-14).
+saat owner memutuskan. Alamat halaman HRIS, Logistik, dan Finance diganti ke bahasa Inggris
+(perintah owner 2026-11-14, spec `docs/work/specs/2026-11-14-english-routes-design.md`).
 
 ## Cara membaca
 
