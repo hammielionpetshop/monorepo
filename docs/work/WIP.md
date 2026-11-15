@@ -16,7 +16,7 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   implementasi: catatan tampil > 90 hari dibuang saat akun menekan OK berikutnya (bukan mesin terjadwal).
   **F3-2 Pengumuman Darurat** (spec `specs/2026-11-15-f3-2-pengumuman-darurat-design.md`, disetujui owner
   2026-11-15; `feat/hris-f3-2-emergency`, migrasi hris `0059`) terintegrasi ke dev_hris dan staging —
-  **tayang staging — menunggu uji owner** (langkah uji spec §8). Tes aturan 11 + integrasi DB 7 lulus; typecheck root lulus.
+  **lolos uji owner di staging 2026-11-15** (deployment `1c87151c`, run `43710630098`; owner: "sudah saya check dan ok"); ikut rilis HRIS. Tes aturan 11 + integrasi DB 7 lulus; typecheck root lulus.
   **Langkah berikutnya: tulis spec F3-3 Papan Perubahan Aturan** (+ kartu "Pengumuman belum dibaca" di Beranda,
   daftar karyawan tab Berlaku/Riwayat termasuk darurat — PRD Fase 3 `03-papan-perubahan-aturan.md`, spec F3-1 §0),
   minta persetujuan owner, lalu klaim path + kunci `hris` sebelum koding dari `origin/dev_hris`.
