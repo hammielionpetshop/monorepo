@@ -223,6 +223,9 @@ export const ACTIONS = {
 
   'announcement.view': { label: 'Buka Pengumuman dan lihat siapa sudah dan belum baca', group: ANNOUNCEMENT },
   'announcement.emergency.send': { label: 'Kirim dan akhiri pengumuman darurat', group: ANNOUNCEMENT },
+  'announcement.rule.draft': { label: 'Tulis dan ubah konsep perubahan aturan', group: ANNOUNCEMENT },
+  'announcement.rule.publish': { label: 'Terbitkan, jadwalkan, ralat, dan tarik perubahan aturan (yang menyangkut uang dikirim untuk disetujui)', group: ANNOUNCEMENT },
+  'announcement.rule.approve': { label: 'Putuskan pengumuman perubahan aturan yang menyangkut uang', group: ANNOUNCEMENT, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

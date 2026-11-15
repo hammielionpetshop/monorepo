@@ -421,6 +421,13 @@
       "when": 1794742242609,
       "tag": "0059_f3_2_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794747656864,
+      "tag": "0060_f3_3a_rule_board",
+      "breakpoints": true
     }
   ]
 }

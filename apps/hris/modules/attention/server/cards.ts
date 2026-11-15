@@ -4,6 +4,7 @@ import { followupAttention, kasirChangeAttention, logisticsAttention, moneyCheck
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { missingSalaryCount, myPayAttention, objectionAttention, overpayAttention, rupiah, tripWageAttention, unloadingAttention, weeklyPayCard } from '@/modules/payroll';
+import { unreadAnnouncements } from '@/modules/announcements';
 import { waitingSummary } from '@/modules/requests';
 import { remindsApprover, type AttentionCard } from '../rules/queue';
 
@@ -17,7 +18,7 @@ function days(n: number) {
  * Belum disaring per web (HRIS / Logistik); penyaringan milik pemanggil.
  */
 export async function attentionCards(actor: Actor | null): Promise<{ mine: AttentionCard[]; system: AttentionCard[] }> {
-  const [waiting, promotion, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck, shortHandover, deposits] = await Promise.all([
+  const [waiting, promotion, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck, shortHandover, deposits, unread] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     pendingReviewCount(actor),
@@ -46,9 +47,24 @@ export async function attentionCards(actor: Actor | null): Promise<{ mine: Atten
     moneyCheckAttention(actor),
     shortHandoverAttention(actor),
     depositAttention(actor),
+    unreadAnnouncements(actor),
   ]);
 
   const mine: AttentionCard[] = [];
+  // Pengumuman belum dibaca (spec F3-3 §3.6): kartu paling atas; jendela antrean kelompok RULE sekali sehari.
+  // Darurat punya jendelanya sendiri (F3-2), jadi hanya ikut dihitung di kartu, bukan di butir antrean ini.
+  const unreadRules = unread.filter((item) => item.kind === 'RULE');
+  if (unread.length) {
+    mine.push({
+      key: 'rule_unread', title: `${unread.length} pengumuman belum dibaca`,
+      detail: unread.slice(0, 3).map((item) => item.title).join(' · '), href: '/rule-board', tone: 'danger', badge: 'fitur/papan-perubahan-aturan',
+      queue: unreadRules.length ? {
+        group: 'RULE', oldestAt: unreadRules[0].publishedAt,
+        title: `Ada ${unreadRules.length} perubahan aturan belum dibaca.`,
+        detail: 'Baca sebelum mulai berlaku, lalu tekan "Sudah saya baca".',
+      } : undefined,
+    });
+  }
   if (waiting.count) {
     mine.push({
       key: 'requests', title: `${waiting.count} pengajuan menunggu keputusan`,

@@ -28,7 +28,7 @@ export async function emergencyLimits(): Promise<EmergencyLimitsView> {
  * Penempatan (cabang `b`, jabatan `p`) termasuk sasaran pengumuman `a`? Irisan cabang dan jabatan; daftar kosong
  * di satu sisi = semua (spec F3-2 §3.1). Dihitung saat dibaca, jadi orang yang pindah ikut menerima (BER-L25).
  */
-function matchesAnnouncement(b: SQL, p: SQL): SQL {
+export function matchesAnnouncement(b: SQL, p: SQL): SQL {
   return sql`(a.target_all or (
     (not exists (select 1 from hris.announcement_targets t where t.announcement_id = a.id and t.branch_id is not null)
       or exists (select 1 from hris.announcement_targets t where t.announcement_id = a.id and t.branch_id = ${b}))
@@ -38,7 +38,7 @@ function matchesAnnouncement(b: SQL, p: SQL): SQL {
 
 const showing = sql`(a.ended_at is null and a.shows_from <= now() and a.shows_until > now())`;
 
-function idList(ids: number[]): SQL {
+export function idList(ids: number[]): SQL {
   return sql.join(ids.map((id) => sql`${id}`), sql`, `);
 }
 
@@ -107,13 +107,13 @@ export type EmergencyRow = {
 
 type RawRow = {
   id: number; title: string; message: string; target_all: boolean; sender_name: string | null; created_at: string | Date;
-  shows_until: string | Date; ended_at: string | Date | null; end_reason: string | null; read_count: number; recipient_count: number;
+  shows_until: string | Date | null; ended_at: string | Date | null; end_reason: string | null; read_count: number; recipient_count: number;
 };
 
-const iso = (value: string | Date) => new Date(value).toISOString();
+export const iso = (value: string | Date) => new Date(value).toISOString();
 
 /** Penerima = karyawan aktif yang cocok sasaran sekarang, ditambah yang sudah membaca (walau sudah pindah). */
-const recipientCount = sql`(select count(*)::int from (
+export const recipientCount = sql`(select count(*)::int from (
   select cp.employee_id from hris.current_placements cp where cp.active and ${matchesAnnouncement(sql`cp.branch_id`, sql`cp.position_id`)}
   union select r.employee_id from hris.announcement_reads r where r.announcement_id = a.id) x)`;
 
@@ -126,28 +126,38 @@ async function loadRows(where: SQL): Promise<EmergencyRow[]> {
     where a.kind = 'EMERGENCY' and ${where}
     order by a.created_at desc limit 200`);
   if (!rows.length) return [];
-  const ids = rows.map((row) => Number(row.id));
-  const [targets, org] = await Promise.all([
-    db.select().from(announcementTargets).where(sql`${announcementTargets.announcementId} in (${idList(ids)})`),
-    getOrgLookup(),
-  ]);
-  const branchName = new Map(org.branches.map((b) => [b.id, b.name]));
-  const positionName = new Map(org.positions.map((p) => [p.id, p.name]));
+  const texts = await targetTexts(rows.map((row) => ({ id: Number(row.id), targetAll: row.target_all })));
   return rows.map((row) => {
-    const own = targets.filter((t) => t.announcementId === Number(row.id));
-    const branches = own.filter((t) => t.branchId != null).map((t) => branchName.get(t.branchId!) ?? `Cabang #${t.branchId}`);
-    const positions = own.filter((t) => t.positionId != null).map((t) => positionName.get(t.positionId!) ?? `Jabatan #${t.positionId}`);
-    const targetText = row.target_all ? 'Semua orang'
-      : [branches.length ? `Cabang: ${branches.join(', ')}` : 'Semua cabang', positions.length ? `Jabatan: ${positions.join(', ')}` : 'semua jabatan'].join(' · ');
+    const targetText = texts.get(Number(row.id)) ?? '';
     const endedAt = row.ended_at ? new Date(row.ended_at) : null;
     return {
       id: Number(row.id), title: row.title, message: row.message, targetText, senderName: row.sender_name,
-      createdAt: iso(row.created_at), showsUntil: iso(row.shows_until),
-      status: emergencyStatus({ showsUntil: new Date(row.shows_until), endedAt }),
+      createdAt: iso(row.created_at), showsUntil: iso(row.shows_until!),
+      status: emergencyStatus({ showsUntil: new Date(row.shows_until!), endedAt }),
       endReason: row.end_reason, endedAt: endedAt ? endedAt.toISOString() : null,
       readCount: Number(row.read_count), recipientCount: Number(row.recipient_count),
     };
   });
+}
+
+/** Teks sasaran ("Cabang: Singaparna · semua jabatan") per pengumuman. */
+export async function targetTexts(rows: { id: number; targetAll: boolean }[]): Promise<Map<number, string>> {
+  const result = new Map<number, string>();
+  if (!rows.length) return result;
+  const [targets, org] = await Promise.all([
+    db.select().from(announcementTargets).where(sql`${announcementTargets.announcementId} in (${idList(rows.map((row) => row.id))})`),
+    getOrgLookup(),
+  ]);
+  const branchName = new Map(org.branches.map((b) => [b.id, b.name]));
+  const positionName = new Map(org.positions.map((p) => [p.id, p.name]));
+  for (const row of rows) {
+    const own = targets.filter((t) => t.announcementId === row.id);
+    const branches = own.filter((t) => t.branchId != null).map((t) => branchName.get(t.branchId!) ?? `Cabang #${t.branchId}`);
+    const positions = own.filter((t) => t.positionId != null).map((t) => positionName.get(t.positionId!) ?? `Jabatan #${t.positionId}`);
+    result.set(row.id, row.targetAll ? 'Semua orang'
+      : [branches.length ? `Cabang: ${branches.join(', ')}` : 'Semua cabang', positions.length ? `Jabatan: ${positions.join(', ')}` : 'semua jabatan'].join(' · '));
+  }
+  return result;
 }
 
 function canView(actor: Actor | null): actor is Actor {
@@ -167,6 +177,14 @@ export async function emergencyReaders(actor: Actor | null, id: number): Promise
   if (!canView(actor)) return fail(403, 'Anda tidak berhak melihat siapa sudah membaca.');
   const [announcement] = await loadRows(sql`a.id = ${id}`);
   if (!announcement) return fail(404, 'Pengumuman tidak ditemukan.');
+  return {
+    ok: true,
+    value: { announcement, readers: await readersOf(id), canEnd: can(actor, 'announcement.emergency.send') && announcement.status === 'SHOWING' },
+  };
+}
+
+/** Sasaran hari ini + yang sudah membaca, belum baca di atas (BER-L25). */
+export async function readersOf(id: number): Promise<ReaderRow[]> {
   const rows = await db.execute<{ employee_id: number; name: string; branch: string | null; position: string | null; read_at: string | Date | null }>(sql`
     with people as (
       select cp.employee_id from hris.announcements a
@@ -181,17 +199,10 @@ export async function emergencyReaders(actor: Actor | null, id: number): Promise
     left join hris.positions pos on pos.id = cp.position_id
     left join hris.announcement_reads r on r.announcement_id = ${id} and r.employee_id = p.employee_id
     order by (r.read_at is null) desc, e.name`);
-  return {
-    ok: true,
-    value: {
-      announcement,
-      readers: rows.map((row) => ({
-        employeeId: Number(row.employee_id), name: row.name, branch: row.branch, position: row.position,
-        readAt: row.read_at ? iso(row.read_at) : null,
-      })),
-      canEnd: can(actor, 'announcement.emergency.send') && announcement.status === 'SHOWING',
-    },
-  };
+  return rows.map((row) => ({
+    employeeId: Number(row.employee_id), name: row.name, branch: row.branch, position: row.position,
+    readAt: row.read_at ? iso(row.read_at) : null,
+  }));
 }
 
 export type EmergencyQueueItem = { id: number; title: string; message: string; senderName: string | null; createdAt: string };

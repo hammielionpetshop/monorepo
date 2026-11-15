@@ -8,6 +8,7 @@ import {
   salaryChangeHandler, unloadingLateHandler, unloadingNotReceivedHandler,
 } from '@/modules/payroll';
 import { positionSettingHandler } from '@/modules/settings';
+import { ruleAnnouncementHandler } from '@/modules/announcements';
 
 /**
  * Perangkai isi khas tiap jenis pengajuan (spec L2f-1 §3.1). Modul `requests` tidak mengimpor modul jenisnya;
@@ -16,6 +17,7 @@ import { positionSettingHandler } from '@/modules/settings';
 export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   identity_change: identityChangeHandler,
   position_setting_change: positionSettingHandler(announceToOwners),
+  rule_announcement: ruleAnnouncementHandler(),
   relocation: relocationHandler,
   absence: absenceHandler,
   clarification: clarificationHandler,
