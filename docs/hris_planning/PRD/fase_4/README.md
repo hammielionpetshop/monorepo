@@ -1,6 +1,7 @@
 # PRD — Fase 4: Kinerja (Tugas, Rak, Rapor, Bonus Terukur, Penjualan Promo, Catatan Rapat)
 
-Status: **draf, menunggu persetujuan owner**. Disusun 2026-11-15 atas permintaan owner ("kita buat
+Status: **disetujui owner 2026-11-15** ("ok. setuju", termasuk 5 jawaban di 00 §9, 01 §6, 04 §4 dan §6;
+**Fase 3 dikerjakan dulu**). Disusun 2026-11-15 atas permintaan owner ("kita buat
 modul ini, rencanakan ini di fase 4"), setelah owner menanyakan letak laporan tugas berfoto seperti
 kebersihan rak yang menjadi penilaian kinerja.
 

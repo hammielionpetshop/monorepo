@@ -94,8 +94,8 @@ yang dikerjakan, menandai laporan janggal, dan hasilnya menjadi ukuran rapor (02
 - Foto memakai **penyimpanan tertutup HRIS** yang sama dengan foto absen; dikompres di HP; komponen
   kamera absen dipakai ulang (bukan dibuat kedua kali).
 - Lokasi foto memakai **titik & radius cabang dari Kehadiran** (KIN-39, WAJ-03).
-- 💡 **Masa simpan foto laporan**: v3 tidak menyebut. Usulan: sama dengan foto absen (60 hari)
-  **sesudah rapor periodenya ditetapkan**; angka dan jejaknya tidak ikut terhapus. ❓ owner.
+- ✅ **Masa simpan foto laporan** (owner 2026-11-15): **60 hari sesudah rapor periodenya ditetapkan**,
+  sama seperti foto absen; angka dan jejaknya tidak ikut terhapus.
 
 ## 7. Kriteria selesai
 
@@ -107,6 +107,5 @@ yang dikerjakan, menandai laporan janggal, dan hasilnya menjadi ukuran rapor (02
 
 ## 8. Pertanyaan terbuka
 
-- ❓ Masa simpan foto laporan tugas/rak (§6).
 - ❓ Apakah karyawan gudang juga punya Daftar Rak (rak gudang), atau rak hanya untuk toko? Saran 💡:
   boleh keduanya; daftar rak per cabang, dan Gudang dihitung cabang (seperti Kehadiran).

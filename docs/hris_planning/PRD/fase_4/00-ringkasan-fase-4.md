@@ -7,7 +7,7 @@
   dan Persetujuan Bonus di modul Gaji, L4d).
 - Owner 2026-11-14 menanyakan di mana laporan tugas berfoto, misalnya **kebersihan rak**, yang
   menjadi penilaian kinerja. Jawabannya: modul Kinerja v3, yang belum dibangun.
-- ✅ Owner 2026-11-15: modul ini dibangun di **Fase 4**, sesudah Fase 3 (fitur pendukung).
+- ✅ Owner 2026-11-15: modul ini dibangun di **Fase 4**, **sesudah Fase 3 selesai** ("kita kerjakan fase 3 dulu").
 
 ## 2. Tujuan Fase 4
 
@@ -56,7 +56,7 @@
 - **Rekrutmen**: ditangguhkan owner 12 Oktober 2026 (backlog v3 `2026-10-12-rekrutmen-ditangguhkan.md`).
 - **Bonus Kinerja bertingkat, Ranking Disiplin, Tabungan Loyalitas**: ditunda owner (KIN-18, GAJ-31, 32).
 - **Kesehatan Mesin** (BER-L30): v3 meminta mesin Kinerja tampil di sana (KIN-39, 50). Catatan jalan
-  mesin tetap disimpan (`job_runs`); layarnya belum. ❓ lihat §9.
+  mesin tetap disimpan (`job_runs`); layarnya belum. ✅ Sebagai gantinya, pemberitahuan ke Pemilik/GM (§9).
 
 ## 6. Prinsip yang mengikat Fase 4
 
@@ -87,8 +87,8 @@ Semua prinsip Fase 1 (§6) dan Fase 3 (§6) tetap berlaku. Tambahan dari v3:
 datanya harus terkumpul minimal satu periode sebelum rapor berarti. F4-5 dan F4-6 boleh tukar
 urutan menurut kebutuhan owner.
 
-💡 Bila owner ingin Tugas dimulai **sebelum Fase 3 selesai**, pengingat tugas sementara dikirim lewat
-lonceng (seperti modul lain sekarang) lalu pindah ke antrean berantai saat F3-1 tayang.
+✅ Owner 2026-11-15: Fase 4 dimulai **sesudah Fase 3**, jadi pengingat tugas langsung memakai antrean
+berantai dan aturan baru langsung diumumkan lewat Papan.
 
 ## 8. Definisi selesai satu langkah
 
@@ -104,14 +104,13 @@ jarak foto sebelum–sesudah, lokasi).
 | Target omzet, cocok struk promo | "Menyala setelah sambungan kasir hidup" | **Langsung menyala**: omzet dan nota dibaca dari POS di database yang sama | Penyimpangan Fase 1 (Tarik Data diganti view) |
 | Produk promo | Dari daftar produk hasil tarikan | Dari **daftar produk POS** langsung | Sama |
 | Bonus yang dibangun | Termasuk promo dan Bonus Terukur | Fase 1 hanya grooming, ongkir, bebas; Fase 4 **menambah** Bonus Terukur dan promo ke Buku Bonus yang sama | Melengkapi |
-| Layar Kesehatan Mesin | Wajib menampilkan mesin Kinerja | ❓ | Belum dibangun (Fase 3 tidak memuatnya) |
+| Layar Kesehatan Mesin | Wajib menampilkan mesin Kinerja | Pemberitahuan ke Pemilik/GM bila mesin Kinerja gagal | ✅ owner 2026-11-15 |
 
 Pertanyaan terbuka tingkat fase:
 
-- ❓ **Kesehatan Mesin**: buat versi kecil (daftar mesin, terakhir jalan, gagal) sebagai bagian F4-1,
-  atau cukup pemberitahuan ke Pemilik/GM bila mesin Kinerja gagal? Saran 💡: pemberitahuan dulu.
-- ❓ **Cabang uji coba**: Tugas & Rak dimulai di satu cabang dulu atau semua cabang sekaligus?
-  Saran 💡: satu cabang selama satu periode, lalu semua.
+- ✅ **Kesehatan Mesin** (owner 2026-11-15): cukup **pemberitahuan ke Pemilik/GM** bila mesin Kinerja gagal.
+- ✅ **Cabang uji coba** (owner 2026-11-15): Tugas & Rak dimulai di **satu cabang selama satu periode**,
+  lalu semua cabang.
 - Data yang **diisi owner saat menyiapkan tayang** (v3 bagian 6, jangan ditanyakan sebelum owner
   menyampaikan): daftar aturan Bonus Terukur & sumber dananya; kriteria & bobot rapor per jabatan per
   cabang; target omzet cabang; daftar rak per cabang, penanggung jawab, jadwalnya; tugas mana yang

@@ -9,7 +9,7 @@ orang melaporkan penjualannya, dan mendapat **bonus per pcs** dengan dua tarif (
 tercapai atau belum).
 
 "Produk promo" di sini adalah **target jual untuk bonus karyawan**, berbeda dari **promo diskon** di
-POS (beli X gratis Y, diskon kelompok). ❓ lihat §6.
+POS (beli X gratis Y, diskon kelompok). ✅ Keduanya terpisah (§6).
 
 ## 2. Aturan inti
 
@@ -47,8 +47,8 @@ POS (beli X gratis Y, diskon kelompok). ❓ lihat §6.
 ## 4. Penyesuaian monorepo
 
 - **Nota dicocokkan langsung ke transaksi POS** di database yang sama, sejak hari pertama (00 §9).
-- 💡 Karena nota bisa dicek langsung, **foto struk menjadi tidak wajib**: pelapor cukup memilih nota
-  (nomor nota terisi, produk dan jumlah di nota tampil). Foto tetap bisa dilampirkan. ❓ owner.
+- ✅ Owner 2026-11-15: karena nota bisa dicek langsung, **foto struk tidak wajib**: pelapor cukup memilih
+  nota (nomor nota terisi, produk dan jumlah di nota tampil). Foto tetap bisa dilampirkan.
 - Transaksi POS hanya mencatat **kasir**, bukan pramuniaga yang melayani; karena itu laporan dari
   karyawan tetap dibutuhkan (siapa yang menjual).
 
@@ -61,7 +61,7 @@ POS (beli X gratis Y, diskon kelompok). ❓ lihat §6.
 
 ## 6. Pertanyaan terbuka
 
-- ❓ **Hubungan dengan promo POS**: produk promo Kinerja dibuat terpisah (v3), atau boleh dipilih dari
-  promo POS yang sedang berjalan? Saran 💡: **terpisah** (tujuannya berbeda: bonus karyawan vs diskon
-  pelanggan), tetapi layar menampilkan bila produk itu juga sedang dipromo di POS.
-- ❓ Foto struk wajib atau tidak (§4).
+- ✅ **Hubungan dengan promo POS** (owner 2026-11-15): produk promo Kinerja dibuat **terpisah** (tujuannya
+  berbeda: bonus karyawan vs diskon pelanggan); 💡 layar menampilkan bila produk itu juga sedang
+  dipromo di POS.
+- ✅ Foto struk tidak wajib (§4).
