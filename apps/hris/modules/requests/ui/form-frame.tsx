@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { QueueHold } from '@/components/queue';
 import { Alert, Card } from '@/components/ui/surface';
 import { REQUEST_TYPES, type RequestTypeDefinition, type RequestTypeKey } from '../rules/types';
 
@@ -13,6 +14,8 @@ export function RequestFormFrame({ typeKey, resubmitOf, children }: {
   const type: RequestTypeDefinition = REQUEST_TYPES[typeKey];
   return (
     <div className="space-y-4">
+      {/* Antrean berantai menunggu sampai isian selesai atau ditinggalkan (BER-L03, spec F3-1 §3.5). */}
+      <QueueHold />
       <Card>
         <h2 className="text-lg font-semibold">{type.label}</h2>
         <p className="mt-1 text-sm">{type.guideLine}</p>

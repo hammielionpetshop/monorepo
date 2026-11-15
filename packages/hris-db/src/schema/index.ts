@@ -8,3 +8,4 @@ export * from './files';
 export * from './attendance';
 export * from './payroll';
 export * from './advances';
+export * from './attention';
