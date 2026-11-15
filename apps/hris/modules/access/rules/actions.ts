@@ -29,6 +29,7 @@ const ADVANCE = 'Kasbon';
 const LOGISTICS = 'Logistik';
 const DRIVER_PAY = 'Gaji Driver';
 const UNLOADING = 'Bongkaran';
+const ANNOUNCEMENT = 'Pengumuman';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -219,6 +220,9 @@ export const ACTIONS = {
   'unloading.correct_paid': { label: 'Koreksi dan batalkan Laporan Bongkaran yang sudah dibayar', group: UNLOADING, ownerOnly: true },
   'unloading.cancel_payment': { label: 'Batal bayar bongkaran', group: UNLOADING, ownerOnly: true },
   'unloading.overpay_decide': { label: 'Putuskan lebih bayar bongkaran: tagih tunai atau hapus', group: UNLOADING, ownerOnly: true },
+
+  'announcement.view': { label: 'Buka Pengumuman dan lihat siapa sudah dan belum baca', group: ANNOUNCEMENT },
+  'announcement.emergency.send': { label: 'Kirim dan akhiri pengumuman darurat', group: ANNOUNCEMENT },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

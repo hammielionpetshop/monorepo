@@ -9,6 +9,9 @@
  *   rilis produksi di branch rilis.
  */
 export const NEW_FEATURES: Record<string, string> = {
+  // F3-2 Pengumuman Darurat (tayang staging 2026-11-15)
+  '/announcements': '2026-11-15',
+  'fitur/pengumuman-darurat': '2026-11-15', // jendela Darurat di antrean
   // F2-7b web Logistik di alamat sendiri: kotak pintas Trip Saya di Beranda HRIS (tayang staging 2026-11-14)
   'fitur/web-logistik': '2026-11-14',
   // F2-7a tombol Pindah web ke gateway (tayang staging 2026-11-14)
