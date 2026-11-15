@@ -9,6 +9,16 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
 
 ## Current Focus
 
+- **Fase 3 (fitur pendukung HRIS)** — owner cukup mengetik "lanjutkan fase 3". PRD `hris_planning/PRD/fase_3/`
+  (langkah F3-1..F3-5). **F3-1 Antrean Berantai** (spec `specs/2026-11-15-f3-1-antrean-berantai-design.md`,
+  `feat/hris-f3-1-queue`, migrasi hris `0058`) terintegrasi ke dev_hris dan staging; **lolos uji owner di staging
+  2026-11-15** (deployment `1df61f1b`, run `43661721129`; owner: "saya sudah uji"); ikut rilis HRIS. Catatan
+  implementasi: catatan tampil > 90 hari dibuang saat akun menekan OK berikutnya (bukan mesin terjadwal).
+  **Langkah berikutnya: tulis spec F3-2 Pengumuman Darurat** (jenis antrean `EMERGENCY` paling depan, hanya web
+  HRIS, tanpa push HP, pemeriksaan tiap 1 menit — PRD Fase 3 + spec F3-1 §0/§3.5), minta persetujuan owner,
+  lalu klaim path + kunci `hris` sebelum koding dari `origin/dev_hris`.
+- ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
+  di staging (dipulihkan 9dd6b94a). Sesudah commit, cek `git show --stat HEAD`.
 - **Fase 2 Keuangan & Susunan Web — fitur selesai dibangun.** Owner cukup mengetik "lanjutkan fase 2"
   (bisa dari komputer lain; sumbernya dokumen ini). Status per langkah F2-1 s.d. F2-7b ada di tabel
   [PRD Fase 2 README](../hris_planning/PRD/fase_2/README.md#status-langkah-2026-11-14); semua spec sudah
@@ -30,10 +40,6 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
 
 ## Menunggu uji owner
 
-- **F3-1 Antrean Berantai** (spec `specs/2026-11-15-f3-1-antrean-berantai-design.md`, langkah uji §8;
-  `feat/hris-f3-1-queue`, migrasi hris `0058`): terintegrasi ke dev_hris dan staging 2026-11-15 — **tayang
-  staging, menunggu uji owner**. Catatan implementasi: catatan tampil lebih dari 90 hari dibuang saat akun
-  menekan OK berikutnya (bukan mesin terjadwal). Sesudah lolos: tulis spec F3-2 Pengumuman Darurat.
 - **F2-6f Tutup Bulan + Koreksi bulan lalu** (spec `specs/2026-11-12-f2-6f-tutup-bulan-design.md`,
   langkah uji §4 dan §5.6): tayang staging; menutup bulan baru bisa dicoba **mulai 1 Desember 2026**.
   BO-nya (`0070`/`0071`) sudah produksi 1.107.136 dalam keadaan tidak aktif (`month_closings` kosong).
