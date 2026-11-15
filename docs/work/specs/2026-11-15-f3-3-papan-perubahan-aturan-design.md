@@ -1,7 +1,7 @@
 # F3-3 Papan Perubahan Aturan — rancangan
 
-Status: **draf, menunggu persetujuan owner.** Koding dimulai sesudah disetujui dan klaim path + kunci `hris`
-terpublikasi di `origin/staging`.
+Status: **disetujui owner 2026-11-15** ("ok saya setuju kerjakan"; kedelapan keputusan §9 mengikuti saran
+agent). Koding F3-3a dimulai sesudah klaim path + kunci `hris` terpublikasi di `origin/staging`.
 
 Sumber: PRD Fase 3 `03-papan-perubahan-aturan.md`, spec F3-1 §0 (kartu "Pengumuman belum dibaca" pindah ke
 sini), spec F3-2 (tabel pengumuman, sasaran, siapa sudah/belum baca); v3 PRI-29, PRI-35, PRI-40 butir 2, WAJ-07;
@@ -272,7 +272,7 @@ fitur Logistik, dan sejenisnya tetap **tidak**). Pengaturan Back Office tidak te
 3. Tarik pengumuman dari langkah 1 (sebelum berlaku) → nilai pengaturan ikut batal di Pengaturan.
 4. Turunkan satu tarif ritase → pengumuman terisi, jenis merugikan, tanggal paling cepat 7 hari.
 
-## 9. Keputusan yang diminta dari owner
+## 9. Keputusan owner (2026-11-15: semua sesuai saran)
 
 1. **Wajib umumkan hanya pengaturan HRIS** (termasuk tarif ritase di Logistik HRIS), tidak termasuk pengaturan
    Back Office. Saran: ya (PRD ❓ 1).
