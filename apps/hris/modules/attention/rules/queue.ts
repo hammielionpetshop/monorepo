@@ -15,6 +15,7 @@ export type QueueItem = { kind: string; group: QueueGroup; title: string; detail
 
 /** Jenis antrean yang lolos pegangan TAM-24 (seperti daftar tindakan KAR-71, ditulis di kode). */
 export const QUEUE_KINDS = {
+  rule_unread: { group: 'RULE', reason: 'Perubahan aturan terbit belum dibaca sasarannya (PRD Fase 3 03 §2, spec F3-3 §3.6)' },
   requests: { group: 'TASK', reason: 'B1 — pengajuan menunggu keputusan lebih dari batas pengingat (PRI-37, TAM-24 butir 2)' },
   overdue: { group: 'TASK', reason: 'B2 — pengajuan menunggu lebih dari batas lama menunggu, ke Pemilik/GM (PRI-37)' },
 } as const satisfies Record<string, { group: QueueGroup; reason: string }>;

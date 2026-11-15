@@ -155,7 +155,7 @@ export function SendEmergencyScreen({ branches, positions, limits }: { branches:
       {error && <Alert tone="danger">{error}</Alert>}
 
       <div className="flex flex-wrap justify-between gap-2">
-        <Button variant="secondary" onClick={() => (step === 0 ? router.push('/announcements') : setStep((n) => n - 1))} disabled={busy}>
+        <Button variant="secondary" onClick={() => (step === 0 ? router.push('/announcements?view=emergency') : setStep((n) => n - 1))} disabled={busy}>
           {step === 0 ? 'Batal' : 'Kembali'}
         </Button>
         {step < 2

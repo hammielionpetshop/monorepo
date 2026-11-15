@@ -8,7 +8,7 @@ import { whenWib } from './shared';
 
 export type AnnouncementTab = 'showing' | 'done';
 
-/** Kantor › Pengumuman (BER-L22): daftar pengumuman darurat. Tab perubahan aturan menyusul di F3-3. */
+/** Kantor › Pengumuman (BER-L22): daftar pengumuman darurat. Perubahan aturan di `rule-office-screen.tsx` (F3-3). */
 export function AnnouncementsScreen({ rows, tab }: { rows: EmergencyRow[]; tab: AnnouncementTab }) {
   const shown = rows.filter((row) => (tab === 'showing' ? row.status === 'SHOWING' : row.status !== 'SHOWING'));
   const columns: Column<EmergencyRow>[] = [
@@ -39,7 +39,7 @@ export function AnnouncementsScreen({ rows, tab }: { rows: EmergencyRow[]; tab: 
         {tabs.map((item) => (
           <Link
             key={item.id}
-            href={item.id === 'showing' ? '/announcements' : '/announcements?tab=done'}
+            href={item.id === 'showing' ? '/announcements?view=emergency' : '/announcements?view=emergency&tab=done'}
             className={cn('rounded-full border px-3 py-1.5 text-sm', item.id === tab ? 'border-brand-600 bg-brand-600 text-white' : 'border-line bg-surface text-ink')}
           >
             {item.label} ({rows.filter((row) => (item.id === 'showing' ? row.status === 'SHOWING' : row.status !== 'SHOWING')).length})
