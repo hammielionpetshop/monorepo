@@ -1,6 +1,6 @@
 # WIP
 
-Last updated: 2026-11-14
+Last updated: 2026-11-15
 Owner: repo session state
 
 WIP hanya berisi fokus dan langkah berikutnya. Riwayat rilis ada di `apps/backoffice/CHANGELOG.md`
@@ -30,6 +30,10 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
 
 ## Menunggu uji owner
 
+- **F3-1 Antrean Berantai** (spec `specs/2026-11-15-f3-1-antrean-berantai-design.md`, langkah uji §8;
+  `feat/hris-f3-1-queue`, migrasi hris `0058`): terintegrasi ke dev_hris dan staging 2026-11-15 — **tayang
+  staging, menunggu uji owner**. Catatan implementasi: catatan tampil lebih dari 90 hari dibuang saat akun
+  menekan OK berikutnya (bukan mesin terjadwal). Sesudah lolos: tulis spec F3-2 Pengumuman Darurat.
 - **F2-6f Tutup Bulan + Koreksi bulan lalu** (spec `specs/2026-11-12-f2-6f-tutup-bulan-design.md`,
   langkah uji §4 dan §5.6): tayang staging; menutup bulan baru bisa dicoba **mulai 1 Desember 2026**.
   BO-nya (`0070`/`0071`) sudah produksi 1.107.136 dalam keadaan tidak aktif (`month_closings` kosong).
