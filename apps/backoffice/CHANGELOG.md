@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.107.136] - 2026-11-14
+
+### Added
+- **Kategori Pengeluaran Kasir** bisa dikelola di Keuangan › Kategori Kas: tambah kategori baru, ganti nama, nonaktifkan, dan aktifkan lagi (tanpa hapus). Kategori nonaktif tidak bisa dipilih kasir lagi; catatan lamanya tetap.
+- Biaya Rutin: centang **Nominal berubah tiap bulan** untuk tagihan seperti listrik dan air. Jumlah per bulan menjadi perkiraan, dan saat Sudah dibayar jumlah sebenarnya bisa diisi tanpa alasan.
+- Pendapatan & Pengeluaran: pilihan **Koreksi bulan lalu** untuk biaya/pendapatan bulan yang sudah ditutup di Finance yang lupa atau salah dicatat. Uangnya tercatat pada tanggal uang, biayanya masuk ke bulan asal sebagai koreksi beralasan; baris koreksi bertanda di daftar. Pilihan ini baru muncul sesudah ada bulan yang ditutup.
+- **Tutup Bulan — kunci catatan uang bulan tertutup** (Fase 2 F2-6f-1). Sesudah sebuah bulan ditutup Owner/GM di web Finance, Back Office menolak mencatat atau membatalkan Arus Kas, Pindah Dana, Hitung Kas, Aset, dan Saldo awal yang bertanggal di bulan itu, dengan pesan "Bulan … sudah ditutup. Catat di bulan berjalan dan sebut bulan asalnya di catatan." Bayar Biaya Rutin untuk tagihan bulan tertutup tetap boleh selama dibayar di bulan berjalan. Selama web Finance belum ada di produksi, belum ada bulan yang bisa ditutup.
+
+### Changed
+- Pesan bulan sudah ditutup kini mengarahkan ke Koreksi bulan lalu.
+
 ## [1.107.135] - 2026-11-13
 
 ### Added
