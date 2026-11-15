@@ -414,6 +414,13 @@
       "when": 1794704460942,
       "tag": "0058_f3_1_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794742242609,
+      "tag": "0059_f3_2_announcements",
+      "breakpoints": true
     }
   ]
 }
