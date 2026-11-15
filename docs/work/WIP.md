@@ -17,9 +17,14 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   **F3-2 Pengumuman Darurat** (spec `specs/2026-11-15-f3-2-pengumuman-darurat-design.md`, disetujui owner
   2026-11-15; `feat/hris-f3-2-emergency`, migrasi hris `0059`) terintegrasi ke dev_hris dan staging —
   **lolos uji owner di staging 2026-11-15** (deployment `1c87151c`, run `43710630098`; owner: "sudah saya check dan ok"); ikut rilis HRIS. Tes aturan 11 + integrasi DB 7 lulus; typecheck root lulus.
-  **Langkah berikutnya: tulis spec F3-3 Papan Perubahan Aturan** (+ kartu "Pengumuman belum dibaca" di Beranda,
-  daftar karyawan tab Berlaku/Riwayat termasuk darurat — PRD Fase 3 `03-papan-perubahan-aturan.md`, spec F3-1 §0),
-  minta persetujuan owner, lalu klaim path + kunci `hris` sebelum koding dari `origin/dev_hris`.
+  **F3-3 Papan Perubahan Aturan** (spec `specs/2026-11-15-f3-3-papan-perubahan-aturan-design.md`, disetujui owner
+  2026-11-15, dipecah F3-3a/F3-3b). **F3-3a** (`feat/hris-f3-3a-rule-board`, migrasi hris `0060`: papan Berlaku/Riwayat,
+  tulis perubahan aturan, persetujuan uang lewat pengajuan `rule_announcement`, ralat/tarik, kartu Beranda + antrean
+  RULE) terintegrasi ke dev_hris dan staging — **tayang staging, menunggu uji owner** (spec §8 F3-3a). Tes aturan 10 +
+  integrasi DB 9 lulus; typecheck root lulus. Catatan implementasi: kolom `message` = "Sekarang"; konsep yang sudah
+  dikirim untuk disetujui dibatalkan dari Pengajuan Saya (status konsep "Ditolak / dibatalkan").
+  **Langkah berikutnya: F3-3b wajib umumkan** (spec §4; klaim path + kunci `hris`, migrasi `0061`) sesudah F3-3a
+  lolos uji owner.
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
