@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueueClockInSent } from '@/components/queue';
 import { Button } from '@/components/ui/button';
 import { Field, Select } from '@/components/ui/field';
 import { Alert, Badge, Card } from '@/components/ui/surface';
@@ -145,6 +146,7 @@ function readLocation(): Promise<GeolocationCoordinates | null> {
 
 export function AttendanceScreen({ branchName, shiftName, hours, state, times, breakUntil, aloneNoBreak, presetCode }: Props) {
   const router = useRouter();
+  const queueAfterClockIn = useQueueClockInSent();
   const [step, setStep] = useState<Step>('idle');
   const [kind, setKind] = useState<AttendanceKind>('IN');
   const [code, setCode] = useState<string | null>(presetCode);
@@ -172,10 +174,13 @@ export function AttendanceScreen({ branchName, shiftName, hours, state, times, b
     reset();
     setCode(null);
     setMessage(text);
+    // Absen terkirim: antrean berantai boleh muncul (TAM-22 butir 2). Sesudah Pulang masih ada Laporan Pulang,
+    // jadi antrean menunggu sampai layar Absen ditinggalkan.
+    if (!wasOut) queueAfterClockIn();
     // Sesudah foto Pulang langsung ke Laporan Pulang (spec L3d §3).
     router.replace(wasOut ? '/clock-in?laporan=1' : '/clock-in');
     router.refresh();
-  }, [reset, router]);
+  }, [reset, router, queueAfterClockIn]);
 
   async function locate(useCode: string, useKind: AttendanceKind, chosen: number | null, assist: boolean) {
     setStep('locate');

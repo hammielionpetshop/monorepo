@@ -70,7 +70,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
       migrationsFolder: fileURLToPath(new URL('auth/src/migrations/', root)), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth',
     });
     await migrationClient.end();
-    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests', '0006_position_proposals']) {
+    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests', '0006_position_proposals', '0058_f3_1_queue']) {
       await sql.unsafe(readFileSync(new URL(`hris-db/src/migrations/${file}.sql`, root), 'utf8')).simple();
     }
     const [branch] = await sql`insert into hris.branches (name) values ('Toko Pusat') returning id`;

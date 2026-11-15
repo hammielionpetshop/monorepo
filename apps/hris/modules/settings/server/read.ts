@@ -57,10 +57,13 @@ export async function settingVersions(key: SettingKey, executor: Executor = db):
 }
 
 /** Angka untuk kerangka aplikasi (jeda tombol, lama tanda Baru) hari ini, dalam satu kueri. */
-export async function shellSettingsToday(): Promise<{ today: IsoDate; holdSeconds: number; newBadgeDays: number }> {
+export async function shellSettingsToday(): Promise<{ today: IsoDate; holdSeconds: number; newBadgeDays: number; reminderHoldSeconds: number }> {
   const today = todayWib();
-  const values = await settingsOn(['shared.hold_seconds_consequential', 'shared.new_badge_days'], today);
-  return { today, holdSeconds: Number(values['shared.hold_seconds_consequential']), newBadgeDays: Number(values['shared.new_badge_days']) };
+  const values = await settingsOn(['shared.hold_seconds_consequential', 'shared.new_badge_days', 'shared.hold_seconds_reminder'], today);
+  return {
+    today, holdSeconds: Number(values['shared.hold_seconds_consequential']), newBadgeDays: Number(values['shared.new_badge_days']),
+    reminderHoldSeconds: Number(values['shared.hold_seconds_reminder']) || 1,
+  };
 }
 
 export function definitionOf(key: SettingKey) {

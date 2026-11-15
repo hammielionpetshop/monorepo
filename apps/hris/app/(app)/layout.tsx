@@ -115,7 +115,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
-        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }} switchUrl={switchUrl} title={web === 'logistik' ? 'Logistik' : 'HRIS'}>{children}</AppShell>
+        <AppShell groups={groups} counts={{ notifications: unread, approvals: waiting.count, clarifications: clarify, overtime }} switchUrl={switchUrl} title={web === 'logistik' ? 'Logistik' : 'HRIS'} queueHoldSeconds={shell.reminderHoldSeconds}>{children}</AppShell>
       </NewFeaturesProvider>
     </HoldSecondsProvider>
   );

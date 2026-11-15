@@ -6,14 +6,17 @@ import { ThemeToggle } from './theme-toggle';
 import { BottomNav, HeaderBell, SideNav } from './nav-links';
 import { ToastProvider } from './ui/toast';
 import { NewBadge } from './ui/new-badge';
+import { QueueProvider } from './queue';
 
 /**
  * Kerangka halaman masuk: header, menu samping berkelompok (lebar) / bilah bawah + Menu (HP), isi.
  * Di layar lebar kerangka setinggi layar; menu samping dan header diam, hanya <main> yang digulir.
  */
-export function AppShell({ groups, counts, switchUrl, title = 'HRIS', children }: {
+export function AppShell({ groups, counts, switchUrl, title = 'HRIS', queueHoldSeconds = null, children }: {
   groups: NavGroup[]; counts?: NavCounts; /** Gateway untuk tombol Pindah web (spec F2-7a §4); null = tidak tampil. */ switchUrl?: string | null;
-  /** Nama web yang sedang dibuka: HRIS atau Logistik (spec F2-7b §3). */ title?: string; children: ReactNode;
+  /** Nama web yang sedang dibuka: HRIS atau Logistik (spec F2-7b §3). */ title?: string;
+  /** Jeda tombol OK jendela antrean (spec F3-1 §3.5); null = tanpa antrean (akses terbatas). */ queueHoldSeconds?: number | null;
+  children: ReactNode;
 }) {
   return (
     <ToastProvider>
@@ -40,7 +43,9 @@ export function AppShell({ groups, counts, switchUrl, title = 'HRIS', children }
               <LogoutButton />
             </div>
           </header>
-          <main className="w-full min-w-0 flex-1 p-4 pb-24 sm:p-6 md:min-h-0 md:overflow-y-auto md:pb-6 print:overflow-visible print:p-0">{children}</main>
+          <main className="w-full min-w-0 flex-1 p-4 pb-24 sm:p-6 md:min-h-0 md:overflow-y-auto md:pb-6 print:overflow-visible print:p-0">
+            {queueHoldSeconds == null ? children : <QueueProvider holdSeconds={queueHoldSeconds}>{children}</QueueProvider>}
+          </main>
         </div>
         <div className="print:hidden"><BottomNav groups={groups} counts={counts} /></div>
       </div>

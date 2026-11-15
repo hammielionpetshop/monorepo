@@ -151,8 +151,16 @@ export async function listApprovals(actor: Actor | null, filter: ApprovalFilter 
 }
 
 /** Angka penanda menu Persetujuan: pengajuan yang menunggu keputusan orang itu. */
-export async function waitingSummary(actor: Actor | null): Promise<{ count: number; oldestDays: number; overdueAll: number; overdueDays: number }> {
-  const empty = { count: 0, oldestDays: 0, overdueAll: 0, overdueDays: 2 };
+export type WaitingSummary = {
+  count: number; oldestDays: number; overdueAll: number; overdueDays: number;
+  /** Waktu kirim pengajuan terlama milik pelaku / yang lewat batas (untuk urutan antrean, spec F3-1 §3.4). */
+  oldestAt: string | null; overdueOldestAt: string | null;
+  /** Pengaturan "Pengajuan mulai diingatkan ke penyetuju" (spec F3-1 §6). */
+  remindAfterDays: number;
+};
+
+export async function waitingSummary(actor: Actor | null): Promise<WaitingSummary> {
+  const empty: WaitingSummary = { count: 0, oldestDays: 0, overdueAll: 0, overdueDays: 2, oldestAt: null, overdueOldestAt: null, remindAfterDays: 1 };
   if (!actor || actor.positionId == null) return empty;
   // Dipanggil kerangka tiap halaman: bukan penyetuju tidak perlu memuat daftar orang.
   if (!actor.fullAccess && !deciderActions().some((action) => hasAction(actor, action))) return empty;
@@ -160,12 +168,17 @@ export async function waitingSummary(actor: Actor | null): Promise<{ count: numb
   if (!rows.length) return { ...empty, overdueDays: await overdueDays() };
   const people = await peopleMap();
   const overdue = await overdueDays();
+  const remindAfterDays = Number(await settingOn('requests.remind_after_days', todayWib())) || 1;
   const now = new Date();
+  const oldest = (list: typeof rows) => list.reduce<Date | null>((min, row) => (!min || row.submittedAt < min ? row.submittedAt : min), null);
   const mine = rows.filter((row) => rolesOn(actor, row, people.get(row.subjectEmployeeId)?.target ?? null).canDecide);
   const oldestDays = mine.reduce((max, row) => Math.max(max, waitingDays(row.submittedAt, now)), 0);
   // "Perlu perhatian sistem" hanya untuk Pemilik/GM (PRI-37 butir 4).
-  const overdueAll = actor.fullAccess ? rows.filter((row) => waitingDays(row.submittedAt, now) >= overdue).length : 0;
-  return { count: mine.length, oldestDays, overdueAll, overdueDays: overdue };
+  const late = actor.fullAccess ? rows.filter((row) => waitingDays(row.submittedAt, now) >= overdue) : [];
+  return {
+    count: mine.length, oldestDays, overdueAll: late.length, overdueDays: overdue,
+    oldestAt: oldest(mine)?.toISOString() ?? null, overdueOldestAt: oldest(late)?.toISOString() ?? null, remindAfterDays,
+  };
 }
 
 export type RequestDetail = {

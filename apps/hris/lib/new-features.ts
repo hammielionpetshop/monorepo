@@ -233,6 +233,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/kurang-serah-tindak-lanjut': '2026-11-08', // B3 kurang serah → Potongan Lain / ganti tunai / tidak dipotong (tayang staging 2026-11-08)
   '/logistics/vehicle-rental': '2026-11-11', // F2-5b Sewa Mobil per ritase (tayang staging 2026-11-11)
   'fitur/sewa-mobil-pengaturan': '2026-11-11', // F2-5b kepemilikan + tarif sewa di Mobil & Rute
+  'fitur/pengingat-berantai': '2026-11-15', // F3-1 jendela pengingat berantai (antrean)
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 
