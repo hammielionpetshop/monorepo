@@ -1,6 +1,6 @@
 # F3-1 Antrean Berantai — rancangan
 
-Status: **usulan agent, menunggu persetujuan owner** (2026-11-15). Owner menyetujui PRD Fase 3 dan
+Status: **disetujui owner 2026-11-15** ("ok setuju"; keempat keputusan §9 mengikuti saran agent). Koding dimulai di sesi baru. Owner menyetujui PRD Fase 3 dan
 meminta Fase 3 dikerjakan lebih dulu dari Fase 4 ("ok. setuju, tapi kita kerjakan fase 3 dulu").
 
 Sumber: PRD Fase 3 `01-antrean-berantai.md`, `00-ringkasan-fase-3.md` §6–§8; v3 TAM-16, 22, 24, 25;
@@ -152,7 +152,7 @@ dibaca sekali selamanya dan dilihat di "Siapa sudah baca".
 5. Buka layar Absen di HP saat ada antrean → layar Absen bersih; sesudah absen terkirim, jendela muncul.
 6. Sedang mengisi pengajuan izin (langkah 2) → jendela tidak memotong; muncul sesudah selesai.
 
-## 9. Keputusan untuk owner
+## 9. Keputusan owner (2026-11-15: semua sesuai saran)
 
 1. **Antrean dibangun di atas kartu "Perlu perhatian" yang sudah ada** (§2), bukan daftar baru. Saran 💡: ya.
 2. **Jendela juga di web Logistik**, karena memakai kerangka yang sama dan penyetujunya orang yang sama.
