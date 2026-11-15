@@ -14,9 +14,14 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   `feat/hris-f3-1-queue`, migrasi hris `0058`) terintegrasi ke dev_hris dan staging; **lolos uji owner di staging
   2026-11-15** (deployment `1df61f1b`, run `43661721129`; owner: "saya sudah uji"); ikut rilis HRIS. Catatan
   implementasi: catatan tampil > 90 hari dibuang saat akun menekan OK berikutnya (bukan mesin terjadwal).
-  **Langkah berikutnya: tulis spec F3-2 Pengumuman Darurat** (jenis antrean `EMERGENCY` paling depan, hanya web
-  HRIS, tanpa push HP, pemeriksaan tiap 1 menit — PRD Fase 3 + spec F3-1 §0/§3.5), minta persetujuan owner,
-  lalu klaim path + kunci `hris` sebelum koding dari `origin/dev_hris`.
+  **F3-2 Pengumuman Darurat** (spec `specs/2026-11-15-f3-2-pengumuman-darurat-design.md`, disetujui owner
+  2026-11-15; `feat/hris-f3-2-emergency`, migrasi hris `0059`) terintegrasi ke dev_hris dan staging —
+  **tayang staging — menunggu uji owner** (langkah uji spec §8). Tes aturan 11 + integrasi DB 7 lulus; typecheck root lulus.
+  **Langkah berikutnya: tulis spec F3-3 Papan Perubahan Aturan** (+ kartu "Pengumuman belum dibaca" di Beranda,
+  daftar karyawan tab Berlaku/Riwayat termasuk darurat — PRD Fase 3 `03-papan-perubahan-aturan.md`, spec F3-1 §0),
+  minta persetujuan owner, lalu klaim path + kunci `hris` sebelum koding dari `origin/dev_hris`.
+  Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
+  petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
   di staging (dipulihkan 9dd6b94a). Sesudah commit, cek `git show --stat HEAD`.
 - **Fase 2 Keuangan & Susunan Web — fitur selesai dibangun.** Owner cukup mengetik "lanjutkan fase 2"
