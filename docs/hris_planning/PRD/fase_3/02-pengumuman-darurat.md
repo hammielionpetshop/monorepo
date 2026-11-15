@@ -48,10 +48,8 @@ memastikan setiap penerima melihatnya. **Bukan** untuk perubahan aturan (itu Pap
 
 ## 6. Pertanyaan terbuka
 
-- ❓ **Di web mana saja tampil?** Kasir bekerja di POS; kejadian seperti "Sistem kasir mati" justru
-  untuk kasir. Saran 💡: Fase 3 hanya di **web HRIS** (semua karyawan memakai HRIS di HP untuk
-  absen, jadi kabar tetap sampai); tampil juga di POS/Back Office **menyusul** bila owner mau.
-- ❓ **Notifikasi HP (push)** supaya sampai walau HRIS tidak dibuka? v3 tidak memintanya. Saran 💡:
-  **tidak** di Fase 3 (perlu izin notifikasi browser di tiap HP dan tidak andal di iPhone); sebagai
-  gantinya, pengirim bisa melihat siapa yang belum membaca lalu menghubungi lewat WA.
+- ✅ **Di web mana saja tampil** (owner 2026-11-15): hanya di **web HRIS** (semua karyawan memakai
+  HRIS di HP untuk absen, jadi kabar tetap sampai); POS/Back Office menyusul bila owner mau.
+- ✅ **Tanpa notifikasi HP (push)** (owner 2026-11-15): pengirim melihat siapa yang belum membaca lalu
+  menghubungi lewat WA.
 - ❓ Masa tayang paling lama berapa hari? Saran 💡: 7 hari (pengaturan).

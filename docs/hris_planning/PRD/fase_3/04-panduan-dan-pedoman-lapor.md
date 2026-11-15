@@ -20,9 +20,9 @@ Karyawan hanya punya **satu tempat** mencari "aturannya bagaimana": menu **Pandu
 - 💡 Halaman panduan yang sudah ada di HRIS (panduan aturan potongan) **dipindah** menjadi halaman
   pertama Panduan Karyawan, supaya tidak ada dua tempat.
 
-### Isi awal 💡
+### Isi awal ✅ (owner 2026-11-15)
 
-v3 menulis isi panduan "dibawa dari sistem lama", tetapi owner melarang membuka HRIS lama. Usulan:
+v3 menulis isi panduan "dibawa dari sistem lama", tetapi owner melarang membuka HRIS lama. Maka
 agent **menyusun draf** halaman dari aturan v3 + layar HRIS baru, satu halaman per kebutuhan
 karyawan, lalu owner memeriksa dan menyunting sebelum diterbitkan. Usulan daftar halaman awal:
 
@@ -51,7 +51,7 @@ dan daftar menaruh halaman yang cocok dengan jabatannya di atas.
   sendiri** untuk kasus yang bukan pengajuan (misalnya "Barang rusak di rak: lapor Kepala Toko",
   "Mobil mogok: telepon Kepala Gudang").
 
-### Isi awal 💡
+### Isi awal ✅ (owner 2026-11-15)
 
 Baris `guideLine` yang sekarang tertulis di kode per jenis pengajuan dipindah menjadi data sebagai
 isi awal, lalu owner menyunting dan menambah kasus yang bukan pengajuan. Kode tidak lagi menyimpan

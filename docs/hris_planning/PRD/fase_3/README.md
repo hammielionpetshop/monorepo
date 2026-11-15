@@ -1,8 +1,10 @@
 # PRD — Fase 3: Fitur Pendukung (Pengumuman, Pengingat, Panduan)
 
-Status: **draf, menunggu persetujuan owner** (disusun 2026-11-14 atas permintaan owner: "susun dokumen
-untuk fase 3, fitur pendukung: papan perubahan aturan dan pengumuman darurat, pengingat berantai,
-panduan karyawan, dan pedoman lapor").
+Status: **4 keputusan utama disetujui owner 2026-11-15** ("ok" untuk: darurat di web HRIS saja,
+tanpa push HP, isi awal Panduan disusun baru dari v3, isi awal Pedoman Lapor dari baris yang sudah
+ada). Disusun 2026-11-14 atas permintaan owner: "susun dokumen untuk fase 3, fitur pendukung: papan
+perubahan aturan dan pengumuman darurat, pengingat berantai, panduan karyawan, dan pedoman lapor".
+Pertanyaan ❓ kecil yang tersisa dijawab di spec langkahnya.
 
 Fase 3 = membangun **fitur pendukung v3** yang di Fase 1 ditunda ("menyusul"), supaya:
 aturan yang berubah selalu diumumkan dan terbaca, kejadian mendesak sampai ke semua orang,

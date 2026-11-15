@@ -69,17 +69,15 @@ Jabatan sama seperti Fase 1. Yang paling terlibat:
 **Tidak masuk Fase 3**
 
 - **Modul Kinerja & Rekrutmen** (rapor, Bonus Terukur, bonus promo, **Tugas dan laporan berfoto,
-  daftar rak**, Catatan Rapat). ❓ Owner menanyakan letak laporan tugas (misalnya kebersihan rak
-  berfoto): itu milik modul Kinerja (KIN-27 s.d. 44, 72 s.d. 84). Diusulkan menjadi **fase
-  tersendiri sesudah Fase 3**, karena (a) besar, (b) memakai antrean berantai Fase 3 untuk
-  pengingat tugas (KIN-76), dan (c) aturan dan SOP dari Catatan Rapat diumumkan lewat Papan
-  (KIN-46). Menunggu keputusan owner.
+  daftar rak**, Catatan Rapat). ✅ Owner 2026-11-15: dibangun di **Fase 4** (`../fase_4/`), karena
+  memakai antrean berantai Fase 3 untuk pengingat tugas (KIN-76) dan Papan untuk aturan dari rapat
+  (KIN-46).
 - **Kesehatan Mesin & Riwayat Error** (BER-L30 s.d. L33), **Jejak Perubahan** (BER-L34),
   **tempat uji & "Lihat sebagai"** (BER-L50, L51, KAR-L41): fitur pendukung lain yang tidak diminta
   owner untuk Fase 3. Catatan jalan mesin sudah disimpan sejak Fase 1.
-- **Notifikasi HP (push)** di luar aplikasi: v3 tidak memintanya. ❓ lihat [02](02-pengumuman-darurat.md) §6.
-- Pengumuman di **web POS/Back Office, Finance, Logistik**: Fase 3 hanya di web HRIS.
-  ❓ lihat [02](02-pengumuman-darurat.md) §6.
+- **Notifikasi HP (push)** di luar aplikasi ✅ (owner 2026-11-15, [02](02-pengumuman-darurat.md) §6).
+- Pengumuman di **web POS/Back Office, Finance, Logistik**: Fase 3 hanya di web HRIS ✅ (owner
+  2026-11-15, [02](02-pengumuman-darurat.md) §6).
 - "Apa yang baru" (BER-L11) dan tanda Baru: **sudah ada** sejak Fase 1, tidak diubah.
 
 ## 6. Prinsip yang mengikat Fase 3
@@ -114,12 +112,13 @@ Sama dengan Fase 1 §8: tes mesin + hak akses lulus, typecheck/lint/test hijau, 
 staging, WIP + changelog HRIS + tanda Baru diperbarui. Tambahan untuk F3-1 dan F3-2: dicoba di
 **HP sungguhan** (jendela muncul di atas isian, layar absen tidak terhalang).
 
-## 9. Penyimpangan dari v3 (usulan)
+## 9. Penyimpangan dari v3
 
 | Hal | v3 | Fase 3 | Alasan |
 |---|---|---|---|
-| Letak | Satu app HRIS | Web **HRIS** saja; web lain belum | 💡 Fase 2 memecah 4 web; semua karyawan sudah memakai HRIS di HP untuk absen |
+| Letak | Satu app HRIS | Web **HRIS** saja; web lain belum | ✅ owner 2026-11-15; Fase 2 memecah 4 web dan semua karyawan sudah memakai HRIS di HP untuk absen |
+| Notifikasi HP | — | Tidak ada push; pengirim melihat siapa yang belum baca | ✅ owner 2026-11-15 |
 | Penulis pengumuman | HR, Pemilik, GM | Sama; HR saat ini dirangkap GM | Pengumuman uang oleh GM langsung terbit (GM boleh menyetujui) |
-| Isi awal Panduan Karyawan | "Dibawa dari sistem lama" (SIS-06) | **Disusun baru** dari aturan v3 + layar HRIS baru, diperiksa owner | 💡 owner melarang membuka HRIS lama |
-| Isi awal Pedoman Lapor | Disusun pemilik | Baris `guideLine` yang sudah ada di kode dipindah menjadi data sebagai isi awal, lalu disunting owner | 💡 tidak mulai dari kosong |
+| Isi awal Panduan Karyawan | "Dibawa dari sistem lama" (SIS-06) | **Disusun baru** dari aturan v3 + layar HRIS baru, diperiksa owner | ✅ owner 2026-11-15; owner melarang membuka HRIS lama |
+| Isi awal Pedoman Lapor | Disusun pemilik | Baris `guideLine` yang sudah ada di kode dipindah menjadi data sebagai isi awal, lalu disunting owner | ✅ owner 2026-11-15 |
 | Pengingat berantai jenis Keuangan/Kinerja | Termasuk di daftar 76 jenis | Hanya jenis milik modul yang sudah ada | Modul Keuangan v3 diganti Finance baca-saja (Fase 2); Kinerja belum dibangun |
