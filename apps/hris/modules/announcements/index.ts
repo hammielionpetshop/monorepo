@@ -21,6 +21,8 @@ export {
   type BoardEmergency, type BoardView, type DraftInput, type DraftListRow, type DraftView, type RuleOfficeTab, type RuleRow, type UnreadItem,
 } from './server/rules';
 export { ruleAnnouncementHandler } from './server/rule-request';
+export { announceOptions, announcementChoiceSchema, proposalAnnouncer, toAnnounceChoice, type AnnouncementInput } from './server/must-announce';
+export { MustAnnounceStep, type MustAnnounceValue } from './ui/must-announce-step';
 export { draftInputSchema, emergencyTargetSchema } from './server/schemas';
 export { AnnouncementsScreen, type AnnouncementTab } from './ui/announcements-screen';
 export { RuleOfficeScreen } from './ui/rule-office-screen';

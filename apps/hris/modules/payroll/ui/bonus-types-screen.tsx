@@ -11,6 +11,9 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, loadSettingAnnounce, useMustAnnounce } from '@/modules/announcements/ui/must-announce-step';
 import { BONUS_FUND_LABELS, type BonusFund } from '../rules/funds';
 import { longDate } from '../rules/salary';
 import { ReasonDialog } from './bonus-approval-screen';
@@ -91,11 +94,22 @@ export function BonusTypesScreen({ types, typed, nextStart, canEdit, canEditType
   const router = useRouter();
   const toast = useToast();
 
-  function close() { setEditing(null); setValue(''); setReason(''); setError(null); }
+  const announce = useMustAnnounce();
+  function close() { setEditing(null); setValue(''); setReason(''); setError(null); announce.reset(); }
+  // Persen bonus wajib diumumkan (spec F3-3 §4.1): Simpan pertama menyiapkan langkah Pengumuman.
   async function save() {
     if (!editing) return;
+    setError(null);
+    const values = { [editing.key]: Number(value) };
+    if (!announce.active) {
+      const next = await announce.prepare(() => loadSettingAnnounce({ values, targetKind: 'ALL', targetId: null, effectiveFrom: nextStart }));
+      if (next === 'step') return;
+      if (next !== 'save') return setError(next.error);
+    }
+    const extra = announce.payload();
+    if (extra.error) return setError(extra.error);
     setBusy(true);
-    const result = await postJson('/api/payroll', { kind: 'bonus_percent_save', values: { [editing.key]: Number(value) }, effectiveFrom: nextStart, reason });
+    const result = await postJson('/api/payroll', { kind: 'bonus_percent_save', values, effectiveFrom: nextStart, reason, ...extra });
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal.');
     toast(`Persen bonus ${editing.label.toLowerCase()} terjadwal mulai ${longDate(nextStart)}.`, 'ok');
@@ -135,11 +149,20 @@ export function BonusTypesScreen({ types, typed, nextStart, canEdit, canEditType
       <TypedTypes typed={typed} canEdit={canEditTyped} />
       {editing && (
         <Dialog open onClose={close} title={`Ubah persen bonus ${editing.label.toLowerCase()}`}
-          footer={<><Button variant="secondary" onClick={close}>Kembali</Button><HoldButton loading={busy} disabled={!reason.trim() || value === ''} onClick={save}>Simpan</HoldButton></>}>
+          footer={<>
+            <Button variant="secondary" onClick={announce.active ? announce.reset : close}>Kembali</Button>
+            <HoldButton loading={busy || announce.loading} disabled={!reason.trim() || value === ''} onClick={save}>Simpan</HoldButton>
+          </>}>
           <div className="space-y-3">
-            <p className="text-sm">Berlaku mulai <b>{longDate(nextStart)}</b> (pengaturan gaji hanya berubah tanggal 26). Penerimanya diberi tahu.</p>
-            <Field id="bt-value" label="Persen"><Input id="bt-value" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))} /></Field>
-            <Field id="bt-reason" label="Alasan"><Textarea id="bt-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+            {announce.active && announce.data && announce.value ? (
+              <MustAnnounceStep data={announce.data} value={announce.value} onChange={announce.setValue} />
+            ) : (
+              <>
+                <p className="text-sm">Berlaku mulai <b>{longDate(nextStart)}</b> (pengaturan gaji hanya berubah tanggal 26). Penerimanya diberi tahu.</p>
+                <Field id="bt-value" label="Persen"><Input id="bt-value" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))} /></Field>
+                <Field id="bt-reason" label="Alasan"><Textarea id="bt-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+              </>
+            )}
             {error && <Alert tone="danger">{error}</Alert>}
           </div>
         </Dialog>

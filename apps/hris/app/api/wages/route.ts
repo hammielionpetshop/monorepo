@@ -5,6 +5,7 @@ import { actorForSession } from '@/lib/authz';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 import { cancelRate, createRate, fixRate, ratePreview } from '@/modules/logistics';
 import { markTripWageLooked, rateFixImpact } from '@/modules/payroll';
+import { announceOptions, announcementChoiceSchema, toAnnounceChoice } from '@/modules/announcements';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,11 @@ const numbers = { driverWithAssistant: amount, driverAlone: amount, assistant: a
 const reason = z.string().max(500);
 
 const bodySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('rate_preview'), vehicleId: id, routeId: id, ...numbers }),
-  z.object({ action: z.literal('create_rate'), vehicleId: id, routeId: id, effectiveFrom: z.string().max(10), ...numbers }),
+  z.object({ action: z.literal('rate_preview'), vehicleId: id, routeId: id, effectiveFrom: z.string().max(10).optional(), ...numbers }),
+  z.object({
+    action: z.literal('create_rate'), vehicleId: id, routeId: id, effectiveFrom: z.string().max(10), ...numbers,
+    announcement: announcementChoiceSchema.optional(),
+  }),
   z.object({ action: z.literal('cancel_rate'), rateId: id, reason }),
   z.object({ action: z.literal('fix_preview'), rateId: id, ...numbers }),
   z.object({ action: z.literal('fix_rate'), rateId: id, reason, ...numbers }),
@@ -36,15 +40,17 @@ export async function POST(req: Request) {
 
   switch (body.action) {
     case 'rate_preview': {
-      const preview = await ratePreview(actor, body.vehicleId, body.routeId, body);
-      return preview ? NextResponse.json({ ok: true, ...preview }) : denied;
+      const preview = await ratePreview(actor, body.vehicleId, body.routeId, body, body.effectiveFrom);
+      if (!preview) return denied;
+      // Langkah Pengumuman tarif (spec F3-3 §4.1): pilihan sasaran hanya bila wajib diumumkan.
+      return NextResponse.json({ ok: true, ...preview, options: preview.announce?.required ? await announceOptions() : null });
     }
     case 'fix_preview': {
       const impact = await rateFixImpact(actor, body.rateId, body);
       return impact ? NextResponse.json({ ok: true, ...impact }) : denied;
     }
     case 'create_rate': {
-      const result = await createRate(actor, body);
+      const result = await createRate(actor, body, toAnnounceChoice(body.announcement));
       if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
       // Tarif pertama sebuah pasangan bisa mengisi upah yang tadinya Belum bertarif.
       if (actor) await valueTripWagesAfter({ pairs: [{ vehicleId: body.vehicleId, routeId: body.routeId }], from: body.effectiveFrom }, actor.accountId);

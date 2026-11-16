@@ -3,7 +3,8 @@ import { announcementDrafts, announcementReads, announcements, announcementTarge
 import { db } from '@/lib/db';
 import { can, recordAudit, type Actor, type Tx } from '@/modules/access';
 import { todayWib } from '@/modules/employees';
-import { checkReason, settingsOn } from '@/modules/settings';
+import { cancelSetting, checkReason, settingsOn } from '@/modules/settings';
+import { cancelRate } from '@/modules/logistics';
 import { emergencyStatus, type EmergencyTarget, type IsoDate } from '../rules/emergency';
 import {
   approvalSchedule, earliestEffective, isCurrent, needsApproval, normalizeTarget, ruleStatus, validateRule, withdrawBlock,
@@ -109,9 +110,13 @@ export type DraftInput = {
 export type DraftView = DraftInput & {
   id: number; status: DraftStatus; correctsAnnouncementId: number | null; requestId: number | null; announcementId: number | null;
   closeReason: string | null; authorName: string | null; updatedAt: string;
+  /** Ralat pengumuman yang lahir dari pengaturan/tarif ritase: tanggal berlaku terkunci (spec F3-3 §4.1). */
+  linked: boolean;
 };
 
 type DraftRow = typeof announcementDrafts.$inferSelect;
+
+const isLinked = (row: Pick<DraftRow, 'settingValueIds' | 'tripRateId'>) => !!row.settingValueIds?.length || row.tripRateId != null;
 
 function toView(row: DraftRow, authorName: string | null = null): DraftView {
   return {
@@ -120,7 +125,7 @@ function toView(row: DraftRow, authorName: string | null = null): DraftView {
     publishesAt: row.publishesAt ? row.publishesAt.toISOString() : null, effectiveOn: row.effectiveOn,
     supersedesAnnouncementId: row.supersedesAnnouncementId, status: row.status, correctsAnnouncementId: row.correctsAnnouncementId,
     requestId: row.requestId, announcementId: row.announcementId, closeReason: row.closeReason, authorName,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(), linked: isLinked(row),
   };
 }
 
@@ -144,8 +149,12 @@ export async function createDraft(actor: Actor | null, input: DraftInput): Promi
 
 export async function updateDraft(actor: Actor | null, id: number, input: DraftInput): Promise<Result<null>> {
   if (!canWriteRules(actor)) return fail(403, 'Anda tidak berhak menulis perubahan aturan.');
+  const [current] = await db.select().from(announcementDrafts).where(eq(announcementDrafts.id, id));
+  const values = draftValues(input);
+  // Ralat pengumuman pengaturan/tarif hanya mengubah tulisan (spec F3-3 §4.1): tanggal berlaku tetap.
+  if (current && isLinked(current)) values.effectiveOn = current.effectiveOn;
   const [row] = await db.update(announcementDrafts)
-    .set({ ...draftValues(input), updatedByAccountId: actor.accountId, updatedAt: new Date() })
+    .set({ ...values, updatedByAccountId: actor.accountId, updatedAt: new Date() })
     .where(and(eq(announcementDrafts.id, id), eq(announcementDrafts.status, 'DRAFT')))
     .returning({ id: announcementDrafts.id });
   if (!row) return fail(409, 'Konsep ini sudah tidak bisa diubah (sudah dikirim, terbit, atau dibuang).');
@@ -178,6 +187,7 @@ export async function copyRejectedDraft(actor: Actor | null, id: number): Promis
     title: row.title, beforeText: row.beforeText, afterText: row.afterText, askWhom: row.askWhom, changeKind: row.changeKind,
     affectsMoney: row.affectsMoney, target: row.target, publishesAt: null, effectiveOn: null,
     correctsAnnouncementId: row.correctsAnnouncementId, supersedesAnnouncementId: row.supersedesAnnouncementId,
+    settingValueIds: row.settingValueIds, tripRateId: row.tripRateId,
     createdByAccountId: actor.accountId, createdByEmployeeId: actor.personId, updatedByAccountId: actor.accountId,
   }).returning({ id: announcementDrafts.id });
   return { ok: true, value: { id: created.id } };
@@ -213,9 +223,11 @@ async function linkProblem(executor: typeof db | Tx, row: Pick<DraftRow, 'correc
 }
 
 /** Tulis baris pengumuman aturan + sasarannya (tidak diubah sesudahnya). */
-async function insertRule(tx: Tx, value: ValidRule, meta: {
+export async function insertRule(tx: Tx, value: ValidRule, meta: {
   createdByAccountId: number; createdByEmployeeId: number; correctsId: number | null; supersedesId: number | null;
   approvedByAccountId: number | null; requestId: number | null;
+  /** Kaitan wajib umumkan (spec F3-3 §4.2). */
+  settingValueIds?: number[] | null; tripRateId?: number | null;
 }): Promise<number> {
   const [row] = await tx.insert(announcements).values({
     kind: 'RULE', title: value.title, message: value.afterText, beforeText: value.beforeText, askWhom: value.askWhom,
@@ -223,6 +235,7 @@ async function insertRule(tx: Tx, value: ValidRule, meta: {
     showsFrom: value.publishesAt, showsUntil: null, createdByAccountId: meta.createdByAccountId, createdByEmployeeId: meta.createdByEmployeeId,
     correctsAnnouncementId: meta.correctsId, supersedesAnnouncementId: meta.supersedesId,
     approvedByAccountId: meta.approvedByAccountId, requestId: meta.requestId,
+    settingValueIds: meta.settingValueIds?.length ? meta.settingValueIds : null, tripRateId: meta.tripRateId ?? null,
   }).returning({ id: announcements.id });
   if (!value.target.all) {
     const rows = [
@@ -259,6 +272,7 @@ export async function publishDraft(actor: Actor | null, id: number, mode: 'now' 
     const announcementId = await insertRule(tx, checked.value, {
       createdByAccountId: actor.accountId, createdByEmployeeId: actor.personId, correctsId: row.correctsAnnouncementId,
       supersedesId: row.supersedesAnnouncementId, approvedByAccountId: null, requestId: null,
+      settingValueIds: row.settingValueIds, tripRateId: row.tripRateId,
     });
     await tx.update(announcementDrafts).set({
       status: 'PUBLISHED', announcementId, submittedByAccountId: actor.accountId, submittedByEmployeeId: actor.personId,
@@ -308,6 +322,9 @@ export async function publishApproved(tx: Tx, actorAccountId: number, requestId:
   const [row] = await tx.select().from(announcementDrafts).where(eq(announcementDrafts.requestId, requestId)).for('update');
   if (!row || row.status !== 'SUBMITTED' || !row.effectiveOn) return fail(409, 'Konsep pengumuman ini sudah tidak menunggu persetujuan.');
   const schedule = await scheduleIfApprovedNow(row);
+  if (isLinked(row) && schedule.shifted) {
+    return fail(409, 'Ralat ini terkait pengaturan atau tarif yang tanggal berlakunya terkunci, dan jaraknya sudah tidak cukup. Tolak pengajuan ini.');
+  }
   const checked = validateRule({ ...ruleInputOf(row), publishesAt: schedule.publishesAt, effectiveOn: schedule.effectiveOn }, await ruleGaps(), new Date());
   if (!checked.ok) return fail(400, checked.error);
   const problem = await linkProblem(tx, row, checked.value.effectiveOn);
@@ -315,6 +332,7 @@ export async function publishApproved(tx: Tx, actorAccountId: number, requestId:
   const announcementId = await insertRule(tx, checked.value, {
     createdByAccountId: row.submittedByAccountId ?? row.createdByAccountId, createdByEmployeeId: row.submittedByEmployeeId ?? row.createdByEmployeeId,
     correctsId: row.correctsAnnouncementId, supersedesId: row.supersedesAnnouncementId, approvedByAccountId: actorAccountId, requestId,
+    settingValueIds: row.settingValueIds, tripRateId: row.tripRateId,
   });
   await tx.update(announcementDrafts).set({ status: 'PUBLISHED', announcementId, updatedByAccountId: actorAccountId, updatedAt: new Date() })
     .where(eq(announcementDrafts.id, row.id));
@@ -350,7 +368,8 @@ export async function startCorrection(actor: Actor | null, id: number): Promise<
     .where(and(eq(announcementDrafts.correctsAnnouncementId, id), inArray(announcementDrafts.status, ['DRAFT', 'SUBMITTED'])));
   if (open) return { ok: true, value: { draftId: open.id } };
   const targets = await db.select().from(announcementTargets).where(eq(announcementTargets.announcementId, id));
-  const [first] = await db.select({ targetAll: announcements.targetAll }).from(announcements).where(eq(announcements.id, id));
+  const [first] = await db.select({ targetAll: announcements.targetAll, settingValueIds: announcements.settingValueIds, tripRateId: announcements.tripRateId })
+    .from(announcements).where(eq(announcements.id, id));
   const target: EmergencyTarget = first?.targetAll ? { all: true } : {
     all: false,
     branchIds: targets.filter((t) => t.branchId != null).map((t) => t.branchId!),
@@ -360,15 +379,46 @@ export async function startCorrection(actor: Actor | null, id: number): Promise<
     title: rule.title, beforeText: rule.beforeText, afterText: rule.afterText, askWhom: rule.askWhom, changeKind: rule.changeKind,
     affectsMoney: rule.affectsMoney, target, publishesAt: null, effectiveOn: rule.effectiveOn, correctsAnnouncementId: id,
     supersedesAnnouncementId: rule.supersedesId, createdByAccountId: actor.accountId, createdByEmployeeId: actor.personId,
+    settingValueIds: first?.settingValueIds ?? null, tripRateId: first?.tripRateId ?? null,
     updatedByAccountId: actor.accountId,
   }).returning({ id: announcementDrafts.id });
   return { ok: true, value: { draftId: created.id } };
+}
+
+/**
+ * Tarik pengumuman yang lahir dari pengaturan/tarif ritase (spec F3-3 §4.1): nilainya ikut batal lewat layanan
+ * pemiliknya, yang sekaligus menarik semua pengumuman terkait (termasuk ralatnya).
+ */
+async function withdrawLinked(actor: Actor, id: number, reason: string, link: { settingValueIds: number[] | null; tripRateId: number | null }): Promise<Result<null>> {
+  if (link.tripRateId != null) {
+    const result = await cancelRate(actor, link.tripRateId, reason);
+    if (!result.ok) return fail(result.status === 403 ? 403 : 409, result.status === 403 ? 'Pengumuman ini terkait tarif ritase; hanya Pemilik/GM yang bisa menariknya.' : result.error);
+  } else {
+    // Satu nilai cukup: cancelSetting ikut membatalkan nilai lain yang diumumkan bersamanya.
+    const result = await cancelSetting(actor, (link.settingValueIds ?? [])[0], reason);
+    if (!result.ok) {
+      return fail(result.status === 403 ? 403 : 409, result.status === 403
+        ? 'Pengumuman ini terkait pengaturan; hanya yang berhak mengubah pengaturan itu yang bisa menariknya.' : result.error);
+    }
+  }
+  const [row] = await db.select({ endedAt: announcements.endedAt }).from(announcements).where(eq(announcements.id, id));
+  if (!row?.endedAt) return fail(409, 'Pengumuman belum tertarik. Muat ulang halaman lalu ulangi.');
+  return { ok: true, value: null };
 }
 
 export async function withdrawRule(actor: Actor | null, id: number, reasonInput: string): Promise<Result<null>> {
   if (!canPublish(actor)) return fail(403, 'Anda tidak berhak menarik perubahan aturan.');
   const reason = await checkReason(reasonInput, 'Alasan menarik');
   if (!reason.ok) return fail(400, reason.error);
+  const [link] = await db.select({ settingValueIds: announcements.settingValueIds, tripRateId: announcements.tripRateId, kind: announcements.kind })
+    .from(announcements).where(eq(announcements.id, id));
+  if (link?.kind === 'RULE' && (link.settingValueIds?.length || link.tripRateId != null)) {
+    const [rule] = await loadRules(sql`a.id = ${id}`, actor.personId);
+    const block = rule && withdrawBlock({ effectiveOn: rule.effectiveOn, endedAt: rule.endedAt ? new Date(rule.endedAt) : null, corrected: rule.status === 'CORRECTED' }, todayWib());
+    if (!rule) return fail(404, 'Pengumuman tidak ditemukan.');
+    if (block) return fail(409, block);
+    return withdrawLinked(actor, id, reason.reason, link);
+  }
   return db.transaction(async (tx) => {
     const [row] = await tx.execute<{ kind: string; effective_on: string; ended_at: string | null; corrected: boolean }>(sql`
       select a.kind, a.effective_on::text as effective_on, a.ended_at, ${correctedSql} as corrected

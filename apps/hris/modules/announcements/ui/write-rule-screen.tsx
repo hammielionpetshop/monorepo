@@ -235,8 +235,10 @@ export function WriteRuleScreen({ draft, branches, positions, supersedeOptions, 
             </label>
           </fieldset>
           <Field id="rule-effective" label="Mulai berlaku" hint={earliest ? `Paling cepat ${dateText(earliest)} (${changeKind === 'FAVORABLE' ? 'perubahan menguntungkan' : 'perubahan merugikan atau mengubah cara hitung'}). Tidak pernah berlaku di hari terbit.` : 'Menghitung…'}>
-            <Input id="rule-effective" type="date" className="w-auto" min={earliest ?? undefined} value={effectiveOn} onChange={(e) => setEffectiveOn(e.target.value)} />
+            <Input id="rule-effective" type="date" className="w-auto" min={earliest ?? undefined} value={effectiveOn} disabled={draft?.linked}
+              onChange={(e) => setEffectiveOn(e.target.value)} />
           </Field>
+          {draft?.linked && <p className="text-xs text-ink-muted">Pengumuman ini lahir dari perubahan pengaturan atau tarif ritase: tanggal berlaku terkunci, ralat hanya mengubah tulisan.</p>}
           {approval && <p className="text-xs text-ink-muted">Bila disetujui sesudah jadwal terbit lewat, pengumuman terbit saat disetujui dan tanggal berlaku bergeser bila jaraknya tidak lagi cukup.</p>}
         </div>
       )}

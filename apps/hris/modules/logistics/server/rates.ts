@@ -1,8 +1,11 @@
 import { and, asc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { routes, tripRates, tripWages, vehicles } from '@petshop/logistics';
 import { db } from '@/lib/db';
-import { can, type Actor, type ServiceResult } from '@/modules/access';
+import { can, recordAudit, type Actor, type ServiceResult, type Tx } from '@/modules/access';
 import { notify } from '@/modules/notifications';
+import {
+  AnnounceAborted, checkAnnounceChoice, endLinkedAnnouncements, type AnnounceChoice, type AnnounceFail, type AnnouncePreview,
+} from '@/modules/settings';
 import {
   RATE_STATE_LABELS, changeKind, dayLabel, earliestFrom, numbersProblem, pairLabel, rateOnDate, rateState, rupiah, sameNumbers,
   unratedMessage, type RateNumbers, type RateRecord,
@@ -123,15 +126,20 @@ export async function ratesScreen(actor: Actor | null) {
 
 export type RateInput = { vehicleId: number; routeId: number; effectiveFrom: IsoDate } & RateNumbers;
 
-/** Pratinjau Tarif Baru (DRV-L03 langkah 2-3): tarif sekarang, jenis perubahan, tanggal paling cepat. */
-export async function ratePreview(actor: Actor | null, vehicleId: number, routeId: number, numbers: RateNumbers | null) {
+/**
+ * Pratinjau Tarif Baru (DRV-L03 langkah 2-3): tarif sekarang, jenis perubahan, tanggal paling cepat. Dengan
+ * `effectiveFrom` + angka: ikut isi awal langkah Pengumuman (spec F3-3 §4.1).
+ */
+export async function ratePreview(actor: Actor | null, vehicleId: number, routeId: number, numbers: RateNumbers | null, effectiveFrom?: string) {
   if (!actor || !can(actor, 'wage.rate.manage')) return null;
   const today = wibDate(new Date());
   const rows = await db.select().from(tripRates).where(and(eq(tripRates.vehicleId, vehicleId), eq(tripRates.routeId, routeId)));
   const everRated = rows.some((r) => r.status === 'ACTIVE');
   const current = rateOnDate(rows, vehicleId, routeId, today);
   const change = numbers ? changeKind(everRated ? (current ?? numbers) : null, numbers) : everRated ? 'UP_OR_SAME' : 'NEW_PAIR';
-  return { today, current: current ? { ...numbersOf(current), from: current.effectiveFrom } : null, change, earliest: earliestFrom(change, today) };
+  const preview = { today, current: current ? { ...numbersOf(current), from: current.effectiveFrom } : null, change, earliest: earliestFrom(change, today) };
+  const announce = numbers && effectiveFrom ? await announceBlock(vehicleId, routeId, numbersOf(numbers), effectiveFrom, preview) : null;
+  return { ...preview, announce };
 }
 
 async function pairNames(vehicleId: number, routeId: number, executor: Executor = db) {
@@ -154,11 +162,36 @@ async function rateAudience(vehicleId: number, routeId: number, today: IsoDate):
   return accountsOf([...ids]);
 }
 
+/** Wajib umumkan tarif (spec F3-3 §4.1): pasangan yang sudah pernah bertarif; pasangan baru tidak wajib. */
+const mustAnnounceRate = (change: string) => change !== 'NEW_PAIR';
+
+/**
+ * Isi awal langkah Pengumuman untuk Tarif Baru: turun → merugikan, naik/sama → menguntungkan; sasaran usulan jabatan
+ * yang tugas lapangannya menyetir atau kenek.
+ */
+async function announceBlock(
+  vehicleId: number, routeId: number, numbers: RateNumbers, effectiveFrom: string,
+  preview: { today: IsoDate; current: RateNumbers | null; change: string },
+): Promise<AnnouncePreview> {
+  const { vehicle, route } = await pairNames(vehicleId, routeId);
+  const label = pairLabel(vehicle?.name ?? 'Mobil', route?.name ?? 'rute');
+  const before = preview.current;
+  const line = (text: string, key: keyof RateNumbers) => ({ label: text, before: before ? rupiah(before[key]) : 'belum ada', after: rupiah(numbers[key]) });
+  const positionIds = [...new Set((await activePeople(preview.today)).filter((p) => p.duty.drive || p.duty.assist).map((p) => p.positionId))];
+  return {
+    required: mustAnnounceRate(preview.change), title: `Tarif ritase ${label}`,
+    lines: [line('Driver ada kenek', 'driverWithAssistant'), line('Driver tanpa kenek', 'driverAlone'), line('Kenek', 'assistant')],
+    effectiveFrom, affectsMoney: true, changeKind: preview.change === 'DOWN' ? 'UNFAVORABLE' : 'FAVORABLE',
+    target: positionIds.length ? { all: false, branchIds: [], positionIds } : { all: true },
+  };
+}
+
 /**
  * Tarif Baru (DRV-L03): Pemilik/GM. Tidak berlaku mundur; jarak berlaku dihitung server (PRI-35, U3). Satu tanggal satu
- * tarif per pasangan. Tanpa Papan Perubahan Aturan: driver dan kenek diberi tahu lewat Pemberitahuan (§9 butir 5).
+ * tarif per pasangan. Driver dan kenek diberi tahu lewat Pemberitahuan (§9 butir 5); pasangan yang sudah pernah bertarif
+ * juga wajib diumumkan di Papan Perubahan Aturan, atau ditandai tidak perlu diumumkan dengan alasan (spec F3-3 §4.1).
  */
-export async function createRate(actor: Actor | null, input: RateInput): Promise<ServiceResult<{ id: number; message: string }>> {
+export async function createRate(actor: Actor | null, input: RateInput, announcement?: AnnounceChoice): Promise<ServiceResult<{ id: number; message: string }>> {
   if (!actor || !can(actor, 'wage.rate.manage')) return fail(403, FORBIDDEN);
   const numbers = numbersOf(input);
   const numbersError = numbersProblem(numbers);
@@ -175,6 +208,8 @@ export async function createRate(actor: Actor | null, input: RateInput): Promise
     return fail(400, `Tanggal berlaku paling cepat ${dayLabel(preview.earliest)} (${why}).`);
   }
   const label = pairLabel(vehicle.name, route.name);
+  const choice = mustAnnounceRate(preview.change) ? await checkAnnounceChoice(announcement) : null;
+  if (choice && !choice.ok) return fail(400, choice.error);
   return db.transaction(async (tx) => {
     let id: number;
     try {
@@ -184,24 +219,55 @@ export async function createRate(actor: Actor | null, input: RateInput): Promise
       if (isUniqueViolation(error, 'trip_rates_active_unique')) return fail(409, `Sudah ada tarif ${label} mulai ${dayLabel(input.effectiveFrom)}. Batalkan dulu bila ingin menggantinya.`);
       throw error;
     }
+    if (choice?.skipReason) {
+      await recordAudit(tx, {
+        actorAccountId: actor.accountId, entity: 'trip_rate', entityId: id, action: 'trip_rate.no_announce',
+        after: { vehicleId: input.vehicleId, routeId: input.routeId, effectiveFrom: input.effectiveFrom, ...numbers, change: preview.change },
+        reason: choice.skipReason,
+      });
+    } else if (choice && announcement && 'announce' in announcement) {
+      const published = await announcement.announce(tx, actor, {
+        subject: { kind: 'trip_rate', vehicleId: input.vehicleId, routeId: input.routeId }, settingValueIds: [], tripRateId: id,
+        effectiveFrom: input.effectiveFrom, affectsMoney: true, changeKind: preview.change === 'DOWN' ? 'UNFAVORABLE' : 'FAVORABLE',
+      });
+      if (!published.ok) throw new AnnounceAborted(published);
+    }
     const before = preview.current ? ` (sebelumnya ${describe(preview.current)})` : '';
     await notify(tx, await rateAudience(input.vehicleId, input.routeId, preview.today), {
       kind: 'wage.rate_changed', title: `Tarif ${label} mulai ${dayLabel(input.effectiveFrom)}`,
       body: `${describe(numbers)}${before}.`, link: '/my-trips', entity: 'trip_rate', entityId: id,
     }, actor.accountId);
     return { ok: true as const, data: { id, message: `Tarif ${label} tersimpan, mulai ${dayLabel(input.effectiveFrom)}. Driver dan kenek diberi tahu.` } };
+  }).catch((error: unknown) => {
+    if (error instanceof AnnounceAborted) return error.result;
+    throw error;
   });
 }
 
-/** Batalkan tarif terjadwal (belum berlaku): Pemilik/GM, alasan wajib. */
+const CANCEL_BLOCKED = 'Hanya tarif yang belum berlaku yang bisa dibatalkan. Tarif yang sudah berlaku digantikan tarif baru atau dibetulkan bila salah ketik.';
+
+async function cancelRateInTx(tx: Tx, actor: Actor, id: number, reason: string): Promise<{ ok: true } | AnnounceFail> {
+  if (!can(actor, 'wage.rate.manage')) return { ok: false, status: 403, error: 'Pengumuman ini terkait tarif ritase; hanya Pemilik/GM yang bisa menariknya.' };
+  const today = wibDate(new Date());
+  const [row] = await tx.update(tripRates).set({ status: 'CANCELLED', endedAt: new Date(), endedByAccountId: actor.accountId, endReason: reason.trim() })
+    .where(and(eq(tripRates.id, id), eq(tripRates.status, 'ACTIVE'), sql`${tripRates.effectiveFrom} > ${today}`)).returning({ id: tripRates.id });
+  return row ? { ok: true } : { ok: false, status: 409, error: CANCEL_BLOCKED };
+}
+
+/**
+ * Batalkan tarif terjadwal (belum berlaku): Pemilik/GM, alasan wajib. Pengumumannya (bila ada) ikut ditarik; Tarik
+ * pengumuman tarif di Papan juga lewat fungsi ini (spec F3-3 §4.1).
+ */
 export async function cancelRate(actor: Actor | null, id: number, reason: string): Promise<ServiceResult> {
   if (!actor || !can(actor, 'wage.rate.manage')) return fail(403, FORBIDDEN);
   const reasonError = reasonProblem(reason);
   if (reasonError) return fail(400, reasonError);
-  const today = wibDate(new Date());
-  const [row] = await db.update(tripRates).set({ status: 'CANCELLED', endedAt: new Date(), endedByAccountId: actor.accountId, endReason: reason.trim() })
-    .where(and(eq(tripRates.id, id), eq(tripRates.status, 'ACTIVE'), sql`${tripRates.effectiveFrom} > ${today}`)).returning({ id: tripRates.id });
-  return row ? { ok: true, data: undefined } : fail(409, 'Hanya tarif yang belum berlaku yang bisa dibatalkan. Tarif yang sudah berlaku digantikan tarif baru atau dibetulkan bila salah ketik.');
+  return db.transaction(async (tx) => {
+    const cancelled = await cancelRateInTx(tx, actor, id, reason);
+    if (!cancelled.ok) return fail(409, CANCEL_BLOCKED);
+    await endLinkedAnnouncements(tx, actor.accountId, { tripRateId: id }, `Tarif dibatalkan: ${reason.trim()}`);
+    return { ok: true as const, data: undefined };
+  });
 }
 
 /** Baris tarif yang boleh dibetulkan (sudah berlaku, belum dibetulkan/dibatalkan). */

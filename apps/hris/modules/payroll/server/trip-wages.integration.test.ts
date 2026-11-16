@@ -180,7 +180,9 @@ describe.skipIf(!ADMIN_URL)('L7a: tarif ritase dan upah ritase', () => {
       .toMatchObject({ ok: false, error: expect.stringContaining('paling cepat 3 November 2026') });
     expect(await lg.createRate(owner, { ...pair, effectiveFrom: '2026-11-03', driverWithAssistant: 85_000, assistant: 30_000, driverAlone: 115_000 }))
       .toMatchObject({ ok: false, error: expect.stringContaining('9 November 2026') });
-    const up = await lg.createRate(owner, { ...pair, effectiveFrom: '2026-11-06', driverWithAssistant: 95_000, assistant: 30_000, driverAlone: 125_000 });
+    // Pasangan yang sudah bertarif wajib diumumkan (spec F3-3 §4.1); tes ini menguji aturan tanggal, jadi dilewati dengan alasan.
+    const up = await lg.createRate(owner, { ...pair, effectiveFrom: '2026-11-06', driverWithAssistant: 95_000, assistant: 30_000, driverAlone: 125_000 },
+      { skipReason: 'Uji aturan tanggal tarif' });
     expect(up.ok).toBe(true);
     expect(await lg.rateOn(pair.vehicleId, pair.routeId, '2026-11-05')).toMatchObject({ driverWithAssistant: 90_000 });
     expect(await lg.rateOn(pair.vehicleId, pair.routeId, '2026-11-06')).toMatchObject({ driverWithAssistant: 95_000 });

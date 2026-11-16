@@ -11,6 +11,9 @@ import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, loadSettingAnnounce, useMustAnnounce } from '@/modules/announcements/ui/must-announce-step';
 import { addPeriods, longDate, rupiah } from '../rules/salary';
 import { LossSplitTable } from './loss-split-table';
 
@@ -84,21 +87,33 @@ function OfficePercentDialog({ branch, onClose, today, period, nextStart, firstF
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const announce = useMustAnnounce();
   if (!branch) return null;
   // Isi pertama boleh mulai awal periode berjalan (tak ada nilai lama yang tertimpa); perubahan mulai tanggal 26 depan.
   const choices = branch.firstFill ? [firstFillStart, nextStart, addPeriods(nextStart, 1)] : [nextStart, addPeriods(nextStart, 1), addPeriods(nextStart, 2)];
   const chosen = from || choices[0];
 
-  function close() { setValue(''); setFrom(''); setReason(''); setError(null); onClose(); }
+  function close() { setValue(''); setFrom(''); setReason(''); setError(null); announce.reset(); onClose(); }
 
+  // Persen kantor wajib diumumkan (spec F3-3 §4.1): Simpan pertama menyiapkan langkah Pengumuman.
   async function save() {
     if (!branch) return;
     const percent = Number(value);
     if (value === '' || !Number.isInteger(percent) || percent < 0 || percent > 100) return setError('Persen kantor bilangan bulat 0 sampai 100.');
+    setError(null);
+    if (!announce.active) {
+      const next = await announce.prepare(() => loadSettingAnnounce({
+        values: { 'payroll.loss_office_percent': percent }, targetKind: 'BRANCH', targetId: branch.id, effectiveFrom: chosen,
+      }));
+      if (next === 'step') return;
+      if (next !== 'save') return setError(next.error);
+    }
+    const extra = announce.payload();
+    if (extra.error) return setError(extra.error);
     setBusy(true);
     const result = await postJson('/api/payroll', {
       kind: 'office_percent_save', branchId: branch.id, value: percent, effectiveFrom: chosen, reason,
-      expectedLatestId: branch.latestId, firstFill: branch.firstFill && chosen === firstFillStart,
+      expectedLatestId: branch.latestId, firstFill: branch.firstFill && chosen === firstFillStart, ...extra,
     });
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
@@ -109,7 +124,16 @@ function OfficePercentDialog({ branch, onClose, today, period, nextStart, firstF
 
   return (
     <Dialog open onClose={close} title={`Persen kantor ${branch.name}`}
-      footer={<><Button variant="secondary" onClick={close}>Kembali</Button><HoldButton loading={busy} disabled={!reason.trim() || value === ''} onClick={save}>Simpan</HoldButton></>}>
+      footer={<>
+        <Button variant="secondary" onClick={announce.active ? announce.reset : close}>Kembali</Button>
+        <HoldButton loading={busy || announce.loading} disabled={!reason.trim() || value === ''} onClick={save}>Simpan</HoldButton>
+      </>}>
+      {announce.active && announce.data && announce.value ? (
+        <div className="space-y-3">
+          <MustAnnounceStep data={announce.data} value={announce.value} onChange={announce.setValue} />
+          {error && <Alert tone="danger">{error}</Alert>}
+        </div>
+      ) : (
       <div className="space-y-3">
         <Field id="op-value" label="Persen kantor (0–100)"><Input id="op-value" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))} /></Field>
         <Field id="op-from" label="Berlaku mulai" hint={branch.firstFill ? 'Isi pertama boleh mulai awal periode berjalan.' : 'Angka gaji hanya berubah tanggal 26.'}>
@@ -121,6 +145,7 @@ function OfficePercentDialog({ branch, onClose, today, period, nextStart, firstF
         <p className="text-xs text-ink-muted">Hari ini {longDate(today)}. Pemilik lain diberi tahu.</p>
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
+      )}
     </Dialog>
   );
 }

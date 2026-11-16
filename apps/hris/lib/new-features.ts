@@ -12,6 +12,7 @@ export const NEW_FEATURES: Record<string, string> = {
   // F3-3a Papan Perubahan Aturan (tayang staging 2026-11-15)
   '/rule-board': '2026-11-15',
   'fitur/papan-perubahan-aturan': '2026-11-15', // tab Perubahan aturan di Kantor › Pengumuman + kartu Beranda
+  'fitur/wajib-umumkan': '2026-11-16', // F3-3b langkah Pengumuman saat menyimpan pengaturan/tarif ritase wajib umumkan
   // F3-2 Pengumuman Darurat (tayang staging 2026-11-15)
   '/announcements': '2026-11-15',
   'fitur/pengumuman-darurat': '2026-11-15', // jendela Darurat di antrean

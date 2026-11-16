@@ -40,11 +40,18 @@ export const announcements = hrisSchema.table(
     supersedesAnnouncementId: integer('supersedes_announcement_id'),
     approvedByAccountId: integer('approved_by_account_id'),
     requestId: integer('request_id'),
+    // Wajib umumkan (spec F3-3 §4.2): nilai pengaturan yang diumumkan (satu simpanan bisa beberapa kunci, mis. layar
+    // Potongan & Lembur) atau tarif ritase. Tarik pengumuman = batal nilai/tarifnya, dan sebaliknya.
+    settingValueIds: integer('setting_value_ids').array(),
+    /** `logistics.trip_rates.id`; tanpa FK lintas skema. */
+    tripRateId: integer('trip_rate_id'),
   },
   (t) => [
     index('announcements_kind_until_idx').on(t.kind, t.showsUntil),
     index('announcements_corrects_idx').on(t.correctsAnnouncementId),
     index('announcements_supersedes_idx').on(t.supersedesAnnouncementId),
+    index('announcements_setting_values_idx').using('gin', t.settingValueIds),
+    index('announcements_trip_rate_idx').on(t.tripRateId),
     check('announcements_emergency_until', sql`${t.kind}::text <> 'EMERGENCY' or ${t.showsUntil} is not null`),
     check('announcements_rule_complete', sql`${t.kind}::text <> 'RULE' or (${t.beforeText} is not null and ${t.askWhom} is not null
       and ${t.effectiveOn} is not null and ${t.changeKind} is not null and ${t.affectsMoney} is not null)`),
@@ -105,6 +112,9 @@ export const announcementDrafts = hrisSchema.table(
     effectiveOn: date('effective_on', { mode: 'string' }),
     correctsAnnouncementId: integer('corrects_announcement_id'),
     supersedesAnnouncementId: integer('supersedes_announcement_id'),
+    /** Kaitan wajib umumkan (spec F3-3 §4): ralat pengumuman pengaturan/tarif tetap terkait; tanggal berlaku terkunci. */
+    settingValueIds: integer('setting_value_ids').array(),
+    tripRateId: integer('trip_rate_id'),
     status: announcementDraftStatus('status').notNull().default('DRAFT'),
     requestId: integer('request_id'),
     announcementId: integer('announcement_id'),
