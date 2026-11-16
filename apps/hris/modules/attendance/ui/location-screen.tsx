@@ -10,6 +10,9 @@ import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, loadSettingAnnounce, useMustAnnounce } from '@/modules/announcements/ui/must-announce-step';
 import { addDays } from '../rules/schedule';
 
 type Branch = {
@@ -41,17 +44,34 @@ export function LocationScreen({ branches, canManageQr, canUpdateRadius, canEdit
     router.refresh();
   }
 
+  const announce = useMustAnnounce();
+  function closeRadius() {
+    setRadiusTarget(null);
+    announce.reset();
+  }
+
+  // Radius absen wajib diumumkan (spec F3-3 §4.3): Simpan pertama menyiapkan langkah Pengumuman.
   async function saveRadius() {
     if (!radiusTarget) return;
+    setError(null);
+    if (!announce.active) {
+      const next = await announce.prepare(() => loadSettingAnnounce({
+        values: { 'attendance.radius_m': Number(meters) }, targetKind: 'BRANCH', targetId: radiusTarget.id, effectiveFrom,
+      }));
+      if (next === 'step') return;
+      if (next !== 'save') return setError(next.error);
+    }
+    const extra = announce.payload();
+    if (extra.error) return setError(extra.error);
     setBusy(true);
     const result = await postJson('/api/settings', {
       kind: 'set', key: 'attendance.radius_m', targetKind: 'BRANCH', targetId: radiusTarget.id, value: Number(meters),
-      effectiveFrom, reason, expectedLatestId: radiusTarget.radiusLatestId,
+      effectiveFrom, reason, expectedLatestId: radiusTarget.radiusLatestId, ...extra,
     });
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast(`Radius baru berlaku mulai ${effectiveFrom}.`, 'ok');
-    setRadiusTarget(null);
+    closeRadius();
     router.refresh();
   }
 
@@ -113,21 +133,28 @@ export function LocationScreen({ branches, canManageQr, canUpdateRadius, canEdit
 
       <Dialog
         open={radiusTarget != null}
-        onClose={() => setRadiusTarget(null)}
+        onClose={closeRadius}
         title={`Ubah radius ${radiusTarget?.name ?? ''}`}
         footer={(
           <>
-            <Button variant="secondary" onClick={() => setRadiusTarget(null)}>Kembali</Button>
-            <Button loading={busy} onClick={saveRadius}>Simpan</Button>
+            <Button variant="secondary" onClick={announce.active ? announce.reset : closeRadius}>Kembali</Button>
+            <Button loading={busy || announce.loading} onClick={saveRadius}>Simpan</Button>
           </>
         )}
       >
+        {announce.active && announce.data && announce.value ? (
+          <div className="space-y-3">
+            <MustAnnounceStep data={announce.data} value={announce.value} onChange={announce.setValue} />
+            {error && <Alert tone="danger">{error}</Alert>}
+          </div>
+        ) : (
         <div className="space-y-3">
           <Field id="rad-m" label="Radius (meter)" hint="10 sampai 1000. Pemilik dan GM lain diberi tahu."><Input id="rad-m" inputMode="numeric" value={meters} onChange={(e) => setMeters(e.target.value)} /></Field>
           <Field id="rad-from" label="Berlaku mulai" hint="Paling cepat besok."><Input id="rad-from" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} /></Field>
           <Field id="rad-reason" label="Alasan"><Textarea id="rad-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           {error && <Alert tone="danger">{error}</Alert>}
         </div>
+        )}
       </Dialog>
     </div>
   );

@@ -38,7 +38,7 @@ export type SettingDefinition = {
   affectsMoney: boolean;
   /** Hanya boleh berlaku mulai tanggal ini tiap bulan (mis. 26 untuk angka gaji, PRI-44 butir 1). */
   startDay?: number;
-  /** Disimpan untuk Papan Perubahan Aturan (menyusul). */
+  /** Wajib diumumkan di Papan Perubahan Aturan saat diubah (spec F3-3 §4; daftar §4.3). */
   mustAnnounce: boolean;
   /** Disimpan untuk Daftar Pengecualian (L3). */
   exemptible: boolean;
@@ -268,7 +268,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 10, max: 1000 },
     unit: 'meter',
     targets: ['ALL', 'BRANCH'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.earliest_in_minutes': {
@@ -278,7 +278,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 720 },
     unit: 'menit',
     targets: ['ALL'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.min_out_minutes': {
@@ -288,7 +288,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 240 },
     unit: 'menit',
     targets: ['ALL'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.out_cutoff_hour': {
@@ -298,7 +298,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 12 },
     unit: 'jam',
     targets: ['ALL'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.photo_retention_days': {
@@ -328,7 +328,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 60 },
     unit: 'menit',
     targets: ['ALL'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.handover_min_length': {
@@ -435,7 +435,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 20 },
     unit: 'orang',
     targets: ['ALL', 'BRANCH'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.day_off_weekend_max': {
@@ -445,7 +445,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 10 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.day_off_min_gap_days': {
@@ -455,7 +455,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 15 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.day_off_window_open_day': {
@@ -465,7 +465,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 25 },
     unit: 'tanggal',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.day_off_window_close_day': {
@@ -475,7 +475,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 25 },
     unit: 'tanggal',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.day_off_late_min_days': {
@@ -505,7 +505,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 14 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.replacement_days': {
@@ -515,7 +515,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 60 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.leave_annual_quota': {
@@ -535,7 +535,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 60 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.leave_permit_notice_days': {
@@ -555,7 +555,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 14 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.sick_no_letter_max_days': {
@@ -565,7 +565,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 1, max: 14 },
     unit: 'hari kerja',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.bereavement_days': {
@@ -585,7 +585,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 14 },
     unit: 'hari',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.clarify_deadline_days': {
@@ -615,7 +615,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 240 },
     unit: 'menit',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
   'attendance.absence_streak_days': {
@@ -702,7 +702,7 @@ export const SETTINGS = {
     explain: 'Bulanan = tampil di Gaji Karyawan dan dibuatkan slip bulanan (GAJ-02). Mingguan = dibayar per ritase (Gaji Driver).',
     type: { kind: 'choice', options: PAY_BASIS_OPTIONS },
     targets: ['ALL', 'POSITION'],
-    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
   },
   'position.salary_owner_only': {
@@ -854,7 +854,7 @@ export const SETTINGS = {
     explain: 'Masuk di hari libur karena diminta dibayar kompensasi (GAJ-15). Pemilik dan GM tidak.',
     type: { kind: 'choice', options: YES_NO },
     targets: ['ALL', 'POSITION'],
-    affectsMoney: true, startDay: 26, mustAnnounce: false, exemptible: false,
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
     viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
   },
   'payroll.loss_office_percent': {
@@ -940,7 +940,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 26, max: 31 },
     unit: 'tanggal',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'payroll.pay_day': {
@@ -1028,7 +1028,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 23 },
     unit: 'jam',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'payroll.weekly_close_remind_hour': {
@@ -1038,7 +1038,7 @@ export const SETTINGS = {
     type: { kind: 'integer', min: 0, max: 23 },
     unit: 'jam',
     targets: ['ALL'],
-    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'advance.min_tenure_months': {

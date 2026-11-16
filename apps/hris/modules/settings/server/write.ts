@@ -7,6 +7,10 @@ import {
   effectiveDateProblem, formatSettingValue, resolveSetting, sameValue, todayWib, valueProblem, type IsoDate,
 } from '../rules/resolve';
 import { loadRows, settingOn } from './read';
+import {
+  AnnounceAborted, MUST_ANNOUNCE_MISSING, endLinkedAnnouncements, suggestedTarget, cancelLinkedSettings,
+  type AnnounceChoice, type AnnounceLine, type AnnouncePreview,
+} from './announce';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
 
@@ -30,6 +34,21 @@ function isUniqueViolation(error: unknown): boolean {
 
 function canEdit(actor: Actor | null, definition: SettingDefinition): boolean {
   return can(actor, definition.editAction);
+}
+
+/**
+ * Pengaturan wajib umumkan (spec F3-3 §4.1): tanpa pengumuman dan tanpa alasan "tidak perlu diumumkan" ditolak.
+ * Hasil `skipReason` = alasan yang sudah dirapikan (masuk audit `setting.set`), null bila diumumkan.
+ */
+export async function checkAnnounceChoice(choice: AnnounceChoice | undefined): Promise<{ ok: true; skipReason: string | null } | { ok: false; error: string }> {
+  if (!choice) return { ok: false, error: MUST_ANNOUNCE_MISSING };
+  if ('announce' in choice) return { ok: true, skipReason: null };
+  const reason = await checkReason(choice.skipReason, 'Alasan tidak perlu diumumkan');
+  return reason.ok ? { ok: true, skipReason: reason.reason } : reason;
+}
+
+function aborted(error: unknown) {
+  return error instanceof AnnounceAborted ? error.result : null;
 }
 
 export type SetSettingInput = {
@@ -61,7 +80,9 @@ function currentPeriodStart(today: IsoDate): IsoDate {
  * Ubah satu pengaturan (BER-L41). Pemilik/GM: langsung berlaku dan pemilik lain diberi tahu (KAR-73). Usulan HR
  * lewat Mesin Pengajuan (`proposals.ts`), jadi di sini hanya pemegang `editAction` yang bisa menyimpan.
  */
-export async function setSetting(actor: Actor | null, input: SetSettingInput, announce?: ChangeAnnounce): Promise<ServiceResult<{ id: number }>> {
+export async function setSetting(
+  actor: Actor | null, input: SetSettingInput, announce?: ChangeAnnounce, announcement?: AnnounceChoice,
+): Promise<ServiceResult<{ id: number }>> {
   if (!isSettingKey(input.key)) return fail(400, 'Pengaturan tidak dikenal.');
   const key: SettingKey = input.key;
   const definition: SettingDefinition = SETTINGS[key];
@@ -95,6 +116,8 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
   const effectiveFrom: IsoDate = input.effectiveFrom;
   const reason = await checkReason(input.reason);
   if (!reason.ok) return fail(400, reason.error);
+  const choice = definition.mustAnnounce ? await checkAnnounceChoice(announcement) : null;
+  if (choice && !choice.ok) return fail(400, choice.error);
 
   try {
     return await db.transaction(async (tx) => {
@@ -119,9 +142,16 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
       await recordAudit(tx, {
         actorAccountId: actor.accountId, entity: 'setting', entityId: row.id, action: 'setting.set',
         before: current ? { value: current.value, effectiveFrom: current.effectiveFrom, targetKind: current.targetKind, targetId: current.targetId } : null,
-        after: { key, targetKind: input.targetKind, targetId, value: input.value, effectiveFrom },
+        after: { key, targetKind: input.targetKind, targetId, value: input.value, effectiveFrom, ...(choice?.skipReason ? { noAnnounceReason: choice.skipReason } : {}) },
         reason: reason.reason,
       });
+      if (announcement && 'announce' in announcement && definition.mustAnnounce) {
+        const published = await announcement.announce(tx, actor, {
+          subject: { kind: 'setting', items: [{ key, targetKind: input.targetKind, targetId }] }, settingValueIds: [row.id], tripRateId: null,
+          effectiveFrom, affectsMoney: definition.affectsMoney, changeKind: null,
+        });
+        if (!published.ok) throw new AnnounceAborted(published);
+      }
       const positionName = (id: number) => org?.positions.find((p) => p.id === id)?.name;
       const branchName = (id: number) => org?.branches.find((b) => b.id === id)?.name;
       const targetText = input.targetKind === 'POSITION' ? ` jabatan ${positionName(targetId as number) ?? ''}` : '';
@@ -132,6 +162,8 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {
+    const announceFail = aborted(error);
+    if (announceFail) return announceFail;
     if (isUniqueViolation(error)) return fail(409, 'Sudah ada nilai yang berlaku di tanggal itu.');
     throw error;
   }
@@ -157,11 +189,23 @@ export async function cancelSetting(actor: Actor | null, id: number, reasonInput
       after: { status: 'CANCELLED' },
       reason: reason.reason,
     });
+    // Nilai yang sudah diumumkan: pengumumannya ikut ditarik, dan nilai lain yang diumumkan bersamanya ikut batal
+    // (spec F3-3 §4.1), supaya tidak ada nilai yang berlaku tanpa pengumuman.
+    const linked = await endLinkedAnnouncements(tx, actor.accountId, { settingValueIds: [id] }, `Nilai pengaturan dibatalkan: ${reason.reason}`);
+    const siblings = linked.settingValueIds.filter((other) => other !== id);
+    if (siblings.length) {
+      const cancelled = await cancelLinkedSettings(tx, actor, siblings, reason.reason);
+      if (!cancelled.ok) throw new AnnounceAborted(cancelled);
+    }
     await announce?.(tx, actor.accountId, {
       what: `membatalkan nilai ${definition.label} yang akan berlaku ${row.effectiveFrom}`,
       link: definition.module === 'position' ? '/settings/positions' : '/settings/general', entity: 'setting', entityId: id,
     });
     return { ok: true as const, data: {} };
+  }).catch((error: unknown) => {
+    const announceFail = aborted(error);
+    if (announceFail) return announceFail;
+    throw error;
   });
 }
 
@@ -176,7 +220,9 @@ export type SetSettingsBatchInput = {
  * Simpan beberapa pengaturan umum sekaligus dengan satu tanggal berlaku dan satu alasan dalam satu transaksi
  * (layar Potongan & Lembur, spec L4b §3.1). Aturan tiap kunci sama dengan `setSetting`.
  */
-export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBatchInput, announce?: ChangeAnnounce): Promise<ServiceResult<{ changed: SettingKey[] }>> {
+export async function setSettingsBatch(
+  actor: Actor | null, input: SetSettingsBatchInput, announce?: ChangeAnnounce, announcement?: AnnounceChoice,
+): Promise<ServiceResult<{ changed: SettingKey[] }>> {
   const entries = Object.entries(input.values ?? {});
   if (!entries.length) return fail(400, 'Tidak ada yang diubah.');
   const today = todayWib();
@@ -196,11 +242,15 @@ export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBa
   const reason = await checkReason(input.reason);
   if (!reason.ok) return fail(400, reason.error);
   const effectiveFrom: IsoDate = input.effectiveFrom;
+  // Diperiksa di depan bila ada kunci wajib umumkan; yang benar-benar berubah baru diketahui di dalam transaksi.
+  const choice = keys.some((key) => SETTINGS[key].mustAnnounce) && announcement ? await checkAnnounceChoice(announcement) : null;
+  if (choice && !choice.ok) return fail(400, choice.error);
   try {
     return await db.transaction(async (tx) => {
       for (const key of [...keys].sort()) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setting:${key}:ALL:0`}))`);
       const rows = await loadRows(tx, keys);
       const changed: SettingKey[] = [];
+      const announced: { key: SettingKey; id: number }[] = [];
       const parts: string[] = [];
       const now = new Date();
       for (const key of keys) {
@@ -217,13 +267,28 @@ export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBa
         await recordAudit(tx, {
           actorAccountId: actor.accountId, entity: 'setting', entityId: row.id, action: 'setting.set',
           before: current ? { value: current.value, effectiveFrom: current.effectiveFrom, targetKind: 'ALL', targetId: null } : null,
-          after: { key, targetKind: 'ALL', targetId: null, value: input.values[key], effectiveFrom },
+          after: {
+            key, targetKind: 'ALL', targetId: null, value: input.values[key], effectiveFrom,
+            ...(SETTINGS[key].mustAnnounce && choice?.ok && choice.skipReason ? { noAnnounceReason: choice.skipReason } : {}),
+          },
           reason: reason.reason,
         });
+        if (SETTINGS[key].mustAnnounce) announced.push({ key, id: row.id });
         changed.push(key);
         parts.push(`${SETTINGS[key].label} ${current ? formatSettingValue(key, current.value) : 'belum ada'} → ${formatSettingValue(key, input.values[key])}`);
       }
       if (!changed.length) return fail(400, 'Semua angka sama dengan yang berlaku pada tanggal itu; tidak ada yang berubah.');
+      if (announced.length) {
+        if (!announcement) throw new AnnounceAborted(fail(400, MUST_ANNOUNCE_MISSING));
+        if ('announce' in announcement) {
+          const published = await announcement.announce(tx, actor, {
+            subject: { kind: 'setting', items: announced.map((a) => ({ key: a.key, targetKind: 'ALL' as const, targetId: null })) },
+            settingValueIds: announced.map((a) => a.id), tripRateId: null, effectiveFrom,
+            affectsMoney: announced.some((a) => SETTINGS[a.key].affectsMoney), changeKind: null,
+          });
+          if (!published.ok) throw new AnnounceAborted(published);
+        }
+      }
       await announce?.(tx, actor.accountId, {
         what: `mengubah Potongan & Lembur mulai ${effectiveFrom}: ${parts.join('; ')}`,
         link: '/settings/deductions-overtime', entity: 'setting', entityId: 0,
@@ -231,7 +296,54 @@ export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBa
       return { ok: true as const, data: { changed } };
     });
   } catch (error) {
+    const announceFail = aborted(error);
+    if (announceFail) return announceFail;
     if (isUniqueViolation(error)) return fail(409, 'Sudah ada nilai yang berlaku di tanggal itu.');
     throw error;
   }
+}
+
+/**
+ * Isi awal langkah Pengumuman (spec F3-3 §4.1) untuk satu pengaturan atau beberapa sekaligus (sasaran sama).
+ * `required` false = tidak ada kunci wajib umumkan yang berubah; layar langsung menyimpan.
+ */
+export async function settingAnnouncePreview(actor: Actor | null, input: {
+  values: Record<string, unknown>; targetKind: TargetKind; targetId: number | null; effectiveFrom: string; title?: string;
+}): Promise<ServiceResult<AnnouncePreview>> {
+  if (!actor) return fail(403, 'Anda tidak berhak.');
+  const keys = Object.keys(input.values ?? {});
+  if (!keys.length || !keys.every(isSettingKey)) return fail(400, 'Pengaturan tidak dikenal.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveFrom)) return fail(400, 'Pilih tanggal mulai berlaku.');
+  const targetId = input.targetKind === 'ALL' ? null : input.targetId;
+  const org = await getOrgLookup();
+  const positionName = (id: number) => org.positions.find((p) => p.id === id)?.name;
+  const branchName = (id: number) => org.branches.find((b) => b.id === id)?.name;
+  const target = input.targetKind === 'POSITION' ? { positionId: targetId } : input.targetKind === 'BRANCH' ? { branchId: targetId } : {};
+  const rows = await loadRows(db, keys as SettingKey[]);
+  const lines: AnnounceLine[] = [];
+  let affectsMoney = false;
+  for (const key of keys as SettingKey[]) {
+    const definition: SettingDefinition = SETTINGS[key];
+    if (!can(actor, definition.viewAction)) return fail(403, 'Anda tidak berhak melihat pengaturan ini.');
+    if (!definition.mustAnnounce) continue;
+    const own = rows.filter((r) => r.key === key);
+    const current = resolveSetting(own, input.effectiveFrom, target);
+    if (current && sameValue(current.value, input.values[key])) continue;
+    affectsMoney ||= definition.affectsMoney;
+    lines.push({
+      label: definition.label,
+      before: current ? formatSettingValue(key, current.value, positionName, branchName) : 'belum ada',
+      after: formatSettingValue(key, input.values[key], positionName, branchName),
+    });
+  }
+  const targetText = input.targetKind === 'POSITION' ? ` — jabatan ${positionName(targetId as number) ?? ''}`
+    : input.targetKind === 'BRANCH' ? ` — cabang ${branchName(targetId as number) ?? ''}` : '';
+  const title = (lines.length === 1 ? lines[0].label : input.title ?? 'Perubahan pengaturan') + targetText;
+  return {
+    ok: true,
+    data: {
+      required: lines.length > 0, title, lines, effectiveFrom: input.effectiveFrom, affectsMoney, changeKind: null,
+      target: suggestedTarget(input.targetKind, targetId),
+    },
+  };
 }
