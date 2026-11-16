@@ -200,6 +200,26 @@ Keduanya `mustAnnounce: false` (mengatur cara mengumumkan, bukan aturan karyawan
 `hris.announcements` + `setting_value_id` dan `trip_rate_id` (tanpa FK lintas skema untuk tarif; tanpa migrasi
 `logistics`). `hris.setting_values` tidak berubah; tanda "tidak perlu diumumkan" disimpan di audit.
 
+### 4.4 Catatan implementasi (2026-11-16)
+
+- Kolomnya `setting_value_ids integer[]` (bukan satu `setting_value_id`), di `announcements` dan `announcement_drafts`:
+  satu simpanan layar Potongan & Lembur atau Jenis Bonus bisa mengubah beberapa kunci sekaligus dan diumumkan dalam
+  satu pengumuman. Membatalkan salah satu nilainya ikut membatalkan nilai lain yang diumumkan bersamanya dan menarik
+  pengumumannya, supaya tidak ada nilai yang berlaku tanpa pengumuman.
+- "Menggantikan pengumuman sebelumnya" hanya bila seluruh kunci + sasaran pengumuman lama tercakup perubahan baru dan
+  tanggal berlakunya lebih awal; untuk tarif, pasangan mobil + rute yang sama.
+- Tarik pengumuman terkait memakai layanan pemilik nilainya (`cancelSetting` / `cancelRate`), jadi penariknya harus
+  berhak mengubah pengaturan/tarif itu; HR yang hanya berhak menerbitkan tidak bisa menarik pengumuman pengaturan
+  Pemilik/GM.
+- Ralat pengumuman terkait tetap membawa kaitannya; tanggal berlaku terkunci. Ralat uang dari HR yang disetujui
+  terlambat (jarak tidak lagi cukup) ditolak, bukan digeser.
+- Isi pertama persen kantor yang berlaku mulai awal periode berjalan bertanggal lampau, sehingga tidak bisa
+  diumumkan; pilih "Tidak perlu diumumkan" dengan alasan.
+- Usulan pengaturan jabatan yang diajukan sebelum F3-3b (tanpa konsep pengumuman dan tanpa alasan) ditolak sistem saat
+  disetujui; HR mengajukan ulang.
+- Langkah Pengumuman dipasang di Pengaturan Umum, Pengaturan Jabatan (langsung dan usulan), Lokasi absen (radius),
+  Potongan & Lembur, Jenis Bonus (persen), persen kantor Kehilangan Barang, dan Tarif Ritase.
+
 ### 4.3 Usulan isi `mustAnnounce` 💡
 
 Patokan: **ya** bila mengubah uang yang diterima/dipotong karyawan, atau kewajiban, jam, dan batas waktu yang

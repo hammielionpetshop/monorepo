@@ -23,8 +23,12 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   RULE) terintegrasi ke dev_hris dan staging — **lolos uji owner di staging 2026-11-16** (deployment `c597c884`, run `43722009105`; owner memilih "F3-3a sudah lolos uji", skenario tidak dirinci); ikut rilis HRIS. Tes aturan 10 +
   integrasi DB 9 lulus; typecheck root lulus. Catatan implementasi: kolom `message` = "Sekarang"; konsep yang sudah
   dikirim untuk disetujui dibatalkan dari Pengajuan Saya (status konsep "Ditolak / dibatalkan").
-  **F3-3b wajib umumkan** (spec §4, `feat/hris-f3-3b-must-announce`, migrasi hris `0061`) — klaim path + kunci `hris`
-  diambil 2026-11-16; implementasi dimulai sesudah klaim terpublikasi di origin/staging.
+  **F3-3b Wajib umumkan** (spec §4, `feat/hris-f3-3b-must-announce`, migrasi hris `0061`: langkah Pengumuman saat
+  pengaturan `mustAnnounce`/tarif ritase disimpan, tarik ↔ batal nilai, usulan HR membawa konsep, daftar §4.3)
+  terintegrasi ke dev_hris dan staging — **tayang staging, menunggu uji owner** (spec §8 F3-3b). Tes integrasi DB 6 +
+  settings/announcements/trip-wages lulus; typecheck root lulus; klaim/kunci `hris` dilepas. Catatan implementasi di
+  spec §4.4. **Langkah berikutnya Fase 3: F3-4** (pengingat modul ke antrean, PRD 01 §5) atau **F3-5** (menu Panduan),
+  spec dulu.
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
