@@ -9,6 +9,9 @@ import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, loadSettingAnnounce, useMustAnnounce } from '@/modules/announcements/ui/must-announce-step';
 import { escalationSeries, multiplierLabel, type Escalation, type SickLetter } from '../rules/attendance-pay';
 import { longDate, rupiah } from '../rules/salary';
 
@@ -92,15 +95,33 @@ export function PayRulesScreen({ today, current, scheduled, history, choices, ca
   const changes = Object.keys(values).filter((key) => !same(values[key], current[key]));
   const set = (key: string) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const disabled = !canEdit;
+  const announce = useMustAnnounce();
+  const changedValues = () => Object.fromEntries(changes.map((k) => [k, values[k]]));
 
+  // Angka wajib umumkan (spec F3-3 §4.1): Simpan pertama menyiapkan langkah Pengumuman.
   async function save() {
+    setError(null);
+    if (!announce.active) {
+      const next = await announce.prepare(() => loadSettingAnnounce({
+        values: changedValues(), targetKind: 'ALL', targetId: null, effectiveFrom: from, title: 'Potongan & Lembur',
+      }));
+      if (next === 'step') return;
+      if (next !== 'save') return setError(next.error);
+    }
+    const extra = announce.payload();
+    if (extra.error) return setError(extra.error);
     setBusy(true);
-    const result = await postJson('/api/payroll', { kind: 'pay_rules_save', values: Object.fromEntries(changes.map((k) => [k, values[k]])), effectiveFrom: from, reason });
+    const result = await postJson('/api/payroll', { kind: 'pay_rules_save', values: changedValues(), effectiveFrom: from, reason, ...extra });
     setBusy(false);
-    if (!result.ok) { setReview(false); return setError(result.error ?? 'Gagal menyimpan.'); }
-    toast(`Potongan & Lembur baru berlaku mulai ${longDate(from)}.`, 'ok');
-    setReview(false); setReason('');
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
+    toast(`Potongan & Lembur baru berlaku mulai ${longDate(from)}.${extra.announcement?.mode === 'announce' ? ' Pengumuman masuk Papan Perubahan Aturan.' : ''}`, 'ok');
+    setReview(false); setReason(''); announce.reset();
     router.refresh();
+  }
+
+  function closeReview() {
+    setReview(false);
+    announce.reset();
   }
 
   async function cancelScheduled() {
@@ -208,8 +229,17 @@ export function PayRulesScreen({ today, current, scheduled, history, choices, ca
         </ul>
       </Card>
 
-      <Dialog open={review} onClose={() => setReview(false)} title="Periksa perubahan"
-        footer={<><Button variant="secondary" onClick={() => setReview(false)}>Kembali</Button><HoldButton loading={busy} onClick={save}>Simpan</HoldButton></>}>
+      <Dialog open={review} onClose={closeReview} title={announce.active ? 'Pengumuman perubahan' : 'Periksa perubahan'}
+        footer={<>
+          <Button variant="secondary" onClick={announce.active ? announce.reset : closeReview}>Kembali</Button>
+          <HoldButton loading={busy || announce.loading} onClick={save}>Simpan</HoldButton>
+        </>}>
+        {announce.active && announce.data && announce.value ? (
+          <div className="space-y-2">
+            <MustAnnounceStep data={announce.data} value={announce.value} onChange={announce.setValue} />
+            {error && <Alert tone="danger">{error}</Alert>}
+          </div>
+        ) : (
         <div className="space-y-2">
           <p>Berlaku mulai <b>{from ? longDate(from) : ''}</b> untuk semua orang bergaji bulanan:</p>
           <ul className="space-y-1">
@@ -217,7 +247,9 @@ export function PayRulesScreen({ today, current, scheduled, history, choices, ca
           </ul>
           <p className="text-ink-muted">Alasan: {reason}</p>
           <Badge tone="warn">Pemilik lain diberi tahu</Badge>
+          {error && <Alert tone="danger">{error}</Alert>}
         </div>
+        )}
       </Dialog>
       <Dialog open={cancelling != null} onClose={() => setCancelling(null)} title="Batalkan angka terjadwal"
         footer={<><Button variant="secondary" onClick={() => setCancelling(null)}>Kembali</Button><Button variant="danger" loading={busy} onClick={cancelScheduled}>Batalkan</Button></>}>

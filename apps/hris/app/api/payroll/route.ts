@@ -20,6 +20,7 @@ import { cancelPayment, paySlips } from '@/modules/payroll';
 import { cancelOffSlipPayment, payOffSlipClaim } from '@/modules/payroll';
 import { correctPastSalary, linkFix, objectionTypeForSlip } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
+import { announcementChoiceSchema, toAnnounceChoice } from '@/modules/announcements';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
 
@@ -37,13 +38,13 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('standard_save'), standardKind: z.enum(['TRAINING', 'EMPLOYEE']), effectiveFrom: z.string().max(10), lines, reason }),
   z.object({ kind: z.literal('waive'), employeeId: id, waiverKind: z.enum(['LATE', 'FINE']), fineKind: z.string().max(20).nullable(), workDate: z.string().max(10), reason }),
   z.object({ kind: z.literal('waive_cancel'), id, reason }),
-  z.object({ kind: z.literal('pay_rules_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason }),
+  z.object({ kind: z.literal('pay_rules_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason, announcement: announcementChoiceSchema.optional() }),
   z.object({ kind: z.literal('pay_rule_cancel'), id, reason }),
   // L4c-1: kehilangan barang, minus kas, tautan akun kasir, persen kantor (spec L4c).
   z.object({ kind: z.literal('loss_record'), branchId: id, foundOn: z.string().max(10), amount: z.number().int(), description: z.string().max(500), attachmentId: z.string().max(64) }),
   z.object({ kind: z.literal('loss_preview'), branchId: id, foundOn: z.string().max(10), amount: z.number().int() }),
   z.object({ kind: z.literal('loss_cancel'), id, reason }),
-  z.object({ kind: z.literal('office_percent_save'), branchId: id, value: z.number().int(), effectiveFrom: z.string().max(10), reason, expectedLatestId: id.nullable(), firstFill: z.boolean() }),
+  z.object({ kind: z.literal('office_percent_save'), branchId: id, value: z.number().int(), effectiveFrom: z.string().max(10), reason, expectedLatestId: id.nullable(), firstFill: z.boolean(), announcement: announcementChoiceSchema.optional() }),
   z.object({ kind: z.literal('shortage_review'), id }),
   z.object({ kind: z.literal('shortage_approve'), id, waivers: z.array(z.object({ rowId: id, reason })).max(200) }),
   z.object({ kind: z.literal('shortage_propose_now'), employeeId: id }),
@@ -69,7 +70,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bonus_sync') }),
   z.object({ kind: z.literal('groomer_link'), posGroomerId: id, employeeId: id.nullable(), notEmployee: z.boolean(), note: z.string().max(500).nullable() }),
   z.object({ kind: z.literal('groomer_unlink'), posGroomerId: id, reason }),
-  z.object({ kind: z.literal('bonus_percent_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason }),
+  z.object({ kind: z.literal('bonus_percent_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason, announcement: announcementChoiceSchema.optional() }),
   z.object({ kind: z.literal('bonus_percent_cancel'), id, reason }),
   // L4d-2: Bonus Bebas, jenis ketik, Dana Disiplin & Dana Tidak Hadir (spec L4d).
   z.object({ kind: z.literal('free_record'), employeeId: id, typeId: id, amount: z.number().int(), occurredOn: z.string().max(10), fund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), reason }),
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
     // L4b: Tiadakan Potongan dan Potongan & Lembur (spec L4b §3.1, §3.4).
     case 'waive': return respond(await waiveDeduction(actor, { employeeId: body.employeeId, kind: body.waiverKind, fineKind: body.fineKind, workDate: body.workDate, reason: body.reason }, announceToOwners));
     case 'waive_cancel': return respond(await cancelWaiver(actor, body.id, body.reason, announceToOwners));
-    case 'pay_rules_save': return respond(await savePayRules(actor, body, announceToOwners));
+    case 'pay_rules_save': return respond(await savePayRules(actor, body, announceToOwners, toAnnounceChoice(body.announcement)));
     case 'pay_rule_cancel': {
       // Hanya angka milik layar Potongan & Lembur yang boleh dibatalkan lewat pintu ini.
       const rows = await loadRows(db, PAY_RULE_KEYS);
@@ -151,7 +152,7 @@ export async function POST(req: Request) {
     }
     case 'loss_preview': return respond(await previewLoss(actor, body));
     case 'loss_cancel': return respond(await cancelLoss(actor, body.id, body.reason, announceToOwners));
-    case 'office_percent_save': return respond(await saveOfficePercent(actor, body, announceToOwners));
+    case 'office_percent_save': return respond(await saveOfficePercent(actor, body, announceToOwners, toAnnounceChoice(body.announcement)));
     case 'shortage_review': return respond(await reviewApproval(actor, body.id, announceToOwners));
     case 'shortage_approve': return respond(await approveApproval(actor, body.id, body.waivers, announceToOwners));
     case 'shortage_propose_now': return respond(await proposeNow(actor, body.employeeId));
@@ -182,7 +183,7 @@ export async function POST(req: Request) {
     case 'bonus_sync': return respond(await syncNow(actor));
     case 'groomer_link': return respond(await linkGroomer(actor, body, announceToOwners));
     case 'groomer_unlink': return respond(await unlinkGroomer(actor, body.posGroomerId, body.reason, announceToOwners));
-    case 'bonus_percent_save': return respond(await saveBonusPercents(actor, body, announceToOwners));
+    case 'bonus_percent_save': return respond(await saveBonusPercents(actor, body, announceToOwners, toAnnounceChoice(body.announcement)));
     case 'bonus_percent_cancel': {
       // Hanya persen milik layar Jenis Bonus yang boleh dibatalkan lewat pintu ini.
       const rows = await loadRows(db, [...BONUS_PERCENT_KEYS]);

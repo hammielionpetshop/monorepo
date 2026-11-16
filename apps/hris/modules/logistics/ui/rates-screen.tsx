@@ -9,6 +9,9 @@ import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, useMustAnnounce, type MustAnnounceData } from '@/modules/announcements/ui/must-announce-step';
 
 type Numbers = { driverWithAssistant: number; driverAlone: number; assistant: number };
 type HistoryRow = Numbers & {
@@ -85,7 +88,39 @@ export function RatesScreen({ pairs, counts, canManage }: {
     return result;
   }
 
+  const announce = useMustAnnounce();
+
+  /** Tarif untuk pasangan yang sudah pernah bertarif wajib diumumkan (spec F3-3 §4.1): Simpan pertama menyiapkan langkahnya. */
+  async function saveRate() {
+    if (!selected) return;
+    setError(null);
+    const base = { vehicleId: selected.vehicleId, routeId: selected.routeId, effectiveFrom: from, ...toNumbers(nums) };
+    if (!announce.active) {
+      const next = await announce.prepare(async () => {
+        const res = await postJson('/api/wages', { action: 'rate_preview', ...base });
+        if (!res.ok || !res.data?.announce) return { ok: false as const, error: res.error ?? 'Gagal menyiapkan pengumuman.' };
+        return { ok: true as const, data: { preview: res.data.announce, options: res.data.options ?? null } as MustAnnounceData };
+      });
+      if (next === 'step') return;
+      if (next !== 'save') return setError(next.error);
+    }
+    const extra = announce.payload();
+    if (extra.error) return setError(extra.error);
+    const result = await send({ action: 'create_rate', ...base, ...extra });
+    if (result.ok) {
+      toast(String(result.data?.message ?? 'Tarif tersimpan.'), 'ok');
+      closeCreate();
+      router.refresh();
+    }
+  }
+
+  function closeCreate() {
+    setCreating(false);
+    announce.reset();
+  }
+
   function startCreate(pair: Pair | null) {
+    announce.reset();
     setError(null);
     setPreview(null);
     setPairKey(pair?.key ?? '');
@@ -145,22 +180,20 @@ export function RatesScreen({ pairs, counts, canManage }: {
         {!shown.length && <p className="py-3 text-sm text-ink-muted">Tidak ada pasangan di saringan ini.</p>}
       </Card>
 
-      <Dialog open={creating} onClose={() => setCreating(false)} title="Tarif baru"
+      <Dialog open={creating} onClose={closeCreate} title={announce.active ? 'Pengumuman tarif baru' : 'Tarif baru'}
         footer={<>
-          <Button variant="secondary" disabled={busy} onClick={() => setCreating(false)}>Batal</Button>
+          <Button variant="secondary" disabled={busy} onClick={announce.active ? announce.reset : closeCreate}>{announce.active ? 'Kembali' : 'Batal'}</Button>
           {!preview ? <Button loading={busy} onClick={checkPreview}>Lanjut</Button> : (
-            <HoldButton loading={busy} onClick={async () => {
-              if (!selected) return;
-              const result = await send({ action: 'create_rate', vehicleId: selected.vehicleId, routeId: selected.routeId, effectiveFrom: from, ...toNumbers(nums) });
-              if (result.ok) {
-                toast(String(result.data?.message ?? 'Tarif tersimpan.'), 'ok');
-                setCreating(false);
-                router.refresh();
-              }
-            }}>Simpan tarif</HoldButton>
+            <HoldButton loading={busy || announce.loading} onClick={() => void saveRate()}>Simpan tarif</HoldButton>
           )}
         </>}
       >
+        {announce.active && announce.data && announce.value ? (
+          <div className="space-y-3">
+            {error && <Alert tone="danger">{error}</Alert>}
+            <MustAnnounceStep data={announce.data} value={announce.value} onChange={announce.setValue} />
+          </div>
+        ) : (
         <div className="space-y-3">
           {error && <Alert tone="danger">{error}</Alert>}
           <Field id="rate-pair" label="Mobil dan rute">
@@ -182,6 +215,7 @@ export function RatesScreen({ pairs, counts, canManage }: {
             </>
           )}
         </div>
+        )}
       </Dialog>
 
       <Dialog open={!!cancelRow} onClose={() => setCancelRow(null)} title="Batalkan tarif terjadwal"

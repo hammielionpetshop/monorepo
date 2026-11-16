@@ -7,7 +7,7 @@ import { todayWib } from '@/modules/employees';
 import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
-import { checkReason, loadRows, resolveSetting, setSetting, settingOn, upcomingRows } from '@/modules/settings';
+import { checkReason, loadRows, resolveSetting, setSetting, settingOn, upcomingRows, type AnnounceChoice } from '@/modules/settings';
 import { splitLoss, type LossSplit } from '../rules/losses';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { periodChoices } from './attendance-pay';
@@ -300,9 +300,10 @@ export async function lossSettingsScreen(actor: Actor | null, now: Date = new Da
 
 export async function saveOfficePercent(
   actor: Actor | null, input: { branchId: number; value: unknown; effectiveFrom: unknown; reason: unknown; expectedLatestId: number | null; firstFill: boolean }, announce: ChangeAnnounce,
+  announcement?: AnnounceChoice,
 ) {
   return setSetting(actor, {
     key: 'payroll.loss_office_percent', targetKind: 'BRANCH', targetId: input.branchId, value: Number(input.value),
     effectiveFrom: String(input.effectiveFrom ?? ''), reason: String(input.reason ?? ''), expectedLatestId: input.expectedLatestId, firstFill: input.firstFill,
-  }, announce);
+  }, announce, announcement);
 }

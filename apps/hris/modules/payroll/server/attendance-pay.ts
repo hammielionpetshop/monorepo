@@ -7,6 +7,7 @@ import { todayWib } from '@/modules/employees';
 import { notify } from '@/modules/notifications';
 import {
   SETTINGS, checkReason, formatSettingValue, setSettingsBatch, loadRows, resolveSetting, settingOn, settingVersions, settingsOn, upcomingRows, type SettingKey,
+  type AnnounceChoice,
 } from '@/modules/settings';
 import {
   FINE_LABELS, LINE_LABELS, attendancePay, escalationSeries, multiplierLabel, waiverKey,
@@ -282,10 +283,12 @@ export async function payRulesScreen(actor: Actor | null, now: Date = new Date()
 }
 
 /** Simpan set Potongan & Lembur: hanya kunci layar ini, satu tanggal 26, satu alasan (spec L4b §3.1). */
-export async function savePayRules(actor: Actor | null, input: { values: unknown; effectiveFrom: unknown; reason: unknown }, announce: ChangeAnnounce) {
+export async function savePayRules(
+  actor: Actor | null, input: { values: unknown; effectiveFrom: unknown; reason: unknown }, announce: ChangeAnnounce, announcement?: AnnounceChoice,
+) {
   const values = typeof input.values === 'object' && input.values !== null ? (input.values as Record<string, unknown>) : {};
   if (Object.keys(values).some((key) => !(PAY_RULE_KEYS as readonly string[]).includes(key))) return fail(400, 'Ada angka yang bukan milik Potongan & Lembur.');
-  return setSettingsBatch(actor, { values, effectiveFrom: String(input.effectiveFrom ?? ''), reason: String(input.reason ?? '') }, announce);
+  return setSettingsBatch(actor, { values, effectiveFrom: String(input.effectiveFrom ?? ''), reason: String(input.reason ?? '') }, announce, announcement);
 }
 
 // ---- Aturan Potongan (GAJ-L07) ----

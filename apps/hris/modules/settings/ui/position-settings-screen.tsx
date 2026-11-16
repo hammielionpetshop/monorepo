@@ -9,7 +9,10 @@ import type { PositionSettingsScreenData, SettingCell, SettingMeta } from '../se
 import { ChangeDialog, HistoryDialog, longDate } from './shared';
 
 type Open = { meta: SettingMeta; cell: SettingCell; targetLabel: string; affected: string; mode: 'change' | 'history' };
-export type PositionResubmit = { fromId: number; values: { key: string; targetKind: string; targetId: number | null; value: unknown; effectiveFrom: string; reason: string } };
+export type PositionResubmit = {
+  fromId: number;
+  values: { key: string; targetKind: string; targetId: number | null; value: unknown; effectiveFrom: string; reason: string; announcement?: unknown };
+};
 
 /**
  * KAR-L31 Pengaturan Jabatan: baris = jabatan, kolom = tanda. Baris "Semua jabatan" adalah nilai bawaan;
