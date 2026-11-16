@@ -7,7 +7,7 @@ import { activeHrisAccounts } from '@/modules/accounts';
 import { placementOn, todayWib } from '@/modules/employees';
 import { selfDeliveryPhotoGaps } from '@/modules/logistics';
 import { notify } from '@/modules/notifications';
-import { checkReason, loadRows, resolveSetting, setSettingsBatch, settingOn, upcomingRows } from '@/modules/settings';
+import { checkReason, loadRows, resolveSetting, setSettingsBatch, settingOn, upcomingRows, type AnnounceChoice } from '@/modules/settings';
 import {
   BONUS_KIND_LABELS, BONUS_STATUS_LABELS, amountOf, baseOf, birthStatus, correctionsFor, entryKindLabel, fingerprint, originKeyOf, reconcile,
   type BonusKind, type BonusStatus, type Desired, type EntryKind, type LiveEntry, type PosService, type Recipient,
@@ -634,10 +634,12 @@ export async function bonusTypesScreen(actor: Actor | null, now: Date = new Date
   };
 }
 
-export async function saveBonusPercents(actor: Actor | null, input: { values: unknown; effectiveFrom: unknown; reason: unknown }, announce: ChangeAnnounce) {
+export async function saveBonusPercents(
+  actor: Actor | null, input: { values: unknown; effectiveFrom: unknown; reason: unknown }, announce: ChangeAnnounce, announcement?: AnnounceChoice,
+) {
   const values = typeof input.values === 'object' && input.values !== null ? (input.values as Record<string, unknown>) : {};
   if (Object.keys(values).some((key) => !(BONUS_PERCENT_KEYS as readonly string[]).includes(key))) return fail(400, 'Ada angka yang bukan milik Jenis Bonus.');
-  return setSettingsBatch(actor, { values, effectiveFrom: String(input.effectiveFrom ?? ''), reason: String(input.reason ?? '') }, announce);
+  return setSettingsBatch(actor, { values, effectiveFrom: String(input.effectiveFrom ?? ''), reason: String(input.reason ?? '') }, announce, announcement);
 }
 
 // ---- Perlu perhatian (Beranda) ----

@@ -9,7 +9,7 @@ import { countRecipients } from './emergency';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 
-function targetLine(target: EmergencyTarget, names: { branches: Map<number, string>; positions: Map<number, string> }): string {
+export function targetLine(target: EmergencyTarget, names: { branches: Map<number, string>; positions: Map<number, string> }): string {
   if (target.all) return 'Semua orang';
   const branches = target.branchIds.map((id) => names.branches.get(id) ?? `Cabang #${id}`);
   const positions = target.positionIds.map((id) => names.positions.get(id) ?? `Jabatan #${id}`);

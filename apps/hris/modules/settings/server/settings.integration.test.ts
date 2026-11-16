@@ -46,6 +46,9 @@ describe.skipIf(!ADMIN_URL)('L2e: ubah dan batalkan pengaturan', () => {
     for (const file of ['0000_init.sql', '0001_access.sql', '0002_employees.sql', '0003_settings.sql', '0004_new_badge_days.sql', '0005_requests.sql']) {
       await sql.unsafe(readFileSync(new URL(`hris-db/src/migrations/${file}`, root), 'utf8')).simple();
     }
+    // Tiruan kolom yang dibaca batal pengaturan (tarik pengumuman terkait, spec F3-3 §4.1); tabel aslinya dari migrasi 0059+.
+    await sql`create table hris.announcements (id serial primary key, kind text not null default 'RULE', ended_at timestamptz,
+      ended_by_account_id integer, end_reason text, setting_value_ids integer[], trip_rate_id integer)`;
     const [dates] = await sql`select (now() at time zone 'Asia/Jakarta')::date::text as today,
       ((now() at time zone 'Asia/Jakarta')::date + 1)::text as tomorrow`;
     today = dates.today;
@@ -78,7 +81,8 @@ describe.skipIf(!ADMIN_URL)('L2e: ubah dan batalkan pengaturan', () => {
   const months = (value: unknown, effectiveFrom: string, expectedLatestId: number | null, reason = longReason) =>
     write.setSetting(owner, {
       key: 'employees.training_review_months', targetKind: 'ALL', targetId: null, value, effectiveFrom, reason, expectedLatestId,
-    });
+      // Kunci wajib umumkan (spec F3-3 §4): tes ini menguji aturan nilai, jadi pengumumannya dilewati dengan alasan.
+    }, undefined, { skipReason: 'Uji aturan nilai pengaturan' });
 
   it('Pemilik mengubah masa training mulai besok: hari ini tetap nilai lama, besok nilai baru, tercatat di jejak', async () => {
     const result = await months(4, tomorrow, await latestId('employees.training_review_months'));

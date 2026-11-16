@@ -8,6 +8,7 @@ import {
 } from '../rules/resolve';
 import { loadRows } from './read';
 import { checkReason } from './write';
+import { MUST_ANNOUNCE_MISSING, type AnnounceFail, type MustAnnounceInfo } from './announce';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
@@ -41,10 +42,44 @@ function show(key: SettingKey, value: unknown): string {
 }
 
 /**
+ * Pengumuman yang ikut usulan pengaturan wajib umumkan (spec F3-3 §4.1). Diisi modul announcements dan dirangkai di
+ * `lib/request-handlers.ts` (modul settings tidak mengimpor modul announcements).
+ */
+export type ProposalAnnouncer = {
+  /** Periksa isian `announcement` saat diajukan; `skipReason` = alasan "tidak perlu diumumkan" yang sudah dirapikan. */
+  check: (raw: unknown, info: MustAnnounceInfo) => Promise<{ ok: true; skipReason: string | null } | AnnounceFail>;
+  /** Simpan konsep pengumuman (menunggu bersama pengajuan). */
+  save: (tx: Tx, actor: Actor, requestId: number, raw: unknown, info: MustAnnounceInfo) => Promise<void>;
+  /** Disetujui: terbitkan konsepnya. Jarak tidak lagi cukup = gagal, tanggal pengaturan tidak digeser. Tanpa konsep = null. */
+  publish: (tx: Tx, actorAccountId: number, requestId: number) => Promise<{ ok: true; text: string | null } | AnnounceFail>;
+  close: (tx: Tx, actorAccountId: number, requestId: number, reason: string) => Promise<void>;
+  describe: (requestId: number) => Promise<{ label: string; before: string | null; after: string | null }[]>;
+  /** Isian pengumuman untuk Ajukan ulang. */
+  resubmit: (requestId: number) => Promise<unknown>;
+};
+
+async function skipReasonOf(settingValueId: number): Promise<string | null> {
+  const [row] = await db.execute<{ reason: string | null }>(sql`
+    select after->>'noAnnounceReason' as reason from hris.audit_events
+    where entity = 'setting' and entity_id = ${settingValueId} and action = 'setting.propose' order by id desc limit 1`);
+  return row?.reason ?? null;
+}
+
+/**
  * Isi khas pengajuan "Usulan Pengaturan Jabatan" (KAR-73, spec L2f-2 §2). Bentuknya mengikuti `RequestHandler`
  * modul `requests`; dirangkai di `lib/request-handlers.ts`, jadi modul ini tidak mengimpor modul `requests`.
  */
-export function positionSettingHandler(announce: ChangeAnnounce) {
+/** Tanpa perangkai pengumuman: usulan pengaturan wajib umumkan selalu ditolak (bawaan aman, mis. tes lama). */
+const NO_ANNOUNCER: ProposalAnnouncer = {
+  check: async () => ({ ok: false, status: 400, error: MUST_ANNOUNCE_MISSING }),
+  save: async () => {},
+  publish: async () => ({ ok: true, text: null }),
+  close: async () => {},
+  describe: async () => [],
+  resubmit: async () => null,
+};
+
+export function positionSettingHandler(announce: ChangeAnnounce, announcer: ProposalAnnouncer = NO_ANNOUNCER) {
   return {
     async prepare(tx: Tx, actor: Actor, input: Record<string, unknown>) {
       const key = typeof input.key === 'string' ? input.key : '';
@@ -78,6 +113,12 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
       if (current && sameValue(current.value, input.value)) return fail(400, 'Nilainya sama dengan yang berlaku pada tanggal itu; tidak ada yang berubah.');
 
       const label = await targetLabel(targetKind, targetId);
+      const info: MustAnnounceInfo = {
+        subject: { kind: 'setting', items: [{ key: settingKey, targetKind, targetId }] }, settingValueIds: [], tripRateId: null,
+        effectiveFrom, affectsMoney: definition.affectsMoney, changeKind: null,
+      };
+      const announcement = definition.mustAnnounce ? await announcer.check(input.announcement, info) : null;
+      if (announcement && !announcement.ok) return announcement;
       return {
         ok: true as const,
         data: {
@@ -94,9 +135,15 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
             await recordAudit(saveTx, {
               actorAccountId: actor.accountId, entity: 'setting', entityId: value.id, action: 'setting.propose',
               before: current ? { value: current.value, effectiveFrom: current.effectiveFrom } : null,
-              after: { key: settingKey, targetKind, targetId, value: input.value, effectiveFrom, requestId },
+              after: {
+                key: settingKey, targetKind, targetId, value: input.value, effectiveFrom, requestId,
+                ...(announcement?.skipReason ? { noAnnounceReason: announcement.skipReason } : {}),
+              },
               reason: reason.reason,
             });
+            if (announcement && !announcement.skipReason) {
+              await announcer.save(saveTx, actor, requestId, input.announcement, { ...info, settingValueIds: [value.id] });
+            }
           },
         },
       };
@@ -123,8 +170,13 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
       }
       await tx.update(settingValues).set({ status: 'ACTIVE', approvedByAccountId: actorAccountId, approvedAt: new Date() })
         .where(eq(settingValues.id, setting.id));
+      const published = await announcer.publish(tx, actorAccountId, requestId);
+      if (!published.ok) return fail(published.status, `${published.error} ${REJECT_HINT}`);
+      if (definition.mustAnnounce && published.text === null && !(await skipReasonOf(setting.id))) {
+        return fail(409, `Usulan ini belum membawa pengumuman perubahan aturan. ${REJECT_HINT}`);
+      }
       const label = await targetLabel(setting.targetKind, setting.targetId);
-      const effect = `${definition.label} ${label} menjadi ${show(key, setting.value)} mulai ${longDate(setting.effectiveFrom)}.`;
+      const effect = `${definition.label} ${label} menjadi ${show(key, setting.value)} mulai ${longDate(setting.effectiveFrom)}.${published.text ? ` ${published.text}` : ''}`;
       await recordAudit(tx, {
         actorAccountId, entity: 'setting', entityId: setting.id, action: 'setting.approve',
         before: { status: 'PROPOSED', value: row.proposal.beforeValue }, after: { status: 'ACTIVE', value: setting.value, requestId },
@@ -139,6 +191,7 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
     /** Usulan ditolak atau dibatalkan: nilainya gugur di transaksi yang sama. */
     async close(tx: Tx, actorAccountId: number, requestId: number, reason: string) {
       const row = await load(tx, requestId);
+      await announcer.close(tx, actorAccountId, requestId, reason);
       if (!row || row.value.status !== 'PROPOSED') return;
       await tx.update(settingValues).set({ status: 'CANCELLED', cancelledByAccountId: actorAccountId, cancelledAt: new Date(), cancelReason: reason })
         .where(eq(settingValues.id, row.value.id));
@@ -158,21 +211,26 @@ export function positionSettingHandler(announce: ChangeAnnounce) {
     async describe(requestId: number) {
       const row = await load(db, requestId);
       if (!row) return [];
-      return [
+      const rows = [
         { label: 'Pengaturan', before: null, after: SETTINGS[row.key].label },
         { label: 'Berlaku untuk', before: null, after: await targetLabel(row.value.targetKind, row.value.targetId) },
         { label: 'Nilai', before: show(row.key, row.proposal.beforeValue), after: show(row.key, row.value.value) },
         { label: 'Mulai berlaku', before: null, after: longDate(row.value.effectiveFrom) },
         { label: 'Alasan', before: null, after: row.value.reason },
       ];
+      const skip = SETTINGS[row.key].mustAnnounce ? await skipReasonOf(row.value.id) : null;
+      if (skip) rows.push({ label: 'Pengumuman', before: null, after: `Tidak perlu diumumkan — ${skip}` });
+      return [...rows, ...(await announcer.describe(requestId))];
     },
 
     async resubmitValues(requestId: number) {
       const row = await load(db, requestId);
       if (!row) return null;
+      const skip = SETTINGS[row.key].mustAnnounce ? await skipReasonOf(row.value.id) : null;
       return {
         key: row.key, targetKind: row.value.targetKind, targetId: row.value.targetId, value: row.value.value,
         effectiveFrom: row.value.effectiveFrom, reason: row.value.reason,
+        announcement: skip ? { mode: 'skip', reason: skip } : await announcer.resubmit(requestId),
       };
     },
   };

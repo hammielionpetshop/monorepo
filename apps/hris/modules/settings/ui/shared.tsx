@@ -8,6 +8,9 @@ import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Badge } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
+// Komponen klien langkah Pengumuman; pintu modul announcements memuat kode server.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { MustAnnounceStep, announceProblem, initialAnnounce, loadSettingAnnounce, type MustAnnounceData, type MustAnnounceValue } from '@/modules/announcements/ui/must-announce-step';
 import type { SettingCell, SettingMeta } from '../server/screens';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -68,17 +71,21 @@ function labelOf(meta: SettingMeta, raw: unknown): string {
 }
 
 /**
- * BER-L41 Ubah satu pengaturan, langkah baku: nilai baru → tanggal berlaku + alasan → periksa.
- * Langkah "Pengumuman" dilewati di Fase 1 (keputusan owner §8 butir 3). `propose` = usulan HR: isiannya sama,
- * tetapi masuk kotak Persetujuan dan nilai lama tetap berlaku (KAR-73). `prefill` = isian lama saat Ajukan ulang.
+ * BER-L41 Ubah satu pengaturan, langkah baku: nilai baru → tanggal berlaku + alasan → periksa → Pengumuman (hanya
+ * pengaturan wajib umumkan, spec F3-3 §4.1). `propose` = usulan HR: isiannya sama, tetapi masuk kotak Persetujuan dan
+ * nilai lama tetap berlaku (KAR-73); pengumumannya terbit saat disetujui. `prefill` = isian lama saat Ajukan ulang.
  */
 export function ChangeDialog({
   meta, cell, targetLabel, affected, onClose, propose = false, prefill, resubmitOf,
 }: {
   meta: SettingMeta; cell: SettingCell; targetLabel: string; affected: string; onClose: () => void;
-  propose?: boolean; prefill?: { value: unknown; effectiveFrom: string; reason: string }; resubmitOf?: number;
+  propose?: boolean; prefill?: { value: unknown; effectiveFrom: string; reason: string; announcement?: unknown }; resubmitOf?: number;
 }) {
   const [step, setStep] = useState(1);
+  const [announceData, setAnnounceData] = useState<MustAnnounceData | null>(null);
+  const [announcement, setAnnouncement] = useState<MustAnnounceValue | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const total = meta.mustAnnounce ? 4 : 3;
   const initial = prefill?.value ?? cell.rawValue;
   const [value, setValue] = useState<string>(initial == null ? '' : Array.isArray(initial) ? initial.join(', ') : String(initial));
   const [effectiveFrom, setEffectiveFrom] = useState(prefill && prefill.effectiveFrom >= meta.earliest ? prefill.effectiveFrom : meta.earliest);
@@ -88,8 +95,23 @@ export function ChangeDialog({
   const parsed: number | string | string[] = meta.type.kind === 'integer' ? Number(value)
     : meta.type.kind === 'textList' ? value.split(',').map((v) => v.trim()).filter(Boolean) : value;
 
+  /** Periksa → Pengumuman: ambil isi awalnya; bila nilainya tidak berubah dari sisi pengumuman, langsung simpan. */
+  async function toAnnouncement() {
+    setPreparing(true);
+    const loaded = await loadSettingAnnounce({
+      values: { [meta.key]: parsed }, targetKind: cell.targetKind as 'ALL' | 'POSITION' | 'BRANCH', targetId: cell.targetId, effectiveFrom,
+    });
+    setPreparing(false);
+    if (!loaded.ok) return setError(loaded.error);
+    if (!loaded.data.preview.required) return save(null);
+    setAnnounceData(loaded.data);
+    setAnnouncement((current) => current ?? (prefill?.announcement as MustAnnounceValue | undefined) ?? initialAnnounce(loaded.data.preview));
+    setStep(4);
+  }
+
   function next() {
     setError(null);
+    if (step === 3) return void toAnnouncement();
     if (step === 1) {
       if (meta.type.kind === 'integer' && (!value.trim() || !Number.isInteger(parsed) || (parsed as number) < meta.type.min || (parsed as number) > meta.type.max)) {
         return setError(`Isi bilangan bulat antara ${meta.type.min} dan ${meta.type.max}.`);
@@ -113,25 +135,31 @@ export function ChangeDialog({
     setStep(step + 1);
   }
 
-  async function save() {
+  async function save(withAnnouncement: MustAnnounceValue | null = step === 4 ? announcement : null) {
+    if (withAnnouncement) {
+      const problem = announceProblem(withAnnouncement);
+      if (problem) return setError(problem);
+    }
+    const extra = withAnnouncement ? { announcement: withAnnouncement } : {};
+    const announced = withAnnouncement?.mode === 'announce' ? (propose ? ' Pengumumannya terbit saat disetujui.' : ' Pengumuman masuk Papan Perubahan Aturan.') : '';
     const ok = propose ? await send({
       kind: 'submit', typeKey: 'position_setting_change', attachmentIds: [], resubmittedFromId: resubmitOf ?? null,
-      fields: { key: meta.key, targetKind: cell.targetKind, targetId: cell.targetId, value: parsed, effectiveFrom, reason },
-    }, 'Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.') : await send({
+      fields: { key: meta.key, targetKind: cell.targetKind, targetId: cell.targetId, value: parsed, effectiveFrom, reason, ...extra },
+    }, `Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.${announced}`) : await send({
       kind: 'set', key: meta.key, targetKind: cell.targetKind, targetId: cell.targetId, value: parsed,
-      effectiveFrom, reason, expectedLatestId: cell.latestId,
-    }, `${meta.label} disimpan.`);
+      effectiveFrom, reason, expectedLatestId: cell.latestId, ...extra,
+    }, `${meta.label} disimpan.${announced}`);
     if (ok) onClose();
   }
 
   const footer = (
     <>
       {step === 1 ? <Button variant="secondary" onClick={onClose}>Batal</Button> : <Button variant="secondary" onClick={() => setStep(step - 1)}>Kembali</Button>}
-      {step < 3
-        ? <Button onClick={next}>Lanjut</Button>
+      {step < total
+        ? <Button loading={preparing} onClick={next}>{step === 3 ? 'Lanjut ke Pengumuman' : 'Lanjut'}</Button>
         : meta.affectsMoney
-          ? <HoldButton loading={busy} onClick={save}>{propose ? 'Kirim usulan' : 'Simpan'}</HoldButton>
-          : <Button loading={busy} onClick={save}>{propose ? 'Kirim usulan' : 'Simpan'}</Button>}
+          ? <HoldButton loading={busy} onClick={() => void save()}>{propose ? 'Kirim usulan' : 'Simpan'}</HoldButton>
+          : <Button loading={busy} onClick={() => void save()}>{propose ? 'Kirim usulan' : 'Simpan'}</Button>}
     </>
   );
 
@@ -140,7 +168,7 @@ export function ChangeDialog({
       <div className="space-y-3">
         {step === 1 && (
           <>
-            <StepLabel step={1} total={3} title="Nilai baru" />
+            <StepLabel step={1} total={total} title="Nilai baru" />
             <p className="text-ink-muted">{meta.explain}</p>
             <p>Sekarang ({targetLabel}): <strong>{cell.value}</strong>{cell.inherited && <span className="text-ink-muted"> (ikut semua jabatan)</span>}</p>
             {meta.type.kind === 'integer' ? (
@@ -167,7 +195,7 @@ export function ChangeDialog({
         )}
         {step === 2 && (
           <>
-            <StepLabel step={2} total={3} title="Tanggal berlaku dan alasan" />
+            <StepLabel step={2} total={total} title="Tanggal berlaku dan alasan" />
             <Field id="st-date" label="Berlaku mulai" hint={meta.affectsMoney ? 'Menyangkut uang/hitungan: paling cepat besok.' : 'Boleh hari ini; tidak boleh mundur.'}>
               <Input id="st-date" type="date" min={meta.earliest} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </Field>
@@ -176,7 +204,7 @@ export function ChangeDialog({
         )}
         {step === 3 && (
           <>
-            <StepLabel step={3} total={3} title="Periksa" />
+            <StepLabel step={3} total={total} title="Periksa" />
             <dl className="space-y-1">
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Sebelum</dt><dd>{cell.value}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Sesudah</dt><dd className="font-semibold">{labelOf(meta, parsed)}</dd></div>
@@ -184,8 +212,14 @@ export function ChangeDialog({
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Terkena</dt><dd className="text-right">{affected}</dd></div>
             </dl>
             {meta.mustAnnounce && (
-              <Alert tone="warn">Perubahan ini perlu diumumkan ke karyawan. Papan pengumuman belum tersedia; sampaikan langsung.</Alert>
+              <p className="text-ink-muted">Perubahan ini wajib diumumkan; langkah berikutnya menyiapkan pengumumannya.</p>
             )}
+          </>
+        )}
+        {step === 4 && announceData && announcement && (
+          <>
+            <StepLabel step={4} total={total} title="Pengumuman" />
+            <MustAnnounceStep data={announceData} value={announcement} onChange={setAnnouncement} approval={propose} />
           </>
         )}
         {error && <Alert tone="danger">{error}</Alert>}
