@@ -1,6 +1,6 @@
 # WIP
 
-Last updated: 2026-11-15
+Last updated: 2026-11-16
 Owner: repo session state
 
 WIP hanya berisi fokus dan langkah berikutnya. Riwayat rilis ada di `apps/backoffice/CHANGELOG.md`
@@ -20,11 +20,11 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   **F3-3 Papan Perubahan Aturan** (spec `specs/2026-11-15-f3-3-papan-perubahan-aturan-design.md`, disetujui owner
   2026-11-15, dipecah F3-3a/F3-3b). **F3-3a** (`feat/hris-f3-3a-rule-board`, migrasi hris `0060`: papan Berlaku/Riwayat,
   tulis perubahan aturan, persetujuan uang lewat pengajuan `rule_announcement`, ralat/tarik, kartu Beranda + antrean
-  RULE) terintegrasi ke dev_hris dan staging — **tayang staging, menunggu uji owner** (spec §8 F3-3a). Tes aturan 10 +
+  RULE) terintegrasi ke dev_hris dan staging — **lolos uji owner di staging 2026-11-16** (deployment `c597c884`, run `43722009105`; owner memilih "F3-3a sudah lolos uji", skenario tidak dirinci); ikut rilis HRIS. Tes aturan 10 +
   integrasi DB 9 lulus; typecheck root lulus. Catatan implementasi: kolom `message` = "Sekarang"; konsep yang sudah
   dikirim untuk disetujui dibatalkan dari Pengajuan Saya (status konsep "Ditolak / dibatalkan").
-  **Langkah berikutnya: F3-3b wajib umumkan** (spec §4; klaim path + kunci `hris`, migrasi `0061`) sesudah F3-3a
-  lolos uji owner.
+  **F3-3b wajib umumkan** (spec §4, `feat/hris-f3-3b-must-announce`, migrasi hris `0061`) — klaim path + kunci `hris`
+  diambil 2026-11-16; implementasi dimulai sesudah klaim terpublikasi di origin/staging.
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
