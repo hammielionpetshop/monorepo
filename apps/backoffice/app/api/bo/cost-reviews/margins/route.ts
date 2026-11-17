@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic'
 const querySchema = z.object({
   branchId: z.string().regex(/^\d+$/).optional(),
   q: z.string().max(100).optional(),
+  tierType: z.enum(['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO']).optional(),
+  status: z.enum(['LOSS', 'THIN']).optional(),
 })
 
 export async function GET(req: Request) {
@@ -24,6 +26,8 @@ export async function GET(req: Request) {
     const data = await getMarginAlerts({
       branchId: parsed.data.branchId ? Number(parsed.data.branchId) : null,
       q: parsed.data.q ?? null,
+      tierType: parsed.data.tierType ?? null,
+      status: parsed.data.status ?? null,
     })
     return NextResponse.json(data)
   } catch (error: unknown) {
