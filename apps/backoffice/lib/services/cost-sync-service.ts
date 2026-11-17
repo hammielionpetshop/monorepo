@@ -562,7 +562,14 @@ export interface CostReviewEntry {
   resolutionNote: string | null
 }
 
-export async function getCostReviews(tab: CostReviewTab): Promise<CostReviewEntry[]> {
+export interface CostReviewFilter {
+  branchId?: number | null
+  sourceType?: CostSyncSourceType | null
+  q?: string | null
+}
+
+export async function getCostReviews(tab: CostReviewTab, filter: CostReviewFilter = {}): Promise<CostReviewEntry[]> {
+  const q = filter.q?.trim()
   const createdBy = alias(users, 'cost_sync_created_by')
   const resolvedBy = alias(users, 'cost_sync_resolved_by')
   const sourceUom = alias(unitsOfMeasure, 'cost_sync_source_uom')
@@ -598,7 +605,12 @@ export async function getCostReviews(tab: CostReviewTab): Promise<CostReviewEntr
     .leftJoin(sourceUom, eq(productCostSyncs.sourceUomId, sourceUom.id))
     .leftJoin(createdBy, eq(productCostSyncs.createdById, createdBy.id))
     .leftJoin(resolvedBy, eq(productCostSyncs.resolvedById, resolvedBy.id))
-    .where(inArray(productCostSyncs.status, TAB_STATUSES[tab]))
+    .where(and(
+      inArray(productCostSyncs.status, TAB_STATUSES[tab]),
+      filter.branchId ? eq(productCostSyncs.branchId, filter.branchId) : undefined,
+      filter.sourceType ? eq(productCostSyncs.sourceType, filter.sourceType) : undefined,
+      q ? productSearchCondition(q) : undefined,
+    ))
     .orderBy(tab === 'PENDING' ? asc(productCostSyncs.createdAt) : desc(productCostSyncs.id))
     .limit(COST_REVIEW_HISTORY_LIMIT)
 
@@ -654,7 +666,15 @@ function marginAlertBase() {
   }
 }
 
-export async function getMarginAlerts(filter: { branchId?: number | null; q?: string | null }): Promise<{
+export type MarginAlertStatus = 'LOSS' | 'THIN'
+
+export async function getMarginAlerts(filter: {
+  branchId?: number | null
+  q?: string | null
+  tierType?: string | null
+  /** LOSS = harga jual <= modal; THIN = masih untung tapi <= MARGIN_ALERT_PERCENT. */
+  status?: MarginAlertStatus | null
+}): Promise<{
   items: MarginAlertEntry[]
   total: number
 }> {
@@ -664,6 +684,9 @@ export async function getMarginAlerts(filter: { branchId?: number | null; q?: st
     marginAlertCondition(),
     filter.branchId ? eq(productPrices.branchId, filter.branchId) : undefined,
     q ? productSearchCondition(q) : undefined,
+    filter.tierType ? eq(productPrices.tierType, filter.tierType) : undefined,
+    filter.status === 'LOSS' ? sql`${productPrices.price} <= ${productUomCosts.costPrice}` : undefined,
+    filter.status === 'THIN' ? sql`${productPrices.price} > ${productUomCosts.costPrice}` : undefined,
   )
 
   const [rows, [countRow]] = await Promise.all([
