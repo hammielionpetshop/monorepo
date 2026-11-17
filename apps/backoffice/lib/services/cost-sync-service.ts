@@ -21,7 +21,7 @@ import {
   asc,
   desc,
 } from '@/lib/db'
-import { buildPriceAuditEntry, type PriceMutationActor } from './price-service'
+import { applyPriceBulk, buildPriceAuditEntry, type PriceChange, type PriceMutationActor } from './price-service'
 import { lockOpenPriceReview, recordPriceReviewInTx, resolvePriceReviewInTx } from './price-review-record'
 
 // Lompatan modal per satuan dasar sebesar ini (naik atau turun) wajib ditinjau OWNER/GM.
@@ -562,7 +562,14 @@ export interface CostReviewEntry {
   resolutionNote: string | null
 }
 
-export async function getCostReviews(tab: CostReviewTab): Promise<CostReviewEntry[]> {
+export interface CostReviewFilter {
+  branchId?: number | null
+  sourceType?: CostSyncSourceType | null
+  q?: string | null
+}
+
+export async function getCostReviews(tab: CostReviewTab, filter: CostReviewFilter = {}): Promise<CostReviewEntry[]> {
+  const q = filter.q?.trim()
   const createdBy = alias(users, 'cost_sync_created_by')
   const resolvedBy = alias(users, 'cost_sync_resolved_by')
   const sourceUom = alias(unitsOfMeasure, 'cost_sync_source_uom')
@@ -598,7 +605,12 @@ export async function getCostReviews(tab: CostReviewTab): Promise<CostReviewEntr
     .leftJoin(sourceUom, eq(productCostSyncs.sourceUomId, sourceUom.id))
     .leftJoin(createdBy, eq(productCostSyncs.createdById, createdBy.id))
     .leftJoin(resolvedBy, eq(productCostSyncs.resolvedById, resolvedBy.id))
-    .where(inArray(productCostSyncs.status, TAB_STATUSES[tab]))
+    .where(and(
+      inArray(productCostSyncs.status, TAB_STATUSES[tab]),
+      filter.branchId ? eq(productCostSyncs.branchId, filter.branchId) : undefined,
+      filter.sourceType ? eq(productCostSyncs.sourceType, filter.sourceType) : undefined,
+      q ? productSearchCondition(q) : undefined,
+    ))
     .orderBy(tab === 'PENDING' ? asc(productCostSyncs.createdAt) : desc(productCostSyncs.id))
     .limit(COST_REVIEW_HISTORY_LIMIT)
 
@@ -617,19 +629,27 @@ export async function getCostReviews(tab: CostReviewTab): Promise<CostReviewEntr
 
 export const MARGIN_ALERT_LIMIT = 500
 
-export interface MarginAlertEntry {
+export interface MarginLine {
+  uomId: number
+  uomCode: string
+  tierType: string
+  price: number
+  /** Modal satuan ini di cabang itu; null bila belum diisi. */
+  costPrice: number | null
+  margin: number | null
+  marginPercent: number | null
+  /** Untung <= MARGIN_ALERT_PERCENT (termasuk rugi). */
+  alert: boolean
+}
+
+/** Satu barang di satu cabang beserta SEMUA harga jualnya (yang aman ikut tampil supaya bisa diatur sekaligus). */
+export interface MarginGroup {
   branchId: number
   branchName: string
   productId: number
   productName: string
   sku: string | null
-  uomId: number
-  uomCode: string
-  tierType: string
-  price: number
-  costPrice: number
-  margin: number
-  marginPercent: number
+  lines: MarginLine[]
 }
 
 // Margin <= 1% (termasuk rugi) di pasangan harga jual & modal pada cabang + satuan yang sama.
@@ -654,8 +674,26 @@ function marginAlertBase() {
   }
 }
 
-export async function getMarginAlerts(filter: { branchId?: number | null; q?: string | null }): Promise<{
-  items: MarginAlertEntry[]
+export type MarginAlertStatus = 'LOSS' | 'THIN'
+
+const TIER_ORDER = ['RETAIL', 'MEMBER', 'RESELLER', 'GROSIR', 'DISTRIBUTOR', 'PROMO']
+
+function isMarginAlert(price: number, cost: number): boolean {
+  return price > 0 && cost > 0 && new Big(price).minus(cost).times(100).lte(new Big(price).times(MARGIN_ALERT_PERCENT))
+}
+
+/**
+ * Barang (per cabang) yang punya minimal satu harga jual bermargin <= 1%. Filter jenis harga/kondisi
+ * menentukan barang mana yang masuk; isi tiap barang selalu semua harganya. Urut dari margin terburuk.
+ */
+export async function getMarginAlerts(filter: {
+  branchId?: number | null
+  q?: string | null
+  tierType?: string | null
+  /** LOSS = harga jual <= modal; THIN = masih untung tapi <= MARGIN_ALERT_PERCENT. */
+  status?: MarginAlertStatus | null
+}): Promise<{
+  items: MarginGroup[]
   total: number
 }> {
   const { costJoin } = marginAlertBase()
@@ -664,9 +702,13 @@ export async function getMarginAlerts(filter: { branchId?: number | null; q?: st
     marginAlertCondition(),
     filter.branchId ? eq(productPrices.branchId, filter.branchId) : undefined,
     q ? productSearchCondition(q) : undefined,
+    filter.tierType ? eq(productPrices.tierType, filter.tierType) : undefined,
+    filter.status === 'LOSS' ? sql`${productPrices.price} <= ${productUomCosts.costPrice}` : undefined,
+    filter.status === 'THIN' ? sql`${productPrices.price} > ${productUomCosts.costPrice}` : undefined,
   )
+  const worstRatio = sql`MIN((${productPrices.price} - ${productUomCosts.costPrice})::numeric / ${productPrices.price})`
 
-  const [rows, [countRow]] = await Promise.all([
+  const [groups, [countRow]] = await Promise.all([
     db
       .select({
         branchId: productPrices.branchId,
@@ -674,25 +716,19 @@ export async function getMarginAlerts(filter: { branchId?: number | null; q?: st
         productId: productPrices.productId,
         productName: products.name,
         sku: products.sku,
-        uomId: productPrices.uomId,
-        uomCode: unitsOfMeasure.code,
-        tierType: productPrices.tierType,
-        price: productPrices.price,
-        costPrice: productUomCosts.costPrice,
       })
       .from(productPrices)
       .innerJoin(productUomCosts, costJoin)
       .innerJoin(products, eq(productPrices.productId, products.id))
       .innerJoin(branches, eq(productPrices.branchId, branches.id))
-      .innerJoin(unitsOfMeasure, eq(productPrices.uomId, unitsOfMeasure.id))
       .where(where)
-      .orderBy(
-        asc(sql`(${productPrices.price} - ${productUomCosts.costPrice})::numeric / ${productPrices.price}`),
-        asc(products.name),
-      )
+      .groupBy(productPrices.branchId, branches.name, productPrices.productId, products.name, products.sku)
+      .orderBy(asc(worstRatio), asc(products.name), asc(branches.name))
       .limit(MARGIN_ALERT_LIMIT),
     db
-      .select({ total: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+      .select({
+        total: sql<number>`CAST(COUNT(DISTINCT (${productPrices.branchId}::text || ':' || ${productPrices.productId}::text)) AS INTEGER)`,
+      })
       .from(productPrices)
       .innerJoin(productUomCosts, costJoin)
       .innerJoin(products, eq(productPrices.productId, products.id))
@@ -700,16 +736,134 @@ export async function getMarginAlerts(filter: { branchId?: number | null; q?: st
       .where(where),
   ])
 
+  if (groups.length === 0) return { items: [], total: Number(countRow?.total ?? 0) }
+
+  const lineRows = await db
+    .select({
+      branchId: productPrices.branchId,
+      productId: productPrices.productId,
+      uomId: productPrices.uomId,
+      uomCode: unitsOfMeasure.code,
+      ratio: productUomConversions.ratio,
+      tierType: productPrices.tierType,
+      price: productPrices.price,
+      costPrice: productUomCosts.costPrice,
+    })
+    .from(productPrices)
+    .leftJoin(productUomCosts, costJoin)
+    .innerJoin(unitsOfMeasure, eq(productPrices.uomId, unitsOfMeasure.id))
+    .leftJoin(
+      productUomConversions,
+      and(eq(productUomConversions.productId, productPrices.productId), eq(productUomConversions.uomId, productPrices.uomId)),
+    )
+    .where(sql`(${productPrices.branchId}, ${productPrices.productId}) IN (${sql.join(
+      groups.map(g => sql`(${g.branchId}::int, ${g.productId}::int)`),
+      sql`, `,
+    )})`)
+
+  const linesByGroup = new Map<string, (MarginLine & { ratio: number })[]>()
+  for (const r of lineRows) {
+    const price = Number(r.price)
+    const cost = r.costPrice !== null && Number(r.costPrice) > 0 ? Number(r.costPrice) : null
+    const key = `${r.branchId}:${r.productId}`
+    const list = linesByGroup.get(key) ?? []
+    list.push({
+      uomId: r.uomId,
+      uomCode: r.uomCode,
+      tierType: r.tierType,
+      price,
+      costPrice: cost,
+      margin: cost !== null ? price - cost : null,
+      marginPercent: cost !== null ? marginPercent(price, cost) : null,
+      alert: cost !== null && isMarginAlert(price, cost),
+      ratio: r.ratio ?? 1,
+    })
+    linesByGroup.set(key, list)
+  }
+
+  const tierRank = (t: string) => (TIER_ORDER.indexOf(t) === -1 ? TIER_ORDER.length : TIER_ORDER.indexOf(t))
   return {
     total: Number(countRow?.total ?? 0),
-    items: rows.map(r => ({
-      ...r,
-      price: Number(r.price),
-      costPrice: Number(r.costPrice),
-      margin: Number(r.price) - Number(r.costPrice),
-      marginPercent: marginPercent(Number(r.price), Number(r.costPrice)),
+    items: groups.map(g => ({
+      ...g,
+      lines: (linesByGroup.get(`${g.branchId}:${g.productId}`) ?? [])
+        .sort((a, b) => a.ratio - b.ratio || a.uomId - b.uomId || tierRank(a.tierType) - tierRank(b.tierType))
+        .map(l => ({
+          uomId: l.uomId,
+          uomCode: l.uomCode,
+          tierType: l.tierType,
+          price: l.price,
+          costPrice: l.costPrice,
+          margin: l.margin,
+          marginPercent: l.marginPercent,
+          alert: l.alert,
+        })),
     })),
   }
+}
+
+export interface MarginPriceChange extends PriceChange {
+  branchId: number
+}
+
+export const marginPriceKey = (c: { branchId: number; productId: number; uomId: number; tierType: string }) =>
+  `${c.branchId}:${c.productId}:${c.uomId}:${c.tierType}`
+
+/**
+ * Simpan harga jual baru dari tab Margin. Harga di bawah modal satuan itu ditolak (untuk jual rugi
+ * dipakai fitur diskon). Penyimpanan memakai jalur Manajemen Harga per cabang, jadi riwayat harga
+ * tercatat sama; kegagalan satu cabang tidak membatalkan cabang lain.
+ */
+export async function applyMarginPrices(
+  changes: MarginPriceChange[],
+  userId: number,
+): Promise<{ updated: number; failed: { key: string; error: string }[] }> {
+  const failed: { key: string; error: string }[] = []
+  const costRows = changes.length === 0 ? [] : await db
+    .select({
+      branchId: productUomCosts.branchId,
+      productId: productUomCosts.productId,
+      uomId: productUomCosts.uomId,
+      costPrice: productUomCosts.costPrice,
+    })
+    .from(productUomCosts)
+    .where(sql`(${productUomCosts.branchId}, ${productUomCosts.productId}, ${productUomCosts.uomId}) IN (${sql.join(
+      changes.map(c => sql`(${c.branchId}::int, ${c.productId}::int, ${c.uomId}::int)`),
+      sql`, `,
+    )})`)
+  const costOf = new Map(costRows.map(r => [`${r.branchId}:${r.productId}:${r.uomId}`, Number(r.costPrice)]))
+
+  const byBranch = new Map<number, MarginPriceChange[]>()
+  for (const c of changes) {
+    const cost = costOf.get(`${c.branchId}:${c.productId}:${c.uomId}`)
+    if (!(c.price > 0)) {
+      failed.push({ key: marginPriceKey(c), error: 'Harga jual wajib diisi' })
+    } else if (cost !== undefined && c.price < cost) {
+      failed.push({
+        key: marginPriceKey(c),
+        error: `Harga jual ${c.price.toLocaleString('id-ID')} di bawah modal ${cost.toLocaleString('id-ID')} — untuk jual rugi pakai fitur diskon`,
+      })
+    } else {
+      byBranch.set(c.branchId, [...(byBranch.get(c.branchId) ?? []), c])
+    }
+  }
+
+  let updated = 0
+  for (const [branchId, list] of byBranch) {
+    try {
+      const result = await applyPriceBulk({
+        branchId,
+        changes: list.map(({ productId, uomId, tierType, price }) => ({ productId, uomId, tierType, price })),
+        costChanges: [],
+        actor: { userId, source: 'REVIEW', reference: 'Tinjau Margin' },
+      })
+      updated += result.updated
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Gagal menyimpan harga'
+      for (const c of list) failed.push({ key: marginPriceKey(c), error })
+    }
+  }
+  return { updated, failed }
 }
 
 /** Untuk badge sidebar: usulan modal menunggu + pasangan harga bermargin <= 1%. */
