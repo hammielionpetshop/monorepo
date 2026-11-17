@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { CostReviewEntry, CostReviewTab, MarginAlertEntry } from '@/lib/services/cost-sync-service'
+import type { CostReviewEntry, CostReviewTab, MarginGroup } from '@/lib/services/cost-sync-service'
 import type { PriceReviewEntry } from '@/lib/services/price-review-service'
 
 // Lembar cetak A4 Tinjau Modal & Margin untuk dibawa ke owner (cetak browser → kertas / Simpan PDF).
@@ -381,12 +381,12 @@ export function CostReviewPrint({
 }
 
 export function MarginPrint({
-  rows,
+  groups,
   total,
   printedAt,
   filters,
 }: {
-  rows: MarginAlertEntry[]
+  groups: MarginGroup[]
   total: number
   printedAt: Date
   filters: PrintFilter[]
@@ -397,58 +397,64 @@ export function MarginPrint({
       printedAt={printedAt}
       filters={[
         ...filters,
-        { label: 'Jumlah baris', value: total > rows.length ? `${rows.length} dari ${total} (margin terendah)` : `${rows.length}` },
+        { label: 'Jumlah barang', value: total > groups.length ? `${groups.length} dari ${total} (margin terendah)` : `${groups.length} barang` },
       ]}
       howto={
         <>
-          Harga jual yang untungnya 1% atau kurang dari modal saat ini. <b>Rugi</b> = harga jual sama atau di bawah modal.
-          Tulis harga jual baru yang disetujui di kolom &quot;Harga jual baru (ACC owner)&quot;, atau centang
-          &quot;Biarkan&quot; bila harga jual memang tidak diubah.
+          Barang yang punya harga jual dengan untung 1% atau kurang dari modal saat ini. Semua harga barang itu dicetak
+          supaya bisa diputuskan sekaligus; yang <b>rugi</b> atau <b>menipis</b> ditandai. Tulis harga jual baru yang
+          disetujui di kolom &quot;Harga jual baru (ACC owner)&quot;; kosongkan bila harga itu tidak diubah. Harga di bawah
+          modal tidak bisa disimpan; untuk jual rugi pakai fitur diskon.
         </>
       }
     >
-      <table>
-        <thead>
-          <tr>
-            <th className="l">No</th>
-            <th className="l">Produk</th>
-            <th className="l">Cabang</th>
-            <th className="l">Satuan</th>
-            <th className="l">Jenis harga</th>
-            <th className="g">Modal</th>
-            <th>Harga jual</th>
-            <th className="g">Untung</th>
-            <th className="g">Harga jual baru (ACC owner)</th>
-            <th className="c">Biarkan</th>
-            <th className="c">Paraf</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((m, index) => {
-            const loss = m.margin <= 0
-            return (
-              <tr key={`${m.branchId}:${m.productId}:${m.uomId}:${m.tierType}`}>
-                <td className="l">{index + 1}</td>
-                <td className="l">
-                  <div className="b">{m.productName}</div>
-                  {m.sku && <div className="muted">SKU {m.sku}</div>}
-                </td>
-                <td className="l">{m.branchName}</td>
-                <td className="l">{m.uomCode}</td>
-                <td className="l">{TIER_LABELS[m.tierType] ?? m.tierType}</td>
-                <td className="g">{rupiah(m.costPrice)}</td>
-                <td>{rupiah(m.price)}</td>
-                <td className={`g ${loss ? 'loss' : ''}`}>
-                  {rupiah(m.margin)} ({m.marginPercent.toLocaleString('id-ID')}%){loss ? ' rugi' : ''}
-                </td>
-                <td className="g blank" />
-                <td className="c"><span className="box"><i /></span></td>
-                <td className="blank" />
+      {groups.map((g, index) => (
+        <section key={`${g.branchId}:${g.productId}`} className="item">
+          <div className="item-head">
+            <div>
+              <span className="name">{index + 1}. {g.productName}</span>
+              {g.sku && <span className="muted"> · SKU {g.sku}</span>}
+              <div className="muted">{g.branchName}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th className="l">Satuan</th>
+                <th className="l">Jenis harga</th>
+                <th className="g">Modal</th>
+                <th>Harga jual</th>
+                <th className="g">Untung</th>
+                <th className="g">Harga jual baru (ACC owner)</th>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {g.lines.map(line => {
+                const loss = line.margin !== null && line.margin <= 0
+                return (
+                  <tr key={`${line.uomId}:${line.tierType}`}>
+                    <td className="l">{line.uomCode}</td>
+                    <td className="l">{TIER_LABELS[line.tierType] ?? line.tierType}</td>
+                    <td className="g">{rupiah(line.costPrice)}</td>
+                    <td>{rupiah(line.price)}</td>
+                    <td className={`g ${line.alert ? 'b' : ''} ${loss ? 'loss' : ''}`}>
+                      {line.margin === null || line.marginPercent === null
+                        ? '—'
+                        : `${rupiah(line.margin)} (${line.marginPercent.toLocaleString('id-ID')}%)${line.alert ? (loss ? ' rugi' : ' menipis') : ''}`}
+                    </td>
+                    <td className="g blank" />
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="decide">
+            <Box>ACC harga jual baru</Box>
+            <Box>Biarkan harga sekarang</Box>
+            <span className="paraf">Paraf <b /></span>
+          </div>
+        </section>
+      ))}
     </Sheet>
   )
 }
