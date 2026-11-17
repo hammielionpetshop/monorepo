@@ -21,7 +21,7 @@ import {
   asc,
   desc,
 } from '@/lib/db'
-import { buildPriceAuditEntry, type PriceMutationActor } from './price-service'
+import { applyPriceBulk, buildPriceAuditEntry, type PriceChange, type PriceMutationActor } from './price-service'
 import { lockOpenPriceReview, recordPriceReviewInTx, resolvePriceReviewInTx } from './price-review-record'
 
 // Lompatan modal per satuan dasar sebesar ini (naik atau turun) wajib ditinjau OWNER/GM.
@@ -733,6 +733,70 @@ export async function getMarginAlerts(filter: {
       marginPercent: marginPercent(Number(r.price), Number(r.costPrice)),
     })),
   }
+}
+
+export interface MarginPriceChange extends PriceChange {
+  branchId: number
+}
+
+export const marginPriceKey = (c: { branchId: number; productId: number; uomId: number; tierType: string }) =>
+  `${c.branchId}:${c.productId}:${c.uomId}:${c.tierType}`
+
+/**
+ * Simpan harga jual baru dari tab Margin. Harga di bawah modal satuan itu ditolak (untuk jual rugi
+ * dipakai fitur diskon). Penyimpanan memakai jalur Manajemen Harga per cabang, jadi riwayat harga
+ * tercatat sama; kegagalan satu cabang tidak membatalkan cabang lain.
+ */
+export async function applyMarginPrices(
+  changes: MarginPriceChange[],
+  userId: number,
+): Promise<{ updated: number; failed: { key: string; error: string }[] }> {
+  const failed: { key: string; error: string }[] = []
+  const costRows = changes.length === 0 ? [] : await db
+    .select({
+      branchId: productUomCosts.branchId,
+      productId: productUomCosts.productId,
+      uomId: productUomCosts.uomId,
+      costPrice: productUomCosts.costPrice,
+    })
+    .from(productUomCosts)
+    .where(sql`(${productUomCosts.branchId}, ${productUomCosts.productId}, ${productUomCosts.uomId}) IN (${sql.join(
+      changes.map(c => sql`(${c.branchId}::int, ${c.productId}::int, ${c.uomId}::int)`),
+      sql`, `,
+    )})`)
+  const costOf = new Map(costRows.map(r => [`${r.branchId}:${r.productId}:${r.uomId}`, Number(r.costPrice)]))
+
+  const byBranch = new Map<number, MarginPriceChange[]>()
+  for (const c of changes) {
+    const cost = costOf.get(`${c.branchId}:${c.productId}:${c.uomId}`)
+    if (!(c.price > 0)) {
+      failed.push({ key: marginPriceKey(c), error: 'Harga jual wajib diisi' })
+    } else if (cost !== undefined && c.price < cost) {
+      failed.push({
+        key: marginPriceKey(c),
+        error: `Harga jual ${c.price.toLocaleString('id-ID')} di bawah modal ${cost.toLocaleString('id-ID')} — untuk jual rugi pakai fitur diskon`,
+      })
+    } else {
+      byBranch.set(c.branchId, [...(byBranch.get(c.branchId) ?? []), c])
+    }
+  }
+
+  let updated = 0
+  for (const [branchId, list] of byBranch) {
+    try {
+      const result = await applyPriceBulk({
+        branchId,
+        changes: list.map(({ productId, uomId, tierType, price }) => ({ productId, uomId, tierType, price })),
+        costChanges: [],
+        actor: { userId, source: 'REVIEW', reference: 'Tinjau Margin' },
+      })
+      updated += result.updated
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Gagal menyimpan harga'
+      for (const c of list) failed.push({ key: marginPriceKey(c), error })
+    }
+  }
+  return { updated, failed }
 }
 
 /** Untuk badge sidebar: usulan modal menunggu + pasangan harga bermargin <= 1%. */
