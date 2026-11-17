@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PriceReviewEntry, PriceReviewLine } from '@/lib/services/price-review-service'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { matchesSearchWords } from '@/lib/search-words'
 
 interface BranchOption {
   id: number
@@ -61,6 +62,7 @@ export default function PriceReviewPanel({
   const router = useRouter()
   const [reviews, setReviews] = useState(initialReviews)
   const [branchId, setBranchId] = useState('')
+  const [search, setSearch] = useState('')
   const [edits, setEdits] = useState<Record<number, Record<string, string>>>({})
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [busyId, setBusyId] = useState<number | 'bulk' | null>(null)
@@ -94,6 +96,13 @@ export default function PriceReviewPanel({
     void reload(branchId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId])
+
+  const visibleReviews = useMemo(
+    () => reviews.filter(r => matchesSearchWords(search, [r.productName, r.sku])),
+    [reviews, search],
+  )
+  // Setujui massal hanya untuk pilihan yang terlihat, supaya barang yang tersaring pencarian tidak ikut tanpa sadar.
+  const visibleSelectedIds = visibleReviews.filter(r => selected.has(r.id)).map(r => r.id)
 
   const priceOf = (review: PriceReviewEntry, line: PriceReviewLine) => {
     const typed = edits[review.id]?.[lineKey(line)]
@@ -149,12 +158,12 @@ export default function PriceReviewPanel({
     setSuccess(null)
     setBusyId('bulk')
     try {
-      const { ok, data } = await post('/api/bo/price-reviews/approve-bulk', { ids: [...selected] })
+      const { ok, data } = await post('/api/bo/price-reviews/approve-bulk', { ids: visibleSelectedIds })
       if (!ok) {
         setError(data.error ?? 'Gagal menyetujui')
         return
       }
-      setSelected(new Set())
+      setSelected(prev => new Set([...prev].filter(id => !visibleSelectedIds.includes(id))))
       const failed = (data.failed ?? []) as { id: number; error: string }[]
       if (failed.length > 0) setError(`Gagal ${failed.length} barang: ${failed.map(f => f.error).join('; ')}`)
       await afterChange(`${data.approved} barang disetujui dengan harga usulan.`)
@@ -220,13 +229,21 @@ export default function PriceReviewPanel({
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </select>
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cari produk (nama atau SKU)..."
+          aria-label="Cari produk"
+          className="flex-1 min-w-48 max-w-md border border-input rounded-md px-3 py-2 text-sm bg-background"
+        />
         <button
           type="button"
           onClick={approveSelected}
-          disabled={selected.size === 0 || busyId !== null}
+          disabled={visibleSelectedIds.length === 0 || busyId !== null}
           className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          {busyId === 'bulk' ? 'Menyimpan...' : `Setujui harga usulan (${selected.size} terpilih)`}
+          {busyId === 'bulk' ? 'Menyimpan...' : `Setujui harga usulan (${visibleSelectedIds.length} terpilih)`}
         </button>
       </div>
 
@@ -237,8 +254,12 @@ export default function PriceReviewPanel({
         <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
           Tidak ada harga jual yang perlu diperiksa.
         </div>
+      ) : visibleReviews.length === 0 ? (
+        <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+          Tidak ada produk yang cocok dengan &ldquo;{search.trim()}&rdquo;.
+        </div>
       ) : (
-        reviews.map(review => {
+        visibleReviews.map(review => {
           const below = belowCost(review)
           const busy = busyId === review.id || busyId === 'bulk'
           return (

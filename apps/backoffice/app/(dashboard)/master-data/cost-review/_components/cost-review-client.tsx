@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type {
@@ -11,6 +11,7 @@ import type {
 } from '@/lib/services/cost-sync-service'
 import type { PriceReviewEntry } from '@/lib/services/price-review-service'
 import { NewBadge } from '@/components/ui/new-badge'
+import { matchesSearchWords } from '@/lib/search-words'
 import PriceReviewPanel from './price-review-panel'
 
 type View = 'HARGA' | 'MODAL' | 'MARGIN'
@@ -82,6 +83,7 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
 
   const [tab, setTab] = useState<CostReviewTab>('PENDING')
   const [reviews, setReviews] = useState<CostReviewEntry[]>(initialReviews)
+  const [reviewSearch, setReviewSearch] = useState('')
   const [pendingCount, setPendingCount] = useState(initialReviews.length)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -208,6 +210,10 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
   }
 
   const modalTarget = approveTarget ?? rejectTarget
+  const visibleReviews = useMemo(
+    () => reviews.filter((r) => matchesSearchWords(reviewSearch, [r.productName, r.sku])),
+    [reviews, reviewSearch],
+  )
 
   return (
     <div className="space-y-4">
@@ -260,6 +266,15 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
             ))}
           </div>
 
+          <input
+            type="search"
+            value={reviewSearch}
+            onChange={(e) => setReviewSearch(e.target.value)}
+            placeholder="Cari produk (nama atau SKU)..."
+            aria-label="Cari produk"
+            className="w-full max-w-md border border-input rounded-md px-3 py-2 text-sm bg-background"
+          />
+
           {loadError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {loadError}
@@ -272,6 +287,10 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
             ) : reviews.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 {tab === 'PENDING' ? 'Tidak ada perubahan modal yang menunggu persetujuan.' : 'Belum ada riwayat.'}
+              </div>
+            ) : visibleReviews.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Tidak ada produk yang cocok dengan &ldquo;{reviewSearch.trim()}&rdquo;.
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -287,7 +306,7 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
                   </tr>
                 </thead>
                 <tbody>
-                  {reviews.map((r) => (
+                  {visibleReviews.map((r) => (
                     <tr key={r.id} className="border-b border-border last:border-0 align-top">
                       <td className="px-4 py-3">
                         <p className="font-medium text-foreground">{r.productName}</p>
