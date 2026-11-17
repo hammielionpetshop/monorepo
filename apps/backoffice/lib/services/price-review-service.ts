@@ -41,6 +41,8 @@ export interface PriceReviewLine {
   uomCode: string | null
   tierType: string
   price: number
+  /** Modal satuan ini sebelum naik: modal lama per satuan dasar × isi satuan. */
+  oldUnitCost: number | null
   /** Modal satuan ini sesudah naik (modal yang ditahan bila belum disetujui). */
   unitCost: number | null
   marginPercent: number | null
@@ -71,6 +73,7 @@ interface ReviewCostContext {
   newCostPerBase: number | null
   costPending: boolean
   unitCostOf: (uomId: number) => number | null
+  ratioOf: (uomId: number) => number | null
 }
 
 /** Modal baru per satuan: dari usulan yang ditahan bila masih PENDING, selain itu modal yang berlaku. */
@@ -79,7 +82,7 @@ async function loadReviewCosts(
   review: { branchId: number; productId: number; costSyncId: number | null },
 ): Promise<ReviewCostContext> {
   const product = await loadProductUoms(tx, review.productId)
-  if (!product) return { newCostPerBase: null, costPending: false, unitCostOf: () => null }
+  if (!product) return { newCostPerBase: null, costPending: false, unitCostOf: () => null, ratioOf: () => null }
   const ratioOf = (uomId: number) => product.uoms.find(u => u.uomId === uomId)?.ratio ?? null
 
   if (review.costSyncId) {
@@ -91,7 +94,7 @@ async function loadReviewCosts(
     const sourceRatio = sync ? ratioOf(sync.sourceUomId) : null
     if (sync?.status === 'PENDING' && sourceRatio) {
       const targets = new Map(buildTargetCosts(sync.sourceUnitCost, sourceRatio, product.uoms).map(t => [t.uomId, t.costPrice]))
-      return { newCostPerBase: sync.newCostPerBase, costPending: true, unitCostOf: uomId => targets.get(uomId) ?? null }
+      return { newCostPerBase: sync.newCostPerBase, costPending: true, unitCostOf: uomId => targets.get(uomId) ?? null, ratioOf }
     }
   }
 
@@ -100,6 +103,7 @@ async function loadReviewCosts(
   return {
     newCostPerBase: perBase,
     costPending: false,
+    ratioOf,
     unitCostOf: uomId => {
       const direct = current.get(uomId)
       if (direct && direct > 0) return direct
@@ -131,11 +135,14 @@ function buildLines(
   return rows.map(r => {
     const unitCost = costs.unitCostOf(r.uomId)
     const price = Number(r.price)
+    const ratio = costs.ratioOf(r.uomId)
     return {
       uomId: r.uomId,
       uomCode: r.uomCode,
       tierType: r.tierType,
       price,
+      oldUnitCost:
+        oldCostPerBase !== null && ratio ? new Big(oldCostPerBase).times(ratio).round(0, Big.roundHalfUp).toNumber() : null,
       unitCost,
       marginPercent: unitCost !== null ? marginPercent(price, unitCost) : null,
       suggested:

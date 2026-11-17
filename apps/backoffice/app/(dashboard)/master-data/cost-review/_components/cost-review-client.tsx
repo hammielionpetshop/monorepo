@@ -2,16 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Big from 'big.js'
 import { useRouter } from 'next/navigation'
 import type {
   CostReviewEntry,
   CostReviewTab,
   CostSyncSourceType,
-  MarginAlertEntry,
+  MarginGroup,
+  MarginLine,
+  MarginAlertStatus,
 } from '@/lib/services/cost-sync-service'
 import type { PriceReviewEntry } from '@/lib/services/price-review-service'
 import { NewBadge } from '@/components/ui/new-badge'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 import PriceReviewPanel from './price-review-panel'
+import { CostReviewPrint, MarginPrint, PrintButton, usePrintSheet, type PrintFilter } from './review-print'
 
 type View = 'HARGA' | 'MODAL' | 'MARGIN'
 
@@ -40,7 +45,42 @@ const TIER_LABELS: Record<string, string> = {
   RESELLER: 'Reseller',
   GROSIR: 'Grosir',
   MEMBER: 'Member',
+  DISTRIBUTOR: 'Distributor',
+  PROMO: 'Promo',
 }
+
+const MARGIN_STATUS_LABELS: Record<MarginAlertStatus, string> = {
+  LOSS: 'Rugi saja',
+  THIN: 'Menipis saja',
+}
+
+interface CostFilter {
+  branchId: string
+  sourceType: string
+  q: string
+}
+
+interface MarginFilter {
+  branchId: string
+  q: string
+  tierType: string
+  status: string
+}
+
+type MarginRow = MarginLine & { branchId: number; productId: number }
+
+const marginKey = (m: { branchId: number; productId: number; uomId: number; tierType: string }) =>
+  `${m.branchId}:${m.productId}:${m.uomId}:${m.tierType}`
+const groupKey = (g: { branchId: number; productId: number }) => `${g.branchId}:${g.productId}`
+const groupRows = (g: MarginGroup): MarginRow[] =>
+  g.lines.map((l) => ({ ...l, branchId: g.branchId, productId: g.productId }))
+
+function profitPercent(price: number, cost: number): number {
+  return new Big(price).minus(cost).div(price).times(100).round(2, Big.roundHalfUp).toNumber()
+}
+
+const selectClass = 'border border-input rounded-md px-3 py-2 text-sm bg-background'
+const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
 function formatNumber(value: number): string {
   return value.toLocaleString('id-ID')
@@ -82,6 +122,8 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
 
   const [tab, setTab] = useState<CostReviewTab>('PENDING')
   const [reviews, setReviews] = useState<CostReviewEntry[]>(initialReviews)
+  const [costFilter, setCostFilter] = useState<CostFilter>({ branchId: '', sourceType: '', q: '' })
+  const [costSearchInput, setCostSearchInput] = useState('')
   const [pendingCount, setPendingCount] = useState(initialReviews.length)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -93,18 +135,31 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
   const [submitting, setSubmitting] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
 
-  const [marginBranch, setMarginBranch] = useState('')
-  const [marginSearch, setMarginSearch] = useState('')
-  const [margins, setMargins] = useState<MarginAlertEntry[] | null>(null)
+  const [marginFilter, setMarginFilter] = useState<MarginFilter>({ branchId: '', q: '', tierType: '', status: '' })
+  // Filter yang benar-benar dipakai daftar margin saat ini (ketikan pencarian baru berlaku setelah Cari).
+  const [marginApplied, setMarginApplied] = useState<MarginFilter>(marginFilter)
+  const [margins, setMargins] = useState<MarginGroup[] | null>(null)
   const [marginTotal, setMarginTotal] = useState(0)
   const [marginLoading, setMarginLoading] = useState(false)
   const [marginError, setMarginError] = useState<string | null>(null)
+  // Harga jual baru yang diketik di tab Margin (angka saja), hasil simpan, dan galat per baris.
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({})
+  const [savedPrices, setSavedPrices] = useState<Record<string, number>>({})
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [savingPrices, setSavingPrices] = useState<string | 'ALL' | null>(null)
 
-  const loadReviews = useCallback(async (t: CostReviewTab) => {
+  const costPrint = usePrintSheet()
+  const marginPrint = usePrintSheet()
+
+  const loadReviews = useCallback(async (t: CostReviewTab, f: CostFilter) => {
     setLoading(true)
     setLoadError(null)
     try {
-      const res = await fetch(`/api/bo/cost-reviews?tab=${t}`)
+      const params = new URLSearchParams({ tab: t })
+      if (f.branchId) params.set('branchId', f.branchId)
+      if (f.sourceType) params.set('sourceType', f.sourceType)
+      if (f.q.trim()) params.set('q', f.q.trim())
+      const res = await fetch(`/api/bo/cost-reviews?${params}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setLoadError(data.error ?? 'Gagal memuat daftar')
@@ -112,7 +167,7 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
       }
       const rows: CostReviewEntry[] = Array.isArray(data) ? data : []
       setReviews(rows)
-      if (t === 'PENDING') setPendingCount(rows.length)
+      if (t === 'PENDING' && !f.branchId && !f.sourceType && !f.q.trim()) setPendingCount(rows.length)
     } catch {
       setLoadError('Terjadi kesalahan jaringan')
     } finally {
@@ -120,13 +175,15 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
     }
   }, [])
 
-  const loadMargins = useCallback(async (branchId: string, q: string) => {
+  const loadMargins = useCallback(async (f: MarginFilter) => {
     setMarginLoading(true)
     setMarginError(null)
     try {
       const params = new URLSearchParams()
-      if (branchId) params.set('branchId', branchId)
-      if (q.trim()) params.set('q', q.trim())
+      if (f.branchId) params.set('branchId', f.branchId)
+      if (f.q.trim()) params.set('q', f.q.trim())
+      if (f.tierType) params.set('tierType', f.tierType)
+      if (f.status) params.set('status', f.status)
       const res = await fetch(`/api/bo/cost-reviews/margins?${params}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -134,6 +191,9 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
         return
       }
       setMargins(Array.isArray(data.items) ? data.items : [])
+      setMarginApplied(f)
+      setSavedPrices({})
+      setRowErrors({})
       setMarginTotal(Number(data.total ?? 0))
     } catch {
       setMarginError('Terjadi kesalahan jaringan')
@@ -149,12 +209,82 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
       mounted.current = true
       return
     }
-    loadReviews(tab)
-  }, [tab, loadReviews])
+    loadReviews(tab, costFilter)
+  }, [tab, costFilter, loadReviews])
+
+  // Pencarian tab Modal dijalankan di server (riwayat dibatasi 200 baris), jadi ketikan ditunda sebentar.
+  useEffect(() => {
+    if (costSearchInput === costFilter.q) return
+    const timer = setTimeout(() => setCostFilter((f) => ({ ...f, q: costSearchInput })), 350)
+    return () => clearTimeout(timer)
+  }, [costSearchInput, costFilter.q])
 
   useEffect(() => {
-    if (view === 'MARGIN' && margins === null) loadMargins(marginBranch, marginSearch)
-  }, [view, margins, marginBranch, marginSearch, loadMargins])
+    if (view === 'MARGIN' && margins === null) loadMargins(marginFilter)
+  }, [view, margins, marginFilter, loadMargins])
+
+  const filledRows = (margins ?? []).flatMap(groupRows).filter((r) => Number(priceEdits[marginKey(r)] || 0) > 0)
+
+  async function savePrices(rows: MarginRow[], scope: string | 'ALL') {
+    const invalid: Record<string, string> = {}
+    const items = rows.flatMap((r) => {
+      const key = marginKey(r)
+      const price = Number(priceEdits[key] || 0)
+      if (!(price > 0)) return []
+      if (r.costPrice !== null && price < r.costPrice) {
+        invalid[key] = `Di bawah modal ${formatNumber(r.costPrice)} — untuk jual rugi pakai fitur diskon`
+        return []
+      }
+      return [{ branchId: r.branchId, productId: r.productId, uomId: r.uomId, tierType: r.tierType, price }]
+    })
+    setRowErrors((prev) => {
+      const next = { ...prev }
+      for (const r of rows) delete next[marginKey(r)]
+      return { ...next, ...invalid }
+    })
+    if (items.length === 0) return
+
+    setSavingPrices(scope)
+    setSuccessMsg(null)
+    setMarginError(null)
+    try {
+      const res = await fetch('/api/bo/cost-reviews/margins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setMarginError(data.error ?? 'Gagal menyimpan harga jual')
+        return
+      }
+      const failed = new Map<string, string>(((data.failed ?? []) as { key: string; error: string }[]).map((f) => [f.key, f.error]))
+      const saved: Record<string, number> = {}
+      for (const item of items) {
+        const key = marginKey(item)
+        if (!failed.has(key)) saved[key] = item.price
+      }
+      setSavedPrices((prev) => ({ ...prev, ...saved }))
+      setPriceEdits((prev) => {
+        const next = { ...prev }
+        for (const key of Object.keys(saved)) delete next[key]
+        return next
+      })
+      setRowErrors((prev) => ({ ...prev, ...Object.fromEntries(failed) }))
+      const savedCount = Object.keys(saved).length
+      if (savedCount > 0) setSuccessMsg(`${savedCount} harga jual disimpan ke Manajemen Harga.`)
+    } catch {
+      setMarginError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSavingPrices(null)
+    }
+  }
+
+  function changeMarginFilter(patch: Partial<MarginFilter>, reload = true) {
+    const next = { ...marginFilter, ...patch }
+    setMarginFilter(next)
+    if (reload) loadMargins(next)
+  }
 
   function openApprove(row: CostReviewEntry) {
     setApproveTarget(row)
@@ -208,6 +338,20 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
   }
 
   const modalTarget = approveTarget ?? rejectTarget
+  const branchLabel = (id: string) => branches.find((b) => String(b.id) === id)?.name ?? 'Semua cabang'
+  const costFiltered = Boolean(costFilter.branchId || costFilter.sourceType || costFilter.q.trim())
+  const costPrintFilters: PrintFilter[] = [
+    { label: 'Status', value: REVIEW_TABS.find((t) => t.value === tab)?.label ?? tab },
+    { label: 'Cabang', value: branchLabel(costFilter.branchId) },
+    { label: 'Sumber', value: costFilter.sourceType ? SOURCE_LABELS[costFilter.sourceType as CostSyncSourceType] : 'Semua sumber' },
+    ...(costFilter.q.trim() ? [{ label: 'Pencarian', value: `"${costFilter.q.trim()}"` }] : []),
+  ]
+  const marginPrintFilters: PrintFilter[] = [
+    { label: 'Cabang', value: branchLabel(marginApplied.branchId) },
+    { label: 'Jenis harga', value: marginApplied.tierType ? TIER_LABELS[marginApplied.tierType] : 'Semua' },
+    { label: 'Kondisi', value: marginApplied.status ? MARGIN_STATUS_LABELS[marginApplied.status as MarginAlertStatus] : 'Rugi & menipis' },
+    ...(marginApplied.q.trim() ? [{ label: 'Pencarian', value: `"${marginApplied.q.trim()}"` }] : []),
+  ]
 
   return (
     <div className="space-y-4">
@@ -260,6 +404,47 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
             ))}
           </div>
 
+          <div className="flex flex-wrap gap-2 items-end">
+            <div>
+              <label className={labelClass} htmlFor="cost-branch">Cabang</label>
+              <select
+                id="cost-branch"
+                value={costFilter.branchId}
+                onChange={(e) => setCostFilter((f) => ({ ...f, branchId: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="">Semua cabang</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="cost-source">Sumber</label>
+              <select
+                id="cost-source"
+                value={costFilter.sourceType}
+                onChange={(e) => setCostFilter((f) => ({ ...f, sourceType: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="">Semua sumber</option>
+                {(Object.keys(SOURCE_LABELS) as CostSyncSourceType[]).map((s) => (
+                  <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-48 max-w-md">
+              <label className={labelClass} htmlFor="cost-search">Cari produk</label>
+              <input
+                id="cost-search"
+                type="search"
+                value={costSearchInput}
+                onChange={(e) => setCostSearchInput(e.target.value)}
+                placeholder="Nama atau SKU..."
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              />
+            </div>
+            <PrintButton onClick={costPrint.print} disabled={loading || reviews.length === 0} />
+          </div>
+
           {loadError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {loadError}
@@ -271,7 +456,9 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
               <div className="p-8 text-center text-sm text-muted-foreground">Memuat...</div>
             ) : reviews.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
-                {tab === 'PENDING' ? 'Tidak ada perubahan modal yang menunggu persetujuan.' : 'Belum ada riwayat.'}
+                {costFiltered
+                  ? 'Tidak ada data yang cocok dengan filter.'
+                  : tab === 'PENDING' ? 'Tidak ada perubahan modal yang menunggu persetujuan.' : 'Belum ada riwayat.'}
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -353,24 +540,52 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
         <>
           <form
             className="flex flex-wrap gap-2 items-end"
-            onSubmit={(e) => { e.preventDefault(); loadMargins(marginBranch, marginSearch) }}
+            onSubmit={(e) => { e.preventDefault(); loadMargins(marginFilter) }}
           >
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Cabang</label>
+              <label className={labelClass} htmlFor="margin-branch">Cabang</label>
               <select
-                value={marginBranch}
-                onChange={(e) => { setMarginBranch(e.target.value); loadMargins(e.target.value, marginSearch) }}
-                className="border border-input rounded-md px-3 py-2 text-sm bg-background"
+                id="margin-branch"
+                value={marginFilter.branchId}
+                onChange={(e) => changeMarginFilter({ branchId: e.target.value })}
+                className={selectClass}
               >
                 <option value="">Semua cabang</option>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
+            <div>
+              <label className={labelClass} htmlFor="margin-tier">Jenis harga</label>
+              <select
+                id="margin-tier"
+                value={marginFilter.tierType}
+                onChange={(e) => changeMarginFilter({ tierType: e.target.value })}
+                className={selectClass}
+              >
+                <option value="">Semua</option>
+                {Object.entries(TIER_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="margin-status">Kondisi</label>
+              <select
+                id="margin-status"
+                value={marginFilter.status}
+                onChange={(e) => changeMarginFilter({ status: e.target.value })}
+                className={selectClass}
+              >
+                <option value="">Rugi &amp; menipis</option>
+                {(Object.keys(MARGIN_STATUS_LABELS) as MarginAlertStatus[]).map((s) => (
+                  <option key={s} value={s}>{MARGIN_STATUS_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex-1 min-w-48">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Cari produk</label>
+              <label className={labelClass} htmlFor="margin-search">Cari produk</label>
               <input
-                value={marginSearch}
-                onChange={(e) => setMarginSearch(e.target.value)}
+                id="margin-search"
+                value={marginFilter.q}
+                onChange={(e) => changeMarginFilter({ q: e.target.value }, false)}
                 placeholder="Nama atau SKU..."
                 className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
               />
@@ -378,6 +593,7 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
             <button type="submit" className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors">
               Cari
             </button>
+            <PrintButton onClick={marginPrint.print} disabled={marginLoading || !margins || margins.length === 0} />
           </form>
 
           {marginError && (
@@ -386,71 +602,162 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
             </div>
           )}
 
-          <div className="bg-card rounded-lg border border-border shadow-xs overflow-x-auto">
+          <div className="space-y-3">
             {marginLoading || margins === null ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">Memuat...</div>
+              <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">Memuat...</div>
             ) : margins.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                Tidak ada harga jual dengan margin 1% atau kurang.
+              <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+                Tidak ada barang dengan harga jual bermargin 1% atau kurang.
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Semua harga barang ditampilkan; yang rugi/menipis ditandai. Ketik harga jual baru lalu Enter untuk menyimpan
+                    barang itu, atau isi beberapa barang lalu simpan sekaligus. Harga di bawah modal ditolak.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => savePrices(filledRows, 'ALL')}
+                    disabled={filledRows.length === 0 || savingPrices !== null}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {savingPrices === 'ALL' ? 'Menyimpan...' : `Simpan semua yang diisi (${filledRows.length} harga)`}
+                  </button>
+                </div>
                 {marginTotal > margins.length && (
-                  <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
-                    Menampilkan {margins.length} dari {marginTotal} baris dengan margin terendah — persempit dengan filter cabang/pencarian.
+                  <p className="text-xs text-muted-foreground">
+                    Menampilkan {margins.length} dari {marginTotal} barang dengan margin terendah — persempit dengan filter.
                   </p>
                 )}
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted/30 text-muted-foreground border-b border-border text-[10px] uppercase tracking-widest">
-                      <th className="text-left px-4 py-3 font-bold">Produk</th>
-                      <th className="text-left px-3 py-3 font-bold">Cabang</th>
-                      <th className="text-left px-3 py-3 font-bold">Satuan</th>
-                      <th className="text-left px-3 py-3 font-bold">Tier</th>
-                      <th className="text-right px-3 py-3 font-bold">Harga Jual</th>
-                      <th className="text-right px-3 py-3 font-bold">Modal</th>
-                      <th className="text-right px-3 py-3 font-bold">Margin</th>
-                      <th className="text-right px-4 py-3 font-bold" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {margins.map((m) => {
-                      const loss = m.margin <= 0
-                      return (
-                        <tr key={`${m.branchId}:${m.productId}:${m.uomId}:${m.tierType}`} className="border-b border-border last:border-0">
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-foreground">{m.productName}</p>
-                            {m.sku && <p className="text-xs text-muted-foreground">SKU: {m.sku}</p>}
-                          </td>
-                          <td className="px-3 py-3 whitespace-nowrap">{m.branchName}</td>
-                          <td className="px-3 py-3">{m.uomCode}</td>
-                          <td className="px-3 py-3">{TIER_LABELS[m.tierType] ?? m.tierType}</td>
-                          <td className="px-3 py-3 text-right">{formatNumber(m.price)}</td>
-                          <td className="px-3 py-3 text-right">{formatNumber(m.costPrice)}</td>
-                          <td className="px-3 py-3 text-right whitespace-nowrap">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              loss ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                            }`}>
-                              {loss ? 'Rugi' : 'Menipis'} {formatNumber(m.margin)} ({m.marginPercent.toLocaleString('id-ID')}%)
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Link
-                              href={`/master-data/prices?${new URLSearchParams({ branchId: String(m.branchId), q: m.productName })}`}
-                              className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
-                            >
-                              Atur Harga
-                            </Link>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                {margins.map((g) => {
+                  const gKey = groupKey(g)
+                  const rows = groupRows(g)
+                  const filledInGroup = rows.filter((r) => Number(priceEdits[marginKey(r)] || 0) > 0)
+                  return (
+                    <div key={gKey} className="bg-card rounded-lg border border-border shadow-xs">
+                      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 border-b border-border">
+                        <div>
+                          <span className="font-semibold text-foreground">{g.productName}</span>
+                          {g.sku && <span className="ml-2 text-xs text-muted-foreground">SKU {g.sku}</span>}
+                          <span className="block text-xs text-muted-foreground">{g.branchName}</span>
+                        </div>
+                        <Link
+                          href={`/master-data/prices?${new URLSearchParams({ branchId: String(g.branchId), q: g.productName })}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
+                        >
+                          Atur Harga ↗
+                        </Link>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+                            <tr>
+                              <th className="text-left px-4 py-2">Satuan</th>
+                              <th className="text-left px-4 py-2">Jenis harga</th>
+                              <th className="text-right px-4 py-2">Modal</th>
+                              <th className="text-right px-4 py-2">Harga jual</th>
+                              <th className="text-right px-4 py-2">Untung</th>
+                              <th className="text-right px-4 py-2 w-48">Harga jual baru</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {rows.map((r) => {
+                              const key = marginKey(r)
+                              const typed = Number(priceEdits[key] || 0)
+                              const saved = savedPrices[key]
+                              const rowError = rowErrors[key]
+                              const below = r.costPrice !== null && typed > 0 && typed < r.costPrice
+                              const loss = r.margin !== null && r.margin <= 0
+                              return (
+                                <tr key={key} className={`align-top ${saved !== undefined ? 'bg-emerald-500/5' : r.alert ? 'bg-amber-500/5' : ''}`}>
+                                  <td className="px-4 py-2">{r.uomCode}</td>
+                                  <td className="px-4 py-2">{TIER_LABELS[r.tierType] ?? r.tierType}</td>
+                                  <td className="px-4 py-2 text-right">{r.costPrice !== null ? formatNumber(r.costPrice) : '—'}</td>
+                                  <td className="px-4 py-2 text-right">{formatNumber(r.price)}</td>
+                                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                                    {r.margin === null || r.marginPercent === null ? (
+                                      <span className="text-muted-foreground">—</span>
+                                    ) : r.alert ? (
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                        loss ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                      }`}>
+                                        {loss ? 'Rugi' : 'Menipis'} {formatNumber(r.margin)} ({r.marginPercent.toLocaleString('id-ID')}%)
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground">
+                                        {formatNumber(r.margin)} ({r.marginPercent.toLocaleString('id-ID')}%)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={priceEdits[key] ? formatRupiahInput(priceEdits[key]) : ''}
+                                      onChange={(e) => {
+                                        const value = digitsOnly(e.target.value)
+                                        setPriceEdits((prev) => ({ ...prev, [key]: value }))
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault()
+                                          savePrices(filledInGroup, gKey)
+                                        }
+                                      }}
+                                      disabled={savingPrices === gKey || savingPrices === 'ALL'}
+                                      placeholder={saved !== undefined ? formatNumber(saved) : ''}
+                                      aria-label={`Harga jual baru ${g.productName} ${r.uomCode} ${TIER_LABELS[r.tierType] ?? r.tierType}`}
+                                      className={`w-full border rounded px-2 py-1 text-right bg-background ${
+                                        below ? 'border-destructive text-destructive' : 'border-input'
+                                      }`}
+                                    />
+                                    {typed > 0 && r.costPrice !== null ? (
+                                      <p className={`mt-0.5 text-[11px] ${below ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                        {below
+                                          ? 'di bawah modal'
+                                          : `untung ${formatNumber(typed - r.costPrice)} (${profitPercent(typed, r.costPrice).toLocaleString('id-ID')}%)`}
+                                      </p>
+                                    ) : saved !== undefined ? (
+                                      <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+                                        Tersimpan {formatNumber(saved)}
+                                        {r.costPrice !== null && ` · untung ${profitPercent(saved, r.costPrice).toLocaleString('id-ID')}%`}
+                                      </p>
+                                    ) : null}
+                                    {rowError && <p className="mt-0.5 text-[11px] text-destructive">{rowError}</p>}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-end px-4 py-3 border-t border-border">
+                        <button
+                          type="button"
+                          onClick={() => savePrices(filledInGroup, gKey)}
+                          disabled={filledInGroup.length === 0 || savingPrices !== null}
+                          className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {savingPrices === gKey ? 'Menyimpan...' : `Simpan barang ini${filledInGroup.length > 0 ? ` (${filledInGroup.length} harga)` : ''}`}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </>
             )}
           </div>
         </>
+      )}
+
+      {costPrint.printedAt && view === 'MODAL' && (
+        <CostReviewPrint reviews={reviews} tab={tab} printedAt={costPrint.printedAt} filters={costPrintFilters} />
+      )}
+      {marginPrint.printedAt && view === 'MARGIN' && margins && (
+        <MarginPrint groups={margins} total={marginTotal} printedAt={marginPrint.printedAt} filters={marginPrintFilters} />
       )}
 
       {modalTarget && (
