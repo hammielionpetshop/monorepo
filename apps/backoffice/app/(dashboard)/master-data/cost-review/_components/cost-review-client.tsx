@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Big from 'big.js'
 import { useRouter } from 'next/navigation'
 import type {
   CostReviewEntry,
@@ -12,6 +13,7 @@ import type {
 } from '@/lib/services/cost-sync-service'
 import type { PriceReviewEntry } from '@/lib/services/price-review-service'
 import { NewBadge } from '@/components/ui/new-badge'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 import PriceReviewPanel from './price-review-panel'
 import { CostReviewPrint, MarginPrint, PrintButton, usePrintSheet, type PrintFilter } from './review-print'
 
@@ -62,6 +64,13 @@ interface MarginFilter {
   q: string
   tierType: string
   status: string
+}
+
+const marginKey = (m: { branchId: number; productId: number; uomId: number; tierType: string }) =>
+  `${m.branchId}:${m.productId}:${m.uomId}:${m.tierType}`
+
+function profitPercent(price: number, cost: number): number {
+  return new Big(price).minus(cost).div(price).times(100).round(2, Big.roundHalfUp).toNumber()
 }
 
 const selectClass = 'border border-input rounded-md px-3 py-2 text-sm bg-background'
@@ -127,6 +136,11 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
   const [marginTotal, setMarginTotal] = useState(0)
   const [marginLoading, setMarginLoading] = useState(false)
   const [marginError, setMarginError] = useState<string | null>(null)
+  // Harga jual baru yang diketik di tab Margin (angka saja), hasil simpan, dan galat per baris.
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({})
+  const [savedPrices, setSavedPrices] = useState<Record<string, number>>({})
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [savingPrices, setSavingPrices] = useState<string | 'ALL' | null>(null)
 
   const costPrint = usePrintSheet()
   const marginPrint = usePrintSheet()
@@ -172,6 +186,8 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
       }
       setMargins(Array.isArray(data.items) ? data.items : [])
       setMarginApplied(f)
+      setSavedPrices({})
+      setRowErrors({})
       setMarginTotal(Number(data.total ?? 0))
     } catch {
       setMarginError('Terjadi kesalahan jaringan')
@@ -200,6 +216,63 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
   useEffect(() => {
     if (view === 'MARGIN' && margins === null) loadMargins(marginFilter)
   }, [view, margins, marginFilter, loadMargins])
+
+  const filledEdits = (margins ?? []).filter((m) => Number(priceEdits[marginKey(m)] || 0) > 0)
+
+  async function savePrices(rows: MarginAlertEntry[], scope: string | 'ALL') {
+    const invalid: Record<string, string> = {}
+    const items = rows.flatMap((m) => {
+      const key = marginKey(m)
+      const price = Number(priceEdits[key] || 0)
+      if (!(price > 0)) return []
+      if (price < m.costPrice) {
+        invalid[key] = `Di bawah modal ${formatNumber(m.costPrice)} — untuk jual rugi pakai fitur diskon`
+        return []
+      }
+      return [{ branchId: m.branchId, productId: m.productId, uomId: m.uomId, tierType: m.tierType, price }]
+    })
+    setRowErrors((prev) => {
+      const next = { ...prev }
+      for (const m of rows) delete next[marginKey(m)]
+      return { ...next, ...invalid }
+    })
+    if (items.length === 0) return
+
+    setSavingPrices(scope)
+    setSuccessMsg(null)
+    setMarginError(null)
+    try {
+      const res = await fetch('/api/bo/cost-reviews/margins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setMarginError(data.error ?? 'Gagal menyimpan harga jual')
+        return
+      }
+      const failed = new Map<string, string>(((data.failed ?? []) as { key: string; error: string }[]).map((f) => [f.key, f.error]))
+      const saved: Record<string, number> = {}
+      for (const item of items) {
+        const key = marginKey(item)
+        if (!failed.has(key)) saved[key] = item.price
+      }
+      setSavedPrices((prev) => ({ ...prev, ...saved }))
+      setPriceEdits((prev) => {
+        const next = { ...prev }
+        for (const key of Object.keys(saved)) delete next[key]
+        return next
+      })
+      setRowErrors((prev) => ({ ...prev, ...Object.fromEntries(failed) }))
+      const savedCount = Object.keys(saved).length
+      if (savedCount > 0) setSuccessMsg(`${savedCount} harga jual disimpan ke Manajemen Harga.`)
+    } catch {
+      setMarginError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSavingPrices(null)
+    }
+  }
 
   function changeMarginFilter(patch: Partial<MarginFilter>, reload = true) {
     const next = { ...marginFilter, ...patch }
@@ -532,6 +605,19 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Ketik harga jual baru lalu tekan Enter, atau isi beberapa baris lalu simpan sekaligus. Harga di bawah modal ditolak.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => savePrices(filledEdits, 'ALL')}
+                    disabled={filledEdits.length === 0 || savingPrices !== null}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {savingPrices === 'ALL' ? 'Menyimpan...' : `Simpan semua yang diisi (${filledEdits.length})`}
+                  </button>
+                </div>
                 {marginTotal > margins.length && (
                   <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
                     Menampilkan {margins.length} dari {marginTotal} baris dengan margin terendah — persempit dengan filter cabang/pencarian.
@@ -543,18 +629,24 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
                       <th className="text-left px-4 py-3 font-bold">Produk</th>
                       <th className="text-left px-3 py-3 font-bold">Cabang</th>
                       <th className="text-left px-3 py-3 font-bold">Satuan</th>
-                      <th className="text-left px-3 py-3 font-bold">Tier</th>
-                      <th className="text-right px-3 py-3 font-bold">Harga Jual</th>
+                      <th className="text-left px-3 py-3 font-bold">Jenis harga</th>
                       <th className="text-right px-3 py-3 font-bold">Modal</th>
-                      <th className="text-right px-3 py-3 font-bold">Margin</th>
+                      <th className="text-right px-3 py-3 font-bold">Harga Jual</th>
+                      <th className="text-right px-3 py-3 font-bold">Untung</th>
+                      <th className="text-right px-3 py-3 font-bold w-44">Harga jual baru</th>
                       <th className="text-right px-4 py-3 font-bold" />
                     </tr>
                   </thead>
                   <tbody>
                     {margins.map((m) => {
                       const loss = m.margin <= 0
+                      const key = marginKey(m)
+                      const typed = Number(priceEdits[key] || 0)
+                      const saved = savedPrices[key]
+                      const rowError = rowErrors[key]
+                      const busy = savingPrices === key || savingPrices === 'ALL'
                       return (
-                        <tr key={`${m.branchId}:${m.productId}:${m.uomId}:${m.tierType}`} className="border-b border-border last:border-0">
+                        <tr key={key} className={`border-b border-border last:border-0 align-top ${saved !== undefined ? 'bg-emerald-500/5' : ''}`}>
                           <td className="px-4 py-3">
                             <p className="font-medium text-foreground">{m.productName}</p>
                             {m.sku && <p className="text-xs text-muted-foreground">SKU: {m.sku}</p>}
@@ -562,8 +654,8 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
                           <td className="px-3 py-3 whitespace-nowrap">{m.branchName}</td>
                           <td className="px-3 py-3">{m.uomCode}</td>
                           <td className="px-3 py-3">{TIER_LABELS[m.tierType] ?? m.tierType}</td>
-                          <td className="px-3 py-3 text-right">{formatNumber(m.price)}</td>
                           <td className="px-3 py-3 text-right">{formatNumber(m.costPrice)}</td>
+                          <td className="px-3 py-3 text-right">{formatNumber(m.price)}</td>
                           <td className="px-3 py-3 text-right whitespace-nowrap">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                               loss ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
@@ -571,13 +663,60 @@ export default function CostReviewClient({ initialReviews, initialPriceReviews, 
                               {loss ? 'Rugi' : 'Menipis'} {formatNumber(m.margin)} ({m.marginPercent.toLocaleString('id-ID')}%)
                             </span>
                           </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={priceEdits[key] ? formatRupiahInput(priceEdits[key]) : ''}
+                              onChange={(e) => {
+                                const value = digitsOnly(e.target.value)
+                                setPriceEdits((prev) => ({ ...prev, [key]: value }))
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  savePrices([m], key)
+                                }
+                              }}
+                              disabled={busy}
+                              placeholder={saved !== undefined ? formatNumber(saved) : ''}
+                              aria-label={`Harga jual baru ${m.productName} ${m.uomCode} ${TIER_LABELS[m.tierType] ?? m.tierType}`}
+                              className={`w-full border rounded px-2 py-1 text-right bg-background ${
+                                typed > 0 && typed < m.costPrice ? 'border-destructive text-destructive' : 'border-input'
+                              }`}
+                            />
+                            {typed > 0 ? (
+                              <p className={`mt-0.5 text-[11px] ${typed < m.costPrice ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                {typed < m.costPrice
+                                  ? 'di bawah modal'
+                                  : `untung ${formatNumber(typed - m.costPrice)} (${profitPercent(typed, m.costPrice).toLocaleString('id-ID')}%)`}
+                              </p>
+                            ) : saved !== undefined ? (
+                              <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+                                Tersimpan {formatNumber(saved)} · untung {profitPercent(saved, m.costPrice).toLocaleString('id-ID')}%
+                              </p>
+                            ) : null}
+                            {rowError && <p className="mt-0.5 text-[11px] text-destructive">{rowError}</p>}
+                          </td>
                           <td className="px-4 py-3 text-right">
-                            <Link
-                              href={`/master-data/prices?${new URLSearchParams({ branchId: String(m.branchId), q: m.productName })}`}
-                              className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
-                            >
-                              Atur Harga
-                            </Link>
+                            <div className="flex flex-col items-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => savePrices([m], key)}
+                                disabled={!(typed > 0) || savingPrices !== null}
+                                className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {savingPrices === key ? 'Menyimpan...' : 'Simpan'}
+                              </button>
+                              <Link
+                                href={`/master-data/prices?${new URLSearchParams({ branchId: String(m.branchId), q: m.productName })}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
+                              >
+                                Atur Harga ↗
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       )
