@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/bulk-sale-preview-pdf | Claude (sesi owner) | POS & transaksi (Preview keranjang/Bulk Sale: Simpan PDF) | `apps/backoffice/components/pos/cart-preview-modal.tsx`, `apps/backoffice/components/pos/cart-preview-pdf.ts` (baru); tanpa migrasi | 2026-11-17 |
 | fix/cost-review-search | Claude (sesi owner) | Master data (Tinjau Modal & Margin: pencarian, filter, cetak lembar ACC) | `apps/backoffice/app/(dashboard)/master-data/cost-review/**`, `apps/backoffice/app/api/bo/cost-reviews/route.ts`, `apps/backoffice/app/api/bo/cost-reviews/margins/route.ts`, `apps/backoffice/lib/services/cost-sync-service.ts` (`getCostReviews`, `getMarginAlerts`), `apps/backoffice/lib/services/price-review-service.ts` (baris harga: modal lama per satuan); tanpa migrasi | 2026-11-17 |
 
 
