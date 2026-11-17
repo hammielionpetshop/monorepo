@@ -14,6 +14,7 @@ import {
   type PreviewItem,
 } from './cart-preview-text'
 import { downloadBlob, renderCartPreviewPng } from './cart-preview-image'
+import { renderCartPreviewPdf } from './cart-preview-pdf'
 import { useShortcutLock } from './shortcut-lock'
 
 interface CartPreviewModalProps {
@@ -55,6 +56,7 @@ export function OrderPreviewModal({
   const [showPrices, setShowPrices] = useState(true)
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [savingPdf, setSavingPdf] = useState(false)
 
   // Waktu dibekukan saat preview dibuka supaya angka di lembar tidak berubah
   // di antara dua kali screenshot.
@@ -108,6 +110,27 @@ export function OrderPreviewModal({
       downloadBlob(blob, `${fileName}.png`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSavePdf = async () => {
+    if (items.length === 0 || savingPdf) return
+    setSavingPdf(true)
+    try {
+      const blob = await renderCartPreviewPdf(items, {
+        storeName,
+        storePhone,
+        dateLabel,
+        customerName,
+        showPrices,
+        transactionDiscount: discount,
+      })
+      const fileName = buildPreviewFileName({ storeName, customerName, at: openedAt })
+      downloadBlob(blob, `${fileName}.pdf`)
+    } catch {
+      alert('PDF gagal dibuat di perangkat ini. Pakai Simpan Gambar atau screenshot lembar preview.')
+    } finally {
+      setSavingPdf(false)
     }
   }
 
@@ -178,6 +201,15 @@ export function OrderPreviewModal({
             title="Simpan lembar ini sebagai berkas gambar PNG"
           >
             {saving ? 'Menyiapkan…' : 'Simpan Gambar'}
+          </button>
+          <button
+            type="button"
+            onClick={handleSavePdf}
+            disabled={savingPdf || items.length === 0}
+            className="min-h-[44px] rounded-lg bg-white/10 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/20 disabled:opacity-50"
+            title="Simpan rincian sebagai PDF A4 berhalaman — nyaman untuk nota dengan banyak barang"
+          >
+            {savingPdf ? 'Menyiapkan PDF…' : 'Simpan PDF'}
           </button>
           <button
             type="button"
