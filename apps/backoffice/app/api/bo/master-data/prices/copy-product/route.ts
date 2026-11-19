@@ -14,6 +14,7 @@ import {
   and,
   inArray,
 } from '@/lib/db'
+import { buildConversionAuditEntry } from '@/lib/services/uom-change-audit'
 import type { PriceTier } from '@petshop/shared'
 import { buildPriceAuditEntry, type PriceChange, type CostChange } from '@/lib/services/price-service'
 
@@ -220,6 +221,17 @@ export async function POST(req: NextRequest) {
             weightGram: row.weightGram,
           })
           createdConversions++
+          await trx.insert(auditLogs).values(
+            buildConversionAuditEntry({
+              action: 'UOM_CONVERSION_ADD',
+              productId: targetProductId,
+              productName: preview.target.name,
+              actor: { userId: gate.userId, branchId: gate.branchId ?? null },
+              before: null,
+              after: { uomId: row.uomId, uomCode: row.uomCode, ratio: row.ratio, weightGram: row.weightGram },
+              extra: { source: 'COPY', sourceProductId, sourceProductName: preview.source.name },
+            })
+          )
         }
 
         // Harga tier — cabang aktif saja

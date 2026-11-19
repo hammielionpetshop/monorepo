@@ -2,7 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import Big from 'big.js'
 import { requirePermission } from '@/lib/authz'
-import { db, productUomConversions, productPrices, productUomCosts, branches, eq, and } from '@/lib/db'
+import { db, productUomConversions, productPrices, productUomCosts, branches, products, unitsOfMeasure, auditLogs, eq, and, count } from '@/lib/db'
+import { buildConversionAuditEntry, type ConversionSnapshot } from '@/lib/services/uom-change-audit'
+
+async function loadConversionSnapshot(conversionId: number) {
+  const rows = await db
+    .select({
+      id: productUomConversions.id,
+      productId: productUomConversions.productId,
+      productName: products.name,
+      uomId: productUomConversions.uomId,
+      uomCode: unitsOfMeasure.code,
+      ratio: productUomConversions.ratio,
+      weightGram: productUomConversions.weightGram,
+    })
+    .from(productUomConversions)
+    .innerJoin(products, eq(productUomConversions.productId, products.id))
+    .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+    .where(eq(productUomConversions.id, conversionId))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+const snapshotOf = (c: ConversionSnapshot): ConversionSnapshot => ({
+  uomId: c.uomId,
+  uomCode: c.uomCode,
+  ratio: c.ratio,
+  weightGram: c.weightGram,
+})
+
 
 export const dynamic = 'force-dynamic'
 
@@ -64,21 +92,33 @@ export async function PATCH(
       }
     }
 
-    const existing = await db
-      .select({ id: productUomConversions.id, productId: productUomConversions.productId })
-      .from(productUomConversions)
-      .where(eq(productUomConversions.id, conversionId))
-      .limit(1)
+    const existing = await loadConversionSnapshot(conversionId)
 
-    if (existing.length === 0 || existing[0].productId !== productId) {
+    if (!existing || existing.productId !== productId) {
       return NextResponse.json({ error: 'Konversi UOM tidak ditemukan' }, { status: 404 })
     }
 
-    const result = await db
-      .update(productUomConversions)
-      .set(updateValues)
-      .where(eq(productUomConversions.id, conversionId))
-      .returning()
+    const result = await db.transaction(async (trx) => {
+      const rows = await trx
+        .update(productUomConversions)
+        .set(updateValues)
+        .where(eq(productUomConversions.id, conversionId))
+        .returning()
+      const updated = rows[0]
+      if (updated.ratio !== existing.ratio || updated.weightGram !== existing.weightGram) {
+        await trx.insert(auditLogs).values(
+          buildConversionAuditEntry({
+            action: 'UOM_CONVERSION_UPDATE',
+            productId,
+            productName: existing.productName,
+            actor: { userId: gate.userId, branchId: gate.branchId ?? null },
+            before: snapshotOf(existing),
+            after: snapshotOf({ ...existing, ratio: updated.ratio, weightGram: updated.weightGram }),
+          })
+        )
+      }
+      return rows
+    })
 
     return NextResponse.json(result[0])
   } catch (error: unknown) {
@@ -105,20 +145,12 @@ export async function DELETE(
     const cascade = req.nextUrl.searchParams.get('cascade') === '1'
 
     // Cek entri ada DAN milik produk ini (cegah URL manipulation)
-    const existing = await db
-      .select({
-        id: productUomConversions.id,
-        productId: productUomConversions.productId,
-        uomId: productUomConversions.uomId,
-      })
-      .from(productUomConversions)
-      .where(eq(productUomConversions.id, conversionId))
-      .limit(1)
+    const existing = await loadConversionSnapshot(conversionId)
 
-    if (existing.length === 0 || existing[0].productId !== productId) {
+    if (!existing || existing.productId !== productId) {
       return NextResponse.json({ error: 'Konversi UOM tidak ditemukan' }, { status: 404 })
     }
-    const uomId = existing[0].uomId
+    const uomId = existing.uomId
 
     // Konversi global — cek harga yang masih memakai satuan ini di semua cabang
     const priceBranchRows = await db
@@ -139,6 +171,31 @@ export async function DELETE(
     }
 
     await db.transaction(async (trx) => {
+      const [[priceCount], [costCount]] = await Promise.all([
+        trx
+          .select({ n: count() })
+          .from(productPrices)
+          .where(and(eq(productPrices.productId, productId), eq(productPrices.uomId, uomId))),
+        trx
+          .select({ n: count() })
+          .from(productUomCosts)
+          .where(and(eq(productUomCosts.productId, productId), eq(productUomCosts.uomId, uomId))),
+      ])
+      await trx.insert(auditLogs).values(
+        buildConversionAuditEntry({
+          action: 'UOM_CONVERSION_DELETE',
+          productId,
+          productName: existing.productName,
+          actor: { userId: gate.userId, branchId: gate.branchId ?? null },
+          before: snapshotOf(existing),
+          after: null,
+          extra: {
+            deletedPrices: Number(priceCount?.n ?? 0),
+            deletedCosts: Number(costCount?.n ?? 0),
+            affectedBranches: branchNames,
+          },
+        })
+      )
       await trx
         .delete(productPrices)
         .where(and(eq(productPrices.productId, productId), eq(productPrices.uomId, uomId)))
