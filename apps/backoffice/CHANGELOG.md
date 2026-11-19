@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.107.138] - 2026-11-19
+
+### Added
+- Detail Produk: tab **Riwayat Satuan** — jejak tambah satuan, ubah isi/berat, hapus satuan (beserta jumlah harga & modal yang ikut terhapus), ganti satuan dasar, dan ganti nama/kode di master Satuan Ukur, lengkap dengan waktu dan siapa yang mengubah. Perubahan sebelum fitur ini rilis tidak tercatat, kecuali ganti satuan dasar.
+- Audit Log: grup filter **Satuan Produk** untuk semua perubahan satuan di atas (termasuk satuan yang ikut tersalin lewat Salin Harga Produk).
+- Master Data › **Pemeriksaan Satuan** (Owner, GM, Manager): daftar baris transaksi dan PO Internal yang satuannya tidak ada di master produk — misalnya baris berharga Rp0 karena satuannya tidak dikenal — dengan tautan ke dokumen dan produknya.
+
+### Fixed
+- PO Internal dengan satuan yang tidak ada di master produk (misalnya VITACIK tercatat "Box") kini ditolak saat dibuat. Sebelumnya PO seperti ini lolos dan, saat diimpor ke Bulk Sale, barisnya berharga Rp0.
+- Kasir POS › PO Internal: bila ada baris bersatuan tidak valid, muncul peringatan merah yang menyebut produk dan satuannya, dan barisnya ditandai merah dengan petunjuk "hapus lalu tambahkan ulang". Peringatan tidak hilang sendiri sampai baris itu diperbaiki.
+
 ## [1.107.137] - 2026-11-17
 
 ### Added
