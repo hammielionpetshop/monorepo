@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node ../../scripts/next-with-port.mjs 7272 dev --turbopack",
-    "build": "next build --turbopack",
-    "start": "node ../../scripts/next-with-port.mjs 7272 start",
+    "dev": "node init && node ../../scripts/next-with-port.mjs 7272 dev --turbopack",
+    "build": "node init && next build --turbopack",
+    "start": "node init && node ../../scripts/next-with-port.mjs 7272 start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
