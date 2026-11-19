@@ -8,8 +8,16 @@ import {
   unitsOfMeasure,
   productUomConversions,
   branches,
+  auditLogs,
+  users,
   eq,
+  and,
+  or,
+  inArray,
+  desc,
 } from '@/lib/db'
+import { UOM_CONVERSION_TABLE, UOM_MASTER_TABLE, describeUomHistoryEntry } from '@/lib/services/uom-change-audit'
+import type { UomHistoryEntry } from './_components/uom-history-list'
 import { isServiceKind } from '@/lib/product-kind'
 import { baseUnitWeightGram, formatWeightGram } from '@/lib/product-weight'
 import ProductDetailTabs from './_components/product-detail-tabs'
@@ -56,6 +64,7 @@ export default async function ProductDetailPage({
   let conversions: Awaited<ReturnType<typeof fetchConversions>> = []
   let allUoms: Awaited<ReturnType<typeof fetchAllUoms>> = []
   let allBranches: Awaited<ReturnType<typeof fetchAllBranches>> = []
+  let uomHistory: UomHistoryEntry[] = []
   let error: string | null = null
 
   try {
@@ -63,6 +72,10 @@ export default async function ProductDetailPage({
       fetchConversions(productId),
       fetchAllUoms(),
       fetchAllBranches(),
+    ])
+    uomHistory = await fetchUomHistory(productId, [
+      product.baseUomId,
+      ...conversions.map((c) => c.uomId).filter((id): id is number => id !== null),
     ])
   } catch {
     error = 'Terjadi kesalahan saat mengambil data konversi UOM'
@@ -189,9 +202,44 @@ export default async function ProductDetailPage({
         baseWeightGram={baseWeightGram}
         branches={allBranches}
         uomsForPricing={uomsForPricing}
+        uomHistory={uomHistory}
       />
     </div>
   )
+}
+
+// Riwayat satuan produk ini + perubahan master Satuan Ukur yang dipakai produk ini sekarang.
+async function fetchUomHistory(productId: number, uomIds: number[]): Promise<UomHistoryEntry[]> {
+  const productKey = String(productId)
+  const conditions = [
+    and(eq(auditLogs.tableName, UOM_CONVERSION_TABLE), eq(auditLogs.recordId, productKey)),
+    and(eq(auditLogs.tableName, 'products'), eq(auditLogs.action, 'BASE_UOM_CHANGE'), eq(auditLogs.recordId, productKey)),
+  ]
+  if (uomIds.length > 0) {
+    conditions.push(
+      and(eq(auditLogs.tableName, UOM_MASTER_TABLE), inArray(auditLogs.recordId, [...new Set(uomIds)].map(String)))
+    )
+  }
+  const rows = await db
+    .select({
+      id: auditLogs.id,
+      action: auditLogs.action,
+      oldData: auditLogs.oldData,
+      newData: auditLogs.newData,
+      createdAt: auditLogs.createdAt,
+      userName: users.name,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .where(or(...conditions))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(200)
+  return rows.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt.toISOString(),
+    userName: r.userName,
+    description: describeUomHistoryEntry(r),
+  }))
 }
 
 function fetchConversions(productId: number) {

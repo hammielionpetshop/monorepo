@@ -8,7 +8,8 @@ import {
   createRef,
 } from 'react'
 import { formatWIB } from '@petshop/shared'
-import type { ItemRow, BranchOption, ProductSearchResult, BranchStockInfo } from './types'
+import type { ItemRow, BranchOption, ProductSearchResult, BranchStockInfo, InvalidUomItem } from './types'
+import { itemUomKey } from './types'
 import ItemRowComponent from './item-row'
 import {
   fetchInternalOrderDraft,
@@ -65,6 +66,9 @@ export default function InternalOrderForm({
   const [showConfirm, setShowConfirm] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  // Baris bersatuan tidak valid (cek lokal sebelum kirim atau penolakan server). Peringatannya
+  // tidak hilang sendiri; baris yang sudah dihapus/diganti satuannya otomatis tidak ditandai lagi.
+  const [invalidUomItems, setInvalidUomItems] = useState<InvalidUomItem[]>([])
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([])
@@ -350,6 +354,18 @@ export default function InternalOrderForm({
       setErrorMsg('Tambahkan minimal satu produk')
       return
     }
+    const localInvalid = items.filter((item) => !item.availableUoms.some((u) => u.id === item.uomId))
+    if (localInvalid.length > 0) {
+      setInvalidUomItems(
+        localInvalid.map((item) => ({
+          productId: item.productId,
+          uomId: item.uomId,
+          productName: item.productName,
+          uomName: item.uomName,
+        }))
+      )
+      return
+    }
     const invalidItem = items.find((item) => item.qtyRequested <= 0)
     if (invalidItem) {
       setErrorMsg(`Qty untuk "${invalidItem.productName}" harus lebih dari 0`)
@@ -399,9 +415,14 @@ export default function InternalOrderForm({
       const data = await res.json()
       if (!res.ok) {
         setShowConfirm(false)
+        if (Array.isArray(data.invalidItems) && data.invalidItems.length > 0) {
+          setInvalidUomItems(data.invalidItems as InvalidUomItem[])
+          return
+        }
         setErrorMsg(data.error ?? 'Gagal membuat permintaan transfer')
         return
       }
+      setInvalidUomItems([])
 
       setShowConfirm(false)
       setItems([])
@@ -433,6 +454,9 @@ export default function InternalOrderForm({
   }
 
   const availableSources = allBranches.filter((b) => b.id !== destinationBranchId)
+  const currentItemKeys = new Set(items.map(itemUomKey))
+  const activeInvalidUomItems = invalidUomItems.filter((i) => currentItemKeys.has(itemUomKey(i)))
+  const invalidUomKeys = new Set(activeInvalidUomItems.map(itemUomKey))
 
   return (
     <div className="space-y-4">
@@ -589,6 +613,26 @@ export default function InternalOrderForm({
         )}
       </div>
 
+      {activeInvalidUomItems.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-md border-2 border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <p className="font-semibold">⚠ PO Internal belum bisa dikirim: satuan tidak ada di master produk</p>
+          <ul className="mt-1 list-disc pl-5">
+            {activeInvalidUomItems.map((i) => (
+              <li key={itemUomKey(i)}>
+                {i.productName} — satuan &quot;{i.uomName}&quot;
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs">
+            Baris bertanda merah di bawah: hapus barisnya, lalu cari dan tambahkan ulang produknya. Bila masih
+            muncul, hubungi admin untuk memeriksa satuan produk di Master Data.
+          </p>
+        </div>
+      )}
+
       {/* Tabel item */}
       {items.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden">
@@ -656,6 +700,7 @@ export default function InternalOrderForm({
                       }
                     }}
                     disabled={isSubmitting}
+                    invalidUom={invalidUomKeys.has(itemUomKey(item))}
                   />
                 )
               })}

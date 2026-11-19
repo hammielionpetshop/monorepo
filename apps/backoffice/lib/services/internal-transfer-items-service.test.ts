@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db', () => ({}))
 
-import { mergeDuplicateTransferItems } from './internal-transfer-items-service'
+import { findItemsWithInvalidUom, mergeDuplicateTransferItems } from './internal-transfer-items-service'
 
 describe('mergeDuplicateTransferItems', () => {
   it('menggabungkan produk + satuan yang sama dan menjumlah qty', () => {
@@ -31,5 +31,31 @@ describe('mergeDuplicateTransferItems', () => {
       { productId: 1, uomId: 3, qtyRequested: 1, costPrice: 700 },
     ])
     expect(result).toEqual([{ productId: 1, uomId: 3, qtyRequested: 2, costPrice: 700 }])
+  })
+})
+
+describe('findItemsWithInvalidUom', () => {
+  // VITACIK: dasar Pieces (15), konversi Dus (3); Box (1) tidak dimiliki
+  const baseUomByProduct = new Map([[2495, 15]])
+  const conversionKeys = new Set(['2495-3'])
+
+  it('menerima satuan dasar dan satuan konversi milik produk', () => {
+    const items = [
+      { productId: 2495, uomId: 15 },
+      { productId: 2495, uomId: 3 },
+    ]
+    expect(findItemsWithInvalidUom(items, baseUomByProduct, conversionKeys)).toEqual([])
+  })
+
+  it('menandai satuan yang tidak dimiliki produk', () => {
+    const items = [
+      { productId: 2495, uomId: 15 },
+      { productId: 2495, uomId: 1 },
+    ]
+    expect(findItemsWithInvalidUom(items, baseUomByProduct, conversionKeys)).toEqual([{ productId: 2495, uomId: 1 }])
+  })
+
+  it('melewati produk yang tidak ditemukan (ditangani pemanggil)', () => {
+    expect(findItemsWithInvalidUom([{ productId: 9999, uomId: 1 }], baseUomByProduct, conversionKeys)).toEqual([])
   })
 })

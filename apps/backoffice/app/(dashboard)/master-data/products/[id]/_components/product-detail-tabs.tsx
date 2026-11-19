@@ -4,8 +4,10 @@ import { useState } from 'react'
 import UomConversionClient from './uom-conversion-client'
 import PriceTierClient from './price-tier-client'
 import CostMatrixClient from './cost-matrix-client'
+import UomHistoryList, { type UomHistoryEntry } from './uom-history-list'
+import { NewBadge } from '@/components/ui/new-badge'
 
-type ActiveTab = 'satuan' | 'harga' | 'modal'
+type ActiveTab = 'satuan' | 'harga' | 'modal' | 'riwayat'
 
 interface UomConversion {
   id: number
@@ -45,6 +47,7 @@ interface Props {
   baseWeightGram: number | null
   branches: BranchOption[]
   uomsForPricing: UomForPricing[]
+  uomHistory: UomHistoryEntry[]
 }
 
 export default function ProductDetailTabs({
@@ -56,6 +59,7 @@ export default function ProductDetailTabs({
   baseWeightGram,
   branches,
   uomsForPricing,
+  uomHistory,
 }: Props) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('satuan')
 
@@ -79,6 +83,9 @@ export default function ProductDetailTabs({
           <button onClick={() => setActiveTab('modal')} className={tabClass('modal')}>
             Harga Modal
           </button>
+          <button onClick={() => setActiveTab('riwayat')} className={tabClass('riwayat')}>
+            Riwayat Satuan <NewBadge feature="fitur/riwayat-satuan" />
+          </button>
         </nav>
       </div>
 
@@ -99,6 +106,7 @@ export default function ProductDetailTabs({
           uomsForPricing={uomsForPricing}
         />
       )}
+      {activeTab === 'riwayat' && <UomHistoryList entries={uomHistory} />}
       {activeTab === 'modal' && (
         <CostMatrixClient
           productId={productId}

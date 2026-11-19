@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { db, unitsOfMeasure, products, eq, and, ne } from '@/lib/db'
+import { db, unitsOfMeasure, products, auditLogs, eq, and, ne } from '@/lib/db'
+import { buildUomMasterAuditEntry } from '@/lib/services/uom-change-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +54,7 @@ export async function PATCH(
 
     const updated = await db.transaction(async (trx) => {
       const existing = await trx
-        .select({ id: unitsOfMeasure.id })
+        .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code, name: unitsOfMeasure.name, isBase: unitsOfMeasure.isBase })
         .from(unitsOfMeasure)
         .where(eq(unitsOfMeasure.id, uomId))
         .limit(1)
@@ -97,6 +98,18 @@ export async function PATCH(
         .where(eq(unitsOfMeasure.id, uomId))
         .returning()
       if (!rows[0]) throw new Error('NOT_FOUND')
+      const before = { code: existing[0].code, name: existing[0].name, isBase: existing[0].isBase }
+      const after = { code: rows[0].code, name: rows[0].name, isBase: rows[0].isBase }
+      if (before.code !== after.code || before.name !== after.name || before.isBase !== after.isBase) {
+        await trx.insert(auditLogs).values(
+          buildUomMasterAuditEntry({
+            uomId,
+            actor: { userId: gate.userId, branchId: gate.branchId ?? null },
+            before,
+            after,
+          })
+        )
+      }
       return rows
     })
 

@@ -196,6 +196,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master-data/brands', label: 'Brand', icon: Tag },
       { href: '/master-data/categories', label: 'Kategori', icon: FolderOpen },
       { href: '/master-data/uom', label: 'Satuan Ukur', icon: Ruler },
+      { href: '/master-data/uom-check', label: 'Pemeriksaan Satuan', icon: Ruler, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/master-data/customers', label: 'Customer', icon: Users },
       { href: '/master-data/pets', label: 'Data Kucing', icon: Cat, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/master-data/suppliers', label: 'Supplier', icon: Store },
