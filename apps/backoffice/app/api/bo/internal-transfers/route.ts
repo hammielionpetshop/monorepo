@@ -208,6 +208,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: `Satuan tidak sesuai master produk: ${list}. Hapus baris tersebut lalu tambahkan ulang produknya.`,
+          invalidItems: invalidUomItems.map((i) => ({
+            productId: i.productId,
+            uomId: i.uomId,
+            productName: masterProductMap.get(i.productId)?.name ?? `Produk #${i.productId}`,
+            uomName: uomNameMap.get(i.uomId) ?? `satuan #${i.uomId}`,
+          })),
         },
         { status: 409 }
       )
