@@ -10,6 +10,7 @@ import {
   products,
   productUomConversions,
   productUomCosts,
+  unitsOfMeasure,
   eq,
   and,
   inArray,
@@ -19,7 +20,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import type { SQL } from 'drizzle-orm'
 import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
-import { mergeDuplicateTransferItems } from '@/lib/services/internal-transfer-items-service'
+import { findItemsWithInvalidUom, mergeDuplicateTransferItems } from '@/lib/services/internal-transfer-items-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -166,6 +167,50 @@ export async function POST(req: NextRequest) {
     }
     if (!destBranch.isActive) {
       return NextResponse.json({ error: 'Cabang tujuan tidak aktif' }, { status: 400 })
+    }
+
+    // Satuan tiap baris wajib satuan dasar atau konversi milik produknya — sama seperti
+    // validasi item baru saat edit (internal-transfer-items-service).
+    const allProductIds = [...new Set(items.map((i) => i.productId))]
+    const [masterProductRows, masterConvRows] = await Promise.all([
+      db
+        .select({ id: products.id, name: products.name, baseUomId: products.baseUomId })
+        .from(products)
+        .where(inArray(products.id, allProductIds)),
+      db
+        .select({ productId: productUomConversions.productId, uomId: productUomConversions.uomId })
+        .from(productUomConversions)
+        .where(inArray(productUomConversions.productId, allProductIds)),
+    ])
+    const masterProductMap = new Map(masterProductRows.map((p) => [p.id, p]))
+    const missingProductId = allProductIds.find((id) => !masterProductMap.has(id))
+    if (missingProductId !== undefined) {
+      return NextResponse.json({ error: `Produk #${missingProductId} tidak ditemukan` }, { status: 400 })
+    }
+    const invalidUomItems = findItemsWithInvalidUom(
+      items,
+      new Map(masterProductRows.map((p) => [p.id, p.baseUomId])),
+      new Set(masterConvRows.map((c) => `${c.productId}-${c.uomId}`))
+    )
+    if (invalidUomItems.length > 0) {
+      const uomRows = await db
+        .select({ id: unitsOfMeasure.id, name: unitsOfMeasure.name })
+        .from(unitsOfMeasure)
+        .where(inArray(unitsOfMeasure.id, [...new Set(invalidUomItems.map((i) => i.uomId))]))
+      const uomNameMap = new Map(uomRows.map((u) => [u.id, u.name]))
+      const list = invalidUomItems
+        .map((i) => `${masterProductMap.get(i.productId)?.name} (${uomNameMap.get(i.uomId) ?? `satuan #${i.uomId}`})`)
+        .join(', ')
+      console.warn('POST /api/bo/internal-transfers: satuan tidak sesuai master produk', {
+        userId: payload.userId,
+        items: invalidUomItems.map((i) => ({ productId: i.productId, uomId: i.uomId })),
+      })
+      return NextResponse.json(
+        {
+          error: `Satuan tidak sesuai master produk: ${list}. Hapus baris tersebut lalu tambahkan ulang produknya.`,
+        },
+        { status: 409 }
+      )
     }
 
     // Auto-fill costPrice = 0 dari master data agar nilai payable tidak nol secara tidak sengaja
