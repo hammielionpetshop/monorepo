@@ -16,6 +16,7 @@ interface ItemRowProps {
   onQtyKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, index: number) => void
   onLastFieldTab?: (index: number) => void
   disabled?: boolean
+  invalidUom?: boolean
 }
 
 const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
@@ -32,14 +33,26 @@ const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
       onQtyKeyDown,
       onLastFieldTab,
       disabled,
+      invalidUom,
     },
     ref,
   ) => {
     return (
-      <tr className="border-t border-border">
+      <tr
+        className={`border-t ${invalidUom ? 'border-destructive bg-destructive/10' : 'border-border'}`}
+        aria-invalid={invalidUom || undefined}
+      >
         <td className="px-3 py-2">
-          <div className="font-medium text-xs text-foreground">{item.productName}</div>
+          <div className={`font-medium text-xs ${invalidUom ? 'text-destructive' : 'text-foreground'}`}>
+            {item.productName}
+          </div>
           <div className="text-xs text-muted-foreground">{item.productCode}</div>
+          {invalidUom && (
+            <div className="mt-0.5 text-xs font-medium text-destructive">
+              Satuan &quot;{item.uomName}&quot; tidak ada di master produk — hapus baris ini lalu tambahkan ulang
+              produknya.
+            </div>
+          )}
         </td>
         <td className="px-2 py-2">
           <input

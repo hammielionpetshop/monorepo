@@ -167,8 +167,8 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     expect(body.createdConversions).toBe(1)
     expect(body.copiedPrices).toBe(1)
     expect(body.copiedCosts).toBe(0)
-    // konversi + harga + jejak audit
-    expect(mockInsert).toHaveBeenCalledTimes(3)
+    // konversi + jejak satuan + harga + jejak audit harga
+    expect(mockInsert).toHaveBeenCalledTimes(4)
   })
 
   it('menyalin modal juga ketika includeCost = true', async () => {
@@ -180,7 +180,7 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     expect(body.createdConversions).toBe(1)
     expect(body.copiedPrices).toBe(1)
     expect(body.copiedCosts).toBe(1)
-    expect(mockInsert).toHaveBeenCalledTimes(4)
+    expect(mockInsert).toHaveBeenCalledTimes(5)
   })
 
   it('tidak membuat konversi ulang bila ratio target sudah sama', async () => {

@@ -45,6 +45,24 @@ export function mergeDuplicateTransferItems<T extends { productId: number; uomId
   return [...merged.values()]
 }
 
+/**
+ * Baris yang satuannya bukan satuan dasar produk dan tidak ada di konversi master produk.
+ * Satuan seperti ini tidak punya harga maupun rasio stok, sehingga Bulk Sale hasil impor IBT
+ * menghasilkan harga Rp0 (TRX-20261104-2629: VITACIK tercatat "Box"). Produk yang tidak
+ * ditemukan dilewati di sini; pemanggil menanganinya terpisah.
+ */
+export function findItemsWithInvalidUom<T extends { productId: number; uomId: number }>(
+  items: T[],
+  baseUomByProduct: Map<number, number>,
+  conversionKeys: Set<string>
+): T[] {
+  return items.filter((item) => {
+    const baseUomId = baseUomByProduct.get(item.productId)
+    if (baseUomId === undefined) return false
+    return item.uomId !== baseUomId && !conversionKeys.has(`${item.productId}-${item.uomId}`)
+  })
+}
+
 export class InternalTransferEditError extends Error {
   status: number
   constructor(message: string, status: number) {
