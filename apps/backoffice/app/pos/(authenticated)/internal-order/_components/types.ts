@@ -11,6 +11,16 @@ export interface ItemRow {
   costPrice: number
 }
 
+/** Baris yang satuannya tidak termasuk pilihan satuan produknya (kunci `productId-uomId`). */
+export interface InvalidUomItem {
+  productId: number
+  uomId: number
+  productName: string
+  uomName: string
+}
+
+export const itemUomKey = (item: { productId: number; uomId: number }) => `${item.productId}-${item.uomId}`
+
 export interface BranchOption {
   id: number
   name: string
