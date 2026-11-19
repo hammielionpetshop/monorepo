@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import Big from 'big.js'
 import { getAuth, requirePermission } from '@/lib/authz'
-import { db, products, productUomConversions, productPrices, branches, unitsOfMeasure, eq, and } from '@/lib/db'
+import { db, products, productUomConversions, productPrices, branches, unitsOfMeasure, auditLogs, eq, and } from '@/lib/db'
+import { buildConversionAuditEntry } from '@/lib/services/uom-change-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,7 +128,7 @@ export async function POST(
     const result = await db.transaction(async (trx) => {
       // Cek produk ada
       const product = await trx
-        .select({ id: products.id })
+        .select({ id: products.id, name: products.name })
         .from(products)
         .where(eq(products.id, productId))
         .limit(1)
@@ -135,7 +136,7 @@ export async function POST(
 
       // Cek UOM ada
       const uom = await trx
-        .select({ id: unitsOfMeasure.id })
+        .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code })
         .from(unitsOfMeasure)
         .where(eq(unitsOfMeasure.id, parsed.data.uomId))
         .limit(1)
@@ -154,7 +155,7 @@ export async function POST(
         .limit(1)
       if (existing.length > 0) throw new Error('DUPLICATE_UOM')
 
-      return await trx
+      const inserted = await trx
         .insert(productUomConversions)
         .values({
           productId,
@@ -163,6 +164,23 @@ export async function POST(
           weightGram: weightGramStr != null ? Math.round(new Big(weightGramStr).toNumber()) : null,
         })
         .returning()
+
+      await trx.insert(auditLogs).values(
+        buildConversionAuditEntry({
+          action: 'UOM_CONVERSION_ADD',
+          productId,
+          productName: product[0].name,
+          actor: { userId: gate.userId, branchId: gate.branchId ?? null },
+          before: null,
+          after: {
+            uomId: inserted[0].uomId,
+            uomCode: uom[0].code,
+            ratio: inserted[0].ratio,
+            weightGram: inserted[0].weightGram,
+          },
+        })
+      )
+      return inserted
     })
 
     return NextResponse.json(result[0], { status: 201 })

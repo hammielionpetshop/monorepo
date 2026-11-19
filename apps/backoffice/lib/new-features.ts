@@ -29,6 +29,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/arus-kas-rapi': '2026-11-09', // Arus Kas F2-4b: tanggal uang, untuk bulan, Tempat Uang, batal beralasan, jenis kategori
   'fitur/dibayar-dari-supplier': '2026-11-09', // isian Dibayar dari (Tempat Uang) di form bayar supplier, F2-4a
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
+  'fitur/riwayat-satuan': '2026-11-19', // tab Riwayat Satuan di detail produk (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)
@@ -42,6 +43,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
   '/settings/money-places': '2026-11-08', // Tempat Uang + tautan metode bayar per cabang, F2-1a (rilis 1.107.118)
   '/deposits': '2026-11-08', // menu Setoran, F2-2 (samakan dengan tanggal rilis saat merge)
+  '/master-data/uom-check': '2026-11-19', // Pemeriksaan Satuan (samakan dengan tanggal rilis saat merge)
   // POS
   '/pos/cash-deposits': '2026-11-08', // POS › Setor Tunai, F2-2 (samakan dengan tanggal rilis saat merge)
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
