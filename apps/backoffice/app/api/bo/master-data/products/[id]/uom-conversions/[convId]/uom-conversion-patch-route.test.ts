@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockSelectResults, selectCallIdx, mockUpdateSet, mockCookiesGet, mockVerify } = vi.hoisted(() => {
+const { mockSelectResults, selectCallIdx, mockUpdateSet, mockInsertValues, mockCookiesGet, mockVerify } = vi.hoisted(() => {
   const mockSelectResults: unknown[][] = []
   const selectCallIdx = { value: 0 }
   const mockUpdateSet = vi.fn()
+  const mockInsertValues = vi.fn().mockResolvedValue([])
   const mockCookiesGet = vi.fn()
   const mockVerify = vi.fn()
-  return { mockSelectResults, selectCallIdx, mockUpdateSet, mockCookiesGet, mockVerify }
+  return { mockSelectResults, selectCallIdx, mockUpdateSet, mockInsertValues, mockCookiesGet, mockVerify }
 })
 
 vi.mock('next/headers', () => ({
@@ -20,17 +21,31 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/db', () => {
   const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+  const insert = vi.fn().mockReturnValue({ values: mockInsertValues })
+  const fromChain = () => {
+    const chain: Record<string, unknown> = {
+      where: vi.fn().mockImplementation(() => {
+        const result = mockSelectResults[selectCallIdx.value++] ?? []
+        return Object.assign(Promise.resolve(result), {
+          limit: vi.fn().mockResolvedValue(result),
+        })
+      }),
+    }
+    chain.innerJoin = vi.fn().mockReturnValue(chain)
+    chain.leftJoin = vi.fn().mockReturnValue(chain)
+    return chain
+  }
+  const update = vi.fn().mockImplementation(() => ({
+    set: mockUpdateSet.mockImplementation((values: object) => ({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: 5, productId: 1, uomId: 2, weightGram: 250, ...values }]),
+      }),
+    })),
+  }))
   return {
     db: {
       select: vi.fn().mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockImplementation(() => {
-            const result = mockSelectResults[selectCallIdx.value++] ?? []
-            return Object.assign(Promise.resolve(result), {
-              limit: vi.fn().mockResolvedValue(result),
-            })
-          }),
-        }),
+        from: vi.fn().mockImplementation(fromChain),
       })),
       selectDistinct: vi.fn().mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
@@ -41,18 +56,16 @@ vi.mock('@/lib/db', () => {
           }),
         }),
       })),
-      update: vi.fn().mockImplementation(() => ({
-        set: mockUpdateSet.mockImplementation((values: object) => ({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([{ id: 5, productId: 1, uomId: 2, weightGram: 250, ...values }]),
-          }),
-        })),
-      })),
+      update,
       delete: del,
       transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => unknown) =>
-        callback({ delete: del })
+        callback({ delete: del, update, insert })
       ),
     },
+    products: { id: 'p.id', name: 'p.name' },
+    unitsOfMeasure: { id: 'u.id', code: 'u.code' },
+    auditLogs: { id: 'al.id' },
+    count: vi.fn().mockReturnValue('count'),
     productUomConversions: {
       id: 'puc.id',
       productId: 'puc.product_id',
@@ -152,7 +165,7 @@ describe('PATCH /api/bo/master-data/products/[id]/uom-conversions/[convId]', () 
 
   it('memperbarui ratio & berat untuk request valid dari OWNER', async () => {
     setAuth('OWNER')
-    mockSelectResults.push([{ id: 5, productId: 1 }])
+    mockSelectResults.push([{ id: 5, productId: 1, productName: 'VITACIK', uomId: 2, uomCode: 'DUS', ratio: 40, weightGram: 250 }])
 
     const res = await PATCH(
       makePatchReq('1', '5', { ratio: '24', weightGram: '500' }),
@@ -161,6 +174,12 @@ describe('PATCH /api/bo/master-data/products/[id]/uom-conversions/[convId]', () 
 
     expect(res.status).toBe(200)
     expect(mockUpdateSet).toHaveBeenCalledWith({ ratio: 24, weightGram: 500 })
+    // jejak Riwayat Satuan: isi & berat sebelum → sesudah
+    expect(mockInsertValues).toHaveBeenCalledTimes(1)
+    const audit = mockInsertValues.mock.calls[0][0]
+    expect(audit).toMatchObject({ action: 'UOM_CONVERSION_UPDATE', recordId: '1', userId: 1 })
+    expect(JSON.parse(audit.oldData)).toMatchObject({ ratio: 40, weightGram: 250 })
+    expect(JSON.parse(audit.newData)).toMatchObject({ ratio: 24, weightGram: 500 })
     const json = await res.json()
     expect(json.ratio).toBe(24)
     expect(json.weightGram).toBe(500)

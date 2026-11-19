@@ -61,6 +61,16 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     ],
   },
   {
+    group: 'Satuan Produk',
+    actions: [
+      { value: 'UOM_CONVERSION_ADD', label: 'Satuan produk ditambah' },
+      { value: 'UOM_CONVERSION_UPDATE', label: 'Isi/berat satuan produk diubah' },
+      { value: 'UOM_CONVERSION_DELETE', label: 'Satuan produk dihapus' },
+      { value: 'BASE_UOM_CHANGE', label: 'Satuan dasar produk diganti' },
+      { value: 'UOM_MASTER_UPDATE', label: 'Master Satuan Ukur diubah' },
+    ],
+  },
+  {
     group: 'Harga',
     actions: [
       { value: 'PRICE_BULK_UPDATE', label: 'Ubah harga (grid)' },
