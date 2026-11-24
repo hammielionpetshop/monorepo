@@ -12,12 +12,15 @@ import {
   unitsOfMeasure,
   customers,
   transactions,
+  returns,
   eq,
   and,
   desc,
+  isNull,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import { shortageReturnReason } from '@/lib/ibt-receive-shortage'
 import {
   applyInternalTransferItemEdits,
   InternalTransferEditError,
@@ -171,6 +174,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .where(and(eq(transactions.sourceIbtId, transferId), eq(transactions.status, 'VOIDED')))
       .orderBy(desc(transactions.createdAt))
 
+    // Retur otomatis atas selisih terima (kirim > terima) — ditampilkan supaya staf tahu
+    // barangnya sudah kembali ke stok pengirim. Transfer manual (tanpa Bulk Sale) tidak punya retur.
+    const shortageReturns =
+      convertedTransactionId != null
+        ? await db
+            .select({ id: returns.id, returnNumber: returns.returnNumber, totalRefundAmount: returns.totalRefundAmount })
+            .from(returns)
+            .where(
+              and(
+                eq(returns.transactionId, convertedTransactionId),
+                eq(returns.reason, shortageReturnReason(transferRows[0].ibtNumber)),
+                isNull(returns.cancelledAt)
+              )
+            )
+            .orderBy(returns.createdAt)
+        : []
+
     // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
     // setelah konversi Bulk Sale. Fallback ke kolom lama hanya bila transfer tak punya
     // item sama sekali (data legacy) — lihat lib/ibt-transfer-value.ts.
@@ -184,6 +204,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ...transferRow,
       totalTransferValue,
       voidedBulkSales: voidedBulkSaleRows,
+      shortageReturns,
       items: itemRows.map((item) => ({
         ...item,
         bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,
