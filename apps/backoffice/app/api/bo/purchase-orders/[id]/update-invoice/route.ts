@@ -15,6 +15,9 @@ import {
 } from "@/lib/db";
 import { syncCostFromInbound } from "@/lib/services/cost-sync-service";
 import { poTotalAmount } from "@/lib/po-total";
+import { poDiscountError, poDiscountFactor, poNetTotal } from "@/lib/po-discount";
+import { isPricePending } from "@/lib/po-stage";
+import Big from "big.js";
 import { resolveStockUom } from "@/lib/services/stock-validation";
 
 const invoiceSchema = z.object({
@@ -27,7 +30,11 @@ const invoiceSchema = z.object({
       }),
     )
     .min(1, "Item invoice wajib diisi"),
+  // Diskon rupiah atas total faktur; kosong = diskon PO yang tersimpan dipertahankan.
+  discountAmount: z.number().int().nonnegative("Diskon tidak boleh minus").optional(),
 });
+
+class InvoiceDiscountError extends Error {}
 
 export async function PATCH(
   req: Request,
@@ -91,6 +98,7 @@ export async function PATCH(
           branchId: purchaseOrders.branchId,
           poNumber: purchaseOrders.poNumber,
           keepCurrentCost: purchaseOrders.keepCurrentCost,
+          discountAmount: purchaseOrders.discountAmount,
         });
 
       if (!updatedPO) throw new Error("PO_NOT_FOUND");
@@ -117,15 +125,23 @@ export async function PATCH(
       });
 
       // Hutang = barang bagus yang masuk stok (sama seperti approve-receiving); Total PO di header
-      // = max(qty pesan, qty diterima) × harga efektif, sama dengan subtotal per baris di detail.
-      let newTotalAmount = 0;
+      // = max(qty pesan, qty diterima) × harga efektif − diskon. Diskon dibagi rata persentasenya.
+      const grossAmount = poTotalAmount(allItems);
+      const discountAmount = parsed.data.discountAmount ?? updatedPO.discountAmount ?? 0;
+      const discountError = poDiscountError(discountAmount, grossAmount);
+      if (discountError) throw new InvoiceDiscountError(discountError);
+      const discountFactor = poDiscountFactor(grossAmount, discountAmount);
+      const discountedCost = (cost: number) => Number(new Big(cost).times(discountFactor).round(0));
+
+      let payableGross = new Big(0);
       for (const item of allItems) {
         const cost = Number(item.invoiceUnitCost || item.unitCost);
-        newTotalAmount += Math.max(Number(item.qtyReceived) - Number(item.qtyDamaged), 0) * cost;
+        payableGross = payableGross.plus(new Big(Math.max(Number(item.qtyReceived) - Number(item.qtyDamaged), 0)).times(cost));
       }
+      const newTotalAmount = Number(payableGross.times(discountFactor).round(0));
       await tx
         .update(purchaseOrders)
-        .set({ totalAmount: poTotalAmount(allItems) })
+        .set({ totalAmount: poNetTotal(grossAmount, discountAmount), discountAmount })
         .where(eq(purchaseOrders.id, poId));
 
       // Harga faktur menggantikan harga PO sebagai modal, tapi hanya untuk barang yang sudah masuk
@@ -146,10 +162,13 @@ export async function PATCH(
           );
         if (!received?.at) continue;
 
-        // Modal batch dari PO ini ikut diganti ke harga faktur — termasuk batch "harga menyusul"
-        // yang tadinya memakai modal terakhir sebagai perkiraan. Porsi yang sudah terjual
-        // sebelum faktur diisi tetap ber-HPP perkiraan (tidak ada jejak batch per penjualan).
-        const invoiceCost = Number(item.invoiceUnitCost);
+        // Modal batch dari PO ini ikut diganti ke harga faktur sesudah diskon — termasuk batch
+        // "harga menyusul" yang tadinya memakai modal terakhir sebagai perkiraan. Porsi yang sudah
+        // terjual sebelum faktur diisi tetap ber-HPP perkiraan (tidak ada jejak batch per penjualan).
+        // Barang tanpa harga faktur memakai harga PO, supaya perubahan diskon ikut ke modalnya.
+        const invoiceCost = isPricePending(item)
+          ? 0
+          : discountedCost(Number(item.invoiceUnitCost || item.unitCost));
         if (invoiceCost > 0) {
           const { ratio } = await resolveStockUom(tx, item.productId, item.uomId);
           const costPerBase = Math.round(invoiceCost / Number(ratio));
@@ -178,7 +197,9 @@ export async function PATCH(
               newData: JSON.stringify({
                 poNumber: updatedPO.poNumber,
                 productId: item.productId,
-                invoiceUnitCost: invoiceCost,
+                invoiceUnitCost: Number(item.invoiceUnitCost),
+                discountAmount,
+                unitCostAfterDiscount: invoiceCost,
                 costPerBase,
               }),
               createdAt: new Date(),
@@ -190,7 +211,7 @@ export async function PATCH(
           branchId: updatedPO.branchId,
           productId: item.productId,
           uomId: item.uomId,
-          unitCost: Number(item.invoiceUnitCost || item.unitCost),
+          unitCost: discountedCost(Number(item.invoiceUnitCost || item.unitCost)),
           sourceType: "PO_INVOICE",
           sourceId: poId,
           sourceRef: `Faktur ${updatedPO.poNumber}`,
@@ -202,13 +223,13 @@ export async function PATCH(
       await tx
         .update(supplierPayables)
         .set({
-          totalAmount: Math.round(newTotalAmount),
+          totalAmount: newTotalAmount,
           // Total berubah setelah ada pembayaran → status ikut dihitung ulang, supaya
           // hutang yang tadinya LUNAS bisa dibayar lagi bila faktur ternyata lebih besar.
           status: sql`CASE
             WHEN ${supplierPayables.status} = 'WAIVED' THEN 'WAIVED'
             WHEN ${supplierPayables.paidAmount} <= 0 THEN 'UNPAID'
-            WHEN ${supplierPayables.paidAmount} >= ${Math.round(newTotalAmount)} THEN 'PAID'
+            WHEN ${supplierPayables.paidAmount} >= ${newTotalAmount} THEN 'PAID'
             ELSE 'PARTIAL' END`,
         })
         .where(eq(supplierPayables.poId, poId));
@@ -218,6 +239,8 @@ export async function PATCH(
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof InvoiceDiscountError)
+      return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof Error) {
       if (error.message === "PO_NOT_FOUND")
         return NextResponse.json(
