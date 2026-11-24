@@ -1,3 +1,5 @@
+import type { ShortageReturnRef } from '@/lib/ibt-receive-shortage'
+
 export interface ItemRow {
   id: number
   productId: number
@@ -68,6 +70,8 @@ export interface TransferDetail extends TransferListItem {
   approvedById: number | null
   approvedByName: string | null
   updatedAt: string
+  /** Retur otomatis atas selisih terima (kirim > terima) — lihat lib/ibt-receive-shortage.ts. */
+  shortageReturns: ShortageReturnRef[]
   items: TransferDetailItem[]
 }
 
