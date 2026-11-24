@@ -4,11 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { effectiveUnitCost, isPricePending } from '../../_components/po-item-defaults'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { applyPoDiscount } from '@/lib/po-discount'
+import { poLineQty } from '@/lib/po-total'
+import { PoDiscountSummary } from '../../_components/po-discount-field'
 
 export interface InvoiceMatchItem {
   id: number
   productName: string | null
   uomCode: string | null
+  qtyOrdered: string
   qtyReceived: string
   qtyDamaged: string
   unitCost: string
@@ -28,6 +32,7 @@ export default function PoInvoiceMatch({
   poId,
   invoiceNumber,
   items,
+  discountAmount = 0,
   receivingApproved,
   hasPendingPrice,
   onSaved,
@@ -35,6 +40,8 @@ export default function PoInvoiceMatch({
   poId: number
   invoiceNumber: string | null
   items: InvoiceMatchItem[]
+  /** Diskon rupiah PO yang tersimpan — bisa disesuaikan dengan diskon di faktur. */
+  discountAmount?: number
   receivingApproved: boolean
   hasPendingPrice: boolean
   /** Dipanggil setelah tersimpan (pemanggil yang me-refresh); kosong = refresh di sini. */
@@ -54,6 +61,7 @@ export default function PoInvoiceMatch({
       }),
     ),
   )
+  const [discount, setDiscount] = useState(discountAmount > 0 ? String(discountAmount) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -62,10 +70,15 @@ export default function PoInvoiceMatch({
   const invoicePrice = (i: InvoiceMatchItem) => Number(prices[i.id]) > 0 ? Number(prices[i.id]) : Number(i.unitCost)
   const totalPo = items.reduce((s, i) => s + qtyNet(i) * Number(i.unitCost), 0)
   const totalInvoice = items.reduce((s, i) => s + qtyNet(i) * invoicePrice(i), 0)
+  // Diskon berlaku atas Total PO (qty pesan/diterima terbesar × harga faktur), sama dengan server.
+  const grossPo = items.reduce((s, i) => s + poLineQty(i) * invoicePrice(i), 0)
+  const discountValue = Number(discount) || 0
+  const payableAfterDiscount = applyPoDiscount(totalInvoice, grossPo, discountValue)
 
   async function save() {
     setError('')
     if (!number.trim()) return setError('Nomor faktur wajib diisi')
+    if (discountValue > 0 && discountValue >= grossPo) return setError('Diskon harus lebih kecil dari total PO')
     for (const i of items) {
       const v = Number(prices[i.id] || 0)
       if (!Number.isFinite(v) || v < 0) return setError(`Harga faktur ${i.productName ?? ''} tidak valid`)
@@ -78,6 +91,7 @@ export default function PoInvoiceMatch({
         body: JSON.stringify({
           invoiceNumber: number.trim(),
           items: items.map((i) => ({ id: i.id, invoiceUnitCost: Math.round(Number(prices[i.id] || 0)) })),
+          discountAmount: discountValue,
         }),
       })
       const data = await res.json()
@@ -96,7 +110,10 @@ export default function PoInvoiceMatch({
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setDiscount(discountAmount > 0 ? String(discountAmount) : '')
+          setOpen(true)
+        }}
         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
           hasPendingPrice
             ? 'bg-amber-600 text-white hover:bg-amber-700'
@@ -178,9 +195,15 @@ export default function PoInvoiceMatch({
         </table>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Total diterima: PO {rupiah(totalPo)} → Faktur <span className="font-semibold text-foreground">{rupiah(totalInvoice)}</span>
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            Total diterima: PO {rupiah(totalPo)} → Faktur <span className="font-semibold text-foreground">{rupiah(totalInvoice)}</span>
+            {discountValue > 0 && (
+              <> → sesudah diskon <span className="font-semibold text-foreground">{rupiah(payableAfterDiscount)}</span></>
+            )}
+          </p>
+          <PoDiscountSummary subtotal={grossPo} discount={discount} onDiscountChange={setDiscount} totalLabel="Total PO" />
+        </div>
         <div className="flex items-center gap-2">
           {error && <span className="text-xs text-destructive">{error}</span>}
           <button

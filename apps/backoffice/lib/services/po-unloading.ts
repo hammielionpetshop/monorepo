@@ -3,6 +3,7 @@ import {
   suppliers, products, productUomConversions, eq, and, desc, inArray, sql,
 } from '@/lib/db';
 import { generatePoNumber } from '@/lib/po-number';
+import { poNetTotal } from '@/lib/po-discount';
 import { isServiceKind } from '@/lib/product-kind';
 
 /**
@@ -216,7 +217,11 @@ export async function syncUnloading(input: UnloadingSyncInput, actor: SyncActor,
         action = 'CREATED';
       } else if (po.status === 'DRAFT') {
         const total = await replaceDraftItems(tx, po.id, input.items);
-        await tx.update(purchaseOrders).set({ totalAmount: total, updatedAt: new Date() }).where(eq(purchaseOrders.id, po.id));
+        // Diskon draft yang tidak lagi muat di total baru dikosongkan; admin mengisinya ulang saat edit PO.
+        const discount = po.discountAmount < total ? po.discountAmount : 0;
+        await tx.update(purchaseOrders)
+          .set({ totalAmount: poNetTotal(total, discount), discountAmount: discount, updatedAt: new Date() })
+          .where(eq(purchaseOrders.id, po.id));
         action = 'REPLACED';
       } else {
         action = 'FLAGGED';

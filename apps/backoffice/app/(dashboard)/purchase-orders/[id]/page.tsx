@@ -72,6 +72,7 @@ export default async function PODetailPage({
           poNumber: purchaseOrders.poNumber,
           status: purchaseOrders.status,
           totalAmount: purchaseOrders.totalAmount,
+          discountAmount: purchaseOrders.discountAmount,
           keepCurrentCost: purchaseOrders.keepCurrentCost,
           notes: purchaseOrders.notes,
           rejectionNote: purchaseOrders.rejectionNote,

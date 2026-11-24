@@ -153,10 +153,17 @@ export async function listSupplierReturns(params: {
     ...new Set(itemRows.filter(r => pendingIds.has(r.supplierReturnId) && r.poItemId != null).map(r => r.poItemId as number)),
   ]
   const poPrices = pendingPoItemIds.length === 0 ? [] : await db
-    .select({ id: purchaseOrderItems.id, unitCost: purchaseOrderItems.unitCost, invoiceUnitCost: purchaseOrderItems.invoiceUnitCost })
+    .select({
+      id: purchaseOrderItems.id,
+      unitCost: purchaseOrderItems.unitCost,
+      invoiceUnitCost: purchaseOrderItems.invoiceUnitCost,
+      totalAmount: purchaseOrders.totalAmount,
+      discountAmount: purchaseOrders.discountAmount,
+    })
     .from(purchaseOrderItems)
+    .innerJoin(purchaseOrders, eq(purchaseOrderItems.poId, purchaseOrders.id))
     .where(inArray(purchaseOrderItems.id, pendingPoItemIds))
-  const currentPrice = new Map(poPrices.map(p => [p.id, poItemClaimPrice(p)]))
+  const currentPrice = new Map(poPrices.map(p => [p.id, poItemClaimPrice(p, p)]))
 
   const itemsByReturn = new Map<number, SupplierReturnItemView[]>()
   for (const { supplierReturnId, poItemId, ...row } of itemRows) {

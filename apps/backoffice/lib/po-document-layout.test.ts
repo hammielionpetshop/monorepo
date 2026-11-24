@@ -67,6 +67,16 @@ describe('buildPoDocumentPages', () => {
     expect(text).toContain('1 barang harga menyusul')
   })
 
+  it('diskon PO: subtotal, diskon, dan total sesudah diskon; tanpa harga diskon tidak dicetak', () => {
+    const items = [{ productName: 'Pakan A', productSku: 'A1', uomCode: 'SAK', qtyOrdered: 20, unitCost: 50_000 }]
+    const text = allText(buildPoDocumentPages(makeData(0, { showPrices: true, discountAmount: 200_000, items })))
+    expect(text).toContain('Subtotal: Rp 1.000.000')
+    expect(text).toContain('Diskon: -Rp 200.000')
+    expect(text).toContain('TOTAL: Rp 800.000')
+    const hidden = allText(buildPoDocumentPages(makeData(0, { discountAmount: 200_000, items })))
+    expect(hidden).not.toMatch(/Rp|Diskon/)
+  })
+
   it('nama produk panjang dipotong, qty & satuan tetap utuh', () => {
     const page = buildPoDocumentPages(
       makeData(1, { items: [{ productName: 'X'.repeat(120), productSku: 'A1', uomCode: 'KARTON', qtyOrdered: 12500 }] }),

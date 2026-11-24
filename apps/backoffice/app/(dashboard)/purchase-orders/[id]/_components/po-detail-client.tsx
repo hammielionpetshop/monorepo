@@ -72,6 +72,8 @@ interface PO {
   poNumber: string;
   status: string;
   totalAmount: string;
+  /** Diskon rupiah atas total PO; Total PO sudah dikurangi diskon ini. */
+  discountAmount: number;
   /** PO Barang kembali: tidak mengubah modal, HPP memakai modal cabang. */
   keepCurrentCost: boolean;
   notes: string | null;
@@ -297,6 +299,7 @@ export function PODetailClient({
       qtyOrdered: Number(item.qtyOrdered),
       unitCost: isPricePending(item) ? null : effectiveUnitCost(item),
     })),
+    discountAmount: po.discountAmount,
   };
   const canMatchInvoice =
     canEditInvoice && ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
@@ -313,6 +316,7 @@ export function PODetailClient({
       poId={po.id}
       invoiceNumber={po.invoiceNumber}
       items={po.items}
+      discountAmount={po.discountAmount}
       receivingApproved={po.status === 'COMPLETED'}
       hasPendingPrice={pricePendingCount > 0}
       onSaved={() => {
@@ -387,6 +391,12 @@ export function PODetailClient({
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Total PO</p>
             <p className="text-2xl font-bold">Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}</p>
+            {po.discountAmount > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                sudah dipotong diskon <span className="font-medium text-foreground">Rp {po.discountAmount.toLocaleString('id-ID')}</span>
+                {' '}(dari Rp {(parseFloat(po.totalAmount) + po.discountAmount).toLocaleString('id-ID')})
+              </p>
+            )}
           </div>
         </div>
 
@@ -532,8 +542,9 @@ export function PODetailClient({
 
       {canEditItems && (
         <PoItemsEditor
-          key={`${po.status}|${po.items.map(i => `${i.id}:${i.qtyOrdered}:${i.unitCost}:${i.qtyReceived}`).join(',')}`}
+          key={`${po.status}|${po.discountAmount}|${po.items.map(i => `${i.id}:${i.qtyOrdered}:${i.unitCost}:${i.qtyReceived}`).join(',')}`}
           poId={po.id}
+          initialDiscount={po.discountAmount}
           branchId={po.branch.id}
           status={po.status}
           initialItems={po.items.map(i => ({
