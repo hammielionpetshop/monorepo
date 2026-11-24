@@ -1,3 +1,5 @@
+import type { ShortageReturnRef } from '@/lib/ibt-receive-shortage'
+
 export interface TransferItem {
   id: number
   transferId: number
@@ -55,6 +57,8 @@ export interface InternalTransferDetail {
   voidedBulkSales: VoidedBulkSale[]
   /** Riwayat Batalkan / Proses Ulang dari audit log, terbaru dulu. */
   cancelHistory: TransferCancelEntry[]
+  /** Retur otomatis atas selisih terima (kirim > terima), tidak termasuk yang dibatalkan. */
+  shortageReturns: ShortageReturnRef[]
   items: TransferItem[]
 }
 

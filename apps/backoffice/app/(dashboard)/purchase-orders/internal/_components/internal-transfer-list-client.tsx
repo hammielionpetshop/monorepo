@@ -15,6 +15,7 @@ import {
   hasActiveTransferFilters,
   type TransferFilters,
 } from './filter-transfers'
+import { RECEIVED_WITH_SHORTAGE_LABEL } from '@/lib/ibt-receive-shortage'
 
 const RECEIVED_STATUSES = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED']
 const POST_SHIP = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED']
@@ -28,7 +29,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Disetujui', color: 'bg-blue-100 text-blue-800' },
   PREPARING: { label: 'Sedang Disiapkan', color: 'bg-indigo-100 text-indigo-800' },
   IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-orange-100 text-orange-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-amber-100 text-amber-800' },
+  PARTIALLY_RECEIVED: { label: RECEIVED_WITH_SHORTAGE_LABEL, color: 'bg-amber-100 text-amber-800' },
   FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
 }
