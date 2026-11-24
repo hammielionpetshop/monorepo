@@ -12,6 +12,7 @@ import { StockService } from './services/stock-service';
 import { currentCostPerBase, loadCurrentCosts, loadProductUoms, syncCostFromInbound } from './services/cost-sync-service';
 import { isPricePending } from './po-stage';
 import { poTotalAmount } from './po-total';
+import { poDiscountFactor, poNetTotal } from './po-discount';
 
 /**
  * Modal cabang saat ini untuk satu satuan produk (Manajemen Harga); satuan tanpa modal sendiri
@@ -55,6 +56,9 @@ export async function applyPOReceivingBatches(
     await lockProductStocks(tx, po.branchId, items.map((item: any) => item.productId))
 
     let totalPayableAmount = new Big(0);
+    // Diskon PO dibagi rata persentasenya: harga tiap barang × faktor, untuk hutang dan modal.
+    const grossAmount = poTotalAmount(items);
+    const discountFactor = poDiscountFactor(grossAmount, po.discountAmount);
 
     // 3. Process each item
     for (const item of items) {
@@ -62,7 +66,9 @@ export async function applyPOReceivingBatches(
       if (qtyNet.lte(0)) continue;
 
       // invoiceUnitCost 0 = belum diisi, jatuh ke harga PO (bisa 0 juga bila harga menyusul).
-      const costPrice = new Big(item.invoiceUnitCost || item.unitCost);
+      // Hutang dihitung dari nilai persis sesudah diskon; modal per satuan dibulatkan ke rupiah.
+      const costPrice = new Big(item.invoiceUnitCost || item.unitCost).times(discountFactor);
+      const unitCost = costPrice.round(0);
       // Menunggu faktur (lihat isPricePending): harga rencana tetap dipakai sebagai perkiraan modal
       // batch & hutang, tapi tidak boleh menimpa modal di Manajemen Harga sebelum faktur diisi.
       const pricePending = isPricePending(item);
@@ -70,7 +76,7 @@ export async function applyPOReceivingBatches(
 
       // PO Barang kembali: hutang tetap harga sebenarnya, tapi HPP batch = modal cabang dan modal
       // Manajemen Harga tidak disentuh (tanpa syncCostFromInbound).
-      let batchCost = costPrice;
+      let batchCost = unitCost;
       if (po.keepCurrentCost) {
         const modal = await currentBranchUnitCost(tx, po.branchId, item.productId, item.uomId);
         if (modal == null) {
@@ -100,7 +106,7 @@ export async function applyPOReceivingBatches(
         branchId: po.branchId,
         productId: item.productId,
         uomId: item.uomId,
-        unitCost: pricePending ? 0 : costPrice.toNumber(),
+        unitCost: pricePending ? 0 : unitCost.toNumber(),
         sourceType: 'PO_RECEIVING',
         sourceId: poId,
         sourceRef: po.poNumber,
@@ -127,13 +133,13 @@ export async function applyPOReceivingBatches(
 
     if (existingPayable) {
       await tx.update(supplierPayables)
-        .set({ totalAmount: Math.round(totalPayableAmount.toNumber()) })
+        .set({ totalAmount: Number(totalPayableAmount.round(0)) })
         .where(eq(supplierPayables.id, existingPayable.id));
     } else {
       await tx.insert(supplierPayables).values({
         poId,
         supplierId: po.supplierId,
-        totalAmount: Math.round(totalPayableAmount.toNumber()),
+        totalAmount: Number(totalPayableAmount.round(0)),
         paidAmount: 0,
         status: 'UNPAID',
         createdAt: new Date(),
@@ -143,7 +149,7 @@ export async function applyPOReceivingBatches(
     // 5. Update PO Status — COMPLETED setelah BO approve receiving
     // Total PO ikut barang yang datang melebihi pesanan (lihat po-total).
     await tx.update(purchaseOrders)
-      .set({ status: 'COMPLETED', totalAmount: poTotalAmount(items), updatedAt: new Date() })
+      .set({ status: 'COMPLETED', totalAmount: poNetTotal(grossAmount, po.discountAmount), updatedAt: new Date() })
       .where(eq(purchaseOrders.id, poId));
   });
 }

@@ -14,6 +14,7 @@ const schema = z.object({
     qtyOrdered: z.number().int().positive('Jumlah harus lebih dari 0'),
     unitCost: z.number().int().nonnegative('Harga tidak boleh minus'),
   })).min(1, 'PO minimal berisi satu barang'),
+  discountAmount: z.number().int().nonnegative('Diskon tidak boleh minus').optional(),
 });
 
 /**
@@ -30,7 +31,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 });
-  const { items } = parsed.data;
+  const { items, discountAmount } = parsed.data;
   const serviceMessage = await serviceProductMessage(items.map((i) => i.productId));
   if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
@@ -38,6 +39,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const result = await db.transaction((tx) => editPoItems(tx, {
       poId,
       items,
+      discountAmount,
       actor: { userId: payload.userId, role: payload.role ?? '', branchScope: payload.branchScope ?? 'OWN', branchId: payload.branchId },
     }));
     return NextResponse.json({ success: true, ...result });

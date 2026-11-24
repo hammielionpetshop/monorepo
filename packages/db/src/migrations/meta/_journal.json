@@ -512,6 +512,13 @@
       "when": 1794406400000,
       "tag": "0072_expense_category_active_recurring_variable",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794492800000,
+      "tag": "0073_po_discount",
+      "breakpoints": true
     }
   ]
 }

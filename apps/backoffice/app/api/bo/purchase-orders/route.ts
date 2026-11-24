@@ -14,6 +14,7 @@ import {
   inArray,
 } from "@/lib/db";
 import { generatePoNumber, isUniqueViolation } from "@/lib/po-number";
+import { poDiscountError, poNetTotal } from "@/lib/po-discount";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ const createPOSchema = z.object({
   targetDeliveryDate: z.iso.date().nullable().optional(),
   // PO Barang kembali: tidak mengubah modal (hak po.returned_goods).
   keepCurrentCost: z.boolean().optional(),
+  // Diskon rupiah atas total PO (lib/po-discount.ts).
+  discountAmount: z.number().int().nonnegative("Diskon tidak boleh minus").optional(),
 });
 
 export async function GET(req: Request) {
@@ -163,10 +166,13 @@ export async function POST(req: Request) {
     const serviceMessage = await serviceProductMessage(items.map((item) => item.productId));
     if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
-    let totalAmount = 0;
+    let grossAmount = 0;
     for (const item of items) {
-      totalAmount += Number(item.qtyOrdered) * Number(item.unitCost);
+      grossAmount += Number(item.qtyOrdered) * Number(item.unitCost);
     }
+    const discountAmount = parsed.data.discountAmount ?? 0;
+    const discountError = poDiscountError(discountAmount, Math.round(grossAmount));
+    if (discountError) return NextResponse.json({ error: discountError }, { status: 400 });
 
     const result = await db.transaction(async (tx) => {
       const poNumber = await generatePoNumber(tx);
@@ -177,7 +183,8 @@ export async function POST(req: Request) {
           branchId,
           supplierId,
           createdById: payload.userId,
-          totalAmount: Math.round(totalAmount),
+          totalAmount: poNetTotal(Math.round(grossAmount), discountAmount),
+          discountAmount,
           keepCurrentCost,
           notes: notes || null,
           targetDeliveryDate: targetDeliveryDate

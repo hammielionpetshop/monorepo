@@ -14,7 +14,10 @@ export const purchaseOrders = petshop.table('purchase_orders', {
   sourceBranchId: integer('source_branch_id').references(() => branches.id),
   supplierId: integer('supplier_id').references(() => suppliers.id),
   status: varchar('status', { length: 30 }).default('PENDING_APPROVAL').notNull(), // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, IN_TRANSIT, PARTIALLY_RECEIVED, FULLY_RECEIVED, CANCELLED
+  // Total sesudah diskon = Σ baris − discount_amount (apps/backoffice/lib/po-discount.ts).
   totalAmount: integer('total_amount').notNull(),
+  // Diskon rupiah atas total PO (migrasi 0073); persentasenya berlaku sama untuk semua barang.
+  discountAmount: integer('discount_amount').default(0).notNull(),
   createdById: integer('created_by_id').references(() => users.id).notNull(),
   approvedById: integer('approved_by_id').references(() => users.id),
   approvedAt: timestamp('approved_at'),

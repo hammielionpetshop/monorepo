@@ -21,6 +21,7 @@ import {
   sql,
 } from '@/lib/db'
 import { poDateStr, isUniqueViolation } from '@/lib/po-number'
+import { poDiscountFactorFromHeader } from '@/lib/po-discount'
 import { lockProductStocks } from '@/lib/services/stock-lock'
 import { StockService, InsufficientStockError } from '@/lib/services/stock-service'
 import { StockConflictError } from '@/lib/services/stock-validation'
@@ -86,12 +87,19 @@ export const supplierReturnApproveSchema = z.object({
     .optional(),
 })
 
-/** Harga klaim per satuan dari baris PO: harga faktur bila sudah diisi, kalau belum harga PO. */
-export function poItemClaimPrice(item: { unitCost: number; invoiceUnitCost: number | null }): number | null {
+/**
+ * Harga klaim per satuan dari baris PO: harga faktur bila sudah diisi, kalau belum harga PO —
+ * sesudah diskon PO (persentase yang sama dengan hutang dan modalnya).
+ */
+export function poItemClaimPrice(
+  item: { unitCost: number; invoiceUnitCost: number | null },
+  po: { totalAmount: number; discountAmount: number } = { totalAmount: 0, discountAmount: 0 },
+): number | null {
   // invoice_unit_cost = 0 → "menunggu faktur" (alur PO 1.107.56): harganya belum diketahui,
   // dan tagihannya pun masih Rp 0 untuk barang itu — retur belum bisa dinilai.
   if (item.invoiceUnitCost === 0) return null
-  return item.invoiceUnitCost ?? item.unitCost
+  const price = item.invoiceUnitCost ?? item.unitCost
+  return Number(new Big(price).times(poDiscountFactorFromHeader(po)).round(0))
 }
 
 /**
@@ -147,6 +155,11 @@ async function returnedQtyByPoItem(executor: Executor, poItemIds: number[], excl
 
 /** Baris PO beserta sisa qty yang masih bisa diretur — dipakai form (dropdown PO) dan validasi. */
 export async function loadReturnablePoItems(executor: Executor, poId: number, excludeReturnId?: number) {
+  const [po] = await executor
+    .select({ totalAmount: purchaseOrders.totalAmount, discountAmount: purchaseOrders.discountAmount })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.id, poId))
+    .limit(1)
   const items = await executor
     .select({
       id: purchaseOrderItems.id,
@@ -166,7 +179,7 @@ export async function loadReturnablePoItems(executor: Executor, poId: number, ex
       ...i,
       alreadyReturned,
       returnableQty: Math.max(0, i.qtyReceived - i.qtyDamaged - alreadyReturned),
-      claimPrice: poItemClaimPrice(i),
+      claimPrice: poItemClaimPrice(i, po),
     }
   })
 }
