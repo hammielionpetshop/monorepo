@@ -10,11 +10,13 @@ import {
   products,
   unitsOfMeasure,
   auditLogs,
+  returns,
   eq,
   and,
   or,
   desc,
   inArray,
+  isNull,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
@@ -22,6 +24,7 @@ import { getDeliverySettings } from '@/lib/delivery-method-server'
 import { InternalTransferDetailClient } from './_components/internal-transfer-detail-client'
 import type { InternalTransferDetail, BranchOption, TransferCancelEntry } from './_components/types'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import { shortageReturnReason } from '@/lib/ibt-receive-shortage'
 import { countOpenPriceReviewsForSource } from '@/lib/services/price-review-record'
 import { hasPermission } from '@/lib/authz'
 import PriceReviewNotice from '../../[id]/_components/price-review-notice'
@@ -154,6 +157,22 @@ export default async function InternalTransferDetailPage({
       .where(and(eq(transactions.sourceIbtId, transferId), eq(transactions.status, 'VOIDED')))
       .orderBy(desc(transactions.createdAt))
 
+    // Retur otomatis atas selisih terima — sama dengan app/api/bo/internal-transfers/[id]/route.ts.
+    const shortageReturns =
+      convertedTransactionId != null
+        ? await db
+            .select({ id: returns.id, returnNumber: returns.returnNumber, totalRefundAmount: returns.totalRefundAmount })
+            .from(returns)
+            .where(
+              and(
+                eq(returns.transactionId, convertedTransactionId),
+                eq(returns.reason, shortageReturnReason(transferRows[0].ibtNumber)),
+                isNull(returns.cancelledAt)
+              )
+            )
+            .orderBy(returns.createdAt)
+        : []
+
     // Alasan batal/proses ulang hanya tersimpan di audit log (tanpa kolom di tabel transfer).
     const cancelLogRows = await db
       .select({
@@ -201,6 +220,7 @@ export default async function InternalTransferDetailPage({
       ...transferRow,
       totalTransferValue,
       voidedBulkSales: voidedBulkSaleRows,
+      shortageReturns,
       cancelHistory,
       items: itemRows.map((item) => ({
         ...item,

@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
+import { RECEIVED_WITH_SHORTAGE_LABEL } from '@/lib/ibt-receive-shortage'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Siap Diterima', color: 'bg-blue-100 text-blue-800' },
   IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-purple-100 text-purple-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-orange-100 text-orange-800' },
+  PARTIALLY_RECEIVED: { label: RECEIVED_WITH_SHORTAGE_LABEL, color: 'bg-orange-100 text-orange-800' },
 }
 
 interface POSummary {

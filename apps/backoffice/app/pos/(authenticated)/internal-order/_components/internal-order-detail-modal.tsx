@@ -4,6 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatWIB } from '@petshop/shared'
 import type { TransferDetail } from './types'
 import InternalOrderEditForm from './internal-order-edit-form'
+import ReceiveShortageNotice from './receive-shortage-notice'
+import {
+  RECEIVED_WITH_SHORTAGE_LABEL,
+  isReceivedStatus,
+  receiveShortQty,
+  summarizeReceive,
+} from '@/lib/ibt-receive-shortage'
 
 const EDITABLE_STATUSES = ['DRAFT', 'PENDING_APPROVAL']
 
@@ -13,7 +20,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Disetujui', color: 'bg-blue-100 text-blue-800' },
   PREPARING: { label: 'Sedang Disiapkan', color: 'bg-indigo-100 text-indigo-800' },
   IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-orange-100 text-orange-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-amber-100 text-amber-800' },
+  PARTIALLY_RECEIVED: { label: RECEIVED_WITH_SHORTAGE_LABEL, color: 'bg-amber-100 text-amber-800' },
   FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
 }
@@ -83,6 +90,8 @@ export default function InternalOrderDetailModal({ transferId, onClose, onUpdate
   const statusInfo = detail
     ? STATUS_LABELS[detail.status] ?? { label: detail.status, color: 'bg-gray-100 text-gray-600' }
     : null
+  const received = detail ? isReceivedStatus(detail.status) : false
+  const receiveSummary = detail && received ? summarizeReceive(detail.items) : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -162,13 +171,48 @@ export default function InternalOrderDetailModal({ transferId, onClose, onUpdate
                     <p className="font-medium text-foreground mt-0.5">{detail.approvedByName}</p>
                   </div>
                 )}
-                <div>
-                  <span className="text-muted-foreground">Est. Nilai Transfer</span>
-                  <p className="font-medium text-foreground mt-0.5">
-                    Rp {Number(detail.totalTransferValue).toLocaleString('id-ID')}
-                  </p>
-                </div>
+                {!receiveSummary && (
+                  <div>
+                    <span className="text-muted-foreground">Est. Nilai Transfer</span>
+                    <p className="font-medium text-foreground mt-0.5">
+                      Rp {Number(detail.totalTransferValue).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {receiveSummary && (
+                <div className="rounded-md border border-border text-xs divide-y divide-border">
+                  <div className="flex justify-between px-3 py-1.5">
+                    <span className="text-muted-foreground">Nilai Dikirim</span>
+                    <span className="tabular-nums">Rp {receiveSummary.shippedValue.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between px-3 py-1.5 bg-primary/5">
+                    <span className="font-medium text-foreground">
+                      Nilai Diterima <span className="font-normal text-muted-foreground">— yang ditagih ke {detail.destinationBranchName ?? 'cabang tujuan'}</span>
+                    </span>
+                    <span className="font-bold tabular-nums">Rp {receiveSummary.receivedValue.toLocaleString('id-ID')}</span>
+                  </div>
+                  {receiveSummary.shortageValue > 0 && (
+                    <div className="flex justify-between px-3 py-1.5">
+                      <span className="text-amber-700 dark:text-amber-400">
+                        Tidak Diterima <span className="text-muted-foreground">— tidak ditagih</span>
+                      </span>
+                      <span className="tabular-nums text-amber-700 dark:text-amber-400">
+                        Rp {receiveSummary.shortageValue.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {received && (
+                <ReceiveShortageNotice
+                  items={detail.items}
+                  sourceBranchName={detail.sourceBranchName}
+                  shortageReturns={detail.shortageReturns ?? []}
+                />
+              )}
 
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1.5">
@@ -181,17 +225,25 @@ export default function InternalOrderDetailModal({ transferId, onClose, onUpdate
                       <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Minta</th>
                       <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Kirim</th>
                       <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Terima</th>
+                      {received && (
+                        <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Selisih</th>
+                      )}
                       <th className="text-left px-2 py-1.5 font-medium text-muted-foreground w-12">Sat.</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.items.map((item) => (
-                      <tr key={item.id} className="border-t border-border">
+                    {detail.items.map((item) => {
+                      const shortQty = received ? receiveShortQty(item) : 0
+                      return (
+                      <tr
+                        key={item.id}
+                        className={`border-t border-border ${shortQty > 0 ? 'bg-amber-50 dark:bg-amber-950/30' : ''}`}
+                      >
                         <td className="px-3 py-1.5">
                           <div className="font-medium text-foreground">{item.productName ?? '-'}</div>
                           <div className="text-muted-foreground font-mono">{item.productSku ?? '-'}</div>
                           {item.receiveNotes && (
-                            <div className="text-orange-600 mt-0.5">Catatan: {item.receiveNotes}</div>
+                            <div className="text-orange-600 mt-0.5">Catatan penerima: {item.receiveNotes}</div>
                           )}
                         </td>
                         <td className="px-2 py-1.5 text-right">{item.qtyRequested}</td>
@@ -199,17 +251,29 @@ export default function InternalOrderDetailModal({ transferId, onClose, onUpdate
                           {item.qtyShipped > 0 ? item.qtyShipped : <span className="text-muted-foreground">-</span>}
                         </td>
                         <td className="px-2 py-1.5 text-right">
-                          {item.qtyReceived > 0 ? (
-                            <span className={item.qtyReceived < item.qtyShipped ? 'text-orange-600' : 'text-green-600'}>
+                          {item.qtyReceived > 0 || (received && item.qtyShipped > 0) ? (
+                            <span className={item.qtyReceived < item.qtyShipped ? 'text-orange-600 font-semibold' : 'text-green-600'}>
                               {item.qtyReceived}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </td>
+                        {received && (
+                          <td className="px-2 py-1.5 text-right">
+                            {shortQty > 0 ? (
+                              <span className="font-semibold text-orange-600">-{shortQty}</span>
+                            ) : item.qtyShipped > 0 ? (
+                              <span className="text-green-600" aria-label="cocok">✓</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-2 py-1.5 text-muted-foreground">{item.uomCode ?? '-'}</td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

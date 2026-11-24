@@ -10,6 +10,8 @@ import { filterShippedSjItems } from '@/lib/internal-transfer-sj'
 import { printGoodsReceipt } from '@/lib/print-goods-receipt'
 import { warmUpQz } from '@/lib/print-receipt'
 import { isUnfulfilled } from '@/lib/ibt-fulfillment'
+import { RECEIVED_WITH_SHORTAGE_LABEL, receiveShortQty } from '@/lib/ibt-receive-shortage'
+import ReceiveShortageNotice from '@/app/pos/(authenticated)/internal-order/_components/receive-shortage-notice'
 import { NewBadge } from '@/components/ui/new-badge'
 import type { TransferItem } from './types'
 import InternalTransferEditForm from './internal-transfer-edit-form'
@@ -123,7 +125,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Disetujui', color: 'bg-blue-100 text-blue-800' },
   PREPARING: { label: 'Sedang Disiapkan', color: 'bg-indigo-100 text-indigo-800' },
   IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-orange-100 text-orange-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-amber-100 text-amber-800' },
+  PARTIALLY_RECEIVED: { label: RECEIVED_WITH_SHORTAGE_LABEL, color: 'bg-amber-100 text-amber-800' },
   FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
 }
@@ -815,11 +817,19 @@ export function InternalTransferDetailClient({
               <> Beda dengan Nilai Dipesan karena ada barang yang tidak dikirim atau tidak sampai.</>
             )}
           </p>
-          {hasReceived && shippedValue > receivedValue && (
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-              Barang senilai Rp {(shippedValue - receivedValue).toLocaleString('id-ID')} dikirim tapi tidak diterima —
-              dikembalikan ke stok cabang pengirim, tidak ditagih.
-            </p>
+          {hasReceived && (
+            <div className="mt-2">
+              <ReceiveShortageNotice
+                items={transfer.items}
+                sourceBranchName={transfer.sourceBranchName}
+                shortageReturns={transfer.shortageReturns}
+                returnHref={
+                  transfer.convertedTransactionNumber
+                    ? `/transactions?q=${encodeURIComponent(transfer.convertedTransactionNumber)}`
+                    : undefined
+                }
+              />
+            </div>
           )}
         </div>
 
@@ -880,14 +890,22 @@ export function InternalTransferDetailClient({
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Request</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Kirim</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Terima</th>
+              {hasReceived && (
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Selisih</th>
+              )}
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Alasan Selisih</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Satuan</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Est. HPP</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {transfer.items.map((item) => (
-              <tr key={item.id} className="hover:bg-muted/20">
+            {transfer.items.map((item) => {
+              const shortQty = hasReceived ? receiveShortQty(item) : 0
+              return (
+              <tr
+                key={item.id}
+                className={shortQty > 0 ? 'bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30' : 'hover:bg-muted/20'}
+              >
                 <td className="px-4 py-3 font-medium text-foreground">
                   {item.productName ?? '-'}
                   {item.qtyRequested === 0 && (
@@ -929,14 +947,25 @@ export function InternalTransferDetailClient({
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {item.qtyReceived > 0 ? (
-                    <span className={item.qtyReceived < item.qtyShipped ? 'text-orange-600' : 'text-green-600'}>
+                  {item.qtyReceived > 0 || (hasReceived && item.qtyShipped > 0) ? (
+                    <span className={item.qtyReceived < item.qtyShipped ? 'text-orange-600 font-semibold' : 'text-green-600'}>
                       {item.qtyReceived}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
                 </td>
+                {hasReceived && (
+                  <td className="px-4 py-3 text-right">
+                    {shortQty > 0 ? (
+                      <span className="font-semibold text-orange-600">-{shortQty}</span>
+                    ) : item.qtyShipped > 0 ? (
+                      <span className="text-green-600" aria-label="cocok">✓</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm">
                   {item.receiveNotes ? (
                     <span className="text-orange-600">{item.receiveNotes}</span>
@@ -951,7 +980,8 @@ export function InternalTransferDetailClient({
                   Rp {Number(item.costPriceAtTransfer).toLocaleString('id-ID')}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -1339,7 +1369,7 @@ export function InternalTransferDetailClient({
       {transfer.status === 'PARTIALLY_RECEIVED' && (
         <div className="bg-card border border-amber-200 rounded-lg p-6 print:hidden">
           <p className="text-sm text-amber-700 font-medium mb-1">
-            Transfer selesai dengan penerimaan parsial.
+            Transfer selesai — ada selisih terima.
           </p>
           <p className="text-xs text-muted-foreground">
             Stok cabang tujuan sudah diperbarui sesuai qty yang diterima; selisihnya dikembalikan ke stok cabang pengirim. Lihat kolom Qty Terima dan Alasan di tabel item di atas.
