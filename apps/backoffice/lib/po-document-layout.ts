@@ -28,6 +28,8 @@ export type PoDocumentData = {
   items: PoDocumentItem[]
   /** Tampilkan kolom harga satuan, subtotal, dan total. */
   showPrices?: boolean
+  /** Diskon rupiah atas total PO; tampil bersama harga. */
+  discountAmount?: number
   printedAt?: Date | string
 }
 
@@ -76,6 +78,7 @@ export function buildPoDocumentPages(data: PoDocumentData): PoDocumentPage[] {
   const subtotalText = (i: PoDocumentItem) => (hasPrice(i) ? fmt(subtotalOf(i)) : '-')
   const pendingCount = data.items.filter((i) => !hasPrice(i)).length
   const total = data.items.filter(hasPrice).reduce((sum, i) => sum.plus(subtotalOf(i)), new Big(0))
+  const discount = Math.max(0, data.discountAmount ?? 0)
 
   const noW = Math.max(2, String(data.items.length).length)
   const qtyW = Math.max(3, ...data.items.map((i) => fmt(i.qtyOrdered).length))
@@ -134,9 +137,15 @@ export function buildPoDocumentPages(data: PoDocumentData): PoDocumentPage[] {
   const half = Math.floor(width / 2)
   const lastFooter: DeliveryNoteLine[] = [
     { text: rule },
-    withPrice
-      ? { text: leftRight(`Jumlah: ${data.items.length} produk`, `TOTAL: Rp ${fmt(Number(total))}`, width), bold: true }
-      : { text: padEnd(`Jumlah: ${data.items.length} produk`, width) },
+    ...(withPrice && discount > 0
+      ? [
+          { text: leftRight(`Jumlah: ${data.items.length} produk`, `Subtotal: Rp ${fmt(Number(total))}`, width) },
+          { text: padStart(`Diskon: -Rp ${fmt(discount)}`, width) },
+          { text: padStart(`TOTAL: Rp ${fmt(Math.max(0, Number(total) - discount))}`, width), bold: true },
+        ]
+      : withPrice
+        ? [{ text: leftRight(`Jumlah: ${data.items.length} produk`, `TOTAL: Rp ${fmt(Number(total))}`, width), bold: true }]
+        : [{ text: padEnd(`Jumlah: ${data.items.length} produk`, width) }]),
     { text: '' },
     { text: center('Dipesan oleh', half) + center('Supplier', width - half) },
   ]

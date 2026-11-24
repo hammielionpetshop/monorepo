@@ -5,6 +5,7 @@ import PoProductPicker, { type PoPickChoice, type PoProduct } from './po-product
 import { defaultUnitCost, type PoProductUom } from './po-item-defaults';
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input';
 import { NewBadge } from '@/components/ui/new-badge';
+import { PoDiscountSummary } from './po-discount-field';
 
 /** Pengingat modal terakhir satuan terpilih (dari Manajemen Harga), di samping kolom harga. */
 function lastCostLabel(uoms: PoProductUom[], uomId: number): string {
@@ -90,6 +91,7 @@ export function CreatePODialog({
   const [targetDeliveryDate, setTargetDeliveryDate] = useState('');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [items, setItems] = useState<POItem[]>([]);
+  const [discount, setDiscount] = useState('');
   const [keepCurrentCost, setKeepCurrentCost] = useState(() => canReturnedGoods && initial?.keepCurrentCost === true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -185,6 +187,9 @@ export function CreatePODialog({
       }
     }
 
+    const discountAmount = Number(discount) || 0;
+    if (discountAmount > 0 && discountAmount >= totalAmount) return setError('Diskon harus lebih kecil dari subtotal PO');
+
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/bo/purchase-orders', {
@@ -204,6 +209,7 @@ export function CreatePODialog({
           notes: notes.trim() || null,
           targetDeliveryDate: targetDeliveryDate || null,
           ...(keepCurrentCost && { keepCurrentCost: true }),
+          ...(discountAmount > 0 && { discountAmount }),
         }),
       });
 
@@ -453,11 +459,8 @@ export function CreatePODialog({
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between gap-4">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Total: </span>
-              <span className="font-semibold text-foreground text-base">
-                Rp {totalAmount.toLocaleString('id-ID')}
-              </span>
+            <div className="text-sm space-y-1">
+              <PoDiscountSummary subtotal={totalAmount} discount={discount} onDiscountChange={setDiscount} />
               {pendingPriceCount > 0 && (
                 <span className="ml-2 text-xs font-medium text-amber-700 dark:text-amber-400">
                   {pendingPriceCount} item harga menyusul

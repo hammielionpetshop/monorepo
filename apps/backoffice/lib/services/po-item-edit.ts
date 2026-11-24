@@ -12,6 +12,7 @@ import {
 } from '../db'
 import type { Tx } from '../stock-adjustment'
 import { PO_ITEM_EDITABLE_STATUSES, canEditPoItems, needsReapproval } from './po-item-edit-rules'
+import { poDiscountError, poNetTotal } from '../po-discount'
 
 /** Ubah isi PO Supplier sebelum penerimaan disetujui (spec 2026-11-06-po-edit-items-design). */
 export class PoItemEditError extends Error {
@@ -45,7 +46,13 @@ const keyOf = (i: { productId: number; uomId: number }) => `${i.productId}:${i.u
 
 export async function editPoItems(
   tx: Tx,
-  { poId, items, actor }: { poId: number; items: PoItemInput[]; actor: PoItemEditActor },
+  { poId, items, discountAmount, actor }: {
+    poId: number
+    items: PoItemInput[]
+    /** Diskon rupiah atas total PO; kosong = diskon lama dipertahankan. */
+    discountAmount?: number
+    actor: PoItemEditActor
+  },
 ): Promise<PoItemEditResult> {
   if (new Set(items.map(keyOf)).size !== items.length) {
     throw new PoItemEditError('Produk + satuan yang sama muncul dua kali', 400)
@@ -55,7 +62,12 @@ export async function editPoItems(
     ? eq(purchaseOrders.id, poId)
     : and(eq(purchaseOrders.id, poId), eq(purchaseOrders.branchId, actor.branchId))
   const [po] = await tx
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, poNumber: purchaseOrders.poNumber })
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      poNumber: purchaseOrders.poNumber,
+      discountAmount: purchaseOrders.discountAmount,
+    })
     .from(purchaseOrders)
     .where(where)
     .for('update')
@@ -120,10 +132,14 @@ export async function editPoItems(
   const oldKeys = new Set(old.map(keyOf))
   const toInsert = items.filter((i) => !oldKeys.has(keyOf(i)))
 
-  const totalAmount = Math.round(
+  const grossAmount = Math.round(
     items.reduce((sum, i) => sum.plus(new Big(i.qtyOrdered).times(i.unitCost)), new Big(0)).toNumber(),
   )
-  const changed = toDelete.length + toUpdate.length + toInsert.length > 0
+  const discount = discountAmount ?? po.discountAmount
+  const discountError = poDiscountError(discount, grossAmount)
+  if (discountError) throw new PoItemEditError(discountError, 400)
+  const totalAmount = poNetTotal(grossAmount, discount)
+  const changed = toDelete.length + toUpdate.length + toInsert.length > 0 || discount !== po.discountAmount
   if (!changed) return { changed: false, totalAmount, status: po.status, backToApproval: false }
 
   if (toDelete.length) await tx.delete(purchaseOrderItems).where(inArray(purchaseOrderItems.id, toDelete))
@@ -146,6 +162,7 @@ export async function editPoItems(
     .update(purchaseOrders)
     .set({
       totalAmount,
+      discountAmount: discount,
       updatedAt: new Date(),
       ...(backToApproval ? { status, approvedById: null, approvedAt: null } : {}),
     })
@@ -158,9 +175,10 @@ export async function editPoItems(
     recordId: String(poId),
     oldData: JSON.stringify({
       status: po.status,
+      discountAmount: po.discountAmount,
       items: old.map((o) => ({ productId: o.productId, uomId: o.uomId, qtyOrdered: o.qtyOrdered, unitCost: o.unitCost })),
     }),
-    newData: JSON.stringify({ status, poNumber: po.poNumber, items }),
+    newData: JSON.stringify({ status, poNumber: po.poNumber, discountAmount: discount, items }),
   })
 
   return { changed, totalAmount, status, backToApproval }

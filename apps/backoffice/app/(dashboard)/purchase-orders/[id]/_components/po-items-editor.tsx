@@ -5,6 +5,7 @@ import PoProductPicker, { type PoPickChoice, type PoProduct } from '../../_compo
 import { digitsOnly, formatRupiahInput, parseRupiahInput } from '@/lib/number-input';
 import { NewBadge } from '@/components/ui/new-badge';
 import { needsReapproval } from '@/lib/services/po-item-edit-rules';
+import { PoDiscountSummary } from '../../_components/po-discount-field';
 
 export interface EditableItem {
   productId: number;
@@ -29,17 +30,21 @@ export function PoItemsEditor({
   branchId,
   status,
   initialItems,
+  initialDiscount = 0,
   onSaved,
 }: {
   poId: number;
   branchId: number;
   status: string;
   initialItems: EditableItem[];
+  /** Diskon rupiah PO yang tersimpan. */
+  initialDiscount?: number;
   onSaved: (message: string) => void;
 }) {
   const isDraft = status === 'DRAFT';
   const [open, setOpen] = useState(isDraft);
   const [items, setItems] = useState(initialItems);
+  const [discount, setDiscount] = useState(initialDiscount > 0 ? String(initialDiscount) : '');
   const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -71,6 +76,8 @@ export function PoItemsEditor({
     if (items.some((i) => !(Number(i.qty) > 0))) { setError('Jumlah tiap barang harus lebih dari 0.'); return; }
     const short = items.find((i) => Number(i.qty) < i.qtyReceived);
     if (short) { setError(`Qty ${short.productName} tidak boleh kurang dari yang sudah diterima (${short.qtyReceived}).`); return; }
+    const discountAmount = Number(discount) || 0;
+    if (discountAmount > 0 && discountAmount >= total) { setError('Diskon harus lebih kecil dari subtotal PO.'); return; }
     if (backToApproval && !window.confirm('PO ini sudah disetujui. Setelah disimpan, PO kembali ke "Menunggu Persetujuan" dan harus disetujui ulang. Lanjutkan?')) return;
     setSaving(true);
     try {
@@ -79,6 +86,7 @@ export function PoItemsEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: items.map((i) => ({ productId: i.productId, uomId: i.uomId, qtyOrdered: Number(i.qty), unitCost: parseRupiahInput(i.unitCost) })),
+          discountAmount,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -196,13 +204,13 @@ export function PoItemsEditor({
       </div>
 
       <div className="px-6 py-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm">Total: <span className="font-semibold">Rp {total.toLocaleString('id-ID')}</span></p>
+        <PoDiscountSummary subtotal={total} discount={discount} onDiscountChange={setDiscount} />
         <div className="flex flex-wrap items-center gap-3">
           {error && <p className="text-xs text-destructive">{error}</p>}
           {!isDraft && (
             <button
               type="button"
-              onClick={() => { setItems(initialItems); setError(''); setOpen(false); }}
+              onClick={() => { setItems(initialItems); setDiscount(initialDiscount > 0 ? String(initialDiscount) : ''); setError(''); setOpen(false); }}
               disabled={saving}
               className="px-4 py-2 border border-border text-sm rounded-md hover:bg-muted/50 disabled:opacity-50"
             >
