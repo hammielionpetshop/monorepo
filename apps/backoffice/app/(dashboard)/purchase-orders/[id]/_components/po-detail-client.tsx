@@ -21,7 +21,7 @@ import { PoUnloadingPanel, type PoAttachment, type PoUnloadingInfo } from './po-
 import { PoItemsEditor } from './po-items-editor';
 import { canEditPoItems } from '@/lib/services/po-item-edit-rules';
 import { CreatePODialog } from '../../_components/create-po-dialog';
-import { poLineQty } from '@/lib/po-total';
+import { poLineQty, poReceivedNetQty, poReceivedTotal } from '@/lib/po-total';
 import { PoCostRestoreDialog } from './po-cost-restore-dialog';
 
 const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
@@ -281,6 +281,13 @@ export function PODetailClient({
   const canEditItems = canManage && canEditPoItems(po.status, role);
   const totalReceived = po.items.reduce((s, i) => s + parseFloat(i.qtyReceived || '0'), 0);
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
+  // Setelah ada penerimaan, nilai yang ditonjolkan = barang yang benar-benar diterima (dasar
+  // hutang supplier), bukan qty pesan — agar barang yang kurang datang tidak terlihat ikut ditagih.
+  const showReceivedValue = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
+  const receivedTotal = poReceivedTotal(po.items, po.discountAmount);
+  const receivedPricePending = po.items.some(i => poReceivedNetQty(i) > 0 && isPricePending(i));
+  const shortItems = po.items.filter(i => Number(i.qtyReceived) < Number(i.qtyOrdered));
+  const hasDamaged = po.items.some(i => Number(i.qtyDamaged) > 0);
   const printingLog = po.receivingLogs.find(log => log.id === printingLogId) ?? null;
 
   const dateOnly = { day: '2-digit', month: '2-digit', year: 'numeric' } as const;
@@ -389,8 +396,23 @@ export function PODetailClient({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-muted-foreground">Total PO</p>
-            <p className="text-2xl font-bold">Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}</p>
+            {showReceivedValue ? (
+              <>
+                <p className="text-xs text-muted-foreground">Total Diterima</p>
+                <p className="text-2xl font-bold">
+                  {receivedPricePending && '≈ '}Rp {receivedTotal.toLocaleString('id-ID')}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Total pesanan Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}
+                  {receivedPricePending && ' · sebagian harga menyusul'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">Total PO</p>
+                <p className="text-2xl font-bold">Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}</p>
+              </>
+            )}
             {po.discountAmount > 0 && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 sudah dipotong diskon <span className="font-medium text-foreground">Rp {po.discountAmount.toLocaleString('id-ID')}</span>
@@ -571,6 +593,34 @@ export function PODetailClient({
             </span>
           )}
         </div>
+        {showReceivedValue && (
+          <div className="px-6 py-4 border-b border-border bg-blue-500/5 text-sm space-y-1.5">
+            <p className="font-medium text-foreground">
+              Cara membaca angka di PO ini <NewBadge feature="fitur/po-total-diterima" />
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">Total Diterima</span> = nilai barang yang benar-benar
+                datang dan masuk stok. <span className="font-medium text-foreground">Angka inilah yang dibayar ke supplier.</span>
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Total pesanan</span> = nilai semua barang yang dipesan.
+                Hanya pembanding, bukan yang dibayar.
+              </li>
+              {shortItems.length > 0 && (
+                <li className="text-orange-700 dark:text-orange-400">
+                  Ada {shortItems.length} barang yang datang <span className="font-medium">kurang</span> dari pesanan
+                  (lihat tanda &quot;kurang&quot; di kolom Qty Terima). Barang yang kurang tidak menambah stok dan tidak ikut dibayar.
+                </li>
+              )}
+              {hasDamaged && <li>Barang rusak tidak masuk stok dan tidak ikut dibayar.</li>}
+              <li>
+                Kalau barang sebenarnya datang lengkap tetapi jumlah terima salah ketik, jangan dibayar di luar sistem —
+                laporkan ke Owner/GM supaya dikoreksi.
+              </li>
+            </ul>
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
@@ -579,7 +629,9 @@ export function PODetailClient({
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Order</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Terima</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Harga Beli</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Subtotal</th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                {showReceivedValue ? 'Subtotal Diterima' : 'Subtotal'}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -591,12 +643,17 @@ export function PODetailClient({
                   {parseFloat(item.qtyOrdered).toFixed(0)} {item.uomCode}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {parseFloat(item.qtyReceived) > 0 ? (
+                  {parseFloat(item.qtyReceived) > 0 || showReceivedValue ? (
                     <span className={parseFloat(item.qtyReceived) < parseFloat(item.qtyOrdered) ? 'text-orange-600' : 'text-green-600'}>
                       {parseFloat(item.qtyReceived).toFixed(0)} {item.uomCode}
                       {parseFloat(item.qtyReceived) > parseFloat(item.qtyOrdered) && (
                         <span className="ml-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                           (lebih {(parseFloat(item.qtyReceived) - parseFloat(item.qtyOrdered)).toFixed(0)})
+                        </span>
+                      )}
+                      {showReceivedValue && parseFloat(item.qtyReceived) < parseFloat(item.qtyOrdered) && (
+                        <span className="ml-1 text-xs font-medium">
+                          (kurang {(parseFloat(item.qtyOrdered) - parseFloat(item.qtyReceived)).toFixed(0)})
                         </span>
                       )}
                     </span>
@@ -614,7 +671,7 @@ export function PODetailClient({
                 <td className="px-4 py-3 text-right font-medium">
                   {isPricePending(item)
                     ? '-'
-                    : `Rp ${(poLineQty(item) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
+                    : `Rp ${((showReceivedValue ? poReceivedNetQty(item) : poLineQty(item)) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
                 </td>
               </tr>
             ))}
