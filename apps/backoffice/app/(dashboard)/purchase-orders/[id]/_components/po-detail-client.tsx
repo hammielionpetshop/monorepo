@@ -21,7 +21,7 @@ import { PoUnloadingPanel, type PoAttachment, type PoUnloadingInfo } from './po-
 import { PoItemsEditor } from './po-items-editor';
 import { canEditPoItems } from '@/lib/services/po-item-edit-rules';
 import { CreatePODialog } from '../../_components/create-po-dialog';
-import { poLineQty } from '@/lib/po-total';
+import { poLineQty, poReceivedNetQty, poReceivedTotal } from '@/lib/po-total';
 import { PoCostRestoreDialog } from './po-cost-restore-dialog';
 
 const CANCELLABLE_STATUSES = ['DRAFT', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'];
@@ -281,6 +281,11 @@ export function PODetailClient({
   const canEditItems = canManage && canEditPoItems(po.status, role);
   const totalReceived = po.items.reduce((s, i) => s + parseFloat(i.qtyReceived || '0'), 0);
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
+  // Setelah ada penerimaan, nilai yang ditonjolkan = barang yang benar-benar diterima (dasar
+  // hutang supplier), bukan qty pesan — agar barang yang kurang datang tidak terlihat ikut ditagih.
+  const showReceivedValue = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
+  const receivedTotal = poReceivedTotal(po.items, po.discountAmount);
+  const receivedPricePending = po.items.some(i => poReceivedNetQty(i) > 0 && isPricePending(i));
   const printingLog = po.receivingLogs.find(log => log.id === printingLogId) ?? null;
 
   const dateOnly = { day: '2-digit', month: '2-digit', year: 'numeric' } as const;
@@ -389,8 +394,23 @@ export function PODetailClient({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-muted-foreground">Total PO</p>
-            <p className="text-2xl font-bold">Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}</p>
+            {showReceivedValue ? (
+              <>
+                <p className="text-xs text-muted-foreground">Total Diterima</p>
+                <p className="text-2xl font-bold">
+                  {receivedPricePending && '≈ '}Rp {receivedTotal.toLocaleString('id-ID')}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Total pesanan Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}
+                  {receivedPricePending && ' · sebagian harga menyusul'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">Total PO</p>
+                <p className="text-2xl font-bold">Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}</p>
+              </>
+            )}
             {po.discountAmount > 0 && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 sudah dipotong diskon <span className="font-medium text-foreground">Rp {po.discountAmount.toLocaleString('id-ID')}</span>
@@ -579,7 +599,9 @@ export function PODetailClient({
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Order</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Terima</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Harga Beli</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Subtotal</th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                {showReceivedValue ? 'Subtotal Diterima' : 'Subtotal'}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -614,7 +636,7 @@ export function PODetailClient({
                 <td className="px-4 py-3 text-right font-medium">
                   {isPricePending(item)
                     ? '-'
-                    : `Rp ${(poLineQty(item) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
+                    : `Rp ${((showReceivedValue ? poReceivedNetQty(item) : poLineQty(item)) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
                 </td>
               </tr>
             ))}
