@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.107.141] - 2026-11-25
+
+### Changed
+- Detail PO: setelah barang diterima, angka besar di kanan atas kini **Total Diterima** (nilai barang yang benar-benar masuk, sama dengan dasar tagihan supplier) dengan total pesanan sebagai keterangan kecil; kolom Subtotal ikut dihitung dari qty diterima. Barang yang kurang datang tidak lagi tampak seperti ikut ditagih penuh.
+- Detail PO: kotak **Cara membaca angka di PO ini** menjelaskan Total Diterima vs Total pesanan dengan bahasa sederhana, dan barang yang datang kurang ditandai "kurang N" di kolom Qty Terima.
+
 ## [1.107.140] - 2026-11-25
 
 ### Added
