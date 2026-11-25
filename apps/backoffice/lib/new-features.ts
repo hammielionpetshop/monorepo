@@ -30,7 +30,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   'fitur/riwayat-satuan': '2026-11-19', // tab Riwayat Satuan di detail produk (samakan dengan tanggal rilis saat merge)
   'fitur/po-diskon': '2026-11-25', // kolom Diskon (Rp) di Buat/Edit PO & Cocokkan Harga Faktur (rilis produksi 1.107.140)
-  'fitur/po-total-diterima': '2026-11-25', // penjelasan Total Diterima vs Total pesanan di detail PO (samakan dengan tanggal rilis saat merge)
+  'fitur/po-total-diterima': '2026-11-25', // Total Diterima + penjelasan Total Diterima vs Total pesanan di detail PO (rilis produksi 1.107.141)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)
