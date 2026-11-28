@@ -1,6 +1,6 @@
 # F3-5 Menu Panduan: Pedoman Lapor + Panduan Karyawan — rancangan
 
-Status: **konsep, menunggu persetujuan owner** atas keputusan §8. Belum dikoding.
+Status: **disetujui owner 2026-11-28** ("ok", 6 keputusan §8 sesuai saran). F3-5a mulai dikoding.
 
 Sumber: PRD Fase 3 `04-panduan-dan-pedoman-lapor.md` (✅ isi awal: Panduan disusun baru dari v3, Pedoman
 dari baris `guideLine` di kode); v3 SIS-06, KAR-57, KAR-79, BER-L10, BER-L22, BER-L26, KAR-L34, KAR-L35,
@@ -137,7 +137,7 @@ Panduan BO/POS (web lain).
   lalu **Kembalikan** ke versi pertama; sembunyikan → akun kasir tidak melihat; Aturan Potongan ada di daftar.
 - **F3-5c**: baca draf tersembunyi, sunting, tampilkan beberapa halaman.
 
-## 8. Keputusan owner (menunggu)
+## 8. Keputusan owner (disetujui 2026-11-28, semua sesuai saran)
 
 1. **Pecah tiga langkah** F3-5a Pedoman → F3-5b Panduan → F3-5c isi awal. Saran 💡: ya.
 2. **Siapa melihat halaman panduan**: semua orang melihat semua halaman; tiap halaman punya penanda "untuk
