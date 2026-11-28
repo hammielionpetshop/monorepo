@@ -36,11 +36,17 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   **disetujui owner 2026-11-28** ("ok saya setuju", 4 keputusan §8 sesuai saran). **F3-4a** (`feat/hris-f3-4a-queue-kinds`,
   tanpa migrasi: `queue.kind` menggabung kartu sejenis jadi satu jendela, 26 jenis baru §3.1 dengan syarat waktu dari modul,
   naik ke Pemilik/GM lewat `liveHolderIds` bila penerima tidak ada/cuti > 2 hari, `logisticsQueueAges`, `useQueueHold` di
-  Laporan Pulang/langkah trip driver + Tutup/Bayar slip) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging,
-  menunggu uji owner** (spec §7 F3-4a). Tes aturan 16 lulus; SQL baru dicoba di DB lokal; typecheck root lulus; klaim dilepas.
+  Laporan Pulang/langkah trip driver + Tutup/Bayar slip) terintegrasi ke dev_hris dan staging 2026-11-28 — **lolos uji owner di staging
+  2026-11-28** (deployment `3a9b84ea`; owner: "ok sudah aman", skenario tidak dirinci); ikut rilis HRIS. Tes aturan 16 lulus; SQL baru dicoba di DB lokal; typecheck root lulus; klaim dilepas.
   Catatan implementasi: pemegang hak tidak dibedakan per cabang (cukup satu di mana pun); jendela gabungan tanpa kata benda
-  (mis. kasbon diperiksa + diputuskan) menjajarkan judul kartunya. Sesudah lolos: **F3-4b** (kartu baru dari pengingat lonceng,
-  spec §5) di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
+  (mis. kasbon diperiksa + diputuskan) menjajarkan judul kartunya. **F3-4b** (`feat/hris-f3-4b-new-cards`, tanpa migrasi,
+  spec §5: kartu + jendela `payslip-held` slip belum ditutup per periode/minggu dengan siap/tertahan → HR + Pemilik/GM,
+  `payslip-unpaid` slip lewat jatuh bayar belum Dibayar → Pemilik/GM, `end-report` Laporan Pulang belum diisi → driver; lonceng
+  lama tetap) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging, menunggu uji owner** (spec §7 F3-4b). Tes aturan
+  18 lulus; typecheck root lulus; fungsi kartu baru belum dicoba ke DB lokal (Docker mati); klaim dilepas. Catatan implementasi:
+  penyelesai penahan slip (HOLD_LABELS) semuanya HR/Pemilik/GM, jadi tidak ada penerima tambahan; kartu tidak membuat kerangka
+  slip; mode uji staging membuka jendela tutup periode lalu. Sesudah lolos: **F3-4c** (sekali baca, migrasi hris `0062`, spec §6)
+  di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
