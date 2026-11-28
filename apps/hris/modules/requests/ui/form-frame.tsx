@@ -6,10 +6,11 @@ import { REQUEST_TYPES, type RequestTypeDefinition, type RequestTypeKey } from '
 
 /**
  * BER-L06 kerangka isian: kepala (nama jenis, baris pedoman lapor KAR-79, batas waktu) milik Mesin Pengajuan;
- * isi khasnya disediakan modul jenisnya sebagai `children`.
+ * isi khasnya disediakan modul jenisnya sebagai `children`. `guideLine` dibaca halaman dari Pedoman Lapor
+ * (modul guides, spec F3-5 §2.1); null = jenis ini tanpa baris aktif, baris pedoman tidak ditampilkan.
  */
-export function RequestFormFrame({ typeKey, resubmitOf, children }: {
-  typeKey: RequestTypeKey; resubmitOf?: number | null; children: ReactNode;
+export function RequestFormFrame({ typeKey, guideLine, resubmitOf, children }: {
+  typeKey: RequestTypeKey; guideLine: string | null; resubmitOf?: number | null; children: ReactNode;
 }) {
   const type: RequestTypeDefinition = REQUEST_TYPES[typeKey];
   return (
@@ -18,7 +19,7 @@ export function RequestFormFrame({ typeKey, resubmitOf, children }: {
       <QueueHold />
       <Card>
         <h2 className="text-lg font-semibold">{type.label}</h2>
-        <p className="mt-1 text-sm">{type.guideLine}</p>
+        {guideLine && <p className="mt-1 text-sm">{guideLine}</p>}
         <p className="mt-1 text-xs text-ink-muted">{type.deadline.label} Lampiran: {type.attachments.rule.toLowerCase()}.</p>
       </Card>
       {resubmitOf && <Alert>Ajukan ulang dari PJ-{resubmitOf}: isian lama sudah terisi. Perbaiki lalu kirim.</Alert>}

@@ -4,6 +4,7 @@ import { getRequestActor } from '@/lib/authz';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { NoAccess } from '@/modules/access';
 import { AbsenceFormScreen, absenceFormScreen } from '@/modules/attendance';
+import { reportGuideLine } from '@/modules/guides';
 import { RequestFormFrame, resubmitSource } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export default async function AbsenceFormPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader title="Ajukan Izin, Sakit, atau Cuti" />
-      <RequestFormFrame typeKey="absence" resubmitOf={source?.fromId}>
+      <RequestFormFrame typeKey="absence" guideLine={await reportGuideLine('absence')} resubmitOf={source?.fromId}>
         {data.allowed
           ? <AbsenceFormScreen {...data} prefill={source?.values ?? null} resubmittedFromId={source?.fromId ?? null} presetKind={presetKind} />
           : <p className="text-sm text-ink-muted">{data.problem}</p>}

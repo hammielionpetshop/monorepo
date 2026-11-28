@@ -10,3 +10,4 @@ export * from './payroll';
 export * from './advances';
 export * from './attention';
 export * from './announcements';
+export * from './guides';

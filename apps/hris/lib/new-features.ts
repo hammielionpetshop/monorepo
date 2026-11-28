@@ -9,6 +9,9 @@
  *   rilis produksi di branch rilis.
  */
 export const NEW_FEATURES: Record<string, string> = {
+  // F3-5a Pedoman Lapor (tayang staging 2026-11-28)
+  '/guides/report': '2026-11-28',
+  '/settings/report-guides': '2026-11-28',
   // F3-3a Papan Perubahan Aturan (tayang staging 2026-11-15)
   '/rule-board': '2026-11-15',
   'fitur/papan-perubahan-aturan': '2026-11-15', // tab Perubahan aturan di Kantor › Pengumuman + kartu Beranda

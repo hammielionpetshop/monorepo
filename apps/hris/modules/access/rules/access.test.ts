@@ -56,6 +56,11 @@ describe('can()', () => {
     expect(hasAction(a, 'position.grants.update')).toBe(false);
   });
 
+  it('report_guide.manage (Ubah Pedoman Lapor, spec F3-5 §2.1) hanya untuk Pemilik/GM', () => {
+    expect(hasAction(actor({ grants: { 'report_guide.manage': 'ALL' } }), 'report_guide.manage')).toBe(false);
+    expect(hasAction(actor({ fullAccess: true }), 'report_guide.manage')).toBe(true);
+  });
+
   it('KAR-72: tindakan terlarang atas diri sendiri ditolak, termasuk untuk Pemilik', () => {
     const hr = actor({ grants: { 'placement.record': 'ALL', 'employee.activation': 'ALL' } });
     expect(can(hr, 'placement.record', { personId: 10 })).toBe(false);

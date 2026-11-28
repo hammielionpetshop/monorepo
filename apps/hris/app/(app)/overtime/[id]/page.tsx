@@ -4,6 +4,7 @@ import { getRequestActor } from '@/lib/authz';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { NoAccess } from '@/modules/access';
 import { OvertimeClaimForm, claimFormScreen } from '@/modules/attendance';
+import { reportGuideLine } from '@/modules/guides';
 import { RequestFormFrame, resubmitSource } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ export default async function OvertimeClaimPage({ params, searchParams }: { para
   return (
     <>
       <PageHeader title="Klaim Lembur" />
-      <RequestFormFrame typeKey="overtime_claim" resubmitOf={source?.fromId}>
+      <RequestFormFrame typeKey="overtime_claim" guideLine={await reportGuideLine('overtime_claim')} resubmitOf={source?.fromId}>
         {data.allowed
           ? <OvertimeClaimForm day={data.day} orderers={data.orderers} resubmit={source?.values ?? null} resubmittedFromId={source?.fromId ?? null} />
           : <p className="text-sm text-ink-muted">{data.problem}</p>}

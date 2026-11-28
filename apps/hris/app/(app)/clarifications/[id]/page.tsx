@@ -4,6 +4,7 @@ import { getRequestActor } from '@/lib/authz';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { NoAccess } from '@/modules/access';
 import { ExplainFormScreen, explainFormScreen } from '@/modules/attendance';
+import { reportGuideLine } from '@/modules/guides';
 import { RequestFormFrame, resubmitSource } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function ExplainPage({ params, searchParams }: {
   return (
     <>
       <PageHeader title={data.allowed && data.event.late ? 'Ajukan Terlambat' : 'Isi Penjelasan'} />
-      <RequestFormFrame typeKey="clarification" resubmitOf={source?.fromId}>
+      <RequestFormFrame typeKey="clarification" guideLine={await reportGuideLine('clarification')} resubmitOf={source?.fromId}>
         {data.allowed
           ? <ExplainFormScreen {...data} resubmit={source?.values ?? null} resubmittedFromId={source?.fromId ?? null} />
           : <p className="text-sm text-ink-muted">{data.problem}</p>}

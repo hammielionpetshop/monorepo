@@ -155,6 +155,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/settings/general', label: 'Pengaturan', icon: 'sliders', action: 'settings.view' },
       { href: '/settings/go-live-readiness', label: 'Siap Pindah', icon: 'list', action: 'migration.readiness_view' },
       { href: '/settings/request-types', label: 'Jenis Pengajuan', icon: 'list', action: 'request_types.view' },
+      { href: '/settings/report-guides', label: 'Pedoman Lapor', icon: 'list', action: 'report_guide.manage' },
       { href: '/settings/salary-components', label: 'Jenis Komponen Gaji', icon: 'list', action: ['salary.view', 'salary_components.manage'] },
       { href: '/settings/standard-pay', label: 'Gaji Standar', icon: 'sliders', action: ['salary.view', 'salary_standard.manage'] },
       { href: '/settings/deductions-overtime', label: 'Potongan & Lembur', icon: 'sliders', action: ['settings.view', 'settings.manage'] },
@@ -174,6 +175,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/rule-board', label: 'Papan Perubahan Aturan', icon: 'bell' },
       { href: '/guides/deduction-rules', label: 'Aturan Potongan', icon: 'list' },
+      { href: '/guides/report', label: 'Pedoman Lapor', icon: 'list' },
     ],
   },
   {

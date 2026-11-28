@@ -183,7 +183,7 @@ export async function waitingSummary(actor: Actor | null): Promise<WaitingSummar
 
 export type RequestDetail = {
   card: RequestCard;
-  type: { label: string; guideLine: string; confidential: boolean; attachmentRule: string };
+  type: { label: string; confidential: boolean; attachmentRule: string };
   version: number;
   decisionReason: string | null;
   decidedAt: string | null;
@@ -228,7 +228,7 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
     : null;
   return {
     card: toCard(row, people, actor, overdue, new Date()),
-    type: { label: type.label, guideLine: type.guideLine, confidential: type.confidential, attachmentRule: type.attachments.rule },
+    type: { label: type.label, confidential: type.confidential, attachmentRule: type.attachments.rule },
     version: row.version,
     decisionReason: row.decisionReason,
     decidedAt: row.decidedAt?.toISOString() ?? null,
@@ -291,8 +291,11 @@ export async function resubmitSource(actor: Actor | null, id: number, handlers: 
   return handler ? { typeKey: row.typeKey, values: await handler.resubmitValues(id), fromId: id } : null;
 }
 
-/** Layar Jenis Pengajuan (BER-L42): penyetuju dibaca dari Hak Akses Jabatan. */
-export function requestTypeRows(positionNamesWith: (action: string) => string[]) {
+/**
+ * Layar Jenis Pengajuan (BER-L42): penyetuju dibaca dari Hak Akses Jabatan; `guideLines` = baris Pedoman Lapor
+ * aktif per jenis (modul guides, spec F3-5 §2.1).
+ */
+export function requestTypeRows(positionNamesWith: (action: string) => string[], guideLines: ReadonlyMap<string, string>) {
   return REQUEST_TYPE_KEYS.map((key) => {
     const type: RequestTypeDefinition = REQUEST_TYPES[key];
     return {
@@ -304,7 +307,7 @@ export function requestTypeRows(positionNamesWith: (action: string) => string[])
       attachments: `${type.attachments.label} — ${type.attachments.rule}`,
       confidential: type.confidential,
       cancelAfterApproval: type.cancelAfterApproval,
-      guideLine: type.guideLine,
+      guideLine: guideLines.get(key) ?? null,
     };
   });
 }

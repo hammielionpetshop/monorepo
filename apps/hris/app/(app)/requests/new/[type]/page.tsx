@@ -5,6 +5,7 @@ import { getRequestActor } from '@/lib/authz';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { NoAccess, can } from '@/modules/access';
 import { IdentityChangeForm, ownIdentityValues } from '@/modules/employees';
+import { reportGuideLine } from '@/modules/guides';
 import {
   REQUEST_TYPES, RequestFormFrame, isRequestTypeKey, openRequestFor, requestNumber, resubmitSource, type RequestTypeDefinition,
 } from '@/modules/requests';
@@ -31,7 +32,7 @@ export default async function RequestFormPage({ params, searchParams }: {
   return (
     <>
       <PageHeader title="Ajukan" />
-      <RequestFormFrame typeKey={type} resubmitOf={source?.fromId}>
+      <RequestFormFrame typeKey={type} guideLine={await reportGuideLine(type)} resubmitOf={source?.fromId}>
         {open ? (
           <Alert tone="warn" title="Masih ada pengajuan yang menunggu">
             <Link className="text-brand-700" href={`/requests/${open}`}>{requestNumber(open)}</Link> belum diputuskan.

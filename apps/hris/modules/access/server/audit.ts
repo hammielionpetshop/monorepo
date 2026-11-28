@@ -1,5 +1,6 @@
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { auditEvents } from '@petshop/hris-db/schema/access';
-import type { db } from '@/lib/db';
+import { db } from '@/lib/db';
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -28,4 +29,20 @@ export async function recordAudit(tx: Tx, input: AuditInput) {
     after: input.after ?? null,
     reason: input.reason ?? null,
   });
+}
+
+export type AuditRow = {
+  entityId: number | null; action: string; actorAccountId: number | null; before: unknown; after: unknown; reason: string | null; at: string;
+};
+
+/** Jejak perubahan beberapa baris satu entitas, terbaru dulu (layar "Riwayat" di modul pemiliknya). */
+export async function auditTrail(entity: string, entityIds: number[]): Promise<AuditRow[]> {
+  if (entityIds.length === 0) return [];
+  const rows = await db.select().from(auditEvents)
+    .where(and(eq(auditEvents.entity, entity), inArray(auditEvents.entityId, entityIds)))
+    .orderBy(desc(auditEvents.id));
+  return rows.map((row) => ({
+    entityId: row.entityId, action: row.action, actorAccountId: row.actorAccountId, before: row.before, after: row.after,
+    reason: row.reason, at: row.createdAt.toISOString(),
+  }));
 }

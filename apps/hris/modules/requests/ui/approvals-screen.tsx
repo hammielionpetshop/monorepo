@@ -94,7 +94,7 @@ export function ApprovalsScreen({ data }: { data: Data }) {
 
 type TypeRow = {
   key: string; label: string; module: string; approvers: string[]; reviewers: string[]; viewers: string[];
-  deadline: string; attachments: string; confidential: boolean; cancelAfterApproval: boolean; guideLine: string;
+  deadline: string; attachments: string; confidential: boolean; cancelAfterApproval: boolean; guideLine: string | null;
 };
 
 /** BER-L42 Jenis Pengajuan (hanya-lihat). Penyetuju diubah lewat Hak Akses Jabatan (spec L2f-1 §9 butir 2). */
@@ -119,7 +119,7 @@ export function RequestTypesScreen({ rows }: { rows: TypeRow[] }) {
             <div><dt className="text-ink-muted">Lampiran</dt><dd>{row.attachments}</dd></div>
             <div><dt className="text-ink-muted">Tertutup</dt><dd>{row.confidential ? 'Ya — hanya pengaju, penyetuju, dan Pemilik/GM' : 'Tidak'}</dd></div>
             <div><dt className="text-ink-muted">Minta dibatalkan setelah disetujui</dt><dd>{row.cancelAfterApproval ? 'Boleh' : 'Tidak'}</dd></div>
-            <div><dt className="text-ink-muted">Pedoman lapor</dt><dd>{row.guideLine}</dd></div>
+            <div><dt className="text-ink-muted">Pedoman lapor</dt><dd>{row.guideLine ?? 'Belum diisi'}</dd></div>
           </dl>
         </Card>
       ))}

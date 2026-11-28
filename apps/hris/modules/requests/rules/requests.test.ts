@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { APPROVAL_ACTIONS } from '@/lib/nav';
 import { canTransition, isOpen, isOwnRequest, waitingDays, waitingTone } from './status';
-import { deciderActions } from './types';
+import { REQUEST_TYPES, deciderActions } from './types';
 
 const parties = {
   actorAccountId: 1, actorPersonId: 10, submittedByAccountId: 2, submittedByEmployeeId: 20, subjectEmployeeId: 20,
@@ -49,5 +49,11 @@ describe('lama menunggu', () => {
 describe('daftar jenis', () => {
   it('tindakan menu Persetujuan sama dengan daftar jenis', () => {
     expect([...APPROVAL_ACTIONS].sort()).toEqual([...new Set(deciderActions())].sort());
+  });
+});
+
+describe('Pedoman Lapor pindah ke data (spec F3-5 §2.1, WAJ-05)', () => {
+  it('guideLine tidak lagi tertulis di daftar jenis pengajuan', () => {
+    for (const type of Object.values(REQUEST_TYPES)) expect(type).not.toHaveProperty('guideLine');
   });
 });
