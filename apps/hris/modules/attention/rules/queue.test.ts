@@ -64,6 +64,23 @@ describe('buildQueue: jenis gabungan (spec F3-4 §2 butir 1, §4)', () => {
   });
 });
 
+describe('kartu baru dari pengingat lonceng (spec F3-4 §5)', () => {
+  it('dua periode slip belum ditutup menjadi satu jendela ke daftar periode', () => {
+    const items = buildQueue([
+      card('payslip-held-2026-10-26', { tone: 'danger', queue: { kind: 'payslip-held', oldestAt: '2026-11-28T17:00:00Z' } }),
+      card('payslip-held-W2026-11-20', { queue: { kind: 'payslip-held', oldestAt: '2026-11-26T03:00:00Z' } }),
+    ], new Set());
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: 'payslip-held', title: 'Ada 2 periode slip belum ditutup.', href: '/payroll/periods', tone: 'danger' });
+  });
+
+  it('slip belum Dibayar dan Laporan Pulang memang untuk penerimanya, tidak disaring untuk Pemilik/GM', () => {
+    const unpaid = card('payslip-unpaid', { queue: { kind: 'payslip-unpaid' } });
+    const held = card('payslip-held-2026-10-26', { queue: { kind: 'payslip-held' } });
+    expect(routeForTop([unpaid, held], true, () => true)).toEqual([unpaid, held]);
+  });
+});
+
 describe('routeForTop: naik ke Pemilik/GM (spec F3-4 §2 butir 3)', () => {
   const points = card('store-points', { title: '2 titik toko menunggu persetujuan', queue: { kind: 'store-points' } });
   const trip = card('trip-hanging-1', { queue: { kind: 'trip-hanging' } });
