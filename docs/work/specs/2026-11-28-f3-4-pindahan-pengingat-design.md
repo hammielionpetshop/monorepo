@@ -1,6 +1,6 @@
 # F3-4 Pindahan Pengingat Modul ke Antrean — rancangan
 
-Status: **konsep, menunggu persetujuan owner** (ditulis 2026-11-28 sesudah F3-3b lolos uji). Belum dikoding.
+Status: **disetujui owner 2026-11-28** ("ok saya setuju"; keempat keputusan §8 sesuai saran). Koding F3-4a di sesi baru.
 
 Sumber: PRD Fase 3 `01-antrean-berantai.md` §5; spec F3-1 (`2026-11-15-f3-1-antrean-berantai-design.md`)
 §2–§3 dan §9 butir 4; v3 TAM-22, 24, 25; PRI-43; `daftar-lintas-modul` bab 2 (2.2, Tabel B, Tabel C).
@@ -138,7 +138,7 @@ jendela tidak memotong.
 **F3-4b:** slip periode lalu belum ditutup → HR dapat jendela sekali sehari sampai ditutup.
 **F3-4c:** ubah gaji karyawan uji → karyawan itu dapat satu jendela; sesudah OK tidak muncul lagi; lonceng tetap ada.
 
-## 8. Keputusan yang diminta dari owner
+## 8. Keputusan owner (2026-11-28: semua sesuai saran)
 
 1. **Pecah tiga langkah** F3-4a → F3-4b → F3-4c, uji satu per satu. Saran 💡: ya.
 2. **Daftar 3.1 dan 3.2** (mana jadi jendela, mana cukup kartu). Saran 💡: sesuai tabel; owner boleh

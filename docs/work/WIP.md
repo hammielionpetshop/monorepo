@@ -33,7 +33,8 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   settings/announcements/trip-wages lulus; typecheck root lulus; klaim/kunci `hris` dilepas. Catatan implementasi di
   spec §4.4. **F3-4 Pindahan Pengingat** — spec konsep `specs/2026-11-28-f3-4-pindahan-pengingat-design.md`
   (dipecah F3-4a kartu→jendela, F3-4b kartu baru dari pengingat lonceng, F3-4c sekali baca + migrasi hris `0062`);
-  **menunggu persetujuan owner** atas 4 keputusan §8. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
+  **disetujui owner 2026-11-28** ("ok saya setuju", 4 keputusan §8 sesuai saran). Berikutnya: klaim path + koding
+  **F3-4a** (tanpa migrasi) dari `origin/dev_hris` di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
