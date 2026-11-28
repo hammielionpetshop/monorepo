@@ -242,6 +242,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/sewa-mobil-pengaturan': '2026-11-11', // F2-5b kepemilikan + tarif sewa di Mobil & Rute
   'fitur/pengingat-berantai': '2026-11-15', // F3-1 jendela pengingat berantai (antrean)
   'fitur/pengingat-pindahan': '2026-11-28', // F3-4a kartu Perlu perhatian lain menjadi jendela + naik ke Pemilik/GM
+  'fitur/kabar-sekali-baca': '2026-11-28', // F3-4c kabar pribadi gaji/jadwal/hak muncul sekali sebagai jendela
   'fitur/pengingat-slip-laporan-pulang': '2026-11-28', // F3-4b kartu + jendela slip belum ditutup / belum Dibayar, Laporan Pulang
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
