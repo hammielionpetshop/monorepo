@@ -31,8 +31,9 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   pengaturan `mustAnnounce`/tarif ritase disimpan, tarik ↔ batal nilai, usulan HR membawa konsep, daftar §4.3)
   terintegrasi ke dev_hris dan staging — **lolos uji owner di staging 2026-11-28** ("ok aman", skenario tidak dirinci); ikut rilis HRIS. Tes integrasi DB 6 +
   settings/announcements/trip-wages lulus; typecheck root lulus; klaim/kunci `hris` dilepas. Catatan implementasi di
-  spec §4.4. **Langkah berikutnya Fase 3: F3-4** (pengingat modul ke antrean, PRD 01 §5) atau **F3-5** (menu Panduan),
-  spec dulu.
+  spec §4.4. **F3-4 Pindahan Pengingat** — spec konsep `specs/2026-11-28-f3-4-pindahan-pengingat-design.md`
+  (dipecah F3-4a kartu→jendela, F3-4b kartu baru dari pengingat lonceng, F3-4c sekali baca + migrasi hris `0062`);
+  **menunggu persetujuan owner** atas 4 keputusan §8. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
@@ -66,13 +67,12 @@ Owner menjawab daftar uji (skenario tidak dirinci):
   migrasi petshop `0072`, **tayang produksi 1.107.136**): "aman".
 - **F3-3b Wajib umumkan** (`feat/hris-f3-3b-must-announce`, migrasi hris `0061`): "ok aman"; ikut rilis HRIS.
 - **Alamat halaman HRIS/Logistik/Finance ke bahasa Inggris** (`feat/english-routes`): "aman"; ikut rilis HRIS.
+- **Backoffice 1.107.141 Detail PO Total Diterima** (`feat/po-received-total`, tayang produksi): owner "fitur yang tadi
+  menunggu saya test, sudah aman" (2026-11-28, sesudah dijelaskan ulang; dibaca sebagai fitur ini — satu-satunya
+  yang tersisa di daftar tunggu hari itu; skenario tidak dirinci).
 
 ## Menunggu uji owner
 
-- Backoffice 1.107.141 (**tayang produksi — menunggu uji owner**): Detail PO menampilkan **Total Diterima**
-  (nilai barang yang benar-benar masuk = dasar tagihan supplier), Subtotal dari qty diterima, tanda "kurang N",
-  kotak "Cara membaca angka di PO ini" (`feat/po-received-total`, tanpa migrasi). Owner 2026-11-28 lupa isinya;
-  sudah dijelaskan ulang.
 - Rilis lama **tayang produksi — menunggu uji owner**: 1.107.113 (Grooming Ditahan + shortcut langkah
   Pengiriman) dan 1.107.106 (rincian Minus Kasir per cabang). HRIS L2a (komponen & kerangka tampilan,
   `/komponen`) tercatat menunggu uji owner di staging.
