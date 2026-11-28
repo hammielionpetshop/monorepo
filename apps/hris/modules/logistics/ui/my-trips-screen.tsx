@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueueHold } from '@/components/queue';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { NewBadge } from '@/components/ui/new-badge';
@@ -88,6 +89,8 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Antrean menunggu selama Laporan Pulang atau langkah trip sedang diisi (spec F3-4 §2 butir 5).
+  useQueueHold(report !== null || step !== null);
 
   function begin(next: Step) {
     setError(null);

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueueHold } from '@/components/queue';
 import { Button, buttonClass } from '@/components/ui/button';
 import { HoldButton } from '@/components/ui/hold-button';
 import { Alert, Card } from '@/components/ui/surface';
@@ -24,6 +25,7 @@ export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarr
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
+  useQueueHold(); // langkah bertahap (spec F3-4 §2 butir 5)
   const [error, setError] = useState<string | null>(null);
   const [outcomes, setOutcomes] = useState<CloseOutcome[] | null>(null);
   const back = single && ready[0] ? `/payroll/payslips/${ready[0].slipId}` : `/payroll/periods/${period.key}`;
