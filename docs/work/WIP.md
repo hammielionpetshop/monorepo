@@ -49,10 +49,12 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   slip; mode uji staging membuka jendela tutup periode lalu. **F3-4c** (`feat/hris-f3-4c-once-queue`, migrasi hris `0062`:
   kolom `notifications.popup_acked_at` + penjaga trigger membolehkannya diisi sekali; `ONCE_GROUPS` 15 jenis Tabel C dalam 3
   kelompok Gaji dan potongan / Jadwal / Hak; satu jendela per kelompok sesudah tugas, OK menandai popup + terbaca di lonceng;
-  kabar > 7 hari tidak dimunculkan) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging, menunggu uji owner**
-  (spec §7 F3-4c). Tes aturan 22 lulus; migrasi + penjaga dicoba dalam transaksi rollback di DB lokal; typecheck root lulus;
-  klaim + kunci `hris` dilepas. Kelompok "Kegagalan penting" (cadangan gagal) belum ada sumber kabarnya di kode. Sesudah lolos:
-  **F3-5** menu Panduan (spec dulu) di sesi baru.
+  kabar > 7 hari tidak dimunculkan) terintegrasi ke dev_hris dan staging 2026-11-28 — **lolos uji owner di staging 2026-11-28**
+  (deployment `1e698b35`; owner: "sesi sebelum nya, sudah ok", skenario tidak dirinci); ikut rilis HRIS. Tes aturan 22 lulus; migrasi + penjaga dicoba dalam transaksi rollback di DB lokal; typecheck root lulus;
+  klaim + kunci `hris` dilepas. Kelompok "Kegagalan penting" (cadangan gagal) belum ada sumber kabarnya di kode. **F3-5 Menu Panduan** — spec konsep
+  `specs/2026-11-28-f3-5-panduan-design.md` (dipecah F3-5a Pedoman Lapor + migrasi hris `0063`, F3-5b Panduan Karyawan +
+  `0064`, F3-5c isi awal panduan dimuat tersembunyi); **menunggu persetujuan owner atas 6 keputusan §8**. Sesudah disetujui:
+  klaim + kunci `hris` lewat `docs/claim-f3-5a-report-guide`, worktree `feat/hris-f3-5a-report-guide` dari `origin/dev_hris`.
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
