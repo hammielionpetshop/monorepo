@@ -42,11 +42,17 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   (mis. kasbon diperiksa + diputuskan) menjajarkan judul kartunya. **F3-4b** (`feat/hris-f3-4b-new-cards`, tanpa migrasi,
   spec §5: kartu + jendela `payslip-held` slip belum ditutup per periode/minggu dengan siap/tertahan → HR + Pemilik/GM,
   `payslip-unpaid` slip lewat jatuh bayar belum Dibayar → Pemilik/GM, `end-report` Laporan Pulang belum diisi → driver; lonceng
-  lama tetap) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging, menunggu uji owner** (spec §7 F3-4b). Tes aturan
+  lama tetap) terintegrasi ke dev_hris dan staging 2026-11-28 — **lolos uji owner di staging 2026-11-28** (deployment `f197fc93`;
+  owner: "ok sudah aman", skenario tidak dirinci); ikut rilis HRIS. Tes aturan
   18 lulus; typecheck root lulus; fungsi kartu baru belum dicoba ke DB lokal (Docker mati); klaim dilepas. Catatan implementasi:
   penyelesai penahan slip (HOLD_LABELS) semuanya HR/Pemilik/GM, jadi tidak ada penerima tambahan; kartu tidak membuat kerangka
-  slip; mode uji staging membuka jendela tutup periode lalu. Sesudah lolos: **F3-4c** (sekali baca, migrasi hris `0062`, spec §6)
-  di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
+  slip; mode uji staging membuka jendela tutup periode lalu. **F3-4c** (`feat/hris-f3-4c-once-queue`, migrasi hris `0062`:
+  kolom `notifications.popup_acked_at` + penjaga trigger membolehkannya diisi sekali; `ONCE_GROUPS` 15 jenis Tabel C dalam 3
+  kelompok Gaji dan potongan / Jadwal / Hak; satu jendela per kelompok sesudah tugas, OK menandai popup + terbaca di lonceng;
+  kabar > 7 hari tidak dimunculkan) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging, menunggu uji owner**
+  (spec §7 F3-4c). Tes aturan 22 lulus; migrasi + penjaga dicoba dalam transaksi rollback di DB lokal; typecheck root lulus;
+  klaim + kunci `hris` dilepas. Kelompok "Kegagalan penting" (cadangan gagal) belum ada sumber kabarnya di kode. Sesudah lolos:
+  **F3-5** menu Panduan (spec dulu) di sesi baru.
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
