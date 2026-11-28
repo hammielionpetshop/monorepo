@@ -18,6 +18,7 @@ import {
 } from '../rules/clarification';
 import { correctionProblem, payPeriodOf, shiftPeriod, wibLocal, type DayState } from '../rules/review';
 import { addDays, mondayOf, versionOn, type IsoDate } from '../rules/schedule';
+import { daysBetween } from '../rules/days-off';
 import { absenceDateClash, absenceDayStatuses, absenceRules, absenceDaysOf, createClarificationAbsence, longDate, releaseAbsenceDays, shortDate, sickRunExceeded, subjectOn } from './absence';
 import { buildBranchWeek, rosterOn, type Executor, type RosterPerson } from './read';
 import { overtimeCorrectionProblem } from './overtime';
@@ -901,19 +902,28 @@ export async function habitScreen(actor: Actor, periodStart: string | null, now:
 
 // ---- Beranda ----
 
-export type ClarificationCardHome = { key: string; title: string; detail?: string; href: string };
+/** `queue`: kartu ini juga jendela antrean (spec F3-4 §3.1). */
+export type ClarificationCardHome = { key: string; title: string; detail?: string; href: string; queue?: { kind: string; oldestAt?: string | null } };
 
 export async function clarificationAttention(actor: Actor | null, now: Date = new Date()): Promise<ClarificationCardHome[]> {
   if (!actor) return [];
   const cards: ClarificationCardHome[] = [];
-  const mine = await db.execute<{ n: number; first: Date | null }>(sql`
-    select count(*)::int as n, min(ev.deadline_at) as first from hris.clarification_events ev
+  const today = wibDate(now);
+  const mine = await db.execute<{ n: number; first: Date | null; fresh: boolean | null }>(sql`
+    select count(*)::int as n, min(ev.deadline_at) as first,
+      bool_or((ev.born_at at time zone 'Asia/Jakarta')::date = ${today}::date) as fresh
+    from hris.clarification_events ev
     where ev.employee_id = ${actor.personId} and ev.state = 'OPEN' and ev.deadline_at > ${now.toISOString()}::timestamptz
       and not exists (select 1 from hris.clarification_event_links l where l.event_id = ev.id and l.active)`);
   const count = Number(mine[0]?.n ?? 0);
   if (count) {
     const first = mine[0].first ? new Date(mine[0].first) : null;
-    cards.push({ key: 'clarify-mine', title: `${count} hal perlu dijelaskan`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/clarifications' });
+    // B29: jendela di hari kejadian, H-1, dan hari terakhir.
+    const due = mine[0].fresh === true || (first !== null && daysBetween(today, wibDate(first)) <= 1);
+    cards.push({
+      key: 'clarify-mine', title: `${count} hal perlu dijelaskan`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/clarifications',
+      queue: due ? { kind: 'clarify-mine' } : undefined,
+    });
   }
   if (hasAction(actor, 'clarification.streak.seen')) {
     const flags = await db.execute<{ n: number }>(sql`
@@ -921,7 +931,7 @@ export async function clarificationAttention(actor: Actor | null, now: Date = ne
       where f.employee_id <> ${actor.personId}
         and coalesce((select s.seen from hris.absence_streak_seen s where s.flag_id = f.id order by s.id desc limit 1), false) = false`);
     const n = Number(flags[0]?.n ?? 0);
-    if (n) cards.push({ key: 'clarify-streak', title: `${n} orang tidak masuk berturut-turut`, detail: 'Belum ditandai sudah dilihat', href: '/attendance/clarifications?tab=streak' });
+    if (n) cards.push({ key: 'clarify-streak', title: `${n} orang tidak masuk berturut-turut`, detail: 'Belum ditandai sudah dilihat', href: '/attendance/clarifications?tab=streak', queue: { kind: 'absent-streak' } });
   }
   return cards;
 }

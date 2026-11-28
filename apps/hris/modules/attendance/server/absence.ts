@@ -608,7 +608,7 @@ export async function pendingLettersScreen(actor: Actor | null, now: Date = new 
     const left = letterDaysLeft(back, today, grace);
     return {
       id: letter.id, requestId: letter.requestId, range: rangeText(letter.startDate, letter.endDate),
-      open: left !== null,
+      open: left !== null, daysLeft: left,
       text: !back ? `Batasnya ${grace} hari sesudah Anda masuk kerja kembali.`
         : left === null ? 'Batas menyusulkan sudah lewat; hari itu dicatat sakit tanpa surat.'
           : left === 0 ? 'Hari ini batas terakhir.' : `Tinggal ${left} hari lagi (sampai ${shortDate(letterDeadline(back, grace))}).`,
@@ -786,14 +786,16 @@ export async function absenceToday(employeeId: number, on: IsoDate, executor: Ex
     : `Pengajuan ${label} untuk hari ini masih menunggu keputusan. Hari ini tidak ditandai alpha selama menunggu.`;
 }
 
-export type AbsenceCard = { key: string; title: string; detail?: string; href: string };
+/** `queue`: kartu ini juga jendela antrean (spec F3-4 §3.1). */
+export type AbsenceCard = { key: string; title: string; detail?: string; href: string; queue?: { kind: string; oldestAt?: string | null } };
 
 export async function absenceAttention(actor: Actor | null, now: Date = new Date()): Promise<AbsenceCard[]> {
   if (!actor) return [];
   const cards: AbsenceCard[] = [];
   for (const letter of await pendingLettersScreen(actor, now)) {
     if (!letter.open) continue;
-    cards.push({ key: `letter-${letter.id}`, title: 'Surat dokter belum disusulkan', detail: `Sakit ${letter.range}. ${letter.text}`, href: '/absence/doctor-notes' });
+    cards.push({ key: `letter-${letter.id}`, title: 'Surat dokter belum disusulkan', detail: `Sakit ${letter.range}. ${letter.text}`, href: '/absence/doctor-notes',
+      queue: letter.daysLeft !== null && letter.daysLeft <= 1 ? { kind: 'doctor-letter' } : undefined }); // B28: sisa 1 hari
   }
   if (can(actor, 'absence.decide')) {
     const today = wibDate(now);
@@ -802,7 +804,7 @@ export async function absenceAttention(actor: Actor | null, now: Date = new Date
       where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date and a.employee_id <> ${actor.personId}
         and a.origin <> 'CLARIFICATION'`);
     const count = Number(rows[0]?.n ?? 0);
-    if (count) cards.push({ key: 'absence-due', title: `${count} pengajuan izin/sakit/cuti menunggu, tanggalnya sudah tiba`, href: '/approvals' });
+    if (count) cards.push({ key: 'absence-due', title: `${count} pengajuan izin/sakit/cuti menunggu, tanggalnya sudah tiba`, href: '/approvals', queue: { kind: 'absence-due' } });
   }
   return cards;
 }

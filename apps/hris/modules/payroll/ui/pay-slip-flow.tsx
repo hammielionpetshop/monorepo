@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueueHold } from '@/components/queue';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
@@ -20,6 +21,7 @@ export function PaySlipFlow({ ready, skipped, total, today, latestClosedOn, sour
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(1);
+  useQueueHold(); // langkah bertahap (spec F3-4 §2 butir 5)
   const [sourceId, setSourceId] = useState(sources[0] ? String(sources[0].id) : '');
   const [moneyDate, setMoneyDate] = useState(today);
   const [dateReason, setDateReason] = useState('');

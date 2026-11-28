@@ -9,6 +9,7 @@ export {
   removeCrew, updateDraft, type ManualWageInput, type TripInput,
 } from './server/trips';
 export { saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn } from './server/fleet';
+export { logisticsQueueAges, type LogisticsQueueAges } from './server/queue-ages';
 export {
   fleetScreen, logisticsAttention, myTripMenuVisible, myTripsScreen, openTripPhoto, tripAttendanceScreen, tripDetailScreen, tripFormScreen, tripsScreen,
   wagesScreen, type TripCard, type TripTab,

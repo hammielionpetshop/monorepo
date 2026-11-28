@@ -241,6 +241,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/logistics/vehicle-rental': '2026-11-11', // F2-5b Sewa Mobil per ritase (tayang staging 2026-11-11)
   'fitur/sewa-mobil-pengaturan': '2026-11-11', // F2-5b kepemilikan + tarif sewa di Mobil & Rute
   'fitur/pengingat-berantai': '2026-11-15', // F3-1 jendela pengingat berantai (antrean)
+  'fitur/pengingat-pindahan': '2026-11-28', // F3-4a kartu Perlu perhatian lain menjadi jendela + naik ke Pemilik/GM
   'fitur/bensin-nominal': '2026-11-06', // Finance isi nominal + foto struk bensin, Catat bensin tanpa permintaan, Ubah / Batal
 };
 
