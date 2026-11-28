@@ -1095,6 +1095,58 @@ export async function runPayslipReminder(now: Date = new Date()) {
   return { sent };
 }
 
+export type SlipCloseCard = { key: string; title: string; detail?: string; href: string; tone?: 'danger'; since: string };
+
+/**
+ * Kartu "slip belum ditutup" (spec F3-4 §5, B41 + B58): pasangan pengingat `payslip.reminder` dan `payslip-weekly-reminder`,
+ * dihitung dari data sehingga hilang sendiri saat slipnya ditutup. Satu kartu per periode/minggu yang jendela tutupnya
+ * sudah terbuka dan masih punya slip Perkiraan. Penyelesai penahan (HOLD_LABELS) semuanya HR, Pemilik, atau GM, jadi
+ * penerimanya sama: pemegang `payslip.close` dan akses penuh. Tidak membuat kerangka slip (itu tugas mesin 04.55).
+ */
+export async function slipCloseAttention(actor: Actor | null, now: Date = new Date()): Promise<SlipCloseCard[]> {
+  if (!actor || !(actor.fullAccess || hasAction(actor, 'payslip.close'))) return [];
+  const current = periodStartOf(todayWib(now));
+  const cards: SlipCloseCard[] = [];
+  for (let p = addPeriods(current, -1); p >= PAYSLIP_FROM; p = addPeriods(p, -1)) {
+    const openDay = await openDayOf(p);
+    if (!closeWindowOpen(p, openDay, now, payslipTestMode())) continue;
+    const slips = await slipRowsOf(p);
+    const open = (await loadPeriodPeople(p, periodEndOf(p))).filter((person) => slips.get(person.id)?.status === 'ESTIMATE');
+    if (!open.length) continue;
+    const packages = await loadPackages(open.map((person) => person.id));
+    const salary = new Map(open.map((person) => {
+      const list = packages.get(person.id) ?? [];
+      return [person.id, (packageOn(list, p) ?? packageOn(list, periodEndOf(p))) != null] as const;
+    }));
+    const holds = await holdsOf(open, p, salary);
+    const held = open.filter((person) => (holds.get(person.id) ?? []).length).length;
+    cards.push({
+      key: `payslip-held-${p}`, title: `Slip periode ${periodLabel(p)}: ${open.length} belum ditutup`,
+      detail: held ? `${open.length - held} siap, ${held} tertahan — selesaikan penahannya lalu Tutup slip` : 'Semua siap ditutup',
+      href: `/payroll/periods/${p}`, tone: held ? 'danger' : undefined, since: closeOpensAt(p, openDay).toISOString(),
+    });
+  }
+  // Slip mingguan (L7b): minggu yang sudah berakhir dan jendela tutupnya terbuka.
+  const weekly = await db.select({ periodStart: payslips.periodStart, n: sql<number>`count(*)::int` }).from(payslips)
+    .where(and(inArray(payslips.kind, ['WEEKLY', 'WEEKLY_EXTRA']), eq(payslips.status, 'ESTIMATE'), gte(payslips.periodStart, WEEKLY_SLIP_FROM)))
+    .groupBy(payslips.periodStart);
+  if (weekly.length) {
+    const regimes = await loadWeekRegimes();
+    const today = todayWib(now);
+    for (const row of weekly.sort((a, b) => b.periodStart.localeCompare(a.periodStart))) {
+      const w = weekOf(row.periodStart, regimes);
+      if (w.end >= today) continue;
+      const opens = await weeklyCloseOpens(w.end);
+      if (now.getTime() < opens.getTime()) continue;
+      cards.push({
+        key: `payslip-held-${weekKey(w.start)}`, title: `Slip minggu ${longDate(w.start)} – ${longDate(w.end)}: ${Number(row.n)} belum ditutup`,
+        detail: 'Gaji mingguan jatuh bayar dua hari sesudah minggu berakhir', href: `/payroll/periods/${weekKey(w.start)}`, since: opens.toISOString(),
+      });
+    }
+  }
+  return cards;
+}
+
 /** Isi potongan satu orang satu periode untuk tab Potongan (GAJ-L19): tersimpan bila slipnya Ditutup, selain itu perkiraan. */
 export async function slipLinesFor(person: PayrollPerson, periodStart: IsoDate, now: Date = new Date()): Promise<(SlipComputation & { closed: boolean }) | null> {
   const [slip] = await db.select().from(payslips).where(and(eq(payslips.employeeId, person.id), eq(payslips.kind, 'MONTHLY'), eq(payslips.periodStart, periodStart), eq(payslips.status, 'CLOSED')));

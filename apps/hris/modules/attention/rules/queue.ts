@@ -67,6 +67,9 @@ export const QUEUE_KINDS = {
   'trip-wage-unrated': { group: 'TASK', reason: 'B57 — upah ritase belum bertarif', top: true },
   'unloading-unpaid': { group: 'TASK', reason: 'B61 — Laporan Bongkaran belum dibayar lewat harinya', top: true },
   'unloading-overpay': { group: 'TASK', reason: 'B62 — lebih bayar bongkaran lewat batas', top: true },
+  // Kartu baru dari pengingat lonceng (spec F3-4 §5, F3-4b)
+  'payslip-held': { group: 'TASK', reason: 'B41 + B58 — slip belum ditutup sesudah jendela tutup terbuka (ada yang tertahan)', many: 'periode slip belum ditutup', listHref: '/payroll/periods', top: true },
+  'payslip-unpaid': { group: 'TASK', reason: 'B43 — slip lewat jatuh bayar belum ditandai Dibayar', top: true },
   // Logistik
   'trip-hanging': { group: 'TASK', reason: 'B47 — trip belum Sampai Garasi lewat batas (LOG-31)', many: 'trip belum Sampai Garasi', listHref: '/logistics/trips?tab=hanging', top: true, holders: ['logistics.trip.manage'] },
   'self-cash': { group: 'TASK', reason: 'B49 — tunai antar sendiri menunggu diterima laci', holders: ['logistics.self_delivery.cash_receive'] },
@@ -77,6 +80,7 @@ export const QUEUE_KINDS = {
   'fuel-wait': { group: 'TASK', reason: 'B54 — permintaan bensin belum diisi sampai 12.00 hari berikutnya', holders: ['logistics.vehicle_followup.manage'] },
   'vehicle-attention': { group: 'TASK', reason: 'B21 — mobil perlu perhatian dari Laporan Pulang', holders: ['logistics.vehicle_followup.manage'] },
   'returned-goods': { group: 'TASK', reason: 'B56 — barang kembali belum diterima', holders: ['logistics.returned_goods.receive'] },
+  'end-report': { group: 'TASK', reason: 'B19, B20 — Laporan Pulang trip belum diisi driver', many: 'Laporan Pulang belum diisi', listHref: '/my-trips' },
 } as const satisfies Record<string, KindDefinition>;
 
 export type QueueKind = keyof typeof QUEUE_KINDS;

@@ -1,9 +1,9 @@
 import { hasAction, type Actor } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
-import { followupAttention, kasirChangeAttention, logisticsAttention, logisticsQueueAges, moneyCheckAttention, openReportCount, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, shortHandoverAttention, unrecordedCounts, depositAttention } from '@/modules/logistics';
+import { followupAttention, kasirChangeAttention, logisticsAttention, logisticsQueueAges, moneyCheckAttention, openReportCount, pendingEndReports, pendingNoteCounts, pendingPointCount, returnedGoodsWaiting, selfCashWaitingCount, selfDeliveryAttention, shortHandoverAttention, unrecordedCounts, depositAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue, todayWib } from '@/modules/employees';
-import { missingSalaryCount, myPayAttention, objectionAttention, overpayAttention, rupiah, tripWageAttention, unloadingAttention, weeklyPayCard } from '@/modules/payroll';
+import { missingSalaryCount, myPayAttention, objectionAttention, overpayAttention, rupiah, slipCloseAttention, tripWageAttention, unloadingAttention, unpaidSlipAttention, weeklyPayCard } from '@/modules/payroll';
 import { unreadAnnouncements } from '@/modules/announcements';
 import { waitingSummary } from '@/modules/requests';
 import { holdersOf, isQueueKind, queueKindOf, remindsApprover, routeForTop, type AttentionCard } from '../rules/queue';
@@ -19,7 +19,7 @@ function days(n: number) {
  * Belum disaring per web (HRIS / Logistik); penyaringan milik pemanggil.
  */
 export async function attentionCards(actor: Actor | null): Promise<{ mine: AttentionCard[]; system: AttentionCard[] }> {
-  const [waiting, promotion, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck, shortHandover, deposits, unread, ages] = await Promise.all([
+  const [waiting, promotion, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay, unloading, overpayLate, followup, pendingStorePoints, openStoreReports, goodsWaiting, pendingNotes, unrecorded, kasirChanged, selfAttention, selfCash, moneyCheck, shortHandover, deposits, unread, ages, slipClose, unpaidSlips, endReports] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     pendingReviewCount(actor),
@@ -50,6 +50,9 @@ export async function attentionCards(actor: Actor | null): Promise<{ mine: Atten
     depositAttention(actor),
     unreadAnnouncements(actor),
     logisticsQueueAges(),
+    slipCloseAttention(actor),
+    unpaidSlipAttention(actor),
+    pendingEndReports(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -109,6 +112,19 @@ export async function attentionCards(actor: Actor | null): Promise<{ mine: Atten
     mine.push({
       key: 'salary-missing', title: `${missingSalary} orang belum ada gaji`, detail: 'Slip mereka belum bisa dihitung',
       href: '/payroll?flag=missing', badge: 'fitur/beranda-belum-ada-gaji', queue: { kind: 'salary-missing' },
+    });
+  }
+  // Pengingat yang dulu hanya lonceng (spec F3-4 §5, F3-4b): slip belum ditutup, belum Dibayar, Laporan Pulang.
+  for (const card of slipClose) {
+    mine.push({ key: card.key, title: card.title, detail: card.detail, href: card.href, tone: card.tone, badge: 'fitur/pengingat-slip-laporan-pulang', queue: { kind: 'payslip-held', oldestAt: card.since } });
+  }
+  if (unpaidSlips) {
+    mine.push({ key: 'payslip-unpaid', title: unpaidSlips.title, detail: unpaidSlips.detail, href: unpaidSlips.href, tone: 'danger', badge: 'fitur/pengingat-slip-laporan-pulang', queue: { kind: 'payslip-unpaid', oldestAt: unpaidSlips.since } });
+  }
+  for (const report of endReports) {
+    mine.push({
+      key: `end-report-${report.tripId}`, title: `Laporan Pulang trip ${report.number} belum diisi`, detail: `${report.vehicle} · isi paling lambat 23.59 hari berikutnya`,
+      href: '/my-trips', badge: 'fitur/pengingat-slip-laporan-pulang', queue: { kind: 'end-report', oldestAt: report.tripDate },
     });
   }
   const system: AttentionCard[] = waiting.overdueAll ? [{
