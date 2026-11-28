@@ -33,8 +33,14 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   settings/announcements/trip-wages lulus; typecheck root lulus; klaim/kunci `hris` dilepas. Catatan implementasi di
   spec §4.4. **F3-4 Pindahan Pengingat** — spec konsep `specs/2026-11-28-f3-4-pindahan-pengingat-design.md`
   (dipecah F3-4a kartu→jendela, F3-4b kartu baru dari pengingat lonceng, F3-4c sekali baca + migrasi hris `0062`);
-  **disetujui owner 2026-11-28** ("ok saya setuju", 4 keputusan §8 sesuai saran). Berikutnya: klaim path + koding
-  **F3-4a** (tanpa migrasi) dari `origin/dev_hris` di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
+  **disetujui owner 2026-11-28** ("ok saya setuju", 4 keputusan §8 sesuai saran). **F3-4a** (`feat/hris-f3-4a-queue-kinds`,
+  tanpa migrasi: `queue.kind` menggabung kartu sejenis jadi satu jendela, 26 jenis baru §3.1 dengan syarat waktu dari modul,
+  naik ke Pemilik/GM lewat `liveHolderIds` bila penerima tidak ada/cuti > 2 hari, `logisticsQueueAges`, `useQueueHold` di
+  Laporan Pulang/langkah trip driver + Tutup/Bayar slip) terintegrasi ke dev_hris dan staging 2026-11-28 — **tayang staging,
+  menunggu uji owner** (spec §7 F3-4a). Tes aturan 16 lulus; SQL baru dicoba di DB lokal; typecheck root lulus; klaim dilepas.
+  Catatan implementasi: pemegang hak tidak dibedakan per cabang (cukup satu di mana pun); jendela gabungan tanpa kata benda
+  (mis. kasbon diperiksa + diputuskan) menjajarkan judul kartunya. Sesudah lolos: **F3-4b** (kartu baru dari pengingat lonceng,
+  spec §5) di sesi baru; tiap langkah selesai → owner membuka sesi baru. Sesudah F3-4: **F3-5** menu Panduan (spec dulu).
   Catatan: `dev_hris` belum menarik rilis BO 1.107.135–136 dari `main` (merge memberi konflik journal migrasi
   petshop + `apps/backoffice/lib/new-features.ts`); selesaikan terpisah sebelum rilis HRIS.
 - ⚠️ Jangan commit dengan `git -c core.autocrlf=false` di Windows: 2026-11-15 itu menyimpan 1591 file sebagai CRLF
