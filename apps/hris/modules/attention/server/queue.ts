@@ -4,7 +4,8 @@ import { db } from '@/lib/db';
 import { isLogisticsPath, type HrisWeb, type WebOrigins } from '@/lib/web-split';
 import type { Actor } from '@/modules/access';
 import { todayWib } from '@/modules/employees';
-import { buildQueue, isQueueKind, type QueueItem } from '../rules/queue';
+import { acknowledgePopups, pendingPopups } from '@/modules/notifications';
+import { ONCE_KINDS, ONCE_MAX_AGE_DAYS, buildOnceQueue, buildQueue, isQueueKind, parseOnceKind, type QueueItem } from '../rules/queue';
 import { attentionCards } from './cards';
 
 /** Jenis yang sudah di-OK akun ini pada hari WIB itu. */
@@ -21,8 +22,15 @@ export async function shownKinds(accountId: number, on: string): Promise<Set<str
  */
 export async function listQueue(accountId: number, actor: Actor | null, web: HrisWeb, origins: WebOrigins): Promise<QueueItem[]> {
   if (!actor || actor.limited) return [];
-  const [{ mine, system }, shown] = await Promise.all([attentionCards(actor), shownKinds(accountId, todayWib())]);
-  return buildQueue([...system, ...mine], shown).map((item) => ({ ...item, href: hrefForWeb(item.href, web, origins) }));
+  const [{ mine, system }, shown, once] = await Promise.all([
+    attentionCards(actor), shownKinds(accountId, todayWib()), pendingPopups(accountId, ONCE_KINDS, ONCE_MAX_AGE_DAYS),
+  ]);
+  // Sekali baca (spec F3-4 §6) di belakang tugas: kelompok ONCE paling akhir.
+  const onceItems = buildOnceQueue(once.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })));
+  return [...buildQueue([...system, ...mine], shown), ...onceItems].map((item) => ({
+    ...item, href: hrefForWeb(item.href, web, origins),
+    notes: item.notes?.map((note) => ({ ...note, link: note.link ? hrefForWeb(note.link, web, origins) : null })),
+  }));
 }
 
 export function hrefForWeb(href: string, web: HrisWeb, origins: WebOrigins): string {
@@ -37,7 +45,12 @@ export function hrefForWeb(href: string, web: HrisWeb, origins: WebOrigins): str
  * POST /api/queue/ack: catat "sudah tampil hari ini". Diulang tetap satu baris. Sekalian membuang catatan
  * akun itu yang lebih dari 90 hari (sama dengan masa simpan lonceng).
  */
-export async function acknowledgeQueue(accountId: number, kind: string): Promise<boolean> {
+export async function acknowledgeQueue(accountId: number, kind: string, noteIds: number[] = []): Promise<boolean> {
+  // Sekali baca: yang di-OK hanya kabar yang tampil di jendela itu; kabar yang masuk sesudahnya tetap menyusul.
+  if (parseOnceKind(kind)) {
+    await acknowledgePopups(accountId, noteIds);
+    return true;
+  }
   if (!isQueueKind(kind)) return false;
   await db.insert(queueShown).values({ accountId, kind, shownOn: todayWib() }).onConflictDoNothing();
   await db.delete(queueShown).where(and(eq(queueShown.accountId, accountId), lt(queueShown.shownOn, sql`(current_date - interval '90 days')::date`)));

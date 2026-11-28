@@ -6,7 +6,7 @@ import type { ActionName } from '@/modules/access';
  * tampil ke akun ini hari ini".
  */
 
-export type QueueGroup = 'EMERGENCY' | 'RULE' | 'TASK';
+export type QueueGroup = 'EMERGENCY' | 'RULE' | 'TASK' | 'ONCE';
 
 export type CardQueue = {
   /** Jenis jendela (spec F3-4 §2 butir 1). Kosong = kunci kartu. Kartu-kartu sejenis digabung menjadi satu jendela. */
@@ -25,7 +25,14 @@ export type AttentionCard = {
   queue?: CardQueue;
 };
 
-export type QueueItem = { kind: string; group: QueueGroup; title: string; detail: string | null; href: string; tone: 'danger' | null };
+/** Satu kabar di jendela sekali baca (spec F3-4 §6). */
+export type OnceNote = { id: number; title: string; body: string | null; link: string | null; createdAt: string };
+
+export type QueueItem = {
+  kind: string; group: QueueGroup; title: string; detail: string | null; href: string; tone: 'danger' | null;
+  /** Hanya kelompok ONCE: kabar-kabar yang ditampilkan; di-OK sekali, tidak muncul lagi. */
+  notes?: OnceNote[];
+};
 
 type KindDefinition = {
   group: QueueGroup; reason: string;
@@ -102,7 +109,7 @@ export function queueKindOf(card: AttentionCard): string {
   return card.queue?.kind ?? card.key;
 }
 
-const GROUP_ORDER: Record<QueueGroup, number> = { EMERGENCY: 0, RULE: 1, TASK: 2 };
+const GROUP_ORDER: Record<QueueGroup, number> = { EMERGENCY: 0, RULE: 1, TASK: 2, ONCE: 3 };
 
 export const NO_RECIPIENT = '(penerima tidak ada)';
 
@@ -184,4 +191,68 @@ export function remindsApprover(oldestDays: number, remindAfterDays: number): bo
 /** Sisa hari dari `today` ke `until` (tanggal ISO); negatif bila lewat. */
 export function daysUntil(today: string, until: string): number {
   return Math.round((Date.parse(`${until}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * Antrean sekali baca (spec F3-4 §6, daftar-lintas-modul Tabel C): kabar pribadi soal uang, hak, atau jadwal tanpa
+ * batas. Muncul sekali sebagai jendela per kelompok, hilang sesudah "OK, sudah baca", tidak masuk Perlu perhatian.
+ */
+export const ONCE_GROUPS = {
+  pay: {
+    title: 'Gaji dan potongan saya berubah',
+    kinds: ['salary.changed', 'salary.corrected', 'pay_waiver.created', 'manual_cash_shortage.active', 'other_deduction.active',
+      'inventory_loss.active', 'bonus.rejected', 'payslip.payment_cancelled'],
+  },
+  schedule: {
+    title: 'Jadwal saya berubah',
+    kinds: ['attendance.shift', 'attendance.day_off', 'logistics.assigned', 'logistics.removed', 'request.revoked'],
+  },
+  rights: {
+    title: 'Hak saya',
+    kinds: ['request.expired', 'advance.filled_for'],
+  },
+} as const satisfies Record<string, { title: string; kinds: readonly string[] }>;
+
+export type OnceGroup = keyof typeof ONCE_GROUPS;
+
+/** Jenis pemberitahuan yang sekali baca. */
+export const ONCE_KINDS: readonly string[] = Object.values(ONCE_GROUPS).flatMap((group) => group.kinds);
+
+/** Kabar lebih tua dari ini tanpa dibuka tidak lagi menjadi jendela (tetap di lonceng). */
+export const ONCE_MAX_AGE_DAYS = 7;
+
+const ONCE_PREFIX = 'once:';
+
+export function onceGroupOf(kind: string): OnceGroup | null {
+  for (const [group, def] of Object.entries(ONCE_GROUPS) as [OnceGroup, (typeof ONCE_GROUPS)[OnceGroup]][]) {
+    if ((def.kinds as readonly string[]).includes(kind)) return group;
+  }
+  return null;
+}
+
+/** Jenis jendela "once:pay" dst.; null bila bukan jendela sekali baca. */
+export function parseOnceKind(kind: string): OnceGroup | null {
+  if (!kind.startsWith(ONCE_PREFIX)) return null;
+  const group = kind.slice(ONCE_PREFIX.length);
+  return Object.prototype.hasOwnProperty.call(ONCE_GROUPS, group) ? group as OnceGroup : null;
+}
+
+/** Satu jendela per kelompok, urut kelompok seperti Tabel C; kabar di dalamnya terlama dulu. */
+export function buildOnceQueue(notes: (OnceNote & { kind: string })[]): QueueItem[] {
+  const byGroup = new Map<OnceGroup, OnceNote[]>();
+  for (const { kind, ...note } of [...notes].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id)) {
+    const group = onceGroupOf(kind);
+    if (!group) continue;
+    byGroup.set(group, [...(byGroup.get(group) ?? []), note]);
+  }
+  return (Object.keys(ONCE_GROUPS) as OnceGroup[]).filter((group) => byGroup.has(group)).map((group) => {
+    const list = byGroup.get(group)!;
+    return {
+      kind: `${ONCE_PREFIX}${group}`, group: 'ONCE' as const,
+      title: `${ONCE_GROUPS[group].title}: ${list.length} kabar`,
+      detail: null,
+      href: list.length === 1 && list[0].link ? list[0].link : '/notifications',
+      tone: null, notes: list,
+    };
+  });
 }

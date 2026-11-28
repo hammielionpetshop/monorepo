@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { notifications } from '@petshop/hris-db/schema/notifications';
 import { db } from '@/lib/db';
 import type { Tx } from '@/modules/access';
@@ -77,6 +77,34 @@ export async function markRead(accountId: number, id: number): Promise<{ link: s
 export async function markAllRead(accountId: number): Promise<number> {
   const rows = await db.update(notifications).set({ readAt: new Date() })
     .where(and(eq(notifications.recipientAccountId, accountId), isNull(notifications.readAt)))
+    .returning({ id: notifications.id });
+  return rows.length;
+}
+
+/**
+ * Antrean sekali baca (spec F3-4 §6): kabar berjenis `kinds` yang belum dibuka, belum di-OK di jendela, dan belum
+ * lewat `maxAgeDays` hari.
+ */
+export async function pendingPopups(accountId: number, kinds: readonly string[], maxAgeDays: number) {
+  if (!kinds.length) return [];
+  return db.select({
+    id: notifications.id, kind: notifications.kind, title: notifications.title, body: notifications.body,
+    link: notifications.link, createdAt: notifications.createdAt,
+  }).from(notifications)
+    .where(and(
+      eq(notifications.recipientAccountId, accountId), inArray(notifications.kind, [...kinds]),
+      isNull(notifications.readAt), isNull(notifications.popupAckedAt),
+      gte(notifications.createdAt, sql`now() - make_interval(days => ${maxAgeDays})`),
+    ))
+    .orderBy(asc(notifications.createdAt), asc(notifications.id)).limit(100);
+}
+
+/** "OK, sudah baca" di jendela sekali baca: tidak muncul lagi dan ikut terbaca di lonceng (kabarnya tetap ada). */
+export async function acknowledgePopups(accountId: number, ids: number[]): Promise<number> {
+  if (!ids.length) return 0;
+  const rows = await db.update(notifications)
+    .set({ popupAckedAt: sql`now()`, readAt: sql`coalesce(${notifications.readAt}, now())` })
+    .where(and(eq(notifications.recipientAccountId, accountId), inArray(notifications.id, ids), isNull(notifications.popupAckedAt)))
     .returning({ id: notifications.id });
   return rows.length;
 }

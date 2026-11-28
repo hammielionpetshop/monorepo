@@ -12,7 +12,8 @@ import { NewBadge } from './ui/new-badge';
  * tombol OK aktif sesudah jeda pengaturan "Jeda tombol pengingat". Isi dari GET /api/queue.
  * Pengumuman darurat (spec F3-2 §3.4) selalu paling depan, diperiksa tiap menit, dan tidak ditahan langkah bertahap.
  */
-type QueueItem = { kind: string; title: string; detail: string | null; href: string; tone: 'danger' | null };
+type OnceNote = { id: number; title: string; body: string | null; link: string | null; createdAt: string };
+type QueueItem = { kind: string; group?: string; title: string; detail: string | null; href: string; tone: 'danger' | null; notes?: OnceNote[] };
 type EmergencyItem = { id: number; title: string; message: string; senderName: string | null; createdAt: string };
 
 type QueueControl = { hold: () => () => void; clockInSent: () => void };
@@ -109,7 +110,7 @@ export function QueueProvider({ holdSeconds, children }: { holdSeconds: number; 
 
   async function acknowledge(item: QueueItem, open: boolean) {
     setBusy(true);
-    await postJson('/api/queue/ack', { kind: item.kind });
+    await postJson('/api/queue/ack', { kind: item.kind, ids: item.notes?.map((note) => note.id) });
     setBusy(false);
     setItems((list) => list.filter((row) => row.kind !== item.kind));
     if (!open) return;
@@ -167,7 +168,22 @@ export function QueueProvider({ holdSeconds, children }: { holdSeconds: number; 
           )}
         >
           {current.detail && <p className={current.tone === 'danger' ? 'text-danger-fg' : undefined}>{current.detail}</p>}
-          <p className="mt-2 flex items-center gap-2 text-xs text-ink-muted">Pengingat ini muncul sekali sehari sampai urusannya beres. <NewBadge feature="fitur/pengingat-berantai" /> <NewBadge feature="fitur/pengingat-pindahan" /></p>
+          {current.notes ? (
+            <>
+              <ul className="max-h-80 space-y-2 overflow-y-auto">
+                {current.notes.map((note) => (
+                  <li key={note.id} className="rounded-md border border-line px-3 py-2">
+                    <p className="font-medium">{note.title}</p>
+                    {note.body && <p className="whitespace-pre-line text-sm">{note.body}</p>}
+                    <p className="mt-1 text-xs text-ink-muted">{sentAt(note.createdAt)}</p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 flex items-center gap-2 text-xs text-ink-muted">Kabar ini muncul sekali saja; tetap bisa dibaca lagi di lonceng. <NewBadge feature="fitur/kabar-sekali-baca" /></p>
+            </>
+          ) : (
+            <p className="mt-2 flex items-center gap-2 text-xs text-ink-muted">Pengingat ini muncul sekali sehari sampai urusannya beres. <NewBadge feature="fitur/pengingat-berantai" /> <NewBadge feature="fitur/pengingat-pindahan" /></p>
+          )}
         </Dialog>
       )}
     </QueueContext.Provider>

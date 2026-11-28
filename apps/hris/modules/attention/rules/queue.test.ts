@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { NO_RECIPIENT, QUEUE_KINDS, buildQueue, daysUntil, remindsApprover, routeForTop, type AttentionCard } from './queue';
+import { NO_RECIPIENT, ONCE_GROUPS, ONCE_KINDS, QUEUE_KINDS, buildOnceQueue, buildQueue, parseOnceKind, daysUntil, remindsApprover, routeForTop, type AttentionCard } from './queue';
 
 const card = (key: string, over: Partial<AttentionCard> = {}): AttentionCard => ({
   key, title: `Kartu ${key}`, href: `/${key}`, queue: { group: 'TASK' }, ...over,
@@ -144,5 +144,41 @@ describe('QUEUE_KINDS', () => {
       'deposit-record', 'short-handover', 'kasir-changed', 'self-late', 'self-cash-late', 'money-check', 'advance-weekly', 'fence-off']) {
       expect(key in QUEUE_KINDS, key).toBe(false);
     }
+  });
+});
+
+describe('buildOnceQueue: antrean sekali baca (spec F3-4 §6)', () => {
+  const note = (id: number, kind: string, createdAt: string, link: string | null = null) => ({ id, kind, title: `Kabar ${id}`, body: null, link, createdAt });
+
+  it('satu jendela per kelompok, urut Tabel C, kabar terlama dulu; jenis lain diabaikan', () => {
+    const items = buildOnceQueue([
+      note(3, 'attendance.shift', '2026-11-27T02:00:00Z'),
+      note(2, 'salary.changed', '2026-11-28T02:00:00Z'),
+      note(1, 'bonus.rejected', '2026-11-26T02:00:00Z'),
+      note(4, 'request.created', '2026-11-25T02:00:00Z'),
+    ]);
+    expect(items.map((item) => item.kind)).toEqual(['once:pay', 'once:schedule']);
+    expect(items[0]).toMatchObject({ group: 'ONCE', title: 'Gaji dan potongan saya berubah: 2 kabar', href: '/notifications' });
+    expect(items[0].notes!.map((n) => n.id)).toEqual([1, 2]);
+  });
+
+  it('satu kabar bertautan → Buka langsung ke tautannya', () => {
+    expect(buildOnceQueue([note(9, 'logistics.assigned', '2026-11-28T02:00:00Z', '/my-trips')])[0].href).toBe('/my-trips');
+  });
+
+  it('jenis jendela sekali baca dikenali, yang lain tidak', () => {
+    expect(parseOnceKind('once:rights')).toBe('rights');
+    expect(parseOnceKind('once:lain')).toBeNull();
+    expect(parseOnceKind('requests')).toBeNull();
+  });
+
+  it('setiap jenis sekali baca memang dikirim oleh kode modul, dan tidak ganda antar kelompok', () => {
+    expect(new Set(ONCE_KINDS).size).toBe(ONCE_KINDS.length);
+    expect(Object.keys(ONCE_GROUPS)).toEqual(['pay', 'schedule', 'rights']);
+    const root = fileURLToPath(new URL('../../', import.meta.url));
+    const sources = (readdirSync(root, { recursive: true }) as string[])
+      .filter((file) => /server[\\/][^\\/]+\.ts$/.test(file) && !file.includes('.test.'))
+      .map((file) => readFileSync(`${root}${file}`, 'utf8')).join('\n');
+    for (const kind of ONCE_KINDS) expect(sources.includes(`'${kind}'`), kind).toBe(true);
   });
 });
