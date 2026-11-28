@@ -1,6 +1,6 @@
 # WIP
 
-Last updated: 2026-11-25
+Last updated: 2026-11-28
 Owner: repo session state
 
 WIP hanya berisi fokus dan langkah berikutnya. Riwayat rilis ada di `apps/backoffice/CHANGELOG.md`
@@ -29,7 +29,7 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   dikirim untuk disetujui dibatalkan dari Pengajuan Saya (status konsep "Ditolak / dibatalkan").
   **F3-3b Wajib umumkan** (spec §4, `feat/hris-f3-3b-must-announce`, migrasi hris `0061`: langkah Pengumuman saat
   pengaturan `mustAnnounce`/tarif ritase disimpan, tarik ↔ batal nilai, usulan HR membawa konsep, daftar §4.3)
-  terintegrasi ke dev_hris dan staging — **tayang staging, menunggu uji owner** (spec §8 F3-3b). Tes integrasi DB 6 +
+  terintegrasi ke dev_hris dan staging — **lolos uji owner di staging 2026-11-28** ("ok aman", skenario tidak dirinci); ikut rilis HRIS. Tes integrasi DB 6 +
   settings/announcements/trip-wages lulus; typecheck root lulus; klaim/kunci `hris` dilepas. Catatan implementasi di
   spec §4.4. **Langkah berikutnya Fase 3: F3-4** (pengingat modul ke antrean, PRD 01 §5) atau **F3-5** (menu Panduan),
   spec dulu.
@@ -56,18 +56,23 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   [`2026-11-08-perbaikan-logistik-hris.md`](backlog/2026-11-08-perbaikan-logistik-hris.md) — antrean
   selesai) lolos uji owner di staging; belum produksi.
 
+## Lolos uji owner 2026-11-28
+
+Owner menjawab daftar uji (skenario tidak dirinci):
+- **F2-6f Tutup Bulan + Koreksi bulan lalu** (spec `specs/2026-11-12-f2-6f-tutup-bulan-design.md`): "aman";
+  ikut rilis HRIS. Menutup bulan baru sungguhan baru bisa dicoba **mulai 1 Desember 2026** — belum tercakup
+  jawaban ini. BO-nya (`0070`/`0071`) sudah produksi 1.107.136 dalam keadaan tidak aktif.
+- **Kelola Kategori Pengeluaran Kasir + Biaya Rutin nominal berubah** (`feat/expense-category-manage`,
+  migrasi petshop `0072`, **tayang produksi 1.107.136**): "aman".
+- **F3-3b Wajib umumkan** (`feat/hris-f3-3b-must-announce`, migrasi hris `0061`): "ok aman"; ikut rilis HRIS.
+- **Alamat halaman HRIS/Logistik/Finance ke bahasa Inggris** (`feat/english-routes`): "aman"; ikut rilis HRIS.
+
 ## Menunggu uji owner
 
-- **F2-6f Tutup Bulan + Koreksi bulan lalu** (spec `specs/2026-11-12-f2-6f-tutup-bulan-design.md`,
-  langkah uji §4 dan §5.6): tayang staging; menutup bulan baru bisa dicoba **mulai 1 Desember 2026**.
-  BO-nya (`0070`/`0071`) sudah produksi 1.107.136 dalam keadaan tidak aktif (`month_closings` kosong).
-- **Kelola Kategori Pengeluaran Kasir + Biaya Rutin nominal berubah** (`feat/expense-category-manage`,
-  migrasi petshop `0072`): sudah **tayang produksi 1.107.136** atas izin owner; uji owner di
-  staging/produksi belum tercatat.
-- **Alamat halaman HRIS/Logistik/Finance ke bahasa Inggris** (owner 2026-11-14 "perbaiki sekarang saja";
-  spec `specs/2026-11-14-english-routes-design.md`, `feat/english-routes`, tanpa migrasi): terintegrasi
-  `dev_hris` & `staging` — **tayang staging — menunggu uji owner** (langkah uji spec §5). Alamat lama dialihkan
-  otomatis. Tes: aturan alamat/menu/akses/jadwal HRIS 167 + Finance 3; typecheck root lulus.
+- Backoffice 1.107.141 (**tayang produksi — menunggu uji owner**): Detail PO menampilkan **Total Diterima**
+  (nilai barang yang benar-benar masuk = dasar tagihan supplier), Subtotal dari qty diterima, tanda "kurang N",
+  kotak "Cara membaca angka di PO ini" (`feat/po-received-total`, tanpa migrasi). Owner 2026-11-28 lupa isinya;
+  sudah dijelaskan ulang.
 - Rilis lama **tayang produksi — menunggu uji owner**: 1.107.113 (Grooming Ditahan + shortcut langkah
   Pengiriman) dan 1.107.106 (rincian Minus Kasir per cabang). HRIS L2a (komponen & kerangka tampilan,
   `/komponen`) tercatat menunggu uji owner di staging.
@@ -78,7 +83,7 @@ dirapikan 2026-11-14 tersimpan di riwayat Git (`git show 265d0f0f:docs/work/WIP.
   PO-20261110-0006 & PO-20261111-0007 (Rumah Petshop); Biaya Rutin listrik/air per
   cabang (butuh nominal); cocokkan satu hari nyata setoran dua toko (F2-3); baca Pratinjau Utang Lama
   sebelum menekan Jalankan pelunasan susulan (Owner sendiri, bukan agent).
-- **Staging:** `STAGING_BO_AUTH_BRIDGE_UNTIL` berlaku s.d. **2026-11-17 12:00 WIB**; sesudahnya deploy
+- **Staging:** `STAGING_BO_AUTH_BRIDGE_UNTIL` berlaku s.d. **2026-12-01 12:00 WIB**; sesudahnya deploy
   staging gagal sampai dikosongkan/diperpanjang atas izin owner.
 - **Sebelum rilis HRIS ke produksi** (saat owner memutuskan): cutover akun pusat mengikuti
   `docs/ops/auth-pusat.md` (persetujuan owner terpisah; masa stabil 30 hari dari cutover);
