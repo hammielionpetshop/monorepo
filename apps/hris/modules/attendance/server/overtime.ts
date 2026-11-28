@@ -18,6 +18,7 @@ import {
 } from '../rules/overtime';
 import { payPeriodOf, type DayState } from '../rules/review';
 import { addDays, closingTime, versionOn, type IsoDate } from '../rules/schedule';
+import { daysBetween } from '../rules/days-off';
 import { shortDate } from './absence';
 import { activeDayOffKeys, loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
 import { loadDayInfos } from './review';
@@ -621,7 +622,7 @@ export async function teamOvertimeScreen(actor: Actor, input: { tab: TeamOvertim
 
 // ---- Beranda ----
 
-export async function overtimeAttention(actor: Actor | null, now: Date = new Date()): Promise<{ key: string; title: string; detail?: string; href: string }[]> {
+export async function overtimeAttention(actor: Actor | null, now: Date = new Date()): Promise<{ key: string; title: string; detail?: string; href: string; queue?: { kind: string } }[]> {
   if (!actor) return [];
   const rows = await db.execute<{ n: number; first: Date | null }>(sql`
     select count(*)::int as n, min(deadline_at) as first from hris.overtime_days
@@ -629,7 +630,9 @@ export async function overtimeAttention(actor: Actor | null, now: Date = new Dat
   const n = Number(rows[0]?.n ?? 0);
   if (!n) return [];
   const first = rows[0].first ? new Date(rows[0].first) : null;
-  return [{ key: 'overtime-mine', title: `${n} lembur belum diklaim`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/overtime' }];
+  // B32: jendela H-1 dan hari terakhir batas klaim.
+  const due = first !== null && daysBetween(wibDate(now), wibDate(first)) <= 1;
+  return [{ key: 'overtime-mine', title: `${n} lembur belum diklaim`, detail: first ? `Terdekat batas ${deadlineText(first)}` : undefined, href: '/overtime', queue: due ? { kind: 'overtime-unclaimed' } : undefined }];
 }
 
 // ---- Mesin harian `overtime-daily` 04.30 WIB (spec L3h §6) ----

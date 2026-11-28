@@ -167,7 +167,7 @@ export function QueueProvider({ holdSeconds, children }: { holdSeconds: number; 
           )}
         >
           {current.detail && <p className={current.tone === 'danger' ? 'text-danger-fg' : undefined}>{current.detail}</p>}
-          <p className="mt-2 flex items-center gap-2 text-xs text-ink-muted">Pengingat ini muncul sekali sehari sampai urusannya beres. <NewBadge feature="fitur/pengingat-berantai" /></p>
+          <p className="mt-2 flex items-center gap-2 text-xs text-ink-muted">Pengingat ini muncul sekali sehari sampai urusannya beres. <NewBadge feature="fitur/pengingat-berantai" /> <NewBadge feature="fitur/pengingat-pindahan" /></p>
         </Dialog>
       )}
     </QueueContext.Provider>

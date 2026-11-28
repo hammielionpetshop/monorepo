@@ -956,7 +956,11 @@ async function headsOf(branchId: number, executor: Executor = db): Promise<numbe
 
 // ---- Beranda dan Absen ----
 
-export type DayOffCard = { key: string; title: string; detail?: string; href: string };
+/** `queue`: kartu ini juga jendela antrean (spec F3-4 §3.1). */
+export type DayOffCard = { key: string; title: string; detail?: string; href: string; queue?: { kind: string; oldestAt?: string | null } };
+
+/** B23: jendela antrean H-7, H-3, H-1 sebelum jendela libur ditutup. */
+const DAY_OFF_QUEUE_DAYS = [7, 3, 1];
 
 export async function dayOffAttention(actor: Actor | null, now: Date = new Date()): Promise<DayOffCard[]> {
   const today = wibDate(now);
@@ -979,6 +983,7 @@ export async function dayOffAttention(actor: Actor | null, now: Date = new Date(
       key: `day-off-${periodStart}`, title: `Jatah libur belum lengkap: ${picked} dari ${quota}`,
       detail: phase === 'OPEN' ? `Periode ${start} s.d. ${end}. Ditutup ${window.closes} pukul 23.59.` : `Periode ${start} s.d. ${end}. Pilih tanggal paling cepat ${addDays(today, rules.lateMinDays)}.`,
       href: `/days-off?period=${periodStart}`,
+      queue: phase === 'OPEN' && DAY_OFF_QUEUE_DAYS.includes(daysBetween(today, window.closes)) ? { kind: 'day-off-quota' } : undefined,
     });
   }
   const [incoming, requests, waiting] = await Promise.all([
@@ -990,9 +995,10 @@ export async function dayOffAttention(actor: Actor | null, now: Date = new Date(
     )),
     db.select().from(replacementDaysOff).where(and(eq(replacementDaysOff.employeeId, me.employeeId), eq(replacementDaysOff.status, 'WAITING'))),
   ]);
-  if (incoming.length) cards.push({ key: 'swap', title: `Ajakan tukar menunggu jawaban Anda: ${incoming.length}`, href: '/swaps' });
-  for (const row of requests) cards.push({ key: `work-${row.id}`, title: `Anda diminta masuk ${longDate(row.workDate)}`, detail: 'Tekan Siap masuk.', href: '/days-off' });
-  for (const row of waiting) cards.push({ key: `rep-${row.id}`, title: 'Pilih libur pengganti', detail: `Paling lambat ${longDate(row.chooseBy)}.`, href: '/days-off' });
+  if (incoming.length) cards.push({ key: 'swap', title: `Ajakan tukar menunggu jawaban Anda: ${incoming.length}`, href: '/swaps', queue: { kind: 'swap-invite' } });
+  for (const row of requests) cards.push({ key: `work-${row.id}`, title: `Anda diminta masuk ${longDate(row.workDate)}`, detail: 'Tekan Siap masuk.', href: '/days-off', queue: { kind: 'work-request' } });
+  for (const row of waiting) cards.push({ key: `rep-${row.id}`, title: 'Pilih libur pengganti', detail: `Paling lambat ${longDate(row.chooseBy)}.`, href: '/days-off',
+    queue: daysBetween(today, row.chooseBy) <= 3 ? { kind: 'replacement-day' } : undefined }); // B26: sisa 3 hari
   return cards;
 }
 
