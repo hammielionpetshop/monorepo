@@ -472,4 +472,22 @@ export async function runPayslipPayReminder(now: Date = new Date()) {
   return { sent };
 }
 
+/**
+ * Kartu "slip belum ditandai Dibayar" (spec F3-4 §5, B43): pasangan pengingat `payslip.pay_reminder` untuk Pemilik/GM,
+ * dihitung dari data dengan ambang yang sama (`reminderDue`: lewat jatuh bayar). Hilang sendiri saat slipnya ditandai Dibayar.
+ */
+export async function unpaidSlipAttention(actor: Actor | null, now: Date = new Date()) {
+  if (!actor?.fullAccess) return null;
+  const today = todayWib(now);
+  const late = (await unpaidByPeriod(now)).flatMap((g) => g.unpaid.filter((u) => reminderDue(u.due, today)));
+  if (!late.length) return null;
+  const since = late.reduce((min, u) => (u.due < min ? u.due : min), late[0].due);
+  return {
+    count: late.length, since,
+    title: `${late.length} slip belum ditandai Dibayar`,
+    detail: `Sejak ${longDate(since)} · ${rupiah(late.reduce((s, u) => s + (u.slip.net ?? 0), 0))}`,
+    href: '/payroll/pay-schedule',
+  };
+}
+
 export type { DueBucket };
